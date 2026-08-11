@@ -31,7 +31,7 @@ const GROUPS = [
       { id: "data-footprint", label: "Data Footprint", icon: Database },
       { id: "risk-register", label: "Risk Register", icon: AlertTriangle },
       { id: "exceptions", label: "Exceptions", icon: AlertCircle, disabled: true },
-      { id: "policy-center", label: "Policy Center", icon: FileText, disabled: true },
+      { id: "policy-center", label: "Policy Center", icon: FileText },
     ],
   },
   {

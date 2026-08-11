@@ -5,6 +5,7 @@ import DataClassificationGapMatrix from "./pages/DataClassificationGapMatrix";
 import DataFootprint from "./pages/DataFootprint";
 import RiskRegister from "./pages/RiskRegister";
 import ExecutiveDashboard from "./pages/ExecutiveDashboard";
+import PolicyCenter from "./pages/PolicyCenter";
 import { C, applyTheme, FONT_IMPORT } from "./theme";
 
 // Map nav item ids (defined in Sidebar.jsx) to the page component to render.
@@ -15,6 +16,7 @@ const PAGES = {
   "data-footprint": DataFootprint,
   "risk-register": RiskRegister,
   executive: ExecutiveDashboard,
+  "policy-center": PolicyCenter,
 };
 
 export default function App() {
