@@ -22,6 +22,13 @@ export function getFrameworkClauses(controlIds, standard) {
   return [...set].sort();
 }
 
+// "Core" policies are the ones day-to-day employee behavior actually drives risk on
+// (how you log in, handle data, use AI tools, and report trouble) — small on purpose,
+// so pinning them as required reading doesn't just recreate the same wall of text
+// employees already skim past. Everything else is "Extended": still real policy,
+// but scoped to a role or function rather than asked of the whole company.
+export const POLICY_TIERS = { CORE: "Core", EXTENDED: "Extended" };
+
 export const POLICY_CATEGORIES = [
   "Governance",
   "People",
@@ -42,6 +49,7 @@ export const POLICIES = [
     code: "POL-01",
     title: "Information Security Governance & Risk Policy",
     category: "Governance",
+    tier: POLICY_TIERS.EXTENDED,
     domains: ["Security, Compliance & Resilience Governance", "Risk Management", "Compliance", "Information Assurance", "Project & Resource Management"],
     controlIds: [
       "GOV-01","GOV-02","GOV-03","GOV-04","GOV-05","GOV-06","GOV-07","GOV-08","GOV-09","GOV-10","GOV-14","GOV-15","GOV-16","GOV-17",
@@ -81,6 +89,7 @@ export const POLICIES = [
     code: "POL-02",
     title: "Acceptable Use & Asset Management Policy",
     category: "Devices & Assets",
+    tier: POLICY_TIERS.CORE,
     domains: ["Asset Management", "Endpoint Security"],
     controlIds: [
       "AST-01","AST-02","AST-03","AST-04","AST-05","AST-06","AST-07","AST-08","AST-09","AST-10","AST-11","AST-12","AST-15",
@@ -116,6 +125,7 @@ export const POLICIES = [
     code: "POL-03",
     title: "Access Control Policy",
     category: "Access & Identity",
+    tier: POLICY_TIERS.CORE,
     domains: ["Identification & Authentication"],
     controlIds: [
       "IAC-01","IAC-02","IAC-03","IAC-04","IAC-05","IAC-06","IAC-07","IAC-08","IAC-09","IAC-10","IAC-12","IAC-13","IAC-14",
@@ -153,6 +163,7 @@ export const POLICIES = [
     code: "POL-04",
     title: "Data Classification & Handling Policy",
     category: "Data",
+    tier: POLICY_TIERS.CORE,
     domains: ["Data Classification & Handling", "Cryptographic Protections"],
     controlIds: [
       "DCH-01","DCH-02","DCH-03","DCH-04","DCH-06","DCH-07","DCH-08","DCH-09","DCH-10","DCH-11","DCH-12","DCH-13","DCH-14",
@@ -189,6 +200,7 @@ export const POLICIES = [
     code: "POL-05",
     title: "Data Privacy Policy",
     category: "Data",
+    tier: POLICY_TIERS.CORE,
     domains: ["Data Privacy"],
     controlIds: ["PRI-01","PRI-02","PRI-03","PRI-04","PRI-05","PRI-06","PRI-07","PRI-08","PRI-10","PRI-12","PRI-14","PRI-17","PRI-18"],
     purpose: "ACME collects personal data from employees, customers, and job applicants. This policy explains the principles we follow to handle that data responsibly and lawfully.",
@@ -220,6 +232,7 @@ export const POLICIES = [
     code: "POL-06",
     title: "Mobile Device & BYOD Policy",
     category: "Devices & Assets",
+    tier: POLICY_TIERS.EXTENDED,
     domains: ["Mobile Device Management"],
     controlIds: ["MDM-01","MDM-02","MDM-03","MDM-05"],
     purpose: "Whether you're using an ACME-issued phone or your own, this policy covers what's required before that device can touch ACME email, chat, or files.",
@@ -248,6 +261,7 @@ export const POLICIES = [
     code: "POL-07",
     title: "Network & Remote Access Policy",
     category: "Network & Cloud",
+    tier: POLICY_TIERS.EXTENDED,
     domains: ["Network Security"],
     controlIds: ["NET-01","NET-02","NET-03","NET-04","NET-05","NET-06","NET-07","NET-08","NET-09","NET-12","NET-13","NET-14","NET-15","NET-17","NET-18"],
     purpose: "This policy covers how ACME protects its network and how you connect securely from the office, home, or on the road.",
@@ -278,6 +292,7 @@ export const POLICIES = [
     code: "POL-08",
     title: "Cloud Security Policy",
     category: "Network & Cloud",
+    tier: POLICY_TIERS.EXTENDED,
     domains: ["Cloud Security"],
     controlIds: ["CLD-01","CLD-02","CLD-04","CLD-06","CLD-09","CLD-11","CLD-12"],
     purpose: "ACME runs on cloud and SaaS services. This policy covers how new cloud services get approved and secured, so we don't end up with unmanaged 'shadow IT.'",
@@ -306,6 +321,7 @@ export const POLICIES = [
     code: "POL-09",
     title: "Change & Configuration Management Policy",
     category: "Engineering & Change",
+    tier: POLICY_TIERS.EXTENDED,
     domains: ["Change Management", "Configuration Management", "Maintenance"],
     controlIds: [
       "CHG-01","CHG-02","CHG-03","CHG-04","CHG-05","CHG-06",
@@ -341,6 +357,7 @@ export const POLICIES = [
     code: "POL-10",
     title: "Vulnerability & Patch Management Policy",
     category: "Engineering & Change",
+    tier: POLICY_TIERS.EXTENDED,
     domains: ["Vulnerability & Patch Management"],
     controlIds: ["VPM-01","VPM-02","VPM-03","VPM-04","VPM-05","VPM-06","VPM-07"],
     purpose: "This policy explains how ACME finds and fixes security weaknesses in its systems and software before they can be exploited.",
@@ -371,6 +388,7 @@ export const POLICIES = [
     code: "POL-11",
     title: "Secure Software Development & Acquisition Policy",
     category: "Engineering & Change",
+    tier: POLICY_TIERS.EXTENDED,
     domains: ["Secure Engineering & Architecture", "Technology Development & Acquisition", "Web Security", "Embedded Technology"],
     controlIds: [
       "SEA-01","SEA-02","SEA-03","SEA-04","SEA-07","SEA-14","SEA-17","SEA-20",
@@ -407,6 +425,7 @@ export const POLICIES = [
     code: "POL-12",
     title: "Third-Party & Vendor Risk Management Policy",
     category: "Third Parties",
+    tier: POLICY_TIERS.EXTENDED,
     domains: ["Third-Party Management"],
     controlIds: ["TPM-01","TPM-02","TPM-03","TPM-04","TPM-05","TPM-06","TPM-07","TPM-08","TPM-09","TPM-10","TPM-11"],
     purpose: "ACME relies on vendors and partners, and we're accountable for what happens to our data once it's in their hands. This policy explains how vendors get vetted and managed.",
@@ -437,6 +456,7 @@ export const POLICIES = [
     code: "POL-13",
     title: "Business Continuity & Disaster Recovery Policy",
     category: "Resilience & Response",
+    tier: POLICY_TIERS.EXTENDED,
     domains: ["Business Continuity & Disaster Recovery", "Capacity & Performance Planning"],
     controlIds: [
       "BCD-01","BCD-02","BCD-03","BCD-04","BCD-05","BCD-06","BCD-07","BCD-08","BCD-09","BCD-10","BCD-11","BCD-12","BCD-13",
@@ -470,6 +490,7 @@ export const POLICIES = [
     code: "POL-14",
     title: "Incident Response Policy",
     category: "Resilience & Response",
+    tier: POLICY_TIERS.CORE,
     domains: ["Incident Response"],
     controlIds: ["IRO-01","IRO-02","IRO-04","IRO-05","IRO-06","IRO-07","IRO-08","IRO-09","IRO-10","IRO-11","IRO-12","IRO-13","IRO-14"],
     purpose: "If something looks wrong — a phishing email you clicked, a lost laptop, unusual account activity — this policy tells you what to do, and what ACME does behind the scenes to contain and fix it.",
@@ -502,6 +523,7 @@ export const POLICIES = [
     code: "POL-15",
     title: "Security Monitoring & Operations Policy",
     category: "Resilience & Response",
+    tier: POLICY_TIERS.EXTENDED,
     domains: ["Continuous Monitoring", "Security Operations", "Threat Management"],
     controlIds: [
       "MON-01","MON-02","MON-03","MON-05","MON-06","MON-07","MON-08","MON-10","MON-11","MON-15","MON-16",
@@ -536,6 +558,7 @@ export const POLICIES = [
     code: "POL-16",
     title: "Physical & Environmental Security Policy",
     category: "Physical",
+    tier: POLICY_TIERS.EXTENDED,
     domains: ["Physical & Environmental Security"],
     controlIds: ["PES-01","PES-02","PES-03","PES-04","PES-05","PES-06","PES-07","PES-08","PES-09","PES-10","PES-11","PES-12","PES-13","PES-15"],
     purpose: "This policy covers physical access to ACME offices and any facility housing ACME systems — badges, visitors, and keeping equipment physically safe.",
@@ -565,6 +588,7 @@ export const POLICIES = [
     code: "POL-17",
     title: "Human Resources Security Policy",
     category: "People",
+    tier: POLICY_TIERS.EXTENDED,
     domains: ["Human Resources Security"],
     controlIds: ["HRS-01","HRS-02","HRS-03","HRS-04","HRS-05","HRS-06","HRS-07","HRS-08","HRS-09","HRS-10","HRS-11","HRS-12","HRS-13"],
     purpose: "Security starts before someone's first day and continues through their last. This policy covers screening, role expectations, and how access changes as employment does.",
@@ -596,6 +620,7 @@ export const POLICIES = [
     code: "POL-18",
     title: "Security Awareness & Training Policy",
     category: "People",
+    tier: POLICY_TIERS.CORE,
     domains: ["Security Awareness & Training"],
     controlIds: ["SAT-01","SAT-02","SAT-03","SAT-04"],
     purpose: "Most incidents start with a person, not a piece of malware. This policy explains ACME's ongoing effort to keep everyone — not just IT — able to spot and avoid common threats.",
@@ -624,6 +649,7 @@ export const POLICIES = [
     code: "POL-19",
     title: "Artificial Intelligence Acceptable Use Policy",
     category: "Emerging Tech",
+    tier: POLICY_TIERS.CORE,
     domains: ["Artificial Intelligence & Autonomous Technologies"],
     controlIds: ["AAT-01","AAT-11","AAT-13"],
     purpose: "AI tools can genuinely help you work faster — this policy explains which tools are approved and what you should never paste into any AI tool, approved or not.",

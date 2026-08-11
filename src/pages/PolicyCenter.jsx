@@ -1,13 +1,29 @@
 import React, { useMemo, useState } from "react";
-import { BookOpen, Search, Layers, ListChecks, ClipboardList, Users2, Link2 } from "lucide-react";
+import { BookOpen, Search, Layers, ListChecks, ClipboardList, Users2, Link2, ShieldAlert } from "lucide-react";
 import { C } from "../theme";
-import { POLICIES, POLICY_CATEGORIES, getFrameworkClauses } from "../data/policies";
+import { POLICIES, POLICY_CATEGORIES, POLICY_TIERS, getFrameworkClauses } from "../data/policies";
 
 const STANDARD_ABBR = { "SOC 2": "SOC2", "ISO 27001": "27001", "ISO 27017": "27017", "ISO 27018": "27018", "ISO 27701": "27701", "PCI DSS": "PCI", HIPAA: "HIPAA" };
 const MAPPED_STANDARDS = ["ISO 27001", "SOC 2", "PCI DSS", "HIPAA"];
 
 const TOTAL_DOMAINS = new Set(POLICIES.flatMap((p) => p.domains)).size;
 const TOTAL_CONTROLS = new Set(POLICIES.flatMap((p) => p.controlIds)).size;
+const CORE_POLICIES = POLICIES.filter((p) => p.tier === POLICY_TIERS.CORE);
+
+function CoreBadge({ compact }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 shrink-0 font-semibold rounded"
+      style={
+        compact
+          ? { color: C.amber }
+          : { fontSize: 10, textTransform: "uppercase", letterSpacing: 0.4, padding: "2px 6px", background: C.amberBg, color: C.amber }
+      }
+    >
+      <ShieldAlert size={compact ? 11 : 10} /> {!compact && "Required for all employees"}
+    </span>
+  );
+}
 
 function SectionLabel({ icon: Icon, children }) {
   return (
@@ -55,6 +71,8 @@ export default function PolicyCenter() {
     return POLICIES.filter((p) => p.title.toLowerCase().includes(q) || p.code.toLowerCase().includes(q) || p.domains.some((d) => d.toLowerCase().includes(q)));
   }, [query]);
 
+  const coreFiltered = useMemo(() => filtered.filter((p) => p.tier === POLICY_TIERS.CORE), [filtered]);
+
   const grouped = useMemo(() => {
     return POLICY_CATEGORIES.map((cat) => ({ category: cat, policies: filtered.filter((p) => p.category === cat) })).filter((g) => g.policies.length > 0);
   }, [filtered]);
@@ -74,14 +92,18 @@ export default function PolicyCenter() {
           </div>
         </div>
         <p className="text-sm mt-2 max-w-2xl" style={{ color: C.muted }}>
-          Plain-language policies for every ACME employee, backed by ISO 27001 and the same SCF control crosswalk that powers the Common Control Framework. Control mapping below each policy is pulled live from that crosswalk — never hand-typed.
+          Plain-language policies for every ACME employee, backed by ISO 27001 and the same SCF control crosswalk that powers the Common Control Framework. Control mapping below each policy is pulled live from that crosswalk — never hand-typed. The {CORE_POLICIES.length} <span style={{ color: C.amber, fontWeight: 600 }}>Core</span> policies below drive the most day-to-day risk and are required reading for every employee; the rest are scoped to a role or function.
         </p>
       </div>
 
-      <div className="px-8 grid grid-cols-3 gap-4 mb-5">
+      <div className="px-8 grid grid-cols-4 gap-4 mb-5">
         <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
           <div className="text-2xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{POLICIES.length}</div>
           <div className="text-xs mt-1" style={{ color: C.muted }}>Published policies</div>
+        </div>
+        <div className="rounded-xl p-4" style={{ background: C.amberBg, border: `1px solid ${C.amber}4D` }}>
+          <div className="text-2xl font-semibold" style={{ color: C.amber, fontFamily: "'Source Serif 4', serif" }}>{CORE_POLICIES.length}</div>
+          <div className="text-xs mt-1" style={{ color: C.ink }}>Core — required for all employees</div>
         </div>
         <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
           <div className="text-2xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{TOTAL_DOMAINS} of 33</div>
@@ -108,10 +130,12 @@ export default function PolicyCenter() {
             </div>
           </div>
           <div style={{ maxHeight: 680, overflowY: "auto" }}>
-            {grouped.map((g) => (
-              <div key={g.category}>
-                <div className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: C.muted }}>{g.category}</div>
-                {g.policies.map((p) => {
+            {coreFiltered.length > 0 && (
+              <div style={{ background: C.amberBg, borderBottom: `1px solid ${C.border}` }}>
+                <div className="px-3 pt-3 pb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest" style={{ color: C.amber }}>
+                  <ShieldAlert size={11} /> Core · Required Reading
+                </div>
+                {coreFiltered.map((p) => {
                   const isActive = p.id === selectedId;
                   return (
                     <button
@@ -121,7 +145,29 @@ export default function PolicyCenter() {
                       style={{ background: isActive ? C.panel2 : "transparent" }}
                     >
                       <span className="text-[10px]" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>{p.code}</span>
-                      <span className="text-xs leading-snug" style={{ color: isActive ? C.ink : C.muted }}>{p.title}</span>
+                      <span className="text-xs leading-snug font-medium" style={{ color: isActive ? C.ink : C.muted }}>{p.title}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {grouped.map((g) => (
+              <div key={g.category}>
+                <div className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: C.muted }}>{g.category}</div>
+                {g.policies.map((p) => {
+                  const isActive = p.id === selectedId;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => setSelectedId(p.id)}
+                      className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left"
+                      style={{ background: isActive ? C.panel2 : "transparent" }}
+                    >
+                      <span className="flex flex-col items-start min-w-0">
+                        <span className="text-[10px]" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>{p.code}</span>
+                        <span className="text-xs leading-snug" style={{ color: isActive ? C.ink : C.muted }}>{p.title}</span>
+                      </span>
+                      {p.tier === POLICY_TIERS.CORE && <CoreBadge compact />}
                     </button>
                   );
                 })}
@@ -134,8 +180,11 @@ export default function PolicyCenter() {
         </div>
 
         <div className="flex-1 min-w-0 rounded-xl p-6" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-          <div className="text-xs uppercase tracking-wide mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-            {selected.code} · {selected.category}
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+            <div className="text-xs uppercase tracking-wide" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
+              {selected.code} · {selected.category}
+            </div>
+            {selected.tier === POLICY_TIERS.CORE && <CoreBadge />}
           </div>
           <h2 className="text-2xl mb-3" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>{selected.title}</h2>
 
@@ -190,9 +239,10 @@ export default function PolicyCenter() {
                   <button
                     key={rp.id}
                     onClick={() => setSelectedId(rp.id)}
-                    className="text-xs px-3 py-1.5 rounded-lg"
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg"
                     style={{ background: C.panel2, color: C.ink, border: `1px solid ${C.border}` }}
                   >
+                    {rp.tier === POLICY_TIERS.CORE && <ShieldAlert size={11} color={C.amber} />}
                     {rp.title}
                   </button>
                 ))}
