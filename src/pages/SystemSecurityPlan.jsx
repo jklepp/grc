@@ -1,5 +1,8 @@
 import React, { useMemo, useState } from "react";
-import { ClipboardCheck, Search, X, Cloud, CheckCircle2, MinusCircle, Circle, RadioTower, Link2, Zap, UserCog, ScrollText, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  ClipboardCheck, Search, X, Cloud, CheckCircle2, MinusCircle, Circle, RadioTower, Link2, Zap, UserCog, ScrollText,
+  ChevronDown, ChevronRight, Info, Network, Layers, Users2, ListTodo, BookOpen, ArrowRight, AlertCircle, Clock, User,
+} from "lucide-react";
 import { C } from "../theme";
 import { ClassificationTag, DataTypeChip, StandardChip } from "../components/SystemBadges";
 import { SYSTEMS, getSystemControlMatrix, IMPLEMENTATION_TYPES } from "../data/systemRegister";
@@ -34,6 +37,48 @@ function sourceLabel(source) {
   if (source === "vanta_test") return "Vanta automated test";
   if (source === "private_integration") return "Private integration test";
   return "Manually verified";
+}
+function ticketMeta(status) {
+  if (status === "done") return { color: C.green, label: "Done" };
+  if (status === "in_progress") return { color: C.accent, label: "In Progress" };
+  if (status === "blocked") return { color: C.red, label: "Blocked" };
+  return { color: C.muted, label: "Not Started" };
+}
+
+// Unique policies referenced by a system's control matrix, with how many of its
+// controls each one governs — computed from the same governing-policy lookup the
+// control drawer uses, not a separately maintained list.
+function getReferencedPolicies(matrix) {
+  const counts = new Map();
+  matrix.forEach((row) => {
+    const policy = POLICY_BY_CONTROL[row.control.id];
+    if (!policy) return;
+    const existing = counts.get(policy.id);
+    counts.set(policy.id, { policy, count: (existing ? existing.count : 0) + 1 });
+  });
+  return [...counts.values()].sort((a, b) => a.policy.code.localeCompare(b.policy.code));
+}
+
+function DocSection({ number, title, icon: Icon, children }) {
+  return (
+    <div className="px-8 pb-10">
+      <div className="flex items-center gap-2 mb-4 pb-2" style={{ borderBottom: `1px solid ${C.border}` }}>
+        <span className="text-xs font-semibold px-2 py-0.5 rounded" style={{ background: C.accentBg, color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>{number}</span>
+        <Icon size={15} color={C.muted} />
+        <h2 className="text-lg" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>{title}</h2>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function IdentificationField({ label, value }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>{label}</div>
+      <div className="text-sm" style={{ color: C.ink }}>{value}</div>
+    </div>
+  );
 }
 
 function ControlRow({ row, onSelect }) {
@@ -99,6 +144,31 @@ function ImplementationSection({ meta, rows, expanded, onToggle, onSelectRow }) 
   );
 }
 
+function POAMRow({ item }) {
+  const meta = ticketMeta(item.ticketStatus);
+  return (
+    <div className="rounded-lg p-4 mb-2" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold" style={{ color: C.ink }}>{item.title}</div>
+          <div className="text-xs mt-0.5" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>Affected control: {item.control}</div>
+        </div>
+        {item.overdue && (
+          <span className="shrink-0 flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ color: C.red, background: C.redBg }}>
+            <AlertCircle size={11} /> OVERDUE
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-4 mt-2.5 text-xs flex-wrap">
+        <span className="flex items-center gap-1" style={{ color: meta.color }}><Circle size={7} fill={meta.color} color={meta.color} /> {meta.label}</span>
+        <span className="flex items-center gap-1" style={{ color: C.muted }}><User size={11} /> {item.owner}</span>
+        <span className="flex items-center gap-1" style={{ color: item.overdue ? C.red : C.muted }}><Clock size={11} /> Target {item.due}</span>
+        <span className="flex items-center gap-1" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}><Link2 size={11} /> {item.jira}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function SystemSecurityPlan() {
   const [systemId, setSystemId] = useState(RESTRICTED_SYSTEMS[0].id);
   const [query, setQuery] = useState("");
@@ -109,6 +179,7 @@ export default function SystemSecurityPlan() {
 
   const system = RESTRICTED_SYSTEMS.find((s) => s.id === systemId);
   const matrix = useMemo(() => getSystemControlMatrix(system), [system]);
+  const referencedPolicies = useMemo(() => getReferencedPolicies(matrix), [matrix]);
 
   const domains = useMemo(() => {
     const set = new Set(matrix.map((r) => r.control.domain));
@@ -156,11 +227,11 @@ export default function SystemSecurityPlan() {
         </div>
         <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>Restricted-Tier Control Matrix</h1>
         <p className="text-sm mt-2 max-w-2xl" style={{ color: C.muted }}>
-          For each Restricted system, every applicable SCF control grouped by how it's actually satisfied — enforced by tooling, run by a person, or governed by policy — rather than one long list. The 6 controls ACME tracks directly show real evidence.
+          A full security plan for each Restricted system — identification, boundaries, the control matrix grouped by how it's satisfied, roles, open remediation, and the policies that govern it.
         </p>
       </div>
 
-      <div className="px-8 grid grid-cols-3 gap-4 mb-6">
+      <div className="px-8 grid grid-cols-3 gap-4 mb-8">
         {RESTRICTED_SYSTEMS.map((s) => {
           const active = s.id === systemId;
           return (
@@ -188,19 +259,49 @@ export default function SystemSecurityPlan() {
         })}
       </div>
 
-      <div className="px-8 grid grid-cols-4 gap-4 mb-6">
-        {STATUS_ORDER.map((status) => {
-          const meta = STATUS_META[status];
-          return (
-            <div key={status} className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-              <div className="text-2xl font-semibold" style={{ color: meta.color, fontFamily: "'Source Serif 4', serif" }}>{statusCounts[status]}</div>
-              <div className="text-xs mt-1" style={{ color: C.muted }}>{meta.label} · of {matrix.length} required</div>
-            </div>
-          );
-        })}
-      </div>
+      <DocSection number="1" title="System Identification" icon={Info}>
+        <div className="rounded-xl p-5 grid grid-cols-3 gap-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+          <IdentificationField label="System Name" value={system.name} />
+          <IdentificationField label="System ID" value={system.id} />
+          <IdentificationField label="Classification" value={system.classification} />
+          <IdentificationField label="Hosting Environment" value={system.env} />
+          <IdentificationField label="Data Types Processed" value={system.dataTypes.join(", ")} />
+          <IdentificationField label="Compliance Standards In Scope" value={system.standards.join(", ")} />
+          <div className="col-span-3">
+            <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Purpose</div>
+            <div className="text-sm leading-relaxed" style={{ color: C.ink }}>{system.mission}</div>
+          </div>
+        </div>
+      </DocSection>
 
-      <div className="px-8 pb-12">
+      <DocSection number="2" title="System Environment & Boundaries" icon={Network}>
+        <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+          <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Boundary</div>
+          <div className="text-sm leading-relaxed mb-4" style={{ color: C.ink }}>{system.boundary}</div>
+          <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: C.muted }}>Connections Crossing the Boundary</div>
+          <div className="space-y-1.5">
+            {system.connections.map((c, i) => (
+              <div key={i} className="flex items-start gap-2 text-sm" style={{ color: C.ink }}>
+                <ArrowRight size={13} className="shrink-0 mt-0.5" color={C.muted} /> {c}
+              </div>
+            ))}
+          </div>
+        </div>
+      </DocSection>
+
+      <DocSection number="3" title="Security Control Implementation" icon={Layers}>
+        <div className="grid grid-cols-4 gap-4 mb-6">
+          {STATUS_ORDER.map((status) => {
+            const meta = STATUS_META[status];
+            return (
+              <div key={status} className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+                <div className="text-2xl font-semibold" style={{ color: meta.color, fontFamily: "'Source Serif 4', serif" }}>{statusCounts[status]}</div>
+                <div className="text-xs mt-1" style={{ color: C.muted }}>{meta.label} · of {matrix.length} required</div>
+              </div>
+            );
+          })}
+        </div>
+
         <div className="flex items-center gap-3 mb-4 flex-wrap">
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1 min-w-[200px]" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
             <Search size={14} color={C.muted} />
@@ -235,7 +336,52 @@ export default function SystemSecurityPlan() {
         <div className="text-xs mt-1 flex items-center gap-1.5" style={{ color: C.muted }}>
           <RadioTower size={12} /> marks the 6 controls ACME tracks with live evidence; every other row is at the tier the Data Classification Register already reports, just broken out control by control. Implementation type is assigned per SCF domain, not audited per control.
         </div>
-      </div>
+      </DocSection>
+
+      <DocSection number="4" title="Roles & Responsibilities" icon={Users2}>
+        <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+          {system.roles.map((r, i) => (
+            <div
+              key={i}
+              className="grid px-4 py-3"
+              style={{ gridTemplateColumns: "220px 1fr", borderTop: i > 0 ? `1px solid ${C.border}` : "none", background: i % 2 ? "transparent" : C.panel2 }}
+            >
+              <div className="text-sm font-semibold" style={{ color: C.ink }}>{r.role}</div>
+              <div className="text-sm" style={{ color: C.muted }}>{r.assignment}</div>
+            </div>
+          ))}
+        </div>
+      </DocSection>
+
+      <DocSection number="5" title="Plan of Action & Milestones (POA&M)" icon={ListTodo}>
+        <p className="text-xs mb-3" style={{ color: C.muted }}>
+          Every control not yet fully implemented, with the planned remediation, the resource responsible, and a target date — pulled from ACME's live remediation tracker, not a static appendix.
+        </p>
+        {system.remediation.length === 0 ? (
+          <div className="text-sm p-4 rounded-lg" style={{ background: C.greenBg, color: C.green }}>
+            No open items — every tracked control on this system is fully implemented.
+          </div>
+        ) : (
+          system.remediation.map((item, i) => <POAMRow key={i} item={item} />)
+        )}
+      </DocSection>
+
+      <DocSection number="6" title="Referenced Policies & Procedures" icon={BookOpen}>
+        <p className="text-xs mb-3" style={{ color: C.muted }}>
+          Every ACME policy that governs at least one control required for this system, computed from the control matrix above — not a separately maintained list that can drift out of sync.
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {referencedPolicies.map(({ policy, count }) => (
+            <div key={policy.id} className="flex items-center justify-between gap-2 rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+              <div className="min-w-0">
+                <div className="text-xs" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>{policy.code}</div>
+                <div className="text-sm truncate" style={{ color: C.ink }}>{policy.title}</div>
+              </div>
+              <span className="shrink-0 text-xs px-2 py-0.5 rounded-full" style={{ background: C.panel2, color: C.muted }}>{count} control{count !== 1 ? "s" : ""}</span>
+            </div>
+          ))}
+        </div>
+      </DocSection>
 
       {selectedRow && (
         <div className="fixed inset-0 z-20 flex justify-end">
