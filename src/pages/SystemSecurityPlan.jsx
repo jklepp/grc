@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from "react";
-import { ClipboardCheck, Search, X, Cloud, CheckCircle2, MinusCircle, Circle, RadioTower, Link2 } from "lucide-react";
+import { ClipboardCheck, Search, X, Cloud, CheckCircle2, MinusCircle, Circle, RadioTower, Link2, Zap, UserCog, ScrollText, ChevronDown, ChevronRight } from "lucide-react";
 import { C } from "../theme";
 import { ClassificationTag, DataTypeChip, StandardChip } from "../components/SystemBadges";
-import { SYSTEMS, getSystemControlMatrix } from "../data/systemRegister";
+import { SYSTEMS, getSystemControlMatrix, IMPLEMENTATION_TYPES } from "../data/systemRegister";
 import { POLICIES } from "../data/policies";
 
 // Every visible SCF control belongs to exactly one policy's domain set (verified
@@ -21,10 +21,82 @@ const STATUS_META = {
 };
 const STATUS_ORDER = ["inherited", "satisfied", "gap", "not-implemented"];
 
+// Primary organizing structure for the matrix — how a control actually gets
+// satisfied, not just which domain it's filed under. Order matters: it's the
+// order sections render in.
+const IMPLEMENTATION_META = [
+  { type: IMPLEMENTATION_TYPES.AUTOMATED, Icon: Zap, color: C.accent, bg: C.accentBg, blurb: "Enforced continuously by tooling. Evidence is a system export or scan result, not a person's word." },
+  { type: IMPLEMENTATION_TYPES.MANUAL, Icon: UserCog, color: C.amber, bg: C.amberBg, blurb: "Executed by a person on a recurring basis. Needs a named owner and a cadence, or it silently lapses." },
+  { type: IMPLEMENTATION_TYPES.PROCESS, Icon: ScrollText, color: C.green, bg: C.greenBg, blurb: "Governed by policy, contract, or documented process. Evidenced by the record, not a system." },
+];
+
 function sourceLabel(source) {
   if (source === "vanta_test") return "Vanta automated test";
   if (source === "private_integration") return "Private integration test";
   return "Manually verified";
+}
+
+function ControlRow({ row, onSelect }) {
+  const meta = STATUS_META[row.status];
+  const policy = POLICY_BY_CONTROL[row.control.id];
+  return (
+    <button
+      onClick={() => onSelect(row)}
+      className="w-full grid px-4 text-left hover:bg-white/[0.02] transition-colors"
+      style={{ gridTemplateColumns: "90px 2fr 150px 150px", borderBottom: `1px solid ${C.border}` }}
+    >
+      <div className="py-3 text-xs" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>{row.control.id}</div>
+      <div className="py-3 pl-3 min-w-0" style={{ borderLeft: `1px solid ${C.border}` }}>
+        <div className="text-sm leading-snug" style={{ color: C.ink }}>{row.control.name}</div>
+        <div className="text-[10px] mt-0.5" style={{ color: C.muted }}>
+          {row.control.domain}{row.toolHint && <span> · Enforced by {row.toolHint}</span>}
+        </div>
+      </div>
+      <div className="py-3 pl-3 flex items-center gap-2" style={{ borderLeft: `1px solid ${C.border}` }}>
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded" style={{ background: meta.bg, color: meta.color }}>
+          <meta.Icon size={11} /> {meta.label}
+        </span>
+        {row.isTracked && <RadioTower size={12} color={C.muted} />}
+      </div>
+      <div className="py-3 pl-3 text-[11px] truncate" style={{ borderLeft: `1px solid ${C.border}`, color: C.muted }}>
+        {policy ? policy.code : "—"}
+      </div>
+    </button>
+  );
+}
+
+function ImplementationSection({ meta, rows, expanded, onToggle, onSelectRow }) {
+  return (
+    <div className="rounded-xl overflow-hidden mb-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+      <button onClick={onToggle} className="w-full flex items-center gap-3 p-4 text-left">
+        <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: meta.bg }}>
+          <meta.Icon size={15} color={meta.color} />
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold" style={{ color: C.ink }}>{meta.type}</span>
+            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.panel2, color: C.muted }}>{rows.length}</span>
+          </div>
+          <div className="text-xs mt-0.5" style={{ color: C.muted }}>{meta.blurb}</div>
+        </div>
+        {expanded ? <ChevronDown size={16} color={C.muted} /> : <ChevronRight size={16} color={C.muted} />}
+      </button>
+      {expanded && (
+        <div style={{ borderTop: `1px solid ${C.border}` }}>
+          <div className="grid text-[11px] font-medium px-4 py-2.5" style={{ gridTemplateColumns: "90px 2fr 150px 150px", borderBottom: `1px solid ${C.border}`, color: C.muted }}>
+            <div>SCF #</div>
+            <div style={{ borderLeft: `1px solid ${C.border}`, paddingLeft: 12 }}>CONTROL</div>
+            <div style={{ borderLeft: `1px solid ${C.border}`, paddingLeft: 12 }}>STATUS</div>
+            <div style={{ borderLeft: `1px solid ${C.border}`, paddingLeft: 12 }}>GOVERNING POLICY</div>
+          </div>
+          <div style={{ maxHeight: 480, overflowY: "auto" }}>
+            {rows.map((row) => <ControlRow key={row.control.id} row={row} onSelect={onSelectRow} />)}
+            {rows.length === 0 && <div className="p-6 text-xs text-center" style={{ color: C.muted }}>No controls match this filter.</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function SystemSecurityPlan() {
@@ -32,21 +104,15 @@ export default function SystemSecurityPlan() {
   const [query, setQuery] = useState("");
   const [domainFilter, setDomainFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [expandedTypes, setExpandedTypes] = useState(() => new Set());
   const [selectedRow, setSelectedRow] = useState(null);
 
   const system = RESTRICTED_SYSTEMS.find((s) => s.id === systemId);
   const matrix = useMemo(() => getSystemControlMatrix(system), [system]);
 
   const domains = useMemo(() => {
-    const counts = {};
-    matrix.forEach((r) => { counts[r.control.domain] = (counts[r.control.domain] || 0) + 1; });
-    return Object.entries(counts).map(([name, total]) => ({ name, total })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [matrix]);
-
-  const statusCounts = useMemo(() => {
-    const counts = { inherited: 0, satisfied: 0, gap: 0, "not-implemented": 0 };
-    matrix.forEach((r) => { counts[r.status] += 1; });
-    return counts;
+    const set = new Set(matrix.map((r) => r.control.domain));
+    return [...set].sort();
   }, [matrix]);
 
   const filtered = matrix.filter(
@@ -56,12 +122,27 @@ export default function SystemSecurityPlan() {
       (r.control.name.toLowerCase().includes(query.toLowerCase()) || r.control.id.toLowerCase().includes(query.toLowerCase()))
   );
 
+  const statusCounts = useMemo(() => {
+    const counts = { inherited: 0, satisfied: 0, gap: 0, "not-implemented": 0 };
+    matrix.forEach((r) => { counts[r.status] += 1; });
+    return counts;
+  }, [matrix]);
+
   function selectSystem(id) {
     setSystemId(id);
     setDomainFilter("All");
     setStatusFilter("All");
     setQuery("");
     setSelectedRow(null);
+    setExpandedTypes(new Set());
+  }
+
+  function toggleType(type) {
+    setExpandedTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type); else next.add(type);
+      return next;
+    });
   }
 
   const governingPolicy = selectedRow ? POLICY_BY_CONTROL[selectedRow.control.id] : null;
@@ -75,7 +156,7 @@ export default function SystemSecurityPlan() {
         </div>
         <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>Restricted-Tier Control Matrix</h1>
         <p className="text-sm mt-2 max-w-2xl" style={{ color: C.muted }}>
-          For each Restricted system, the full set of SCF controls that actually applies given its in-scope standards — not just a count. The 6 controls ACME tracks directly show real evidence; the rest are shown at the same Inherited/Satisfied/Open Gap/Not Implemented totals already reported on the Data Classification Register.
+          For each Restricted system, every applicable SCF control grouped by how it's actually satisfied — enforced by tooling, run by a person, or governed by policy — rather than one long list. The 6 controls ACME tracks directly show real evidence.
         </p>
       </div>
 
@@ -83,10 +164,13 @@ export default function SystemSecurityPlan() {
         {RESTRICTED_SYSTEMS.map((s) => {
           const active = s.id === systemId;
           return (
-            <button
+            <div
               key={s.id}
+              role="button"
+              tabIndex={0}
               onClick={() => selectSystem(s.id)}
-              className="text-left rounded-xl p-4"
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") selectSystem(s.id); }}
+              className="text-left rounded-xl p-4 cursor-pointer"
               style={{ background: active ? C.accentBg : C.panel, border: `1px solid ${active ? C.accent : C.border}` }}
             >
               <div className="flex items-center gap-2 mb-1">
@@ -99,12 +183,12 @@ export default function SystemSecurityPlan() {
                 {s.dataTypes.map((t, i) => <DataTypeChip key={i} type={t} />)}
                 {s.standards.map((std, i) => <StandardChip key={i} standard={std} />)}
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
 
-      <div className="px-8 grid grid-cols-4 gap-4 mb-5">
+      <div className="px-8 grid grid-cols-4 gap-4 mb-6">
         {STATUS_ORDER.map((status) => {
           const meta = STATUS_META[status];
           return (
@@ -116,95 +200,40 @@ export default function SystemSecurityPlan() {
         })}
       </div>
 
-      <div className="px-8 flex gap-5 pb-12">
-        <div className="w-64 shrink-0 rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}`, height: "fit-content" }}>
-          <div className="p-3 flex items-center justify-between text-xs font-medium" style={{ borderBottom: `1px solid ${C.border}`, color: C.muted }}>
-            <span>SCF DOMAINS ({domains.length})</span><span>{matrix.length}</span>
+      <div className="px-8 pb-12">
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1 min-w-[200px]" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+            <Search size={14} color={C.muted} />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search controls or SCF #" className="bg-transparent text-sm outline-none w-full" style={{ color: C.ink }} />
           </div>
-          <button
-            onClick={() => setDomainFilter("All")}
-            className="w-full flex items-center justify-between px-3 py-2 text-sm"
-            style={{ background: domainFilter === "All" ? C.panel2 : "transparent", color: domainFilter === "All" ? C.accent : C.ink }}
-          >
-            <span>Show All Domains</span>
-            <span className="text-xs" style={{ color: C.muted }}>{matrix.length}</span>
-          </button>
-          <div style={{ maxHeight: 520, overflowY: "auto" }}>
-            {domains.map((d) => (
-              <button
-                key={d.name}
-                onClick={() => setDomainFilter(d.name)}
-                className="w-full flex items-center justify-between px-3 py-2 text-left text-xs"
-                style={{ background: domainFilter === d.name ? C.panel2 : "transparent", color: domainFilter === d.name ? C.accent : C.muted, borderTop: `1px solid ${C.border}` }}
-              >
-                <span className="truncate pr-2">{d.name}</span>
-                <span className="shrink-0" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{d.total}</span>
-              </button>
-            ))}
-          </div>
+          <select value={domainFilter} onChange={(e) => setDomainFilter(e.target.value)}
+            className="text-xs pl-3 pr-7 py-2 rounded-lg font-medium" style={{ background: C.panel, color: C.ink, border: `1px solid ${C.border}` }}>
+            <option value="All">All domains</option>
+            {domains.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+            className="text-xs pl-3 pr-7 py-2 rounded-lg font-medium" style={{ background: C.panel, color: C.ink, border: `1px solid ${C.border}` }}>
+            <option value="All">All statuses</option>
+            {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
+          </select>
+          <span className="text-xs px-3 py-2 rounded-full" style={{ background: C.panel2, color: C.muted }}>
+            Showing {filtered.length.toLocaleString()} of {matrix.length.toLocaleString()}
+          </span>
         </div>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 mb-3 flex-wrap">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1 min-w-[200px]" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-              <Search size={14} color={C.muted} />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search controls or SCF #" className="bg-transparent text-sm outline-none w-full" style={{ color: C.ink }} />
-            </div>
-            <div className="relative">
-              <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-                className="text-xs pl-3 pr-7 py-2 rounded-lg font-medium appearance-none" style={{ background: C.panel, color: C.ink, border: `1px solid ${C.border}` }}>
-                <option value="All">All statuses</option>
-                {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
-              </select>
-            </div>
-            <span className="text-xs px-3 py-2 rounded-full" style={{ background: C.panel2, color: C.muted }}>
-              Showing {filtered.length.toLocaleString()} of {matrix.length.toLocaleString()}
-            </span>
-          </div>
+        {IMPLEMENTATION_META.map((meta) => (
+          <ImplementationSection
+            key={meta.type}
+            meta={meta}
+            rows={filtered.filter((r) => r.implementationType === meta.type)}
+            expanded={expandedTypes.has(meta.type)}
+            onToggle={() => toggleType(meta.type)}
+            onSelectRow={setSelectedRow}
+          />
+        ))}
 
-          <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-            <div className="grid text-[11px] font-medium px-4 py-2.5" style={{ gridTemplateColumns: "90px 2fr 150px 150px", borderBottom: `1px solid ${C.border}`, color: C.muted }}>
-              <div>SCF #</div>
-              <div style={{ borderLeft: `1px solid ${C.border}`, paddingLeft: 12 }}>CONTROL</div>
-              <div style={{ borderLeft: `1px solid ${C.border}`, paddingLeft: 12 }}>STATUS</div>
-              <div style={{ borderLeft: `1px solid ${C.border}`, paddingLeft: 12 }}>GOVERNING POLICY</div>
-            </div>
-            <div style={{ maxHeight: 640, overflowY: "auto" }}>
-              {filtered.map((row) => {
-                const meta = STATUS_META[row.status];
-                const policy = POLICY_BY_CONTROL[row.control.id];
-                return (
-                  <button
-                    key={row.control.id}
-                    onClick={() => setSelectedRow(row)}
-                    className="w-full grid px-4 text-left hover:bg-white/[0.02] transition-colors"
-                    style={{ gridTemplateColumns: "90px 2fr 150px 150px", borderBottom: `1px solid ${C.border}` }}
-                  >
-                    <div className="py-3 text-xs" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>{row.control.id}</div>
-                    <div className="py-3 pl-3 min-w-0" style={{ borderLeft: `1px solid ${C.border}` }}>
-                      <div className="text-sm leading-snug" style={{ color: C.ink }}>{row.control.name}</div>
-                      <div className="text-[10px] mt-0.5" style={{ color: C.muted }}>{row.control.domain}</div>
-                    </div>
-                    <div className="py-3 pl-3 flex items-center gap-2" style={{ borderLeft: `1px solid ${C.border}` }}>
-                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded" style={{ background: meta.bg, color: meta.color }}>
-                        <meta.Icon size={11} /> {meta.label}
-                      </span>
-                      {row.isTracked && <RadioTower size={12} color={C.muted} />}
-                    </div>
-                    <div className="py-3 pl-3 text-[11px] truncate" style={{ borderLeft: `1px solid ${C.border}`, color: C.muted }}>
-                      {policy ? policy.code : "—"}
-                    </div>
-                  </button>
-                );
-              })}
-              {filtered.length === 0 && (
-                <div className="p-6 text-xs text-center" style={{ color: C.muted }}>No controls match this filter.</div>
-              )}
-            </div>
-          </div>
-          <div className="text-xs mt-3 flex items-center gap-1.5" style={{ color: C.muted }}>
-            <RadioTower size={12} /> marks the 6 controls ACME tracks with live evidence; every other row is at the tier the Data Classification Register already reports, just broken out control by control.
-          </div>
+        <div className="text-xs mt-1 flex items-center gap-1.5" style={{ color: C.muted }}>
+          <RadioTower size={12} /> marks the 6 controls ACME tracks with live evidence; every other row is at the tier the Data Classification Register already reports, just broken out control by control. Implementation type is assigned per SCF domain, not audited per control.
         </div>
       </div>
 
@@ -220,12 +249,20 @@ export default function SystemSecurityPlan() {
                 </div>
                 <button onClick={() => setSelectedRow(null)}><X size={18} color={C.muted} /></button>
               </div>
-              <div className="mt-3">
+              <div className="flex items-center gap-2 mt-3 flex-wrap">
                 {(() => {
                   const meta = STATUS_META[selectedRow.status];
                   return (
                     <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded" style={{ background: meta.bg, color: meta.color }}>
                       <meta.Icon size={12} /> {meta.label}
+                    </span>
+                  );
+                })()}
+                {(() => {
+                  const im = IMPLEMENTATION_META.find((m) => m.type === selectedRow.implementationType);
+                  return (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded" style={{ background: im.bg, color: im.color }}>
+                      <im.Icon size={12} /> {im.type}
                     </span>
                   );
                 })()}
@@ -237,6 +274,13 @@ export default function SystemSecurityPlan() {
                 <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>SCF Control Description</div>
                 <div className="text-sm leading-relaxed" style={{ color: C.ink }}>{selectedRow.control.description}</div>
               </div>
+
+              {selectedRow.toolHint && (
+                <div className="rounded-lg p-3 mb-6" style={{ border: `1px solid ${C.border}` }}>
+                  <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Enforced By</div>
+                  <div className="text-sm" style={{ color: C.ink }}>{selectedRow.toolHint}</div>
+                </div>
+              )}
 
               {selectedRow.isTracked && selectedRow.trackedDetail && (
                 <div className="rounded-lg p-4 mb-6" style={{ background: C.accentBg, border: `1px solid ${C.accent}4D` }}>

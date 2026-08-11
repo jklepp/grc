@@ -27,6 +27,79 @@ export const CONTROLS = [
 // on these rows instead of a derived one. Verified against scfControls.json.
 export const TRACKED_CONTROL_SCF_IDS = ["CRY-05", "CRY-03", "MON-02", "IAC-21", "NET-17", "DCH-18"];
 
+// How a control actually gets satisfied: continuously enforced by tooling, done by
+// a person on a recurring basis, or evidenced by policy/documentation rather than
+// a system at all. This is a property of the control's nature, not of any one
+// system, so it's assigned once per SCF domain rather than per system. A domain
+// classification is a judgment call, not a fact from the SCF source data — these
+// are reasonable defaults for a typical mid-market program, not a certification.
+export const IMPLEMENTATION_TYPES = {
+  AUTOMATED: "Automated",
+  MANUAL: "Manual",
+  PROCESS: "Process & Procedure",
+};
+
+const DOMAIN_IMPLEMENTATION_TYPE = {
+  "Security, Compliance & Resilience Governance": IMPLEMENTATION_TYPES.PROCESS,
+  "Artificial Intelligence & Autonomous Technologies": IMPLEMENTATION_TYPES.PROCESS,
+  "Asset Management": IMPLEMENTATION_TYPES.MANUAL,
+  "Business Continuity & Disaster Recovery": IMPLEMENTATION_TYPES.MANUAL,
+  "Capacity & Performance Planning": IMPLEMENTATION_TYPES.AUTOMATED,
+  "Change Management": IMPLEMENTATION_TYPES.MANUAL,
+  "Cloud Security": IMPLEMENTATION_TYPES.AUTOMATED,
+  Compliance: IMPLEMENTATION_TYPES.PROCESS,
+  "Configuration Management": IMPLEMENTATION_TYPES.AUTOMATED,
+  "Continuous Monitoring": IMPLEMENTATION_TYPES.AUTOMATED,
+  "Cryptographic Protections": IMPLEMENTATION_TYPES.AUTOMATED,
+  "Data Classification & Handling": IMPLEMENTATION_TYPES.MANUAL,
+  "Endpoint Security": IMPLEMENTATION_TYPES.AUTOMATED,
+  "Human Resources Security": IMPLEMENTATION_TYPES.PROCESS,
+  "Identification & Authentication": IMPLEMENTATION_TYPES.AUTOMATED,
+  "Incident Response": IMPLEMENTATION_TYPES.MANUAL,
+  "Information Assurance": IMPLEMENTATION_TYPES.PROCESS,
+  Maintenance: IMPLEMENTATION_TYPES.MANUAL,
+  "Mobile Device Management": IMPLEMENTATION_TYPES.AUTOMATED,
+  "Network Security": IMPLEMENTATION_TYPES.AUTOMATED,
+  "Physical & Environmental Security": IMPLEMENTATION_TYPES.MANUAL,
+  "Data Privacy": IMPLEMENTATION_TYPES.PROCESS,
+  "Project & Resource Management": IMPLEMENTATION_TYPES.PROCESS,
+  "Risk Management": IMPLEMENTATION_TYPES.PROCESS,
+  "Secure Engineering & Architecture": IMPLEMENTATION_TYPES.AUTOMATED,
+  "Security Operations": IMPLEMENTATION_TYPES.MANUAL,
+  "Security Awareness & Training": IMPLEMENTATION_TYPES.PROCESS,
+  "Technology Development & Acquisition": IMPLEMENTATION_TYPES.MANUAL,
+  "Third-Party Management": IMPLEMENTATION_TYPES.PROCESS,
+  "Threat Management": IMPLEMENTATION_TYPES.MANUAL,
+  "Vulnerability & Patch Management": IMPLEMENTATION_TYPES.AUTOMATED,
+  "Web Security": IMPLEMENTATION_TYPES.AUTOMATED,
+};
+
+// Only populated for Automated domains — the primary tool that continuously
+// enforces controls in that domain, reusing the same tool stack referenced
+// throughout the Policy Center.
+const DOMAIN_TOOL_HINT = {
+  "Capacity & Performance Planning": "Azure Monitor",
+  "Cloud Security": "Microsoft Defender for Cloud",
+  "Configuration Management": "Intune / Azure Policy",
+  "Continuous Monitoring": "Microsoft Sentinel",
+  "Cryptographic Protections": "Azure Key Vault",
+  "Endpoint Security": "Microsoft Defender for Endpoint",
+  "Identification & Authentication": "Entra ID / Okta",
+  "Mobile Device Management": "Microsoft Intune",
+  "Network Security": "Zscaler",
+  "Secure Engineering & Architecture": "Embedded architecture standard",
+  "Vulnerability & Patch Management": "Tenable / Intune",
+  "Web Security": "Cloudflare",
+};
+
+export function getImplementationType(domain) {
+  return DOMAIN_IMPLEMENTATION_TYPE[domain] || IMPLEMENTATION_TYPES.PROCESS;
+}
+
+export function getToolHint(domain) {
+  return DOMAIN_TOOL_HINT[domain] || null;
+}
+
 // inheritedRate models how much of a system's required control set is already
 // covered by its cloud/SaaS vendor's own certification (e.g. AWS's or Workday's
 // SOC 2 report) rather than needing separate evidence — on-prem systems have no
@@ -284,5 +357,7 @@ export function getSystemControlMatrix(system) {
   // Any leftover from rounding lands as Not Implemented rather than being dropped.
   shuffled.slice(cursor).forEach((control) => rows.push({ control, status: "not-implemented", isTracked: false }));
 
-  return rows.sort((a, b) => (a.control.domain === b.control.domain ? a.control.id.localeCompare(b.control.id) : a.control.domain.localeCompare(b.control.domain)));
+  return rows
+    .map((row) => ({ ...row, implementationType: getImplementationType(row.control.domain), toolHint: getToolHint(row.control.domain) }))
+    .sort((a, b) => (a.control.domain === b.control.domain ? a.control.id.localeCompare(b.control.id) : a.control.domain.localeCompare(b.control.domain)));
 }
