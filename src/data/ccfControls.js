@@ -27,8 +27,12 @@ export const CCF_DOMAINS = scf.domains
   .filter((d) => d.total > 0);
 export const CCF_STANDARDS = scf.standards;
 
-// How many of the 298 matched CCF controls apply to a system, given the
-// compliance standards it's in scope for.
+// Which of the 298 matched CCF controls apply to a system, given the compliance
+// standards it's in scope for — the real list, not just a count.
+export function requiredControls(standards) {
+  return CCF_VISIBLE_CONTROLS.filter((c) => c.frameworks.some((f) => standards.includes(f.standard)));
+}
+
 export function requiredControlsCount(standards) {
-  return CCF_VISIBLE_CONTROLS.filter((c) => c.frameworks.some((f) => standards.includes(f.standard))).length;
+  return requiredControls(standards).length;
 }

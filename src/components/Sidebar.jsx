@@ -1,7 +1,7 @@
 import React from "react";
 import {
   Menu, Sun, Moon, LayoutDashboard, LayoutGrid, ShieldCheck, AlertTriangle,
-  AlertCircle, FileText, CheckSquare, HelpCircle, RefreshCw, Circle, Database,
+  AlertCircle, FileText, CheckSquare, HelpCircle, RefreshCw, Circle, Database, ClipboardCheck,
 } from "lucide-react";
 
 // Sidebar chrome is intentionally fixed dark regardless of the app-wide light/dark
@@ -28,6 +28,7 @@ const GROUPS = [
       { id: "executive", label: "Executive Dashboard", icon: LayoutDashboard },
       { id: "ccf", label: "Common Controls", icon: LayoutGrid },
       { id: "gap-matrix", label: "Data Classification Register", icon: ShieldCheck },
+      { id: "ssp", label: "System Security Plan", icon: ClipboardCheck },
       { id: "data-footprint", label: "Data Footprint", icon: Database },
       { id: "risk-register", label: "Risk Register", icon: AlertTriangle },
       { id: "exceptions", label: "Exceptions", icon: AlertCircle, disabled: true },

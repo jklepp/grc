@@ -6,6 +6,7 @@ import DataFootprint from "./pages/DataFootprint";
 import RiskRegister from "./pages/RiskRegister";
 import ExecutiveDashboard from "./pages/ExecutiveDashboard";
 import PolicyCenter from "./pages/PolicyCenter";
+import SystemSecurityPlan from "./pages/SystemSecurityPlan";
 import { C, applyTheme, FONT_IMPORT } from "./theme";
 
 // Map nav item ids (defined in Sidebar.jsx) to the page component to render.
@@ -17,6 +18,7 @@ const PAGES = {
   "risk-register": RiskRegister,
   executive: ExecutiveDashboard,
   "policy-center": PolicyCenter,
+  ssp: SystemSecurityPlan,
 };
 
 export default function App() {
