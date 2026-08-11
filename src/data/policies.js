@@ -170,27 +170,74 @@ export const POLICIES = [
       "DCH-15","DCH-17","DCH-18","DCH-19","DCH-21","DCH-22","DCH-23","DCH-24",
       "CRY-01","CRY-02","CRY-03","CRY-04","CRY-05","CRY-06","CRY-07","CRY-08","CRY-09",
     ],
-    purpose: "Not all data is equally sensitive. This policy defines how ACME labels information by sensitivity and what you need to do differently depending on the label.",
-    scope: "All ACME data, wherever it lives — email, chat, file shares, SaaS apps, laptops, and paper.",
+    purpose: "Not all data is equally sensitive, and misjudging that is one of the most common ways a real incident starts. This policy defines ACME's four sensitivity labels, gives concrete examples of each, and sets the security bar a system must clear before it's allowed to hold data at a given label.",
+    scope: "All ACME data, wherever it lives — email, chat, file shares, SaaS apps, laptops, and paper — and every system that stores, processes, or transmits it.",
+    // Rendered as its own prominent, color-coded block in the UI (PolicyCenter.jsx
+    // reads this field specifically) — this is the policy the Data Classification
+    // Register enforces, so `level` must stay in sync with CLASS_ORDER/CLASS_META in
+    // theme.js, and the two system-requirement tiers below intentionally name the
+    // same six controls (Encryption at Rest, Encryption in Transit, Access Logging &
+    // Review, Least-Privilege Access, DLP Monitoring, Retention & Disposal) that
+    // DataClassificationGapMatrix.jsx actually tracks per system, so the policy and
+    // the register can never quietly drift apart.
+    classificationLevels: [
+      {
+        level: "Public",
+        definition: "Meant for anyone to see. No harm to ACME, customers, or employees if it's disclosed.",
+        examples: ["Marketing website content", "Published press releases", "Job postings", "Public product documentation"],
+        systemRequirements: ["Standard endpoint and account security only — no special encryption or access mandate", "Integrity still matters: publishing changes go through normal change control so content can't be tampered with"],
+      },
+      {
+        level: "Internal",
+        definition: "Routine business information. Not for the public, but low harm if it leaked out.",
+        examples: ["Internal wiki pages and how-to docs", "Team meeting notes", "Org charts", "Non-sensitive Teams/Slack messages"],
+        systemRequirements: ["Access limited to authenticated ACME accounts (Entra ID) — no anonymous or public sharing links", "Standard backup and endpoint protection; no dedicated encryption or DLP requirement beyond the platform default"],
+      },
+      {
+        level: "Confidential",
+        definition: "Would cause real competitive or operational harm to ACME if disclosed. This is the default label when you're not sure.",
+        examples: ["Employee data in the HR Information System (Workday)", "Financial forecasts and board materials", "Source code", "Customer contracts", "Marketing analytics containing personal data"],
+        systemRequirements: [
+          "Encryption at rest and in transit (TLS 1.2+)",
+          "Access logging & review",
+          "Least-privilege, role-based access reviewed periodically",
+          "DLP monitoring on egress channels (email, file sharing)",
+          "A defined retention & disposal schedule",
+          "Tracked in the Data Classification Register and evaluated against these six controls",
+        ],
+      },
+      {
+        level: "Restricted",
+        definition: "Regulated or highly sensitive data. Severe legal, financial, or reputational harm if disclosed.",
+        examples: ["Customer PII/financial data (e.g., the Customer Data Warehouse)", "Customer PII/PHI (e.g., the Support Ticketing Platform)", "Cardholder-adjacent financial data (e.g., legacy billing systems)", "Authentication credentials and cryptographic keys"],
+        systemRequirements: [
+          "Same six controls as Confidential, held to the strictest evidenced standard — e.g., AES-256 (not AES-128) at rest, TLS 1.2+ enforced on every segment including internal connections, quarterly access review, active (not just planned) DLP",
+          "MFA/Okta enforcement required on every access path, no exceptions",
+          "Continuously monitored in the Data Classification Register, not just periodically reviewed",
+        ],
+      },
+    ],
     statements: [
-      { title: "Every piece of data has a sensitivity level", detail: "ACME uses four labels: Public, Internal, Confidential, and Restricted. When in doubt, treat data as Confidential until told otherwise." },
+      { title: "Every piece of data has a sensitivity level", detail: "ACME uses four labels — Public, Internal, Confidential, Restricted — defined with examples below. When in doubt, treat data as Confidential until told otherwise." },
       { title: "Label it so others know", detail: "Apply the Microsoft Purview sensitivity label in Outlook/Office when you create or send a document containing Confidential or Restricted data." },
       { title: "Match the sharing method to the label", detail: "Public and Internal data can move freely inside ACME. Confidential and Restricted data may only be shared with people who need it, using approved tools — never personal email, personal cloud storage, or messaging apps." },
       { title: "Encrypt sensitive data, always", detail: "Confidential and Restricted data must be encrypted both when stored and when sent — this happens automatically on approved ACME systems, which is exactly why using unapproved ones is off-limits." },
+      { title: "A new system's classification decides what it must prove", detail: "Before a new system can hold Confidential or Restricted data, it has to meet the six controls in the classification table below and get added to the Data Classification Register — this isn't optional paperwork, it's the gate." },
       { title: "Dispose of it properly", detail: "Shred physical documents containing Confidential/Restricted data; delete electronic copies through IT-approved tools rather than just moving them to a personal folder." },
       { title: "Know where regulated data can live", detail: "Some data (e.g., customer personal data subject to contractual residency terms) can only be stored in approved regions/systems — check with Security before standing up a new storage location." },
     ],
     standards: [
-      { title: "Classification scheme", detail: "Public (no harm if disclosed) · Internal (routine business use) · Confidential (competitive/operational harm if disclosed) · Restricted (regulated data — customer PII, credentials, financial data; severe harm if disclosed)." },
-      { title: "Encryption in transit", detail: "TLS 1.2+ is required for all data in transit; internal transmission of Confidential/Restricted data uses approved encrypted channels only." },
-      { title: "Encryption at rest", detail: "Confidential and Restricted data is encrypted at rest using platform-native encryption (BitLocker on endpoints, provider-managed encryption in approved cloud services)." },
+      { title: "System security baseline by tier", detail: "Public/Internal systems get standard baseline controls. Confidential/Restricted systems must evidence all six register controls: Encryption at Rest, Encryption in Transit, Access Logging & Review, Least-Privilege Access, DLP Monitoring, and Retention & Disposal." },
+      { title: "Encryption strength", detail: "Confidential data: AES-256 (or equivalent) at rest, TLS 1.2+ in transit. Restricted data is held to the same floor with zero tolerance for weaker legacy algorithms (e.g., AES-128) or unencrypted internal segments." },
       { title: "Key management", detail: "Encryption keys and certificates are managed centrally in Azure Key Vault; public certificates are issued through DigiCert. Individual employees do not generate or hold production encryption keys." },
+      { title: "Evidence & monitoring", detail: "Control status for Confidential/Restricted systems is evidenced through Vanta automated tests where available, private integrations, or manual verification, and tracked live in the Data Classification Register rather than attested to once a year." },
       { title: "Media handling & retention", detail: "Removable media containing Confidential/Restricted data is discouraged and, where used, must be encrypted; retention periods follow the data retention schedule maintained by Legal and Security." },
     ],
     roles: [
       { role: "Data/Content Owners", responsibility: "Assign the correct classification and approve access requests for their data" },
+      { role: "System Owners", responsibility: "Ensure their system meets the security requirements for the data it hosts before onboarding to that tier, and keep it current in the Data Classification Register" },
       { role: "All Employees", responsibility: "Label and handle data according to its classification" },
-      { role: "IT Security", responsibility: "Operates Purview labeling, DLP, and encryption/key management infrastructure" },
+      { role: "IT Security", responsibility: "Operates Purview labeling, DLP, and encryption/key management infrastructure; maintains the Data Classification Register" },
     ],
     relatedPolicyIds: ["data-privacy", "network-remote-access", "third-party-risk"],
   },

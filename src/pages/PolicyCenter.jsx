@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
-import { BookOpen, Search, Layers, ListChecks, ClipboardList, Users2, Link2, ShieldAlert } from "lucide-react";
-import { C } from "../theme";
+import { BookOpen, Search, Layers, ListChecks, ClipboardList, Users2, Link2, ShieldAlert, Tags, ArrowUpRight } from "lucide-react";
+import { C, CLASS_META, CLASS_ORDER } from "../theme";
 import { POLICIES, POLICY_CATEGORIES, POLICY_TIERS, getFrameworkClauses } from "../data/policies";
 
 const STANDARD_ABBR = { "SOC 2": "SOC2", "ISO 27001": "27001", "ISO 27017": "27017", "ISO 27018": "27018", "ISO 27701": "27701", "PCI DSS": "PCI", HIPAA: "HIPAA" };
@@ -62,7 +62,54 @@ function ControlMapping({ policy }) {
   );
 }
 
-export default function PolicyCenter() {
+// Rendered only for policies that define it (currently just Data Classification &
+// Handling) — deliberately heavier than every other section so the four labels
+// read as the thing to actually remember, not one more bullet list. Colors come
+// from CLASS_META in theme.js, the same tokens the Data Classification Register
+// uses for its classification tags, so a level looks identical in both places.
+function ClassificationLevels({ levels, onViewRegister }) {
+  const ordered = CLASS_ORDER.map((lvl) => levels.find((l) => l.level === lvl)).filter(Boolean);
+  return (
+    <div className="mb-6">
+      <div className="grid grid-cols-2 gap-3">
+        {ordered.map((lvl) => {
+          const meta = CLASS_META[lvl.level];
+          return (
+            <div key={lvl.level} className="rounded-xl p-4" style={{ background: meta.bg, border: `1px solid ${meta.color}4D` }}>
+              <div className="text-sm font-bold uppercase tracking-wide mb-1.5" style={{ color: meta.color }}>{lvl.level}</div>
+              <div className="text-xs leading-relaxed mb-3" style={{ color: C.ink }}>{lvl.definition}</div>
+              <div className="text-[10px] uppercase tracking-wide font-semibold mb-1.5" style={{ color: meta.color }}>Examples</div>
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {lvl.examples.map((ex) => (
+                  <span key={ex} className="text-[11px] px-2 py-1 rounded" style={{ background: C.panel, color: C.ink }}>{ex}</span>
+                ))}
+              </div>
+              <div className="text-[10px] uppercase tracking-wide font-semibold mb-1.5" style={{ color: meta.color }}>Security requirements for systems hosting this data</div>
+              <ul className="space-y-1">
+                {lvl.systemRequirements.map((req, i) => (
+                  <li key={i} className="text-[11px] leading-relaxed flex gap-1.5" style={{ color: C.ink }}>
+                    <span style={{ color: meta.color }}>·</span>{req}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+      {onViewRegister && (
+        <button
+          onClick={onViewRegister}
+          className="mt-3 flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg"
+          style={{ background: C.panel2, color: C.accent, border: `1px solid ${C.border}` }}
+        >
+          View live systems in the Data Classification Register <ArrowUpRight size={13} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+export default function PolicyCenter({ onNavigate }) {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState(POLICIES[0].id);
 
@@ -190,6 +237,13 @@ export default function PolicyCenter() {
 
           <p className="text-sm leading-relaxed mb-2" style={{ color: C.ink }}>{selected.purpose}</p>
           <p className="text-xs mb-6" style={{ color: C.muted }}><span className="font-semibold">Scope: </span>{selected.scope}</p>
+
+          {selected.classificationLevels && (
+            <>
+              <SectionLabel icon={Tags}>The four classification levels</SectionLabel>
+              <ClassificationLevels levels={selected.classificationLevels} onViewRegister={() => onNavigate && onNavigate("gap-matrix")} />
+            </>
+          )}
 
           <SectionLabel icon={ListChecks}>What you need to know</SectionLabel>
           <div className="space-y-3 mb-6">
