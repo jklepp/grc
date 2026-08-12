@@ -10,7 +10,7 @@
 // pipeline hop with no register entry (the portal, the gateway, the backup
 // copy, the export drop) carry their own small statuses array in the same
 // six-control shape so they're graded by the exact same formula.
-import { SYSTEMS, CONTROLS } from "./systemRegister";
+import { SYSTEMS, CONTROLS, controlBreakdown } from "./systemRegister";
 
 function pctFromStatuses(statuses) {
   const score = statuses.reduce((a, s) => a + (s === "compliant" ? 1 : s === "partial" ? 0.5 : 0), 0);
@@ -143,8 +143,13 @@ export function getNode(key) {
   const pct = pctFromStatuses(statuses);
   const letter = letterGrade(pct);
   const system = def.systemId ? SYSTEMS.find((s) => s.id === def.systemId) : null;
-  const gaps = statuses.map((s, i) => ({ status: s, control: CONTROLS[i] })).filter((c) => c.status !== "compliant");
-  return { key, ...def, system, pct, letter, band: gradeBand(letter), gaps };
+  const controlRows = statuses.map((s, i) => ({ status: s, control: CONTROLS[i] }));
+  const gaps = controlRows.filter((c) => c.status !== "compliant");
+  // Only real register entries have a standards crosswalk to derive a required-
+  // control count from — synthetic pipeline nodes are graded on the same 6
+  // tracked controls only, with no larger "required controls" figure to show.
+  const breakdown = system ? controlBreakdown(system) : null;
+  return { key, ...def, system, pct, letter, band: gradeBand(letter), gaps, controlRows, breakdown };
 }
 
 // Each stage is a list of node keys; `branch` marks a node as a secondary
