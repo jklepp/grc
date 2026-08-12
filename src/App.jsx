@@ -3,6 +3,7 @@ import Sidebar from "./components/Sidebar";
 import CommonControlFramework from "./pages/CommonControlFramework";
 import DataClassificationGapMatrix from "./pages/DataClassificationGapMatrix";
 import DataFootprint from "./pages/DataFootprint";
+import DataMap from "./pages/DataMap";
 import RiskRegister from "./pages/RiskRegister";
 import ExecutiveDashboard from "./pages/ExecutiveDashboard";
 import PolicyCenter from "./pages/PolicyCenter";
@@ -15,6 +16,7 @@ const PAGES = {
   ccf: CommonControlFramework,
   "gap-matrix": DataClassificationGapMatrix,
   "data-footprint": DataFootprint,
+  "data-map": DataMap,
   "risk-register": RiskRegister,
   executive: ExecutiveDashboard,
   "policy-center": PolicyCenter,
