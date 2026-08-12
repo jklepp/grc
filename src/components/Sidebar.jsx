@@ -1,7 +1,7 @@
 import React from "react";
 import {
   Menu, Sun, Moon, LayoutDashboard, LayoutGrid, ShieldCheck, AlertTriangle,
-  AlertCircle, FileText, CheckSquare, HelpCircle, RefreshCw, Circle, Database, ClipboardCheck,
+  FileText, Circle, Database, ClipboardCheck, Network,
 } from "lucide-react";
 
 // Sidebar chrome is intentionally fixed dark regardless of the app-wide light/dark
@@ -19,28 +19,18 @@ const SB = {
 };
 
 // PROGRAM items with a real `id` route to an actual page in App.jsx's PAGES map.
-// `disabled: true` items are visual placeholders for pages not yet built —
-// shown for product-shape context, not wired to anything.
 const GROUPS = [
   {
     label: "Program",
     items: [
       { id: "executive", label: "Executive Dashboard", icon: LayoutDashboard },
+      { id: "data-footprint", label: "Data Footprint", icon: Database },
+      { id: "data-map", label: "Enterprise Data Map", icon: Network },
       { id: "ccf", label: "Common Controls", icon: LayoutGrid },
       { id: "gap-matrix", label: "Data Classification Register", icon: ShieldCheck },
       { id: "ssp", label: "System Security Plan", icon: ClipboardCheck },
-      { id: "data-footprint", label: "Data Footprint", icon: Database },
       { id: "risk-register", label: "Risk Register", icon: AlertTriangle },
-      { id: "exceptions", label: "Exceptions", icon: AlertCircle, disabled: true },
       { id: "policy-center", label: "Policy Center", icon: FileText },
-    ],
-  },
-  {
-    label: "Assurance",
-    items: [
-      { id: "control-testing", label: "Control Testing", icon: CheckSquare, disabled: true },
-      { id: "audits-rfps", label: "Audits & RFPs", icon: HelpCircle, disabled: true },
-      { id: "vanta-integration", label: "Vanta Integration", icon: RefreshCw, disabled: true },
     ],
   },
 ];
