@@ -59,11 +59,13 @@ function MetaChip({ icon: Icon, label, value }) {
 // stay usable rather than dumping a wall of IDs — collapsed by default with
 // a "show N more" toggle, and the clause list scrolls instead of growing
 // the card indefinitely.
-function ControlMapping({ controlIds }) {
+function ControlMapping({ controlIds, uncitedControlIds }) {
   const [expanded, setExpanded] = useState(false);
+  const [showUncited, setShowUncited] = useState(false);
   const LIMIT = 18;
   const shown = expanded ? controlIds : controlIds.slice(0, LIMIT);
   const hiddenCount = controlIds.length - shown.length;
+  const citedCount = controlIds.length - uncitedControlIds.length;
 
   return (
     <div className="rounded-lg p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
@@ -88,6 +90,23 @@ function ControlMapping({ controlIds }) {
             </div>
           );
         })}
+      </div>
+      <div className="pt-2 mt-2 text-[11px]" style={{ borderTop: `1px solid ${C.border}`, color: C.muted }}>
+        <span style={{ color: C.ink, fontWeight: 600 }}>{citedCount}/{controlIds.length}</span>{" "}
+        {uncitedControlIds.length === 0
+          ? "controls are individually cited on a specific step above (tagged inline) — every control this procedure owns is called out at step level."
+          : "controls are individually cited on a specific step above (tagged inline); the rest are covered by the procedure as a whole but not yet called out at step level."}
+        {uncitedControlIds.length > 0 && (
+          <>
+            {" "}
+            <button onClick={() => setShowUncited((v) => !v)} className="font-medium" style={{ color: C.accent }}>
+              {showUncited ? "hide" : "show"} the {uncitedControlIds.length} not yet cited
+            </button>
+            {showUncited && (
+              <div className="mt-1" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{uncitedControlIds.join(", ")}</div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
@@ -381,6 +400,20 @@ export default function ProcedureLibrary({ onNavigate }) {
                 <div>
                   <div className="text-sm font-semibold" style={{ color: C.ink }}>{s.title}</div>
                   <div className="text-xs mt-0.5 leading-relaxed" style={{ color: C.muted }}>{s.detail}</div>
+                  {s.controls && s.controls.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {s.controls.map((id) => (
+                        <span
+                          key={id}
+                          className="text-[10px] px-1.5 py-0.5 rounded"
+                          style={{ background: C.panel2, color: C.accent, fontFamily: "'IBM Plex Mono', monospace", border: `1px solid ${C.border}` }}
+                          title="Control this step operationalizes"
+                        >
+                          {id}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -399,7 +432,7 @@ export default function ProcedureLibrary({ onNavigate }) {
           </div>
 
           <SectionLabel icon={Layers}>Control mapping</SectionLabel>
-          <div className="mb-6"><ControlMapping controlIds={selected.controlIds} /></div>
+          <div className="mb-6"><ControlMapping controlIds={selected.controlIds} uncitedControlIds={selected.uncitedControlIds} /></div>
 
           <SectionLabel icon={Boxes}>Assets scored against this category</SectionLabel>
           <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
