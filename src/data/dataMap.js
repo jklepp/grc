@@ -11,34 +11,11 @@
 // copy, the export drop) carry their own small statuses array in the same
 // six-control shape so they're graded by the exact same formula.
 import { SYSTEMS, CONTROLS, controlBreakdown } from "./systemRegister";
+import { getNodeAssurance } from "./nodeAssurance";
 
 function pctFromStatuses(statuses) {
   const score = statuses.reduce((a, s) => a + (s === "compliant" ? 1 : s === "partial" ? 0.5 : 0), 0);
   return (score / statuses.length) * 100;
-}
-
-export function letterGrade(pct) {
-  if (pct >= 97) return "A+";
-  if (pct >= 93) return "A";
-  if (pct >= 90) return "A-";
-  if (pct >= 87) return "B+";
-  if (pct >= 83) return "B";
-  if (pct >= 80) return "B-";
-  if (pct >= 77) return "C+";
-  if (pct >= 73) return "C";
-  if (pct >= 70) return "C-";
-  if (pct >= 67) return "D+";
-  if (pct >= 63) return "D";
-  if (pct >= 60) return "D-";
-  return "F";
-}
-
-// A/B land as "healthy", C and below as "at risk" — mirrors the compliant/
-// partial/gap -> green/amber/red convention already used on the Gap Matrix.
-export function gradeBand(letter) {
-  if (letter.startsWith("A")) return "good";
-  if (letter.startsWith("B")) return "watch";
-  return "risk";
 }
 
 // Pipeline hops with no entry in SYSTEMS. Status order matches CONTROLS in
@@ -135,13 +112,14 @@ function nodeStatuses(def) {
 }
 
 // Resolves a node key into everything the map needs to render and grade it:
-// real system name/env when systemId is set, computed pct/letter/band, and
-// which specific controls are dragging the grade down (for the weakest-link note).
+// real system name/env when systemId is set, computed compliance pct, and
+// which specific controls are dragging it down (for the weakest-link note).
+// Cyber Assurance itself is not computed here — see nodeAssurance.js, which
+// this feeds via .system/.classification/.controlRows/.pct.
 export function getNode(key) {
   const def = NODE_DEFS[key];
   const statuses = nodeStatuses(def);
   const pct = pctFromStatuses(statuses);
-  const letter = letterGrade(pct);
   const system = def.systemId ? SYSTEMS.find((s) => s.id === def.systemId) : null;
   const controlRows = statuses.map((s, i) => ({ status: s, control: CONTROLS[i] }));
   const gaps = controlRows.filter((c) => c.status !== "compliant");
@@ -149,7 +127,7 @@ export function getNode(key) {
   // control count from — synthetic pipeline nodes are graded on the same 6
   // tracked controls only, with no larger "required controls" figure to show.
   const breakdown = system ? controlBreakdown(system) : null;
-  return { key, ...def, system, pct, letter, band: gradeBand(letter), gaps, controlRows, breakdown };
+  return { key, ...def, system, pct, gaps, controlRows, breakdown, classification: NODE_DOMAIN_CLASSIFICATION[key] || null };
 }
 
 // Each stage is a list of node keys; `branch` marks a node as a secondary
@@ -477,21 +455,27 @@ export function allNodes(dataType) {
   return [...keys].map(getNode);
 }
 
+// Weakest link is now the lowest Cyber Assurance score in the chain, not the
+// lowest raw compliance pct — a node can be 100% compliant on its 6 tracked
+// controls yet still be the weakest link if its Assurance Category scores or
+// criticality make it the least-assured node overall.
 export function weakestLink(dataType) {
   const nodes = allNodes(dataType);
   if (nodes.length === 0) return null;
-  return nodes.reduce((worst, n) => (n.pct < worst.pct ? n : worst), nodes[0]);
+  return nodes.reduce(
+    (worst, n) => (getNodeAssurance(n).overallAssurance < getNodeAssurance(worst).overallAssurance ? n : worst),
+    nodes[0]
+  );
 }
 
-export function dataTypeGrade(dataType) {
+export function dataTypeAssurancePct(dataType) {
   const nodes = allNodes(dataType);
   if (nodes.length === 0) return null;
-  const avgPct = nodes.reduce((a, n) => a + n.pct, 0) / nodes.length;
-  return letterGrade(avgPct);
+  return Math.round(nodes.reduce((a, n) => a + getNodeAssurance(n).overallAssurance, 0) / nodes.length);
 }
 
-function domainGrade(dataTypes) {
-  return dataTypeGrade(dataTypes.all);
+function domainAssurancePct(dataTypes) {
+  return dataTypeAssurancePct(dataTypes.all);
 }
 
 export const DOMAINS = [
@@ -505,8 +489,20 @@ export const DOMAINS = [
   { id: "operations", name: "Business Operations", classification: "Confidential", systemCount: 12, mapped: true, dataTypes: OPERATIONS_DATA_TYPES },
 ];
 
+// Node key -> owning domain's classification, so getNode() can hand pipeline
+// hops (no systemId, no classification of their own) something to derive an
+// estimated criticality from. Built before the grade pass below since that
+// pass calls getNode() for every node in every domain.
+const NODE_DOMAIN_CLASSIFICATION = {};
 DOMAINS.forEach((d) => {
-  d.grade = d.mapped ? domainGrade(d.dataTypes) : null;
+  if (!d.mapped) return;
+  Object.values(d.dataTypes).forEach((dt) => {
+    dt.stages.forEach((s) => s.nodes.forEach((n) => { NODE_DOMAIN_CLASSIFICATION[n.key] = d.classification; }));
+  });
+});
+
+DOMAINS.forEach((d) => {
+  d.assurancePct = d.mapped ? domainAssurancePct(d.dataTypes) : null;
 });
 
 // Rolled up across every mapped domain, not just Customer & End-User, so the

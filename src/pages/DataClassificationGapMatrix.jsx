@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Search, X, AlertCircle, CheckCircle2, Circle, MinusCircle, Clock, User, RefreshCw, Link2, Lock, ScrollText } from "lucide-react";
+import { Search, X, AlertCircle, CheckCircle2, Circle, MinusCircle, Clock, User, RefreshCw, Link2, Lock, ScrollText, ShieldCheck } from "lucide-react";
 import { C, CLASS_META, CLASS_ORDER } from "../theme";
 import { ClassificationTag, DataTypeChip, StandardChip, SourceBadge } from "../components/SystemBadges";
 import { SYSTEMS, CONTROLS, controlBreakdown } from "../data/systemRegister";
@@ -130,8 +130,8 @@ export default function DataClassificationGapMatrix() {
       <div className="px-8 pt-8 pb-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <div className="text-xs uppercase tracking-widest mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-              Data Classification Policy v3.2 · Confidential & Restricted
+            <div className="flex items-center gap-2 text-xs uppercase tracking-widest mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
+              <ShieldCheck size={13} /> Data Classification Policy v3.2 · Confidential & Restricted
             </div>
             <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>System Compliance Register</h1>
           </div>

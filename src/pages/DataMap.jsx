@@ -1,7 +1,109 @@
 import React, { useMemo, useState } from "react";
 import { Network, ArrowRight, ArrowDown, AlertTriangle, Layers, X } from "lucide-react";
 import { C, CLASS_META } from "../theme";
-import { DOMAINS, MAPPED_DATA_TYPE_COUNT, MAPPED_RELATIONSHIP_COUNT, weakestLink, gradeBand, dataTypeGrade, getNode } from "../data/dataMap";
+import { DOMAINS, MAPPED_DATA_TYPE_COUNT, MAPPED_RELATIONSHIP_COUNT, weakestLink, dataTypeAssurancePct, getNode } from "../data/dataMap";
+import { getNodeAssurance } from "../data/nodeAssurance";
+import { ASSURANCE_CATEGORIES, assuranceBand } from "../data/assuranceModel";
+
+function colorFor(key) {
+  return { color: C[key], bg: C[`${key}Bg`] };
+}
+
+function AssuranceChip({ label, value, band }) {
+  const { color, bg } = band.color ? colorFor(band.color) : { color: C.muted, bg: C.border };
+  return (
+    <div className="rounded-lg px-2.5 py-2" style={{ background: C.panel2 }}>
+      <div className="text-[9px] uppercase tracking-wide" style={{ color: C.muted }}>{label}</div>
+      <div className="flex items-center gap-1 mt-0.5">
+        <span className="text-sm font-semibold" style={{ color: C.ink }}>{value}</span>
+        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color, background: bg }}>{band.label}</span>
+      </div>
+    </div>
+  );
+}
+
+function AssuranceCategoryBar({ label, score }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-24 shrink-0 text-[11px]" style={{ color: C.ink }}>{label}</div>
+      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: C.panel2 }}>
+        <div className="h-full rounded-full" style={{ width: `${score}%`, background: C.accent }} />
+      </div>
+      <div className="w-6 text-[11px] text-right font-medium" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{score}</div>
+    </div>
+  );
+}
+
+function AssuranceRiskCard({ title, risk }) {
+  const { color, bg } = colorFor(risk.band.color);
+  return (
+    <div className="rounded-lg p-2.5 flex-1" style={{ background: C.panel2 }}>
+      <div className="text-[9px] uppercase tracking-wide" style={{ color: C.muted }}>{title}</div>
+      <div className="text-lg font-semibold mt-0.5" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{risk.score}<span className="text-[10px] font-normal" style={{ color: C.muted }}> /25</span></div>
+      <span className="inline-block text-[9px] font-semibold px-1.5 py-0.5 rounded-full mt-1" style={{ color, background: bg }}>{risk.band.label}</span>
+    </div>
+  );
+}
+
+function AssuranceSection({ node }) {
+  const a = getNodeAssurance(node);
+  const isEstimated = a.source === "estimated";
+  return (
+    <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[10px] uppercase tracking-wide" style={{ color: C.muted }}>Cyber Assurance</div>
+        <span
+          className="text-[9px] font-semibold px-2 py-0.5 rounded-full"
+          style={isEstimated ? { color: C.muted, background: C.panel2 } : { color: C.accent, background: C.accentBg }}
+        >
+          {isEstimated ? "Estimated" : a.assets.length > 1 ? `Registered · ${a.assets.length} assets` : "Registered"}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        <AssuranceChip label="Criticality" value={a.criticality} band={a.criticalityBand} />
+        <AssuranceChip label="Control Assurance" value={a.overallAssurance} band={a.assuranceBand} />
+        {a.evidenceConfidence != null ? (
+          <AssuranceChip label="Evidence Confidence" value={a.evidenceConfidence} band={a.assuranceBand} />
+        ) : (
+          <AssuranceChip label="Evidence Confidence" value="—" band={{ label: "Not tracked", color: "" }} />
+        )}
+        <AssuranceChip
+          label="Compliance Coverage"
+          value={`${a.complianceCoveragePct}%`}
+          band={a.complianceCoveragePct >= 90 ? { label: "Strong", color: "green" } : a.complianceCoveragePct >= 75 ? { label: "Adequate", color: "amber" } : { label: "Weak", color: "red" }}
+        />
+      </div>
+
+      <div className="space-y-2 mb-4">
+        {ASSURANCE_CATEGORIES.map((c) => <AssuranceCategoryBar key={c} label={c} score={a.categoryScores[c]} />)}
+      </div>
+
+      {a.criticalityFactors && (
+        <div className="mb-4">
+          <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Criticality factors</div>
+          {Object.entries(a.criticalityFactors).map(([key, factor]) => (
+            <div key={key} className="flex items-start justify-between gap-2 py-1 text-[11px]">
+              <span style={{ color: C.muted }}>{factor.reason}</span>
+              <span className="font-medium shrink-0" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{factor.score}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isEstimated && (
+        <div className="text-[10px] leading-relaxed mb-3" style={{ color: C.muted }}>
+          No Asset Register entry for this node — criticality is estimated from its domain's classification tier, category and compliance-coverage scores are derived from its tracked control statuses above, and evidence confidence isn't tracked for pipeline hops.
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <AssuranceRiskCard title="Inherent Risk" risk={a.inherentRisk} />
+        <AssuranceRiskCard title="Residual Risk" risk={a.residualRisk} />
+      </div>
+    </div>
+  );
+}
 
 function statusColor(status) {
   if (status === "compliant") return C.green;
@@ -20,14 +122,9 @@ const STAGE_COLORS = {
   Delivery: "#5B6EA8",
 };
 
-function bandColor(band) {
-  if (band === "good") return { color: C.green, bg: C.greenBg };
-  if (band === "watch") return { color: C.amber, bg: C.amberBg };
-  return { color: C.red, bg: C.redBg };
-}
-
 function NodeCard({ node, stageName, selected, onSelect }) {
-  const { color } = bandColor(node.band);
+  const assurance = getNodeAssurance(node);
+  const { color } = colorFor(assurance.assuranceBand.color);
   const envLabel = node.system ? node.system.env.replace(/^Production — /, "") : null;
   return (
     <button
@@ -43,7 +140,7 @@ function NodeCard({ node, stageName, selected, onSelect }) {
           >
             {node.code}
           </span>
-          <span className="text-sm font-bold" style={{ color, fontFamily: "'IBM Plex Mono', monospace" }}>{node.letter}</span>
+          <span className="text-sm font-bold" style={{ color, fontFamily: "'IBM Plex Mono', monospace" }}>{assurance.overallAssurance}%</span>
         </div>
         <div className="text-sm font-semibold leading-tight" style={{ color: C.ink }}>{node.name}</div>
         <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{envLabel || node.subtitle}</div>
@@ -113,11 +210,12 @@ function FlowChart({ dataType, selectedKey, onSelectNode }) {
 function WeakestLinkBanner({ dataType }) {
   const weak = weakestLink(dataType);
   if (!weak) return null;
+  const assurance = getNodeAssurance(weak);
   const gapControls = weak.gaps.filter((g) => g.status === "gap").map((g) => g.control);
   const reason = gapControls.length > 0
     ? `${gapControls.join(" and ")} ${gapControls.length > 1 ? "do" : "does"} not satisfy the Restricted data baseline.`
     : "Some tracked controls are only partially in place.";
-  const strong = weak.band === "good";
+  const strong = assurance.overallAssurance >= 90;
   return (
     <div
       className="rounded-lg px-4 py-3 flex items-center gap-3"
@@ -126,9 +224,9 @@ function WeakestLinkBanner({ dataType }) {
       <AlertTriangle size={16} color={strong ? C.muted : C.red} className="shrink-0" />
       <div className="text-sm" style={{ color: C.ink }}>
         {strong ? (
-          <>Every system in this chain grades <span style={{ fontWeight: 600 }}>B or better</span> — no weak link to flag right now.</>
+          <>Every node in this chain scores <span style={{ fontWeight: 600 }}>90% Cyber Assurance or better</span> — no weak link to flag right now.</>
         ) : (
-          <><span style={{ fontWeight: 600 }}>Weakest link: {weak.name}</span> <span style={{ color: C.muted }}>({weak.letter})</span> · {reason}</>
+          <><span style={{ fontWeight: 600 }}>Weakest link: {weak.name}</span> <span style={{ color: C.muted }}>({assurance.overallAssurance}%)</span> · {reason}</>
         )}
       </div>
     </div>
@@ -151,7 +249,8 @@ const STATUS_LABEL = { compliant: "Compliant", partial: "Partial", gap: "Gap" };
 // overlay), and it can stay open across data-type tab switches so you can
 // keep browsing the chart while comparing systems.
 function SystemDetailPanel({ node, onClose }) {
-  const { color } = bandColor(node.band);
+  const assurance = getNodeAssurance(node);
+  const { color } = colorFor(assurance.assuranceBand.color);
   const envLabel = node.system ? node.system.env : null;
 
   const statRows = node.breakdown
@@ -186,12 +285,14 @@ function SystemDetailPanel({ node, onClose }) {
       </div>
 
       <div className="px-5 py-4 flex items-center gap-4" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <div className="text-3xl font-bold" style={{ color, fontFamily: "'IBM Plex Mono', monospace" }}>{node.letter}</div>
+        <div className="text-3xl font-bold" style={{ color, fontFamily: "'IBM Plex Mono', monospace" }}>{assurance.overallAssurance}%</div>
         <div>
-          <div className="text-sm font-semibold" style={{ color: C.ink }}>{Math.round(node.pct)}% compliant</div>
-          <div className="text-[11px]" style={{ color: C.muted }}>Overall control health</div>
+          <div className="text-sm font-semibold" style={{ color: C.ink }}>{assurance.assuranceBand.label} Cyber Assurance</div>
+          <div className="text-[11px]" style={{ color: C.muted }}>{Math.round(node.pct)}% of tracked controls compliant</div>
         </div>
       </div>
+
+      <AssuranceSection node={node} />
 
       <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
         {statRows.map((r) => <StatRow key={r.label} {...r} />)}
@@ -230,6 +331,7 @@ function SystemDetailPanel({ node, onClose }) {
 
 function DomainTile({ domain, active, onSelect }) {
   const meta = CLASS_META[domain.classification];
+  const band = domain.assurancePct != null ? assuranceBand(domain.assurancePct) : null;
   return (
     <button
       onClick={() => onSelect(domain.id)}
@@ -241,8 +343,8 @@ function DomainTile({ domain, active, onSelect }) {
     >
       <div className="flex items-center justify-between gap-2 mb-1.5">
         <span className="text-sm font-semibold" style={{ color: C.ink }}>{domain.name}</span>
-        {domain.grade ? (
-          <span className="text-sm font-bold shrink-0" style={{ color: bandColor(gradeBand(domain.grade)).color }}>{domain.grade}</span>
+        {band ? (
+          <span className="text-sm font-bold shrink-0" style={{ color: colorFor(band.color).color }}>{domain.assurancePct}%</span>
         ) : null}
       </div>
       <div className="flex items-center gap-2 text-xs">
@@ -293,7 +395,7 @@ export default function DataMap() {
               </div>
               <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>Enterprise Data Map</h1>
             </div>
-            <div className="text-xs text-right" style={{ color: C.muted }}>
+            <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
               {DOMAINS.length} domains · {MAPPED_DATA_TYPE_COUNT} data types mapped · {MAPPED_RELATIONSHIP_COUNT} custody relationships mapped
             </div>
           </div>
@@ -348,7 +450,7 @@ export default function DataMap() {
                 <h2 className="text-xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>
                   {domain.dataTypes[typeKey]?.label || "All Data"}
                 </h2>
-                <span className="text-xs" style={{ color: C.muted }}>{domain.classification} · Grade {dataTypeGrade(dataType)}</span>
+                <span className="text-xs" style={{ color: C.muted }}>{domain.classification} · {dataTypeAssurancePct(dataType)}% Cyber Assurance</span>
               </div>
               <FlowChart dataType={dataType} selectedKey={selectedKey} onSelectNode={toggleSelectedNode} />
             </div>

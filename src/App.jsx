@@ -8,6 +8,8 @@ import RiskRegister from "./pages/RiskRegister";
 import ExecutiveDashboard from "./pages/ExecutiveDashboard";
 import PolicyCenter from "./pages/PolicyCenter";
 import SystemSecurityPlan from "./pages/SystemSecurityPlan";
+import AssetRegister from "./pages/AssetRegister";
+import ControlProfile from "./pages/ControlProfile";
 import { C, applyTheme, FONT_IMPORT } from "./theme";
 
 // Map nav item ids (defined in Sidebar.jsx) to the page component to render.
@@ -21,6 +23,8 @@ const PAGES = {
   executive: ExecutiveDashboard,
   "policy-center": PolicyCenter,
   ssp: SystemSecurityPlan,
+  "asset-register": AssetRegister,
+  "control-profile": ControlProfile,
 };
 
 export default function App() {
