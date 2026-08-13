@@ -134,3 +134,20 @@ export const ABOVE_APPETITE_COUNT = RISKS.filter(
   (r) => score(r.residual.severity, r.residual.likelihood) > r.appetite
 ).length;
 export const QUANTIFIED_EXPOSURE = RISKS.reduce((a, r) => a + r.exposure, 0);
+
+// A risk is "material" when it clears two bars, not one: residual severity
+// at the top tier (Severe) AND the residual score still exceeds the org's
+// own appetite for that risk. A Severe risk the business has already
+// accepted within appetite, or an above-appetite risk that's only Moderate,
+// doesn't rise to "material" — this is deliberately tighter than
+// ABOVE_APPETITE_COUNT above. Centralized here (not a "top N" cap picked in
+// a page component) so any page surfacing "material risk" shows the same
+// set, and that set can't quietly drift as risks are added or re-scored.
+export function isMaterial(r) {
+  return r.residual.severity === "Severe" && score(r.residual.severity, r.residual.likelihood) > r.appetite;
+}
+export const MATERIAL_RISKS = [...RISKS]
+  .filter(isMaterial)
+  .map((r) => ({ ...r, residualScore: score(r.residual.severity, r.residual.likelihood) }))
+  .sort((a, b) => b.residualScore - a.residualScore || b.exposure - a.exposure);
+export const MATERIAL_RISK_EXPOSURE = MATERIAL_RISKS.reduce((a, r) => a + r.exposure, 0);

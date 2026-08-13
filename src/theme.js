@@ -15,11 +15,19 @@ export const DARK = {
   accent: "#8C7AE6",
   green: "#5FB98A",
   amber: "#E0A94E",
-  red: "#E0716A",
+  // Was a coral-red (#E0716A) — replaced with a rust/terracotta so the app's
+  // "most severe" signal reads as serious without the alarm-red "something
+  // is on fire" connotation. Kept warm and darker than amber so the
+  // amber -> red severity escalation still reads as a clear gradient, not a
+  // hue swap. The token is still named `red`/`redBg` everywhere it's
+  // consumed (criticality/risk/assurance bands, dozens of pages) — renaming
+  // that key isn't worth the blast radius since only the rendered hex is
+  // user-visible, not the internal name.
+  red: "#C4623C",
   na: "#4A5265",
   greenBg: "rgba(95,185,138,0.12)",
   amberBg: "rgba(224,169,78,0.12)",
-  redBg: "rgba(224,113,106,0.12)",
+  redBg: "rgba(196,98,60,0.12)",
   accentBg: "rgba(140,122,230,0.15)",
 };
 
@@ -33,11 +41,11 @@ export const LIGHT = {
   accent: "#6C5DD3",
   green: "#1F9254",
   amber: "#B87A1E",
-  red: "#C74A3F",
+  red: "#963E22", // same rust family as DARK.red, darkened/saturated to match this palette's contrast pattern
   na: "#9AA2B0",
   greenBg: "rgba(31,146,84,0.10)",
   amberBg: "rgba(184,122,30,0.10)",
-  redBg: "rgba(199,74,63,0.10)",
+  redBg: "rgba(150,62,34,0.10)",
   accentBg: "rgba(108,93,211,0.10)",
 };
 
