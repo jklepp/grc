@@ -1,7 +1,7 @@
 import React from "react";
 import {
   Menu, Sun, Moon, LayoutDashboard, LayoutGrid, ShieldCheck, AlertTriangle,
-  FileText, Circle, Database, ClipboardCheck, Network,
+  FileText, Circle, Database, ClipboardCheck, Network, Boxes, SlidersHorizontal,
 } from "lucide-react";
 
 // Sidebar chrome is intentionally fixed dark regardless of the app-wide light/dark
@@ -18,19 +18,44 @@ const SB = {
   green: "#5FB98A",
 };
 
-// PROGRAM items with a real `id` route to an actual page in App.jsx's PAGES map.
+// Every item's `id` routes to an actual page in App.jsx's PAGES map. Grouped
+// to mirror the platform's flow: survey the data/asset estate, hold it to a
+// control framework, document how that's governed, then track what's left
+// as risk — rather than one flat list of unrelated-looking pages.
 const GROUPS = [
   {
-    label: "Program",
+    label: "Overview",
     items: [
       { id: "executive", label: "Executive Dashboard", icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: "Data & Assets",
+    items: [
       { id: "data-footprint", label: "Data Footprint", icon: Database },
       { id: "data-map", label: "Enterprise Data Map", icon: Network },
+      { id: "asset-register", label: "Asset Register", icon: Boxes },
+    ],
+  },
+  {
+    label: "Controls & Frameworks",
+    items: [
       { id: "ccf", label: "Common Controls", icon: LayoutGrid },
+      { id: "control-profile", label: "Control Profile", icon: SlidersHorizontal },
       { id: "gap-matrix", label: "Data Classification Register", icon: ShieldCheck },
+    ],
+  },
+  {
+    label: "Governance",
+    items: [
       { id: "ssp", label: "System Security Plan", icon: ClipboardCheck },
-      { id: "risk-register", label: "Risk Register", icon: AlertTriangle },
       { id: "policy-center", label: "Policy Center", icon: FileText },
+    ],
+  },
+  {
+    label: "Risk",
+    items: [
+      { id: "risk-register", label: "Risk Register", icon: AlertTriangle },
     ],
   },
 ];

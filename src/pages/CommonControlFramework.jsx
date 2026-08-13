@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Search, X, ChevronDown, ChevronRight, RefreshCw, Layers, UserX, HelpCircle } from "lucide-react";
+import { Search, X, ChevronDown, ChevronRight, RefreshCw, LayoutGrid, UserX, HelpCircle } from "lucide-react";
 import { C } from "../theme";
 import scf from "../data/scfControls.json";
 import { CCF_VISIBLE_CONTROLS as VISIBLE_CONTROLS, CCF_DOMAINS as VISIBLE_DOMAINS } from "../data/ccfControls";
@@ -78,7 +78,7 @@ export default function CommonControlFramework() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <div className="flex items-center gap-2 text-xs uppercase tracking-widest mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-              <Layers size={13} /> Common Control Framework
+              <LayoutGrid size={13} /> Common Control Framework
             </div>
             <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>Unified Compliance Matrix</h1>
           </div>

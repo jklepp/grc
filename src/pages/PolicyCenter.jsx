@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { BookOpen, Search, Layers, ListChecks, ClipboardList, Users2, Link2, ShieldAlert, Tags, ArrowUpRight } from "lucide-react";
+import { FileText, Search, Layers, ListChecks, ClipboardList, Users2, Link2, ShieldAlert, Tags, ArrowUpRight } from "lucide-react";
 import { C, CLASS_META, CLASS_ORDER } from "../theme";
 import { POLICIES, POLICY_CATEGORIES, POLICY_TIERS, getFrameworkClauses } from "../data/policies";
 
@@ -133,7 +133,7 @@ export default function PolicyCenter({ onNavigate }) {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <div className="flex items-center gap-2 text-xs uppercase tracking-widest mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-              <BookOpen size={13} /> Policy Center
+              <FileText size={13} /> Policy Center
             </div>
             <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>ACME Policy Library</h1>
           </div>
