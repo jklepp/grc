@@ -54,14 +54,30 @@ function MetaChip({ icon: Icon, label, value }) {
   );
 }
 
+// Some SOPs now cover up to ~46 real controls (the Governance, Risk &
+// Compliance group), so the raw ID list and clause citations both need to
+// stay usable rather than dumping a wall of IDs — collapsed by default with
+// a "show N more" toggle, and the clause list scrolls instead of growing
+// the card indefinitely.
 function ControlMapping({ controlIds }) {
+  const [expanded, setExpanded] = useState(false);
+  const LIMIT = 18;
+  const shown = expanded ? controlIds : controlIds.slice(0, LIMIT);
+  const hiddenCount = controlIds.length - shown.length;
+
   return (
     <div className="rounded-lg p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
       <div className="text-[11px] mb-3" style={{ color: C.muted }}>
         Maps to <span style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{controlIds.length}</span> SCF control{controlIds.length !== 1 ? "s" : ""}:{" "}
-        <span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{controlIds.join(", ")}</span>
+        <span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{shown.join(", ")}{hiddenCount > 0 ? " …" : ""}</span>
+        {hiddenCount > 0 && (
+          <button onClick={() => setExpanded(true)} className="ml-1.5 font-medium" style={{ color: C.accent }}>show {hiddenCount} more</button>
+        )}
+        {expanded && controlIds.length > LIMIT && (
+          <button onClick={() => setExpanded(false)} className="ml-1.5 font-medium" style={{ color: C.accent }}>show less</button>
+        )}
       </div>
-      <div className="space-y-1.5 pt-2" style={{ borderTop: `1px solid ${C.border}` }}>
+      <div className="space-y-1.5 pt-2" style={{ borderTop: `1px solid ${C.border}`, maxHeight: 160, overflowY: "auto" }}>
         {MAPPED_STANDARDS.map((std) => {
           const clauses = getFrameworkClauses(controlIds, std);
           if (clauses.length === 0) return null;
