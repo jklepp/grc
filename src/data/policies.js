@@ -33,8 +33,8 @@ export function getApplicableStandards(controlIds) {
 // Shared by every page that shows a framework badge (Procedure Library,
 // Activity Timeliness, ...) so "which standards do we show" and "what do we
 // call them" can't drift between pages.
-export const MAPPED_STANDARDS = ["ISO 27001", "SOC 2", "PCI DSS", "HIPAA"];
-export const STANDARD_ABBR = { "SOC 2": "SOC2", "ISO 27001": "27001", "ISO 27017": "27017", "ISO 27018": "27018", "ISO 27701": "27701", "PCI DSS": "PCI", HIPAA: "HIPAA" };
+export const MAPPED_STANDARDS = ["ISO 27001", "SOC 2", "PCI DSS", "HIPAA", "ISO 42001"];
+export const STANDARD_ABBR = { "SOC 2": "SOC2", "ISO 27001": "27001", "ISO 27017": "27017", "ISO 27018": "27018", "ISO 27701": "27701", "PCI DSS": "PCI", HIPAA: "HIPAA", "ISO 42001": "42001" };
 
 // "Core" policies are the ones day-to-day employee behavior actually drives risk on
 // (how you log in, handle data, use AI tools, and report trouble) — small on purpose,

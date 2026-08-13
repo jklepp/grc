@@ -7,7 +7,9 @@ function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 
 // status is derived deterministically from the control id: matched controls are
 // marked "matched" except for a held-out ~1/3 still flagged "unscored" for review.
 // Shared by the Unified Compliance Matrix and the Data Classification Register so
-// both pages count against the same 298-control pool.
+// both pages count against the same matched-control pool (currently 323, but
+// read CCF_VISIBLE_CONTROLS.length rather than trusting this comment — it'll
+// grow every time another framework crosswalk gets added).
 export const CCF_CONTROLS = scf.controls.map((c) => {
   const frameworks = scf.standards
     .map((std) => ({ standard: std, clauses: c.frameworks[std] || [] }))
@@ -27,7 +29,7 @@ export const CCF_DOMAINS = scf.domains
   .filter((d) => d.total > 0);
 export const CCF_STANDARDS = scf.standards;
 
-// Which of the 298 matched CCF controls apply to a system, given the compliance
+// Which of the matched CCF controls apply to a system, given the compliance
 // standards it's in scope for — the real list, not just a count.
 export function requiredControls(standards) {
   return CCF_VISIBLE_CONTROLS.filter((c) => c.frameworks.some((f) => standards.includes(f.standard)));
