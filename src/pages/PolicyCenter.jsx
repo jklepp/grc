@@ -1,10 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { FileText, Search, Layers, ListChecks, ClipboardList, Users2, Link2, ShieldAlert, Tags, ArrowUpRight } from "lucide-react";
 import { C, CLASS_META, CLASS_ORDER } from "../theme";
-import { POLICIES, POLICY_CATEGORIES, POLICY_TIERS, getFrameworkClauses } from "../data/policies";
-
-const STANDARD_ABBR = { "SOC 2": "SOC2", "ISO 27001": "27001", "ISO 27017": "27017", "ISO 27018": "27018", "ISO 27701": "27701", "PCI DSS": "PCI", HIPAA: "HIPAA" };
-const MAPPED_STANDARDS = ["ISO 27001", "SOC 2", "PCI DSS", "HIPAA"];
+import { POLICIES, POLICY_CATEGORIES, POLICY_TIERS, getFrameworkClauses, MAPPED_STANDARDS, STANDARD_ABBR } from "../data/policies";
 
 const TOTAL_DOMAINS = new Set(POLICIES.flatMap((p) => p.domains)).size;
 const TOTAL_CONTROLS = new Set(POLICIES.flatMap((p) => p.controlIds)).size;

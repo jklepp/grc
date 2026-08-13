@@ -8,8 +8,9 @@
 // review under the same "Governance" procedure, which is false). Each SOP's
 // `domains` list is a partition of the 32 SCF domains that actually have
 // matched controls (see ccfControls.js's CCF_VISIBLE_CONTROLS) — every
-// domain appears in exactly one SOP, so every one of the ~307 matched
-// controls resolves to exactly one governing procedure with no gaps and no
+// domain appears in exactly one SOP, so every one of the matched controls
+// (currently ~323, and growing as more framework crosswalks get added)
+// resolves to exactly one governing procedure with no gaps and no
 // double-counting. `category` still tags each SOP with the single closest
 // Assurance Category (for the dashboard rollup and the Asset Register
 // cross-reference) — most SOPs' domains agree on one category already; the

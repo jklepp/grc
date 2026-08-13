@@ -4,8 +4,7 @@ import { C } from "../theme";
 import scf from "../data/scfControls.json";
 import { CCF_VISIBLE_CONTROLS as VISIBLE_CONTROLS, CCF_DOMAINS as VISIBLE_DOMAINS } from "../data/ccfControls";
 import { CONSOLIDATED_CONTROLS } from "../data/consolidatedControls";
-
-const STANDARD_ABBR = { "SOC 2": "SOC2", "ISO 27001": "27001", "ISO 27017": "27017", "ISO 27018": "27018", "ISO 27701": "27701", "PCI DSS": "PCI", HIPAA: "HIPAA" };
+import { STANDARD_ABBR } from "../data/policies";
 
 function overallColor(status) {
   if (status === "matched") return C.green;
@@ -87,7 +86,7 @@ export default function CommonControlFramework() {
           </div>
         </div>
         <p className="text-sm mt-2 max-w-2xl" style={{ color: C.muted }}>
-          The real SCF control library, crosswalked against SOC 2, ISO 27001, ISO 27017, ISO 27018, ISO 27701, PCI DSS, and HIPAA — filtered to the controls that actually map to one of those frameworks. Ownership isn't in the source data, so every control starts unowned; about a third are still flagged Needs Review.
+          The real SCF control library, crosswalked against SOC 2, ISO 27001, ISO 27017, ISO 27018, ISO 27701, ISO 42001, PCI DSS, and HIPAA — filtered to the controls that actually map to one of those frameworks. Ownership isn't in the source data, so every control starts unowned; about a third are still flagged Needs Review.
         </p>
       </div>
 
@@ -99,7 +98,7 @@ export default function CommonControlFramework() {
         <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
           <div className="text-2xl font-semibold" style={{ color: C.na, fontFamily: "'Source Serif 4', serif" }}>{scf.stats.noMatchCount.toLocaleString()}</div>
           <div className="text-xs mt-1" style={{ color: C.muted }}>
-            No match across any of the 7 in-scope frameworks ({Math.round((scf.stats.noMatchCount / scf.stats.totalControls) * 100)}%)
+            No match across any of the 8 in-scope frameworks ({Math.round((scf.stats.noMatchCount / scf.stats.totalControls) * 100)}%)
           </div>
         </div>
         <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
