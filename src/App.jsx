@@ -10,6 +10,7 @@ import PolicyCenter from "./pages/PolicyCenter";
 import SystemSecurityPlan from "./pages/SystemSecurityPlan";
 import AssetRegister from "./pages/AssetRegister";
 import ControlProfile from "./pages/ControlProfile";
+import ProcedureLibrary from "./pages/ProcedureLibrary";
 import { C, applyTheme, FONT_IMPORT } from "./theme";
 
 // Map nav item ids (defined in Sidebar.jsx) to the page component to render.
@@ -25,6 +26,7 @@ const PAGES = {
   ssp: SystemSecurityPlan,
   "asset-register": AssetRegister,
   "control-profile": ControlProfile,
+  "procedure-library": ProcedureLibrary,
 };
 
 export default function App() {
