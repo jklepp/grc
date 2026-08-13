@@ -22,6 +22,20 @@ export function getFrameworkClauses(controlIds, standard) {
   return [...set].sort();
 }
 
+// The subset of MAPPED_STANDARDS a given set of controls actually has at
+// least one clause citation for — same "derived, not hand-typed" rule as
+// everything else in this file, just returning which frameworks apply
+// instead of which specific clauses.
+export function getApplicableStandards(controlIds) {
+  return MAPPED_STANDARDS.filter((std) => getFrameworkClauses(controlIds, std).length > 0);
+}
+
+// Shared by every page that shows a framework badge (Procedure Library,
+// Activity Timeliness, ...) so "which standards do we show" and "what do we
+// call them" can't drift between pages.
+export const MAPPED_STANDARDS = ["ISO 27001", "SOC 2", "PCI DSS", "HIPAA"];
+export const STANDARD_ABBR = { "SOC 2": "SOC2", "ISO 27001": "27001", "ISO 27017": "27017", "ISO 27018": "27018", "ISO 27701": "27701", "PCI DSS": "PCI", HIPAA: "HIPAA" };
+
 // "Core" policies are the ones day-to-day employee behavior actually drives risk on
 // (how you log in, handle data, use AI tools, and report trouble) — small on purpose,
 // so pinning them as required reading doesn't just recreate the same wall of text

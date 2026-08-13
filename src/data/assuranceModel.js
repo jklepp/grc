@@ -136,9 +136,16 @@ export function evidenceConfidenceScore(categories) {
   return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
 }
 
+// Named so any page citing "the target" (an Executive Dashboard KPI card, an
+// "assets below target" count) points at the same real threshold — the score
+// an asset needs to clear the Strong band below, not a separately-chosen
+// round number.
+export const ASSURANCE_TARGET = 90;
+export const ADEQUATE_THRESHOLD = 75;
+
 export function assuranceBand(score) {
-  if (score >= 90) return { label: "Strong", color: "green" };
-  if (score >= 75) return { label: "Adequate", color: "amber" };
+  if (score >= ASSURANCE_TARGET) return { label: "Strong", color: "green" };
+  if (score >= ADEQUATE_THRESHOLD) return { label: "Adequate", color: "amber" };
   if (score >= 60) return { label: "Developing", color: "amber" };
   return { label: "Weak", color: "red" };
 }
