@@ -2,7 +2,9 @@ import React, { useState, useMemo } from "react";
 import { Search, X, Lock, RefreshCw, AlertTriangle, ChevronDown, Circle, Clock, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { C } from "../theme";
 import { PageHeader } from "../components/Headings";
-import { RISKS, MATERIAL_RISKS, SEVERITY_VALUE, LIKELIHOOD_VALUE, score } from "../data/riskRegister";
+import { getAllRisks, MATERIAL_RISKS, SEVERITY_VALUE, score } from "../engine";
+
+const RISKS = getAllRisks();
 
 const SEVERITY_LEVELS = ["Minor", "Moderate", "Major", "Severe"]; // 1-4, bottom to top on heatmap
 const LIKELIHOOD_LEVELS = ["Rare", "Unlikely", "Possible", "Likely", "Almost Certain"]; // 1-5
@@ -429,10 +431,16 @@ export default function RiskRegister() {
                     <StatTile label="Probability" value={`${selected.probability[0]}-${selected.probability[1]}%`} sub="annual" />
                     <StatTile label="Loss Magnitude" value={formatUSD(selected.lossMagnitude[0])} sub={`to ${formatUSD(selected.lossMagnitude[1])}`} />
                     <StatTile label="Residual Exposure" value={formatUSD(selected.exposure)} sub="Annualized loss expectancy" />
+                    {/* Was a portfolio-wide average for whichever assurance
+                        category this risk's free-text linkedControl mapped to —
+                        the same number for every risk in that category, unable
+                        to move when the assets involved moved. Now it's read
+                        from the controls holding THIS scenario down and the
+                        assets that carry it. */}
                     <StatTile
-                      label={`${selected.assurance.category} Assurance`}
-                      value={`${selected.assurance.pct}%`}
-                      sub={`target ${selected.assurance.target}% · ${selected.assurance.band.label}`}
+                      label="Control Assurance"
+                      value={selected.assurance.pct == null ? "—" : `${selected.assurance.pct}%`}
+                      sub={selected.assurance.pct == null ? "unassessed" : `target ${selected.assurance.target}% · ${selected.assurance.band.label}`}
                     />
                   </div>
                   <div className="flex items-center justify-between text-xs p-2.5 rounded-lg" style={{ background: C.redBg, color: C.red, border: `1px solid ${C.red}33` }}>
@@ -452,9 +460,55 @@ export default function RiskRegister() {
               <div className="flex items-center justify-between text-sm mb-1" style={{ color: C.muted }}>
                 <span>Owner</span><span style={{ color: C.ink }}>{selected.owner}</span>
               </div>
-              <div className="flex items-center justify-between text-sm mb-6" style={{ color: C.muted }}>
-                <span>Linked control domain</span><span style={{ color: C.accent }}>{selected.linkedControl}</span>
-              </div>
+              {/* The traceability chain the register never had: which controls
+                  hold this scenario down, which assets carry it, and — for the
+                  weakest control — the specific implementation dragging it. */}
+              {selected.assurance.controls.length > 0 && (
+                <div className="mb-6">
+                  <div className="text-xs uppercase tracking-wide mb-2" style={{ color: C.muted }}>Controls holding this down</div>
+                  <div className="space-y-1.5">
+                    {selected.assurance.controls.map((c) => (
+                      <div key={c.control.id} className="rounded-lg px-3 py-2" style={{ background: C.panel2 }}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs flex-1 min-w-0 truncate" style={{ color: C.ink }}>{c.control.friendlyName}</span>
+                          <span className="text-[10px]" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{c.control.id}</span>
+                          <span className="text-xs font-semibold tabular-nums" style={{ color: c.score >= 75 ? C.green : c.score >= 60 ? C.amber : C.red, fontFamily: "'IBM Plex Mono', monospace" }}>
+                            {c.score ?? "—"}
+                          </span>
+                        </div>
+                        {c.weakest?.note && <div className="text-[11px] mt-1 leading-relaxed" style={{ color: C.muted }}>{c.weakest.note}</div>}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="text-[11px] mt-2" style={{ color: C.muted }}>
+                    Each control is scored at its weakest implementation — a defect on one component exposes the scenario regardless of how the others score.
+                  </div>
+                </div>
+              )}
+
+              {selected.contributingAssets.length > 0 && (
+                <div className="mb-6">
+                  <div className="text-xs uppercase tracking-wide mb-2" style={{ color: C.muted }}>Assets carrying this risk</div>
+                  <div className="space-y-1.5">
+                    {selected.contributingAssets.map((c) => (
+                      <div key={c.assetId} className="rounded-lg px-3 py-2" style={{ background: C.panel2 }}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs flex-1 min-w-0 truncate" style={{ color: C.ink }}>{c.asset.name}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ color: c.role === "primary" ? C.accent : C.muted, background: c.role === "primary" ? C.accentBg : "transparent" }}>{c.role}</span>
+                          <span className="text-xs font-semibold tabular-nums" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{c.asset.overallAssurance}</span>
+                        </div>
+                        {c.note && <div className="text-[11px] mt-1 leading-relaxed" style={{ color: C.muted }}>{c.note}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selected.assurance.noAssetsReason && (
+                <div className="text-[11px] mb-6 p-3 rounded-lg leading-relaxed" style={{ background: C.panel2, color: C.muted }}>
+                  <span style={{ color: C.ink, fontWeight: 600 }}>No asset edges: </span>{selected.assurance.noAssetsReason}
+                </div>
+              )}
 
               <div className="text-xs uppercase tracking-wide mb-3" style={{ color: C.muted }}>Treatment Plan · {selected.treatment}</div>
               <div className="space-y-2">

@@ -1,9 +1,13 @@
 import React, { useMemo, useState } from "react";
-import { Network, ArrowRight, ArrowDown, AlertTriangle, X } from "lucide-react";
+import { Network, ArrowRight, ArrowDown, AlertTriangle, X, KeyRound } from "lucide-react";
 import { C, CLASS_META } from "../theme";
 import { PageHeader } from "../components/Headings";
-import { SYSTEM_MAPS, TOTAL_ASSET_COUNT, TOTAL_RELATIONSHIP_COUNT, weakestLink, flowAssurancePct, getNode } from "../data/dataMap";
-import { ASSURANCE_CATEGORIES, assuranceBand } from "../data/assuranceModel";
+import {
+  getAllSystems, getAsset, getDataFlows, getAllDataTypes, dataTypesForSystem, dataForAsset,
+  ASSURANCE_CATEGORIES, assuranceBand, evaluateAssetAgainstProfile, IMPLEMENTATION_STATUS_META, TOTAL_FLOW_COUNT, getAllAssets,
+} from "../engine";
+
+const SYSTEMS = getAllSystems();
 
 function colorFor(key) {
   return { color: C[key], bg: C[`${key}Bg`] };
@@ -22,14 +26,15 @@ function AssuranceChip({ label, value, band }) {
   );
 }
 
-function AssuranceCategoryBar({ label, score }) {
+function AssuranceCategoryBar({ label, rollup }) {
   return (
     <div className="flex items-center gap-2">
+      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: rollup.basis === "measured" ? C.green : C.na }} />
       <div className="w-24 shrink-0 text-[11px]" style={{ color: C.ink }}>{label}</div>
       <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: C.panel2 }}>
-        <div className="h-full rounded-full" style={{ width: `${score}%`, background: C.accent }} />
+        <div className="h-full rounded-full" style={{ width: `${rollup.score}%`, background: C.accent }} />
       </div>
-      <div className="w-6 text-[11px] text-right font-medium" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{score}</div>
+      <div className="w-6 text-[11px] text-right font-medium" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{rollup.score}</div>
     </div>
   );
 }
@@ -46,144 +51,110 @@ function AssuranceRiskCard({ title, risk }) {
 }
 
 const PROFILE_STATUS_META = {
-  met: { label: "Met", color: C.green, bg: C.greenBg },
-  partial: { label: "Partial", color: C.amber, bg: C.amberBg },
-  gap: { label: "Gap", color: C.red, bg: C.redBg },
+  met: { label: "Met", color: C.green },
+  partial: { label: "Partial", color: C.amber },
+  gap: { label: "Gap", color: C.red },
 };
 
-function AssuranceSection({ node }) {
-  const a = node.asset;
-  return (
-    <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-[10px] uppercase tracking-wide" style={{ color: C.muted }}>Cyber Assurance</div>
-        <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full" style={{ color: C.accent, background: C.accentBg }}>
-          Asset Register
-        </span>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2 mb-4">
-        <AssuranceChip label="Criticality" value={a.criticality} band={a.criticalityBand} />
-        <AssuranceChip label="Control Assurance" value={a.overallAssurance} band={a.assuranceBand} />
-        <AssuranceChip label="Evidence Confidence" value={a.evidenceConfidence} band={a.evidenceConfidenceBand} />
-        <AssuranceChip
-          label="Compliance Coverage"
-          value={`${a.complianceCoveragePct}%`}
-          band={a.complianceCoveragePct >= 90 ? { label: "Strong", color: "green" } : a.complianceCoveragePct >= 75 ? { label: "Adequate", color: "amber" } : { label: "Weak", color: "red" }}
-        />
-      </div>
-
-      <div className="space-y-2 mb-4">
-        {ASSURANCE_CATEGORIES.map((c) => <AssuranceCategoryBar key={c} label={c} score={a.categoryScores[c]} />)}
-      </div>
-
-      <div className="mb-4">
-        <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Criticality factors</div>
-        {Object.entries(a.criticalityFactors).map(([key, factor]) => (
-          <div key={key} className="flex items-start justify-between gap-2 py-1 text-[11px]">
-            <span style={{ color: C.muted }}>{factor.reason}</span>
-            <span className="font-medium shrink-0" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{factor.score}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex gap-2">
-        <AssuranceRiskCard title="Inherent Risk" risk={a.inherentRisk} />
-        <AssuranceRiskCard title="Residual Risk" risk={a.residualRisk} />
-      </div>
-    </div>
-  );
+// Depth is derived by walking inbound data edges, so a stage has no stored
+// name to print. Depth 0 is whatever nothing else in the boundary feeds; the
+// rest are labelled by how many hops from there they sit.
+function stageLabel(depth) {
+  return depth === 0 ? "Ingress" : `Hop ${depth}`;
 }
 
-// Fixed hues per pipeline stage — purely categorical (which hop is this?),
-// deliberately distinct from the green/amber/red vocabulary used for grade
-// bands so a stage badge is never mistaken for a health signal.
-const STAGE_COLORS = {
-  Ingress: "#7C6FEE",
-  "Primary Custody": "#2E8B96",
-  Processing: "#B0559E",
-  Delivery: "#5B6EA8",
-};
-
-function NodeCard({ node, stageName, selected, onSelect }) {
-  const { color } = colorFor(node.asset.assuranceBand.color);
+function NodeCard({ asset, roles, selected, onSelect, isBranch }) {
+  const { color } = colorFor(asset.assuranceBand.color);
   return (
     <button
-      onClick={() => onSelect(node.key)}
+      onClick={() => onSelect(asset.id)}
       className="rounded-xl overflow-hidden shrink-0 text-left transition-colors"
       style={{ background: C.panel, border: `1px solid ${selected ? C.accent : C.border}`, width: 168 }}
     >
       <div className="p-3">
         <div className="flex items-center justify-between mb-2">
-          <span
-            className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-            style={{ background: STAGE_COLORS[stageName], color: "#fff" }}
-          >
-            {node.code}
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: isBranch ? C.na : C.accent, color: "#fff" }}>
+            {asset.code}
           </span>
-          <span className="text-sm font-bold" style={{ color, fontFamily: "'IBM Plex Mono', monospace" }}>{node.asset.overallAssurance}%</span>
+          <span className="text-sm font-bold" style={{ color, fontFamily: "'IBM Plex Mono', monospace" }}>{asset.overallAssurance}%</span>
         </div>
-        <div className="text-sm font-semibold leading-tight" style={{ color: C.ink }}>{node.name}</div>
-        <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{node.subtitle}</div>
+        <div className="text-sm font-semibold leading-tight" style={{ color: C.ink }}>{asset.name}</div>
+        <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{asset.type}</div>
+        {roles && roles.length > 0 && (
+          <div className="text-[10px] mt-1" style={{ color: C.accent }}>{roles.join(" · ")}</div>
+        )}
       </div>
       <div style={{ height: 3, background: color }} />
     </button>
   );
 }
 
-function StageColumn({ stage, selectedKey, onSelectNode }) {
-  const primary = stage.nodes.filter((n) => !n.branch);
-  const branches = stage.nodes.filter((n) => n.branch);
-
+function StageColumn({ stage, selectedKey, onSelectNode, rolesFor }) {
   return (
     <div className="flex flex-col items-center" style={{ minWidth: 168 }}>
       <div className="text-[10px] uppercase tracking-widest font-semibold mb-3" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
-        {stage.name}
+        {stageLabel(stage.depth)}
       </div>
-      {stage.nodes.length === 0 ? (
-        <div
-          className="rounded-xl flex items-center justify-center text-[11px] text-center px-3"
-          style={{ width: 168, height: 74, border: `1px dashed ${C.border}`, color: C.muted }}
-        >
-          No assets at this stage
-        </div>
-      ) : (
-        <div className="flex flex-col items-center gap-2">
-          {primary.map((n) => (
-            <NodeCard key={n.key} node={getNode(n.key)} stageName={stage.name} selected={n.key === selectedKey} onSelect={onSelectNode} />
-          ))}
-          {branches.map((n) => (
-            <React.Fragment key={n.key}>
-              <ArrowDown size={13} color={C.border} />
-              <NodeCard node={getNode(n.key)} stageName={stage.name} selected={n.key === selectedKey} onSelect={onSelectNode} />
-            </React.Fragment>
-          ))}
-        </div>
-      )}
+      <div className="flex flex-col items-center gap-2">
+        {stage.nodes.map((asset) => (
+          <NodeCard key={asset.id} asset={asset} roles={rolesFor(asset.id)} selected={asset.id === selectedKey} onSelect={onSelectNode} />
+        ))}
+      </div>
     </div>
   );
 }
 
-function FlowChart({ flow, selectedKey, onSelectNode }) {
-  const stages = flow.stages;
+function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
+  if (layout.stages.length === 0) {
+    return (
+      <div className="rounded-2xl p-8 text-center text-sm" style={{ background: C.panel2, border: `1px dashed ${C.border}`, color: C.muted }}>
+        No asset in this boundary carries the selected data type.
+      </div>
+    );
+  }
   return (
     <div className="rounded-2xl p-6 overflow-x-auto" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
       <div className="flex items-start" style={{ minWidth: "fit-content" }}>
-        {stages.map((s, i) => (
-          <React.Fragment key={s.name}>
-            <StageColumn stage={s} selectedKey={selectedKey} onSelectNode={onSelectNode} />
-            {i < stages.length - 1 && (
+        {layout.stages.map((s, i) => (
+          <React.Fragment key={s.depth}>
+            <StageColumn stage={s} selectedKey={selectedKey} onSelectNode={onSelectNode} rolesFor={rolesFor} />
+            {i < layout.stages.length - 1 && (
               <div className="flex items-center justify-center shrink-0" style={{ width: 32, marginTop: 44 }}>
-                {s.nodes.some((n) => !n.branch) && stages[i + 1].nodes.some((n) => !n.branch) ? (
-                  <ArrowRight size={16} color={C.muted} />
-                ) : (
-                  <div style={{ width: 20, height: 1, background: C.border }} />
-                )}
+                <ArrowRight size={16} color={C.muted} />
               </div>
             )}
           </React.Fragment>
         ))}
       </div>
+
+      {layout.branches.length > 0 && (
+        <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${C.border}` }}>
+          <div className="flex items-center gap-2 mb-3">
+            <KeyRound size={12} color={C.muted} />
+            <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
+              Control plane
+            </span>
+            <span className="text-[11px]" style={{ color: C.muted }}>
+              — not in the request path; these protect the assets above rather than carrying data through them
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-4">
+            {layout.branches.map(({ asset, protects }) => (
+              <div key={asset.id} className="flex flex-col items-center gap-1">
+                <NodeCard asset={asset} selected={asset.id === selectedKey} onSelect={onSelectNode} isBranch />
+                {protects.length > 0 && (
+                  <>
+                    <ArrowDown size={12} color={C.border} />
+                    <div className="text-[10px] text-center max-w-[168px]" style={{ color: C.muted }}>
+                      {protects.map((p) => p.code).join(" · ")}
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -194,48 +165,49 @@ function joinAnd(items) {
   return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
 }
 
-function WeakestLinkBanner({ flow }) {
-  const weak = weakestLink(flow);
+function WeakestLinkBanner({ system }) {
+  const weak = system.weakestAsset;
   if (!weak) return null;
-  const asset = weak.asset;
-  const gapCats = Object.entries(asset.profileEvaluation).filter(([, v]) => v.status === "gap").map(([cat]) => cat);
-  const reason = gapCats.length > 0
-    ? `${joinAnd(gapCats)} ${gapCats.length > 1 ? "fall" : "falls"} short of the ${weak.classification} control profile.`
-    : "Some categories only partially meet the required control profile.";
-  const strong = asset.overallAssurance >= 90;
+  const evaluation = evaluateAssetAgainstProfile(weak.id);
+  const gapCats = ASSURANCE_CATEGORIES.filter((c) => evaluation[c].status === "gap");
+  const failing = gapCats.flatMap((c) => evaluation[c].failingControls);
+  const strong = weak.overallAssurance >= 90;
+
+  const reason = failing.length > 0
+    ? `${joinAnd([...new Set(failing.map((f) => f.control.friendlyName))])} ${failing.length > 1 ? "are" : "is"} failing against evidence.`
+    : gapCats.length > 0
+      ? `${joinAnd(gapCats)} ${gapCats.length > 1 ? "fall" : "falls"} short of the ${weak.classification} control profile.`
+      : "Some categories only partially meet the required control profile.";
+
   return (
-    <div
-      className="rounded-lg px-4 py-3 flex items-center gap-3"
-      style={{ background: strong ? C.panel2 : C.redBg, border: `1px solid ${strong ? C.border : C.red + "4D"}` }}
-    >
+    <div className="rounded-lg px-4 py-3 flex items-center gap-3" style={{ background: strong ? C.panel2 : C.redBg, border: `1px solid ${strong ? C.border : C.red + "4D"}` }}>
       <AlertTriangle size={16} color={strong ? C.muted : C.red} className="shrink-0" />
       <div className="text-sm" style={{ color: C.ink }}>
         {strong ? (
           <>Every asset in this system scores <span style={{ fontWeight: 600 }}>90% Cyber Assurance or better</span> — no weak link to flag right now.</>
         ) : (
-          <><span style={{ fontWeight: 600 }}>Weakest link: {weak.name}</span> <span style={{ color: C.muted }}>({asset.overallAssurance}%)</span> · {reason}</>
+          <><span style={{ fontWeight: 600 }}>Weakest link: {weak.name}</span> <span style={{ color: C.muted }}>({weak.overallAssurance}%)</span> · {reason}</>
         )}
       </div>
     </div>
   );
 }
 
-// Docked to the right of the flow chart rather than a bottom sheet or modal —
-// mirrors the app's own left nav rail (a persistent side panel, not an
-// overlay), and it can stay open while browsing the chart.
-function SystemDetailPanel({ node, onClose }) {
-  const asset = node.asset;
+function SystemDetailPanel({ assetId, onClose }) {
+  const asset = getAsset(assetId);
   const { color } = colorFor(asset.assuranceBand.color);
+  const evaluation = evaluateAssetAgainstProfile(assetId);
+  const held = dataForAsset(assetId);
 
   return (
     <div className="shrink-0 flex flex-col" style={{ width: 320, borderLeft: `1px solid ${C.border}`, background: C.panel, position: "sticky", top: 0, maxHeight: "100vh", overflowY: "auto" }}>
       <div className="flex items-start justify-between gap-2 px-5 pt-5 pb-4" style={{ borderBottom: `1px solid ${C.border}` }}>
         <div className="min-w-0">
-          <span className="text-xs font-bold px-2 py-1 rounded" style={{ background: C.accentBg, color: C.accent }}>{node.code}</span>
-          <div className="text-base font-semibold mt-2 leading-tight" style={{ color: C.ink }}>{node.name}</div>
+          <span className="text-xs font-bold px-2 py-1 rounded" style={{ background: C.accentBg, color: C.accent }}>{asset.code}</span>
+          <div className="text-base font-semibold mt-2 leading-tight" style={{ color: C.ink }}>{asset.name}</div>
           <div className="text-xs mt-0.5" style={{ color: C.muted }}>
-            {node.subtitle}
-            <br />{node.system.name} · {node.system.id} · {node.classification}
+            {asset.type}
+            <br />{asset.system.name} · {asset.system.id} · {asset.classification}
           </div>
         </div>
         <button onClick={onClose} className="p-1.5 rounded-lg shrink-0" style={{ color: C.muted, background: C.panel2 }} title="Close">
@@ -247,27 +219,73 @@ function SystemDetailPanel({ node, onClose }) {
         <div className="text-3xl font-bold" style={{ color, fontFamily: "'IBM Plex Mono', monospace" }}>{asset.overallAssurance}%</div>
         <div>
           <div className="text-sm font-semibold" style={{ color: C.ink }}>{asset.assuranceBand.label} Cyber Assurance</div>
-          <div className="text-[11px]" style={{ color: C.muted }}>{asset.complianceCoveragePct}% compliance coverage against tier</div>
+          <div className="text-[11px]" style={{ color: C.muted }}>{asset.evidencedControlCount} of {asset.requiredControlCount} tracked controls evidenced</div>
         </div>
       </div>
-
-      <AssuranceSection node={node} />
 
       <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: C.muted }}>Standards in scope</div>
-        <div className="flex flex-wrap gap-1.5">
-          {node.system.standards.map((s) => (
-            <span key={s} className="text-[11px] px-2 py-1 rounded" style={{ background: C.accentBg, color: C.accent }}>{s}</span>
+        <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: C.muted }}>Data handled</div>
+        <div className="space-y-1.5">
+          {held.map((h) => (
+            <div key={h.dataTypeId} className="flex items-center gap-2 text-[11px]">
+              <span className="px-1.5 py-0.5 rounded shrink-0" style={{ background: CLASS_META[h.dataType.sensitivity].bg, color: CLASS_META[h.dataType.sensitivity].color }}>
+                {h.dataType.sensitivity}
+              </span>
+              <span className="flex-1 min-w-0 truncate" style={{ color: C.ink }}>{h.dataType.name}</span>
+              <span className="shrink-0" style={{ color: C.muted }}>{h.role}</span>
+            </div>
           ))}
+        </div>
+        <div className="text-[11px] mt-2 leading-relaxed" style={{ color: C.muted }}>
+          This is what sets the asset's {asset.classification} tier — it isn't inherited from the system.
         </div>
       </div>
 
+      <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
+        <div className="text-[10px] uppercase tracking-wide mb-3" style={{ color: C.muted }}>Cyber Assurance</div>
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          <AssuranceChip label="Criticality" value={asset.criticality} band={asset.criticalityBand} />
+          <AssuranceChip label="Control Assurance" value={asset.overallAssurance} band={asset.assuranceBand} />
+          <AssuranceChip label="Evidence Confidence" value={asset.evidenceConfidence} band={asset.evidenceConfidenceBand} />
+          <AssuranceChip
+            label="Control-Backed"
+            value={`${asset.controlBackedPct}%`}
+            band={asset.controlBackedPct >= 90 ? { label: "Strong", color: "green" } : asset.controlBackedPct >= 75 ? { label: "Adequate", color: "amber" } : { label: "Partial", color: "red" }}
+          />
+        </div>
+        <div className="space-y-2 mb-4">
+          {ASSURANCE_CATEGORIES.map((c) => <AssuranceCategoryBar key={c} label={c} rollup={asset.categories[c]} />)}
+        </div>
+        <div className="flex gap-2">
+          <AssuranceRiskCard title="Inherent Risk" risk={asset.inherentRisk} />
+          <AssuranceRiskCard title="Residual Risk" risk={asset.residualRisk} />
+        </div>
+      </div>
+
+      {asset.deficientControls.length > 0 && (
+        <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
+          <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: C.muted }}>Failing controls</div>
+          <div className="space-y-1.5">
+            {asset.deficientControls.map((i) => (
+              <div key={i.controlId} className="rounded-lg px-2.5 py-2" style={{ background: C.panel2 }}>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] flex-1 min-w-0 truncate" style={{ color: C.ink }}>{i.control.friendlyName}</span>
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0" style={{ color: C.red, background: C.redBg }}>
+                    {IMPLEMENTATION_STATUS_META[i.status].label}
+                  </span>
+                </div>
+                {i.note && <div className="text-[10px] mt-1 leading-relaxed" style={{ color: C.muted }}>{i.note}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="px-5 py-4">
-        <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: C.muted }}>Required Control Profile ({node.classification})</div>
+        <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: C.muted }}>Required Control Profile ({asset.classification})</div>
         <div className="space-y-1.5">
           {ASSURANCE_CATEGORIES.map((c) => {
-            const evalRow = asset.profileEvaluation[c];
-            const meta = PROFILE_STATUS_META[evalRow.status];
+            const meta = PROFILE_STATUS_META[evaluation[c].status];
             return (
               <div key={c} className="flex items-center gap-2 text-xs">
                 <span className="shrink-0" style={{ width: 7, height: 7, borderRadius: "50%", background: meta.color }} />
@@ -284,23 +302,16 @@ function SystemDetailPanel({ node, onClose }) {
 
 function SystemTile({ system, active, onSelect }) {
   const meta = CLASS_META[system.classification];
-  const flow = system.dataTypes.all;
-  const pct = flowAssurancePct(flow);
-  const band = pct != null ? assuranceBand(pct) : null;
+  const band = assuranceBand(system.overallAssurance);
   return (
     <button
       onClick={() => onSelect(system.id)}
       className="rounded-xl p-4 text-left transition-colors"
-      style={{
-        background: active ? C.accentBg : C.panel,
-        border: `1px solid ${active ? C.accent : C.border}`,
-      }}
+      style={{ background: active ? C.accentBg : C.panel, border: `1px solid ${active ? C.accent : C.border}` }}
     >
       <div className="flex items-center justify-between gap-2 mb-1.5">
         <span className="text-sm font-semibold" style={{ color: C.ink }}>{system.name}</span>
-        {band ? (
-          <span className="text-sm font-bold shrink-0" style={{ color: colorFor(band.color).color }}>{pct}%</span>
-        ) : null}
+        <span className="text-sm font-bold shrink-0" style={{ color: colorFor(band.color).color }}>{system.overallAssurance}%</span>
       </div>
       <div className="flex items-center gap-2 text-xs">
         <span className="px-1.5 py-0.5 rounded font-medium" style={{ background: meta.bg, color: meta.color }}>{system.classification}</span>
@@ -311,19 +322,40 @@ function SystemTile({ system, active, onSelect }) {
 }
 
 export default function DataMap() {
-  const [systemId, setSystemId] = useState(SYSTEM_MAPS[0]?.id ?? null);
+  const [systemId, setSystemId] = useState(SYSTEMS[0]?.id ?? null);
   const [selectedKey, setSelectedKey] = useState(null);
+  const [dataTypeId, setDataTypeId] = useState("all");
 
-  const system = SYSTEM_MAPS.find((s) => s.id === systemId);
-  const flow = useMemo(() => system?.dataTypes.all, [system]);
+  const system = SYSTEMS.find((s) => s.id === systemId);
+  const systemDataTypes = useMemo(() => dataTypesForSystem(systemId), [systemId]);
+  const fullLayout = useMemo(() => getDataFlows(systemId), [systemId]);
+
+  // Filtering to one data type is a real query over the edges, not a second
+  // dataset: keep the assets that touch it and the flows that carry it. The
+  // previous model had nothing to filter on, which is why its per-data-type
+  // view collapsed into a single combined chart.
+  const layout = useMemo(() => {
+    if (dataTypeId === "all") return fullLayout;
+    const carries = (id) => dataForAsset(id).some((h) => h.dataTypeId === dataTypeId);
+    return {
+      ...fullLayout,
+      stages: fullLayout.stages
+        .map((s) => ({ ...s, nodes: s.nodes.filter((n) => carries(n.id)) }))
+        .filter((s) => s.nodes.length > 0),
+      branches: fullLayout.branches.filter((b) => carries(b.asset.id) || b.protects.some((p) => carries(p.id))),
+      edges: fullLayout.edges.filter((e) => e.dataTypeIds.includes(dataTypeId)),
+    };
+  }, [fullLayout, dataTypeId]);
+
+  const rolesFor = useMemo(() => (assetId) => {
+    if (dataTypeId === "all") return null;
+    return dataForAsset(assetId).filter((h) => h.dataTypeId === dataTypeId).map((h) => h.role);
+  }, [dataTypeId]);
 
   function selectSystem(id) {
     setSystemId(id);
     setSelectedKey(null);
-  }
-
-  function toggleSelectedNode(key) {
-    setSelectedKey((cur) => (cur === key ? null : key));
+    setDataTypeId("all");
   }
 
   return (
@@ -332,38 +364,63 @@ export default function DataMap() {
         <PageHeader
           icon={Network}
           title="Enterprise Data Map"
-          description="Choose a system to see how data moves through its real assets, from ingress to primary custody to processing and delivery. Grades are computed live from the Asset Register — the same data behind the System Security Plan. Click any asset in the chart for details."
+          description="How data actually moves between a system's assets. Every connection here is a stored relationship carrying named data types, and each asset's position is derived by walking those connections — not a layout someone maintained alongside them. Grades come from the same graph as every other page. Click any asset for detail."
           right={
             <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
-              {SYSTEM_MAPS.length} systems · {TOTAL_ASSET_COUNT} assets mapped · {TOTAL_RELATIONSHIP_COUNT} custody relationships mapped
+              {SYSTEMS.length} systems · {getAllAssets().length} assets · {TOTAL_FLOW_COUNT} data flows
             </div>
           }
         />
 
-        <div className="px-8 grid grid-cols-4 gap-3 mb-6">
-          {SYSTEM_MAPS.map((s) => (
+        <div className="px-8 grid grid-cols-4 gap-3 mb-5">
+          {SYSTEMS.map((s) => (
             <SystemTile key={s.id} system={s} active={s.id === systemId} onSelect={selectSystem} />
           ))}
         </div>
 
-        {flow && (
+        {system && (
           <>
             <div className="px-8 pb-4">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
                 <h2 className="text-xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>{system.name}</h2>
-                <span className="text-xs" style={{ color: C.muted }}>{system.classification} · {flowAssurancePct(flow)}% Cyber Assurance</span>
+                <span className="text-xs" style={{ color: C.muted }}>{system.classification} · {system.overallAssurance}% Cyber Assurance</span>
               </div>
-              <FlowChart flow={flow} selectedKey={selectedKey} onSelectNode={toggleSelectedNode} />
+
+              <div className="flex items-center gap-2 flex-wrap mb-4">
+                <span className="text-[11px] mr-1" style={{ color: C.muted }}>Filter by data type:</span>
+                {[{ id: "all", name: "All data" }, ...systemDataTypes].map((dt) => (
+                  <button
+                    key={dt.id}
+                    onClick={() => setDataTypeId(dt.id)}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-medium"
+                    style={{
+                      background: dataTypeId === dt.id ? C.accentBg : "transparent",
+                      color: dataTypeId === dt.id ? C.accent : C.muted,
+                      border: `1px solid ${dataTypeId === dt.id ? C.accent : C.border}`,
+                    }}
+                  >
+                    {dt.name}
+                  </button>
+                ))}
+              </div>
+
+              <FlowChart layout={layout} selectedKey={selectedKey} onSelectNode={(k) => setSelectedKey((cur) => (cur === k ? null : k))} rolesFor={rolesFor} />
+
+              <div className="text-[11px] mt-3" style={{ color: C.muted }}>
+                {layout.edges.length} data flow{layout.edges.length === 1 ? "" : "s"} shown
+                {dataTypeId !== "all" && ` carrying ${getAllDataTypes().find((d) => d.id === dataTypeId)?.name}`}
+                {layout.controlPlaneEdges.length > 0 && ` · ${layout.controlPlaneEdges.length} control-plane relationships`}
+              </div>
             </div>
 
             <div className="px-8 pb-6">
-              <WeakestLinkBanner flow={flow} />
+              <WeakestLinkBanner system={system} />
             </div>
           </>
         )}
       </div>
 
-      {selectedKey && <SystemDetailPanel node={getNode(selectedKey)} onClose={() => setSelectedKey(null)} />}
+      {selectedKey && <SystemDetailPanel assetId={selectedKey} onClose={() => setSelectedKey(null)} />}
     </div>
   );
 }
