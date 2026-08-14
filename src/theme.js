@@ -14,20 +14,21 @@ export const DARK = {
   muted: "#8891A3",
   accent: "#8C7AE6",
   green: "#5FB98A",
-  amber: "#E0A94E",
-  // Was a coral-red (#E0716A) — replaced with a rust/terracotta so the app's
-  // "most severe" signal reads as serious without the alarm-red "something
-  // is on fire" connotation. Kept warm and darker than amber so the
-  // amber -> red severity escalation still reads as a clear gradient, not a
-  // hue swap. The token is still named `red`/`redBg` everywhere it's
-  // consumed (criticality/risk/assurance bands, dozens of pages) — renaming
-  // that key isn't worth the blast radius since only the rendered hex is
+  // Severity escalation now runs green -> teal -> blue -> indigo instead of
+  // the traffic-light green -> amber -> red. No hue in this ramp reads as a
+  // stop-light "warning" or "danger" color; escalation is carried by
+  // increasing saturation/darkness (light teal -> deep indigo) the same way
+  // the System Badges tier gradients already do. Token keys are still named
+  // `amber`/`red`/`amberBg`/`redBg` everywhere they're consumed
+  // (criticality/risk/assurance bands, dozens of pages) — renaming those
+  // keys isn't worth the blast radius since only the rendered hex is
   // user-visible, not the internal name.
-  red: "#C4623C",
+  amber: "#4E8FD6",
+  red: "#3E4F9E",
   na: "#4A5265",
   greenBg: "rgba(95,185,138,0.12)",
-  amberBg: "rgba(224,169,78,0.12)",
-  redBg: "rgba(196,98,60,0.12)",
+  amberBg: "rgba(78,143,214,0.12)",
+  redBg: "rgba(62,79,158,0.12)",
   accentBg: "rgba(140,122,230,0.15)",
 };
 
@@ -40,12 +41,12 @@ export const LIGHT = {
   muted: "#6B7280",
   accent: "#6C5DD3",
   green: "#1F9254",
-  amber: "#B87A1E",
-  red: "#963E22", // same rust family as DARK.red, darkened/saturated to match this palette's contrast pattern
+  amber: "#2E6CB5", // same blue family as DARK.amber, darkened/saturated to match this palette's contrast pattern
+  red: "#2C3B85", // same indigo family as DARK.red, darkened/saturated to match this palette's contrast pattern
   na: "#9AA2B0",
   greenBg: "rgba(31,146,84,0.10)",
-  amberBg: "rgba(184,122,30,0.10)",
-  redBg: "rgba(150,62,34,0.10)",
+  amberBg: "rgba(46,108,181,0.10)",
+  redBg: "rgba(44,59,133,0.10)",
   accentBg: "rgba(108,93,211,0.10)",
 };
 
@@ -56,13 +57,13 @@ const CLASS_META_DARK = {
   Public: { bg: "rgba(140,148,158,0.15)", color: "#AEB6C2" },
   Internal: { bg: "rgba(108,134,209,0.15)", color: "#93A8E6" },
   Confidential: { bg: "rgba(150,110,190,0.18)", color: "#C9A6E8" },
-  Restricted: { bg: "rgba(224,113,142,0.18)", color: "#E8899F" },
+  Restricted: { bg: "rgba(204,127,194,0.18)", color: "#CC7FC2" },
 };
 const CLASS_META_LIGHT = {
   Public: { bg: "rgba(91,100,114,0.10)", color: "#5B6472" },
   Internal: { bg: "rgba(61,90,196,0.10)", color: "#3D5AC4" },
   Confidential: { bg: "rgba(122,74,163,0.10)", color: "#7A4AA3" },
-  Restricted: { bg: "rgba(199,74,111,0.10)", color: "#C74A6F" },
+  Restricted: { bg: "rgba(163,74,150,0.10)", color: "#A34A96" },
 };
 
 // Mutable — start dark, mutated in place by applyTheme()

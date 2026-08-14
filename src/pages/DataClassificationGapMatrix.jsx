@@ -133,7 +133,7 @@ export default function DataClassificationGapMatrix() {
             <div className="flex items-center gap-2 text-xs uppercase tracking-widest mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
               <ShieldCheck size={13} /> Data Classification Policy v3.2 · Confidential & Restricted
             </div>
-            <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>System Compliance Register</h1>
+            <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>Systems Register</h1>
           </div>
           <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
             <Lock size={12} /><span>Read-only</span><span style={{ color: C.border }}>|</span><RefreshCw size={12} /><span>Synced from Vanta · 8 min ago</span>
@@ -309,7 +309,7 @@ export default function DataClassificationGapMatrix() {
                           <meta.Icon size={13} color={meta.color} />
                           <span style={{ color: C.ink }}>{c}</span>
                         </div>
-                        {control.stale && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: "rgba(224,169,78,0.12)", color: C.amber }}>STALE</span>}
+                        {control.stale && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: "rgba(78,143,214,0.12)", color: C.amber }}>STALE</span>}
                       </div>
                       <div className="flex items-center gap-3 mt-1.5 pl-5 text-[11px]" style={{ color: C.muted }}>
                         <span>{sourceLabel(control.source)}</span><span>·</span>

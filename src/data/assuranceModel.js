@@ -128,6 +128,20 @@ export function overallControlAssurance(categoryScores) {
   return Math.round(values.reduce((a, b) => a + b, 0) / values.length);
 }
 
+// Portfolio-level rollup: each category's assurance averaged across every
+// asset in the register — the same figures the Executive Dashboard's
+// Control Assurance by Category card shows. Centralized here (taking
+// assetSummaries as a plain argument, framework-agnostic like everything
+// else in this file) so any other consumer citing "the real assurance % for
+// category X" computes it the same way instead of a second local average
+// that could drift out of sync.
+export function portfolioCategoryAverages(assetSummaries) {
+  return ASSURANCE_CATEGORIES.map((label) => ({
+    label,
+    pct: Math.round(assetSummaries.reduce((a, x) => a + x.categoryScores[label], 0) / assetSummaries.length),
+  }));
+}
+
 // The Evidence Confidence card metric is a decomposition of the same evidence
 // inputs categoryAssuranceScore already consumes, not an independently scored
 // number — surfaced separately because "can we prove it" deserves its own line.

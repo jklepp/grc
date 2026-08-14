@@ -1,22 +1,28 @@
 import React, { useState, useMemo } from "react";
-import { Search, X, Lock, RefreshCw, AlertTriangle, ChevronDown, Circle, Clock } from "lucide-react";
+import { Search, X, Lock, RefreshCw, AlertTriangle, ChevronDown, Circle, Clock, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { C } from "../theme";
-import { RISKS, SEVERITY_VALUE, LIKELIHOOD_VALUE, score } from "../data/riskRegister";
+import { RISKS, MATERIAL_RISKS, SEVERITY_VALUE, LIKELIHOOD_VALUE, score } from "../data/riskRegister";
 
 const SEVERITY_LEVELS = ["Minor", "Moderate", "Major", "Severe"]; // 1-4, bottom to top on heatmap
 const LIKELIHOOD_LEVELS = ["Rare", "Unlikely", "Possible", "Likely", "Almost Certain"]; // 1-5
+
+function formatUSD(n) {
+  return n >= 1000000 ? `$${(n / 1000000).toFixed(1)}M` : `$${Math.round(n / 1000)}K`;
+}
+
+const TREND_ICON = { Improving: ArrowDownRight, Stalled: ArrowUpRight, Flat: Minus };
 
 function severityColor(sev) {
   const s = SEVERITY_VALUE[sev];
   if (s >= 4) return C.red;
   if (s >= 3) return C.amber;
-  if (s >= 2) return "#D98255";
+  if (s >= 2) return "#3FA6A6";
   return C.green;
 }
 function cellColor(sev, like) {
   const s = score(sev, like);
   if (s >= 15) return C.red;
-  if (s >= 9) return "#D98255";
+  if (s >= 9) return "#3FA6A6";
   if (s >= 4) return C.amber;
   return C.green;
 }
@@ -45,10 +51,110 @@ function ScorePill({ value, sev }) {
   );
 }
 
+function StatTile({ label, value, sub }) {
+  return (
+    <div className="rounded-lg p-3" style={{ background: C.panel2 }}>
+      <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>{label}</div>
+      <div className="text-base font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{value}</div>
+      {sub && <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{sub}</div>}
+    </div>
+  );
+}
+
+// The next real, incomplete step from the risk's own treatment plan — not an
+// invented "management action" string.
+function nextAction(r) {
+  const next = r.milestones.find((m) => m.status !== "done");
+  return next ? next.title : `${r.treatment} — accepted`;
+}
+
+function shortLabel(scenario) {
+  return scenario.length > 34 ? scenario.slice(0, 33) + "…" : scenario;
+}
+
+// Board Visual: likelihood x impact bubble chart for the material risk set.
+// Position is derived from each risk's own probability/loss-magnitude bands
+// (annual likelihood %, loss magnitude midpoint $) and bubble area from its
+// residual exposure — nothing plotted here is a new hand-typed figure.
+// Every material risk is, by isMaterial()'s own definition, already above its
+// appetite, so a single status color (not a categorical palette) does the
+// only job color needs to do: mark that shared status, with the "Above
+// Appetite" wash and label carrying the meaning rather than color alone.
+function MaterialRiskBubbleChart({ risks, onSelect }) {
+  const W = 760, H = 400;
+  const marginL = 66, marginR = 24, marginT = 28, marginB = 46;
+  const plotW = W - marginL - marginR, plotH = H - marginT - marginB;
+
+  const points = risks.map((r) => ({
+    r,
+    likelihood: (r.probability[0] + r.probability[1]) / 2,
+    impact: (r.lossMagnitude[0] + r.lossMagnitude[1]) / 2,
+  }));
+
+  const maxImpact = Math.max(...points.map((p) => p.impact));
+  const yMax = Math.ceil((maxImpact * 1.2) / 5000000) * 5000000 || 5000000;
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => f * yMax);
+
+  const expValues = risks.map((r) => r.exposure);
+  const expMin = Math.min(...expValues), expMax = Math.max(...expValues);
+  const rMin = 9, rMax = 22;
+  const radius = (exposure) =>
+    expMax === expMin ? (rMin + rMax) / 2 : rMin + (rMax - rMin) * Math.sqrt((exposure - expMin) / (expMax - expMin));
+
+  const x = (pct) => marginL + (pct / 100) * plotW;
+  const y = (val) => marginT + plotH - (val / yMax) * plotH;
+
+  // Appetite wash: anchored to the actual plotted cluster (a margin below the
+  // lowest likelihood/impact among these already-material risks), not an
+  // invented universal dollar threshold.
+  const zoneX = Math.max(0, Math.min(...points.map((p) => p.likelihood)) * 0.8);
+  const zoneY = Math.max(0, Math.min(...points.map((p) => p.impact)) * 0.8);
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Material risks by likelihood, impact, and exposure">
+      <rect x={x(zoneX)} y={marginT} width={marginL + plotW - x(zoneX)} height={y(zoneY) - marginT} fill={C.red} opacity={0.08} />
+      <text x={W - marginR - 6} y={marginT + 14} textAnchor="end" fontSize="10" fontWeight="600" letterSpacing="0.05em" fill={C.red}>
+        ABOVE APPETITE
+      </text>
+
+      {yTicks.map((t, i) => (
+        <g key={i}>
+          <line x1={marginL} x2={W - marginR} y1={y(t)} y2={y(t)} stroke={C.border} strokeWidth="1" />
+          <text x={marginL - 8} y={y(t) + 3} textAnchor="end" fontSize="10" fill={C.muted}>{formatUSD(t)}</text>
+        </g>
+      ))}
+      <line x1={marginL} x2={marginL} y1={marginT} y2={marginT + plotH} stroke={C.border} strokeWidth="1" />
+      <line x1={marginL} x2={W - marginR} y1={marginT + plotH} y2={marginT + plotH} stroke={C.border} strokeWidth="1" />
+
+      <text x={marginL} y={H - 8} fontSize="10" fill={C.muted}>Low</text>
+      <text x={W - marginR} y={H - 8} textAnchor="end" fontSize="10" fill={C.muted}>High</text>
+      <text x={marginL + plotW / 2} y={H - 8} textAnchor="middle" fontSize="10" letterSpacing="0.05em" fill={C.muted}>ANNUAL LIKELIHOOD →</text>
+      <text x={14} y={marginT + plotH / 2} textAnchor="middle" fontSize="10" letterSpacing="0.05em" fill={C.muted} transform={`rotate(-90 14 ${marginT + plotH / 2})`}>
+        POTENTIAL IMPACT ($) →
+      </text>
+
+      {points.map(({ r, likelihood, impact }, i) => {
+        const cx = x(likelihood), cy = y(impact), rad = radius(r.exposure);
+        const labelAbove = i % 2 === 0;
+        const labelY = labelAbove ? cy - rad - 10 : cy + rad + 15;
+        return (
+          <g key={r.id} className="cursor-pointer" onClick={() => onSelect(r)}>
+            <title>{r.boardLabel} — {formatUSD(r.exposure)} residual exposure</title>
+            <circle cx={cx} cy={cy} r={rad} fill={C.red} stroke={C.panel} strokeWidth="1.5" opacity={0.75} />
+            <text x={cx} y={labelY} textAnchor="middle" fontSize="10.5" fontWeight="600" fill={C.ink}>{shortLabel(r.boardLabel)}</text>
+            <text x={cx} y={labelY + 12} textAnchor="middle" fontSize="9.5" fill={C.muted}>{formatUSD(r.exposure)} ALE</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 export default function RiskRegister() {
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [heatmapView, setHeatmapView] = useState("Residual");
+  const [view, setView] = useState("board");
   const [selected, setSelected] = useState(null);
 
   const categories = [...new Set(RISKS.map((r) => r.subcategory))].sort();
@@ -98,6 +204,21 @@ export default function RiskRegister() {
         <p className="text-sm mt-2 max-w-2xl" style={{ color: C.muted }}>
           Scenario-based risk register with appetite thresholds, control linkage, treatment plans, milestones, and accountable owners.
         </p>
+        <div className="flex rounded-full overflow-hidden mt-4 w-fit" style={{ border: `1px solid ${C.border}` }}>
+          {[
+            { id: "board", label: "Board View" },
+            { id: "operational", label: "Operational View" },
+          ].map((v) => (
+            <button
+              key={v.id}
+              onClick={() => setView(v.id)}
+              className="text-xs px-4 py-1.5 font-medium"
+              style={{ background: view === v.id ? C.accent : "transparent", color: view === v.id ? "#0F1420" : C.muted }}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="px-8 grid grid-cols-4 gap-4 mb-5">
@@ -123,6 +244,56 @@ export default function RiskRegister() {
         </div>
       </div>
 
+      {view === "board" && (
+        <div className="px-8 pb-12">
+          <div className="rounded-xl p-5 mb-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+            <div className="text-sm font-medium mb-1" style={{ color: C.ink }}>Top Material Cyber Risks</div>
+            <div className="text-xs mb-4" style={{ color: C.muted }}>
+              Bubble position is annual likelihood × potential impact; size is residual exposure (ALE). Click a bubble for the underlying assurance, controls, and remediation plan.
+            </div>
+            <MaterialRiskBubbleChart risks={MATERIAL_RISKS} onSelect={setSelected} />
+          </div>
+
+          <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[10px] uppercase tracking-wide" style={{ color: C.muted, borderBottom: `1px solid ${C.border}` }}>
+                  <th className="text-left font-medium p-3">Material Risk</th>
+                  <th className="text-right font-medium p-3">Exposure</th>
+                  <th className="text-right font-medium p-3">vs. Appetite</th>
+                  <th className="text-right font-medium p-3">Trend</th>
+                  <th className="text-left font-medium p-3">Management Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {MATERIAL_RISKS.map((r) => {
+                  const TrendIcon = TREND_ICON[r.trend.label];
+                  return (
+                    <tr
+                      key={r.id}
+                      onClick={() => setSelected(r)}
+                      className="cursor-pointer hover:bg-white/[0.02]"
+                      style={{ borderTop: `1px solid ${C.border}` }}
+                    >
+                      <td className="p-3 font-medium" style={{ color: C.ink }}>{r.boardLabel}</td>
+                      <td className="p-3 text-right" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{formatUSD(r.exposure)}</td>
+                      <td className="p-3 text-right font-medium" style={{ color: C.red }}>{r.appetiteRatio}×</td>
+                      <td className="p-3 text-right">
+                        <span className="inline-flex items-center gap-1 font-medium" style={{ color: C[r.trend.color] }}>
+                          <TrendIcon size={13} /> {r.trend.label}
+                        </span>
+                      </td>
+                      <td className="p-3" style={{ color: C.muted }}>{nextAction(r)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {view === "operational" && (
       <div className="px-8 grid grid-cols-5 gap-5 pb-12">
         <div className="col-span-3 rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
           <div className="flex items-center gap-3 p-4 flex-wrap" style={{ borderBottom: `1px solid ${C.border}` }}>
@@ -211,6 +382,7 @@ export default function RiskRegister() {
           </div>
         </div>
       </div>
+      )}
 
       {selected && (
         <div className="fixed inset-0 z-20 flex justify-end">
@@ -222,7 +394,10 @@ export default function RiskRegister() {
                   <div className="text-xs uppercase tracking-wide mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
                     {selected.id} · {selected.domain} / {selected.subcategory}
                   </div>
-                  <h2 className="text-xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>{selected.scenario}</h2>
+                  <h2 className="text-xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>{selected.boardLabel || selected.scenario}</h2>
+                  {selected.materialLabel && (
+                    <div className="text-xs mt-1" style={{ color: C.muted }}>Tracked in the register as: {selected.scenario}</div>
+                  )}
                 </div>
                 <button onClick={() => setSelected(null)}><X size={18} color={C.muted} /></button>
               </div>
@@ -251,6 +426,28 @@ export default function RiskRegister() {
                   <div className="text-xs mt-1" style={{ color: C.muted }}>{selected.residual.severity} · {selected.residual.likelihood}</div>
                 </div>
               </div>
+
+              {selected.assurance && (
+                <div className="mb-6">
+                  <div className="text-xs uppercase tracking-wide mb-3" style={{ color: C.muted }}>Board Metrics</div>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <StatTile label="Probability" value={`${selected.probability[0]}-${selected.probability[1]}%`} sub="annual" />
+                    <StatTile label="Loss Magnitude" value={formatUSD(selected.lossMagnitude[0])} sub={`to ${formatUSD(selected.lossMagnitude[1])}`} />
+                    <StatTile label="Residual Exposure" value={formatUSD(selected.exposure)} sub="Annualized loss expectancy" />
+                    <StatTile
+                      label={`${selected.assurance.category} Assurance`}
+                      value={`${selected.assurance.pct}%`}
+                      sub={`target ${selected.assurance.target}% · ${selected.assurance.band.label}`}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-xs p-2.5 rounded-lg" style={{ background: C.redBg, color: C.red, border: `1px solid ${C.red}33` }}>
+                    <span className="font-medium">{selected.appetiteRatio}× above appetite</span>
+                    <span className="flex items-center gap-1" style={{ color: C[selected.trend.color] }}>
+                      {React.createElement(TREND_ICON[selected.trend.label], { size: 12 })} {selected.trend.label}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center justify-between text-sm mb-6 p-3 rounded-lg" style={{ background: C.panel2 }}>
                 <span style={{ color: C.muted }}>Appetite threshold</span>

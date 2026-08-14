@@ -6,8 +6,8 @@ import {
 import { C } from "../theme";
 import { DATA_SOURCES, TOTAL_RECORDS, TOTAL_DATA_TB, formatRecords, formatTB } from "../data/dataFootprint";
 import { RISKS, ABOVE_APPETITE_COUNT, MATERIAL_RISKS, MATERIAL_RISK_EXPOSURE, QUANTIFIED_EXPOSURE } from "../data/riskRegister";
-import { ASSET_SUMMARIES } from "../data/assets";
-import { ASSURANCE_CATEGORIES, ASSURANCE_TARGET, ADEQUATE_THRESHOLD } from "../data/assuranceModel";
+import { ASSET_SUMMARIES, CATEGORY_PORTFOLIO_AVERAGES } from "../data/assets";
+import { ASSURANCE_TARGET, ADEQUATE_THRESHOLD } from "../data/assuranceModel";
 
 // Enterprise Assurance: criticality-weighted average of every asset's Control
 // Assurance score — a weak Restricted-tier asset drags this down harder than
@@ -38,11 +38,10 @@ const ASSURANCE_DELTA = ASSURANCE_TREND[ASSURANCE_TREND.length - 1] - ASSURANCE_
 
 // Control Assurance by Category: the real 6 Assurance Categories, averaged
 // across every asset in the register — the same categories the Asset
-// Register's detail panel breaks each asset down into.
-const CATEGORY_AVERAGES = ASSURANCE_CATEGORIES.map((label) => ({
-  label,
-  pct: Math.round(ASSET_SUMMARIES.reduce((a, x) => a + x.categoryScores[label], 0) / ASSET_SUMMARIES.length),
-}));
+// Register's detail panel breaks each asset down into. Computed once in
+// assets.js (portfolioCategoryAverages) so the Risk Register's board view
+// can cite the identical numbers for its per-risk assurance figure.
+const CATEGORY_AVERAGES = CATEGORY_PORTFOLIO_AVERAGES;
 const WEAKEST_ASSET = [...ASSET_SUMMARIES].sort((a, b) => a.overallAssurance - b.overallAssurance)[0];
 const WEAKEST_ASSET_CATEGORY = Object.entries(WEAKEST_ASSET.categoryScores).sort((a, b) => a[1] - b[1])[0];
 const WEAKEST_CATEGORY = [...CATEGORY_AVERAGES].sort((a, b) => a.pct - b.pct)[0];
@@ -80,7 +79,7 @@ function handleExport() {
     generatedAt: new Date().toISOString(),
     enterpriseAssurance: PORTFOLIO_ASSURANCE_PCT,
     assuranceTarget: ASSURANCE_TARGET,
-    materialRisks: MATERIAL_RISKS.map((r) => ({ id: r.id, scenario: r.scenario, severity: r.residual.severity, exposure: r.exposure, owner: r.owner })),
+    materialRisks: MATERIAL_RISKS.map((r) => ({ id: r.id, scenario: r.boardLabel, severity: r.residual.severity, exposure: r.exposure, owner: r.owner })),
     materialRiskExposure: MATERIAL_RISK_EXPOSURE,
     totalExposure: QUANTIFIED_EXPOSURE,
     risksAboveAppetite: ABOVE_APPETITE_COUNT,
@@ -218,7 +217,7 @@ export default function ExecutiveDashboard({ onNavigate }) {
           <span>
             Enterprise Assurance {ASSURANCE_DELTA >= 0 ? "improved" : "declined"} {Math.abs(ASSURANCE_DELTA)} points this
             quarter, led by {STRONGEST_CATEGORY.label} at {STRONGEST_CATEGORY.pct}%. {MATERIAL_RISKS.length} risks remain
-            material — <span className="font-medium">{MATERIAL_RISKS[0].scenario}</span> is the largest at{" "}
+            material — <span className="font-medium">{MATERIAL_RISKS[0].boardLabel}</span> is the largest at{" "}
             {formatUSD(MATERIAL_RISKS[0].exposure)} — and {DECISIONS_REQUIRED.length} are escalated for a leadership decision.
           </span>
         </div>
@@ -255,7 +254,7 @@ export default function ExecutiveDashboard({ onNavigate }) {
                   className="cursor-pointer hover:bg-black/[0.02]"
                   style={{ borderTop: `1px solid ${C.border}` }}
                 >
-                  <td className="py-3 pr-2" style={{ color: C.ink, fontWeight: 500 }}>{r.scenario}</td>
+                  <td className="py-3 pr-2" style={{ color: C.ink, fontWeight: 500 }}>{r.boardLabel}</td>
                   <td className="py-3"><Pill text={r.residual.severity.toUpperCase()} color={severityColor(r.residual.severity)} bg={`${severityColor(r.residual.severity)}22`} /></td>
                   <td className="py-3 text-right" style={{ color: C.ink, fontWeight: 600 }}>{formatUSD(r.exposure)}</td>
                   <td className="py-3 text-right pl-3">
@@ -337,7 +336,7 @@ export default function ExecutiveDashboard({ onNavigate }) {
             <div className="flex items-start gap-3">
               <DollarSign size={16} color={C.red} className="shrink-0 mt-0.5" />
               <div>
-                <div className="text-sm font-medium" style={{ color: C.ink }}>{MATERIAL_RISKS[0].scenario} remains the top material risk</div>
+                <div className="text-sm font-medium" style={{ color: C.ink }}>{MATERIAL_RISKS[0].boardLabel} remains the top material risk</div>
                 <div className="text-xs mt-0.5" style={{ color: C.muted }}>{formatUSD(MATERIAL_RISKS[0].exposure)} modeled exposure, owned by {MATERIAL_RISKS[0].owner}.</div>
               </div>
             </div>

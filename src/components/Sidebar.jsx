@@ -35,6 +35,7 @@ const GROUPS = [
       { id: "data-footprint", label: "Data Footprint", icon: Database },
       { id: "data-map", label: "Enterprise Data Map", icon: Network },
       { id: "asset-register", label: "Asset Register", icon: Boxes },
+      { id: "gap-matrix", label: "Systems Register", icon: ShieldCheck },
     ],
   },
   {
@@ -42,7 +43,6 @@ const GROUPS = [
     items: [
       { id: "ccf", label: "Common Controls", icon: LayoutGrid },
       { id: "control-profile", label: "Control Profile", icon: SlidersHorizontal },
-      { id: "gap-matrix", label: "Data Classification Register", icon: ShieldCheck },
     ],
   },
   {

@@ -435,7 +435,7 @@ export default function SystemSecurityPlan() {
                   <div className="flex items-center gap-3 mt-1.5 text-[11px]" style={{ color: C.muted }}>
                     <span>Verified {selectedRow.trackedDetail.age === 0 ? "today" : `${selectedRow.trackedDetail.age}d ago`}</span><span>·</span>
                     <span className="flex items-center gap-0.5" style={{ fontFamily: "'IBM Plex Mono', monospace" }}><Link2 size={10} /> {selectedRow.trackedDetail.evidenceRef}</span>
-                    {selectedRow.trackedDetail.stale && <span className="font-semibold px-1.5 py-0.5 rounded" style={{ background: "rgba(224,169,78,0.12)", color: C.amber }}>STALE</span>}
+                    {selectedRow.trackedDetail.stale && <span className="font-semibold px-1.5 py-0.5 rounded" style={{ background: "rgba(78,143,214,0.12)", color: C.amber }}>STALE</span>}
                   </div>
                 </div>
               )}
