@@ -6,7 +6,9 @@ import {
 import { C } from "../theme";
 import { PageHeader, SectionHeading } from "../components/Headings";
 import { ClassificationTag, DataTypeChip, StandardChip } from "../components/SystemBadges";
-import { SYSTEMS, getSystemControlMatrix, IMPLEMENTATION_TYPES } from "../data/systemRegister";
+import { getAllSystems, systemControlMatrix, dataTypesForSystem, IMPLEMENTATION_TYPES } from "../engine";
+
+const SYSTEMS = getAllSystems();
 import { POLICIES } from "../data/policies";
 
 // Every visible SCF control belongs to exactly one policy's domain set (verified
@@ -17,13 +19,26 @@ POLICIES.forEach((p) => p.controlIds.forEach((id) => { POLICY_BY_CONTROL[id] = p
 
 const RESTRICTED_SYSTEMS = SYSTEMS.filter((s) => s.classification === "Restricted");
 
+// Five states now, not four, and every one of them is derived from something
+// real. The previous matrix had a status for the six tracked controls and
+// needed one for all 271, so it ordered the rest by hashStr(systemId + controlId)
+// and dealt them into buckets until the totals matched a ratio. Deterministic,
+// clearly commented — and the status on any individual row was invented.
+//
+// "Assessed" is the honest majority answer: no individual implementation, but
+// the control's domain rolls up to an assurance category this system's assets
+// have been assessed against. A weaker claim than Satisfied, shown as its own
+// state rather than dressed up as one.
 const STATUS_META = {
   inherited: { label: "Inherited", color: C.green, bg: C.greenBg, Icon: Cloud },
   satisfied: { label: "Satisfied", color: C.accent, bg: C.accentBg, Icon: CheckCircle2 },
-  gap: { label: "Open Gap", color: C.amber, bg: C.amberBg, Icon: MinusCircle },
+  assessed: { label: "Assessed", color: C.muted, bg: C.panel2, Icon: ScrollText },
+  partial: { label: "Partial", color: C.amber, bg: C.amberBg, Icon: MinusCircle },
+  deficient: { label: "Deficient", color: C.red, bg: C.redBg, Icon: Circle },
   "not-implemented": { label: "Not Implemented", color: C.red, bg: C.redBg, Icon: Circle },
+  unassessed: { label: "Unassessed", color: C.muted, bg: C.panel2, Icon: Circle },
 };
-const STATUS_ORDER = ["inherited", "satisfied", "gap", "not-implemented"];
+const STATUS_ORDER = ["inherited", "satisfied", "assessed", "partial", "deficient", "not-implemented", "unassessed"];
 
 // Primary organizing structure for the matrix — how a control actually gets
 // satisfied, not just which domain it's filed under. Order matters: it's the
@@ -34,10 +49,8 @@ const IMPLEMENTATION_META = [
   { type: IMPLEMENTATION_TYPES.PROCESS, Icon: ScrollText, color: C.green, bg: C.greenBg, blurb: "Governed by policy, contract, or documented process. Evidenced by the record, not a system." },
 ];
 
-function sourceLabel(source) {
-  if (source === "vanta_test") return "Vanta automated test";
-  if (source === "private_integration") return "Private integration test";
-  return "Manually verified";
+function assetName(system, assetId) {
+  return system.assets.find((a) => a.id === assetId)?.name ?? assetId;
 }
 function ticketMeta(status) {
   if (status === "done") return { color: C.green, label: "Done" };
@@ -91,14 +104,19 @@ function ControlRow({ row, onSelect }) {
       <div className="py-3 pl-3 min-w-0" style={{ borderLeft: `1px solid ${C.border}` }}>
         <div className="text-sm leading-snug" style={{ color: C.ink }}>{row.control.name}</div>
         <div className="text-[10px] mt-0.5" style={{ color: C.muted }}>
-          {row.control.domain}{row.toolHint && <span> · Enforced by {row.toolHint}</span>}
+          {row.control.domain}{row.control.toolHint && <span> · Enforced by {row.control.toolHint}</span>}
         </div>
       </div>
       <div className="py-3 pl-3 flex items-center gap-2" style={{ borderLeft: `1px solid ${C.border}` }}>
         <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded" style={{ background: meta.bg, color: meta.color }}>
           <meta.Icon size={11} /> {meta.label}
         </span>
-        {row.isTracked && <RadioTower size={12} color={C.muted} />}
+        {/* A key control: individually implemented and evidenced per asset,
+            rather than covered at category level. */}
+        {row.keyControl && <RadioTower size={12} color={C.muted} />}
+        {row.score != null && (
+          <span className="text-[11px] ml-auto tabular-nums" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{row.score}</span>
+        )}
       </div>
       <div className="py-3 pl-3 text-[11px] truncate" style={{ borderLeft: `1px solid ${C.border}`, color: C.muted }}>
         {policy ? policy.code : "—"}
@@ -175,7 +193,7 @@ export default function SystemSecurityPlan() {
   const [selectedRow, setSelectedRow] = useState(null);
 
   const system = RESTRICTED_SYSTEMS.find((s) => s.id === systemId);
-  const matrix = useMemo(() => getSystemControlMatrix(system), [system]);
+  const matrix = useMemo(() => systemControlMatrix(system.id), [system]);
   const referencedPolicies = useMemo(() => getReferencedPolicies(matrix), [matrix]);
 
   const domains = useMemo(() => {
@@ -191,7 +209,7 @@ export default function SystemSecurityPlan() {
   );
 
   const statusCounts = useMemo(() => {
-    const counts = { inherited: 0, satisfied: 0, gap: 0, "not-implemented": 0 };
+    const counts = Object.fromEntries(STATUS_ORDER.map((s) => [s, 0]));
     matrix.forEach((r) => { counts[r.status] += 1; });
     return counts;
   }, [matrix]);
@@ -245,7 +263,7 @@ export default function SystemSecurityPlan() {
               <div className="text-sm font-semibold mb-1.5" style={{ color: C.ink }}>{s.name}</div>
               <div className="text-xs mb-2" style={{ color: C.muted }}>{s.env}</div>
               <div className="flex gap-1.5 flex-wrap items-center">
-                {s.dataTypes.map((t, i) => <DataTypeChip key={i} type={t} />)}
+                {dataTypesForSystem(s.id).map((t) => <DataTypeChip key={t.id} type={t.name} />)}
                 {s.standards.map((std, i) => <StandardChip key={i} standard={std} />)}
               </div>
             </div>
@@ -259,7 +277,7 @@ export default function SystemSecurityPlan() {
           <IdentificationField label="System ID" value={system.id} />
           <IdentificationField label="Classification" value={system.classification} />
           <IdentificationField label="Hosting Environment" value={system.env} />
-          <IdentificationField label="Data Types Processed" value={system.dataTypes.join(", ")} />
+          <IdentificationField label="Data Types Processed" value={dataTypesForSystem(system.id).map((t) => t.name).join(", ")} />
           <IdentificationField label="Compliance Standards In Scope" value={system.standards.join(", ")} />
           <div className="col-span-3">
             <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Purpose</div>
@@ -320,7 +338,7 @@ export default function SystemSecurityPlan() {
           <ImplementationSection
             key={meta.type}
             meta={meta}
-            rows={filtered.filter((r) => r.implementationType === meta.type)}
+            rows={filtered.filter((r) => r.control.implementationType === meta.type)}
             expanded={expandedTypes.has(meta.type)}
             onToggle={() => toggleType(meta.type)}
             onSelectRow={setSelectedRow}
@@ -399,7 +417,7 @@ export default function SystemSecurityPlan() {
                   );
                 })()}
                 {(() => {
-                  const im = IMPLEMENTATION_META.find((m) => m.type === selectedRow.implementationType);
+                  const im = IMPLEMENTATION_META.find((m) => m.type === selectedRow.control.implementationType);
                   return (
                     <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded" style={{ background: im.bg, color: im.color }}>
                       <im.Icon size={12} /> {im.type}
@@ -415,21 +433,47 @@ export default function SystemSecurityPlan() {
                 <div className="text-sm leading-relaxed" style={{ color: C.ink }}>{selectedRow.control.description}</div>
               </div>
 
-              {selectedRow.toolHint && (
+              {selectedRow.control.toolHint && (
                 <div className="rounded-lg p-3 mb-6" style={{ border: `1px solid ${C.border}` }}>
                   <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Enforced By</div>
-                  <div className="text-sm" style={{ color: C.ink }}>{selectedRow.toolHint}</div>
+                  <div className="text-sm" style={{ color: C.ink }}>{selectedRow.control.toolHint}</div>
                 </div>
               )}
 
-              {selectedRow.isTracked && selectedRow.trackedDetail && (
+              <div className="rounded-lg p-3 mb-6" style={{ border: `1px solid ${C.border}` }}>
+                <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Why this status</div>
+                <div className="text-sm leading-relaxed" style={{ color: C.ink }}>{selectedRow.explanation}</div>
+              </div>
+
+              {/* A key control shows its real implementations, one per asset,
+                  with the evidence behind each. This is what replaced the single
+                  tracked-evidence block: the same control genuinely has a
+                  different answer on each asset it runs on. */}
+              {selectedRow.implementations.length > 0 && (
                 <div className="rounded-lg p-4 mb-6" style={{ background: C.accentBg, border: `1px solid ${C.accent}4D` }}>
-                  <div className="text-[10px] uppercase tracking-wide mb-2 font-semibold" style={{ color: C.accent }}>Tracked Evidence — {selectedRow.trackedName}</div>
-                  <div className="text-xs" style={{ color: C.ink }}>{sourceLabel(selectedRow.trackedDetail.source)}</div>
-                  <div className="flex items-center gap-3 mt-1.5 text-[11px]" style={{ color: C.muted }}>
-                    <span>Verified {selectedRow.trackedDetail.age === 0 ? "today" : `${selectedRow.trackedDetail.age}d ago`}</span><span>·</span>
-                    <span className="flex items-center gap-0.5" style={{ fontFamily: "'IBM Plex Mono', monospace" }}><Link2 size={10} /> {selectedRow.trackedDetail.evidenceRef}</span>
-                    {selectedRow.trackedDetail.stale && <span className="font-semibold px-1.5 py-0.5 rounded" style={{ background: "rgba(78,143,214,0.12)", color: C.amber }}>STALE</span>}
+                  <div className="text-[10px] uppercase tracking-wide mb-2 font-semibold" style={{ color: C.accent }}>
+                    Implementations — {selectedRow.keyControl?.friendlyName ?? selectedRow.control.name}
+                  </div>
+                  <div className="space-y-2">
+                    {selectedRow.implementations.map((impl) => (
+                      <div key={`${impl.assetId}-${impl.controlId}`} className="rounded p-2" style={{ background: C.panel }}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs flex-1 min-w-0 truncate" style={{ color: C.ink }}>
+                            {impl.assetId ? assetName(system, impl.assetId) : "Program-wide"}
+                          </span>
+                          <span className="text-[10px]" style={{ color: C.muted }}>{impl.maturityStage ?? "—"}</span>
+                          <span className="text-xs font-semibold tabular-nums" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{impl.score}</span>
+                        </div>
+                        {impl.evidence.map((e) => (
+                          <div key={e.id} className="flex items-center gap-2 mt-1 text-[11px]" style={{ color: C.muted }}>
+                            <Link2 size={10} />
+                            <span className="min-w-0 truncate">{e.source} · {e.result.toUpperCase()} · {e.coveragePct}%</span>
+                            <span className="shrink-0">{e.ageDays === 0 ? "today" : `${e.ageDays}d ago`}</span>
+                            {e.stale && <span className="font-semibold px-1.5 py-0.5 rounded shrink-0" style={{ background: C.amberBg, color: C.amber }}>STALE</span>}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

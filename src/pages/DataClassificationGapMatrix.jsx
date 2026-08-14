@@ -6,10 +6,12 @@ import {
 import { C, CLASS_META, CLASS_ORDER } from "../theme";
 import { PageHeader } from "../components/Headings";
 import { ClassificationTag, DataTypeChip, StandardChip, SourceBadge } from "../components/SystemBadges";
-import { SYSTEMS, controlBreakdown } from "../data/systemRegister";
-import { ASSET_SUMMARIES } from "../data/assets";
-import { criticalityBand, assuranceBand, riskBand, ASSURANCE_TARGET, ADEQUATE_THRESHOLD } from "../data/assuranceModel";
-import { tierTargetScore } from "../data/controlProfiles";
+import {
+  getAllSystems, systemCoverageBreakdown, systemStandardMappings, dataTypesForSystem,
+  criticalityBand, assuranceBand, riskBand, ASSURANCE_TARGET, ADEQUATE_THRESHOLD, tierTargetScore,
+} from "../engine";
+
+const SYSTEMS = getAllSystems();
 
 const DATA_ELEMENT_ICON = {
   pii: Users,
@@ -21,32 +23,55 @@ const DATA_ELEMENT_ICON = {
   employee: Briefcase,
   marketing: Megaphone,
   modelData: Sparkles,
+  metadata: Activity,
+  auditLog: ScrollText,
 };
 
+// Every control in scope now resolves to one of these five states, each of
+// which means something specific. The previous four (Inherited / Satisfied /
+// Open Gaps / Not Implemented) were produced by applying six tracked controls'
+// compliant-to-gap ratio to the full 323-control total, so the split was a
+// proportion of a sample presented as a count of the whole. "Assessed" is the
+// new one and by far the largest: controls with no individual implementation,
+// covered by the system's category-level assessment. It's a weaker claim than
+// Satisfied, and showing it as its own state is the point.
 const SUMMARY_COLUMNS = [
   { key: "required", label: "Required Controls", color: () => C.ink },
-  { key: "inherited", label: "Inherited Controls", color: () => C.green },
-  { key: "satisfied", label: "Satisfied Controls", color: () => C.accent },
-  { key: "openGaps", label: "Open Gaps", color: () => C.amber },
-  { key: "notImplemented", label: "Not Implemented", color: () => C.red },
+  { key: "inherited", label: "Inherited from Provider", color: () => C.green },
+  { key: "satisfied", label: "Measured & Satisfied", color: () => C.accent },
+  { key: "assessed", label: "Assessed at Category", color: () => C.muted },
+  { key: "deficient", label: "Deficient", color: () => C.red },
 ];
 
 function ownerFor(system) {
   return system.roles?.find((r) => r.role === "System Owner")?.assignment ?? "—";
 }
 
-// System-level Criticality/Assurance/Risk are averaged across that system's
-// own assets (ASSET_SUMMARIES) rather than a second hand-typed system-level
-// number — the same real per-asset scores the Asset Register and Control
-// Profile pages show, just rolled up to one row per system.
+// The coarse tags this column used to carry as a hand-typed `dataTypes: ["PII"]`
+// on the system. Derived now from the data types its assets actually hold, so a
+// system that starts handling a new category is tagged for it without anyone
+// remembering to add the string.
+function dataTags(system) {
+  const types = dataTypesForSystem(system.id);
+  const tags = new Set();
+  types.forEach((t) => {
+    if (t.kind === "pii" || t.kind === "employee") tags.add("PII");
+    t.regulatedBy.forEach((r) => tags.add(r));
+  });
+  return [...tags];
+}
+
+// A system row reads straight off the system rollup now. It used to average
+// its own assets locally here — correct, but a second implementation of a
+// rollup the engine also performs, so the two could diverge. Assurance is also
+// criticality-weighted in the engine rather than a flat mean, so a weak
+// critical asset can no longer be offset by a healthy peripheral one.
 function systemAssetRollup(system) {
-  const assets = ASSET_SUMMARIES.filter((a) => a.system.id === system.id);
-  const avg = (fn) => Math.round(assets.reduce((sum, a) => sum + fn(a), 0) / assets.length);
   return {
-    criticality: avg((a) => a.criticality),
-    assurance: avg((a) => a.overallAssurance),
-    evidenceConfidence: avg((a) => a.evidenceConfidence),
-    residualScore: Math.round((assets.reduce((sum, a) => sum + a.residualRisk.score, 0) / assets.length) * 10) / 10,
+    criticality: system.criticality,
+    assurance: system.overallAssurance,
+    evidenceConfidence: system.evidenceConfidence,
+    residualScore: system.residualScore,
   };
 }
 
@@ -66,7 +91,7 @@ function DataTypeTile({ item }) {
       <div className="shrink-0 rounded-md p-1.5" style={{ background: C.accentBg }}>
         <Icon size={14} color={C.accent} />
       </div>
-      <span className="text-xs font-medium" style={{ color: C.ink }}>{item.label}</span>
+      <span className="text-xs font-medium" style={{ color: C.ink }}>{item.name}</span>
     </div>
   );
 }
@@ -162,14 +187,16 @@ export default function DataClassificationGapMatrix() {
       (standardFilter === "All" || s.standards.includes(standardFilter))
   );
 
-  const gapCount = (s) => s.controls.filter((c) => c.status === "gap" || c.status === "partial").length;
-  const systemsWithGaps = SYSTEMS.filter((s) => gapCount(s) > 0).length;
+  // Gaps and stale evidence are now counted from real control implementations
+  // and their evidence records, not from a six-element status array whose
+  // position had to line up with a separate array of control names.
+  const systemsWithGaps = SYSTEMS.filter((s) => s.deficientControls.length > 0).length;
   const totalOverdue = SYSTEMS.flatMap((s) => s.remediation).filter((r) => r.overdue).length;
   const totalOpenItems = SYSTEMS.flatMap((s) => s.remediation).filter((r) => r.ticketStatus !== "done").length;
-  const staleCount = SYSTEMS.flatMap((s) => s.controls).filter((c) => c.stale).length;
-  const selectedBreakdown = selected ? controlBreakdown(selected) : null;
+  const staleCount = SYSTEMS.reduce((a, s) => a + s.staleEvidenceCount, 0);
+  const selectedBreakdown = selected ? systemCoverageBreakdown(selected.id) : null;
   const selectedRoll = selected ? systemAssetRollup(selected) : null;
-  const selectedCoveragePct = selectedBreakdown ? Math.round(((selectedBreakdown.satisfied + selectedBreakdown.inherited) / selectedBreakdown.required) * 100) : null;
+  const selectedCoveragePct = selectedBreakdown ? selectedBreakdown.coveredPct : null;
   const selectedTarget = selected ? tierTargetScore(selected.classification) : null;
   const selectedRisk = selectedRoll ? systemRiskMeta(selectedRoll.residualScore) : null;
 
@@ -263,7 +290,7 @@ export default function DataClassificationGapMatrix() {
                     </div>
                     <div className="text-xs mt-0.5" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{s.id} · {s.env}</div>
                     <div className="flex gap-1.5 mt-1.5 flex-wrap items-center">
-                      {s.dataTypes.map((t, i) => <DataTypeChip key={i} type={t} />)}
+                      {dataTags(s).map((t, i) => <DataTypeChip key={i} type={t} />)}
                       <SourceBadge syncSource={s.syncSource} />
                     </div>
                     <div className="flex gap-1.5 mt-1.5 flex-wrap">
@@ -319,7 +346,7 @@ export default function DataClassificationGapMatrix() {
                 <button onClick={() => setSelected(null)}><X size={18} color={C.muted} /></button>
               </div>
               <div className="flex gap-1.5 mt-3 flex-wrap items-center">
-                {selected.dataTypes.map((t, i) => <DataTypeChip key={i} type={t} />)}
+                {dataTags(selected).map((t, i) => <DataTypeChip key={i} type={t} />)}
                 <SourceBadge syncSource={selected.syncSource} />
               </div>
               <div className="flex items-center gap-1.5 mt-2 text-xs" style={{ color: C.muted }}>
@@ -340,7 +367,7 @@ export default function DataClassificationGapMatrix() {
 
               <div className="text-xs uppercase tracking-wide mb-3" style={{ color: C.muted }}>Data Types</div>
               <div className="grid grid-cols-2 gap-2 mb-6">
-                {selected.dataElements.map((item, i) => <DataTypeTile key={i} item={item} />)}
+                {dataTypesForSystem(selected.id).map((item) => <DataTypeTile key={item.id} item={item} />)}
               </div>
 
               <div className="text-xs uppercase tracking-wide mb-3" style={{ color: C.muted }}>Score</div>
@@ -365,7 +392,7 @@ export default function DataClassificationGapMatrix() {
               </div>
               <div className="rounded-lg mb-6" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
                 <div className="px-3">
-                  {(selected.standardMappings[drawerStandard] || []).map((m, i) => (
+                  {systemStandardMappings(selected.id, drawerStandard).map((m, i) => (
                     <RequirementRow key={i} mapping={m} isOpen={openReq === i} onToggle={() => setOpenReq(openReq === i ? null : i)} />
                   ))}
                 </div>

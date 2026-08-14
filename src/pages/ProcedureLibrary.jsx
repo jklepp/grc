@@ -8,8 +8,9 @@ import { C } from "../theme";
 import { PageHeader, SectionHeading } from "../components/Headings";
 import { PROCEDURES } from "../data/procedures";
 import { POLICIES, getFrameworkClauses, MAPPED_STANDARDS, STANDARD_ABBR } from "../data/policies";
-import { ASSET_SUMMARIES } from "../data/assets";
-import { EVIDENCE_CONFIDENCE } from "../data/assuranceModel";
+import { getAllAssets, EVIDENCE_CONFIDENCE } from "../engine";
+
+const ASSET_SUMMARIES = getAllAssets();
 
 // There's no real auth/user system yet, so the execution workflow below
 // simulates a single signed-in operator running their own SOP — same "JK"

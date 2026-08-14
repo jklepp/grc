@@ -13,6 +13,7 @@ import ControlProfile from "./pages/ControlProfile";
 import ProcedureLibrary from "./pages/ProcedureLibrary";
 import ScheduledActivities from "./pages/ScheduledActivities";
 import SecurityPrinciples from "./pages/SecurityPrinciples";
+import GraphExplorer from "./pages/GraphExplorer";
 import { C, applyTheme, FONT_IMPORT } from "./theme";
 
 // Map nav item ids (defined in Sidebar.jsx) to the page component to render.
@@ -24,6 +25,7 @@ const PAGES = {
   "data-map": DataMap,
   "risk-register": RiskRegister,
   executive: ExecutiveDashboard,
+  "graph-explorer": GraphExplorer,
   "policy-center": PolicyCenter,
   ssp: SystemSecurityPlan,
   "asset-register": AssetRegister,

@@ -36,7 +36,7 @@
 // no step individually cites isn't a "gap" (the domain-level procedure still
 // covers it) — it just hasn't been called out at step granularity yet, and
 // `uncitedControlIds` below makes that visible rather than papering over it.
-import { ASSURANCE_CATEGORIES } from "./assuranceModel";
+import { ASSURANCE_CATEGORIES } from "../graph/nodes/taxonomy";
 import { CCF_VISIBLE_CONTROLS } from "./ccfControls";
 
 const PROCEDURE_DEFS = [

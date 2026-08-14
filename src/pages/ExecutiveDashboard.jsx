@@ -6,24 +6,34 @@ import {
 import { C } from "../theme";
 import { PageHeader } from "../components/Headings";
 import { DATA_SOURCES, TOTAL_RECORDS, TOTAL_DATA_TB, formatRecords, formatTB } from "../data/dataFootprint";
-import { RISKS, ABOVE_APPETITE_COUNT, MATERIAL_RISKS, MATERIAL_RISK_EXPOSURE, QUANTIFIED_EXPOSURE } from "../data/riskRegister";
-import { ASSET_SUMMARIES, CATEGORY_PORTFOLIO_AVERAGES } from "../data/assets";
-import { ASSURANCE_TARGET, ADEQUATE_THRESHOLD } from "../data/assuranceModel";
+import {
+  getAllRisks, ABOVE_APPETITE_COUNT, MATERIAL_RISKS, MATERIAL_RISK_EXPOSURE, QUANTIFIED_EXPOSURE,
+  getAllAssets, getCategoryAverages, getEnterprise, ENTERPRISE_COVERAGE, ASSURANCE_TARGET, ADEQUATE_THRESHOLD,
+} from "../engine";
 
-// Enterprise Assurance: criticality-weighted average of every asset's Control
-// Assurance score — a weak Restricted-tier asset drags this down harder than
-// a weak Public one, so it can't be gamed by padding the register with low-
-// stakes assets. Real, not a hand-picked figure. (Named to match how
-// leadership actually talks about this number; same math as what used to be
-// labeled "Composite Score.")
+const RISKS = getAllRisks();
+const ASSET_SUMMARIES = getAllAssets();
+const CATEGORY_PORTFOLIO_AVERAGES = getCategoryAverages();
+
+// Enterprise Assurance: criticality-weighted, so a weak Restricted-tier asset
+// drags it down harder than a weak Public one and it can't be gamed by padding
+// the register with low-stakes assets.
+//
+// This page used to compute that weighting here, over the asset list. Correct
+// arithmetic, but a second implementation of a rollup the engine also performs
+// — and the engine's version rolls up through systems rather than flattening
+// every asset into one pool, so the two would not have agreed. Now there is one
+// enterprise assurance figure and this is a read of it.
+const PORTFOLIO_ASSURANCE_PCT = getEnterprise().assurance;
 const TOTAL_CRITICALITY = ASSET_SUMMARIES.reduce((a, x) => a + x.criticality, 0);
-const PORTFOLIO_ASSURANCE_PCT = Math.round(
-  ASSET_SUMMARIES.reduce((a, x) => a + x.overallAssurance * x.criticality, 0) / TOTAL_CRITICALITY
-);
 const PORTFOLIO_EVIDENCE_PCT = Math.round(
   ASSET_SUMMARIES.reduce((a, x) => a + x.evidenceConfidence * x.criticality, 0) / TOTAL_CRITICALITY
 );
-const COMPLIANCE_COVERAGE_PCT = Math.round(ASSET_SUMMARIES.reduce((a, x) => a + x.complianceCoveragePct, 0) / ASSET_SUMMARIES.length);
+// Was the mean of every asset's complianceCoveragePct — a figure each asset
+// inherited unchanged from its parent system, so this averaged two distinct
+// values across fifteen copies of them. Now it reads the enterprise coverage
+// the compliance engine derives from every in-scope control on both systems.
+const COMPLIANCE_COVERAGE_PCT = ENTERPRISE_COVERAGE.coveredPct;
 
 // Only the last point is real — pinned to the live computed metric above, so
 // it can't drift out of sync with the actual register. Everything before it

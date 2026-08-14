@@ -3,8 +3,9 @@ import { X, Boxes } from "lucide-react";
 import { C } from "../theme";
 import { PageHeader, SectionHeading } from "../components/Headings";
 import { ClassificationTag } from "../components/SystemBadges";
-import { ASSET_SUMMARIES } from "../data/assets";
-import { ASSURANCE_CATEGORIES } from "../data/assuranceModel";
+import { getAllAssets, ASSURANCE_CATEGORIES, IMPLEMENTATION_STATUS_META, BASIS_META } from "../engine";
+
+const ASSETS = getAllAssets();
 
 function colorFor(key) {
   return { color: C[key], bg: C[`${key}Bg`] };
@@ -46,14 +47,46 @@ function AssetCard({ asset, selected, onSelect }) {
   );
 }
 
-function CategoryBar({ label, score }) {
+// The dot marks whether this category's score rests on evidenced control
+// implementations or only on the category-level assessment. Same number either
+// way; very different strength of claim, which used to be invisible.
+function CategoryBar({ label, rollup }) {
+  const measured = rollup.basis === "measured";
   return (
-    <div className="flex items-center gap-3">
-      <div className="w-32 shrink-0 text-xs" style={{ color: C.ink }}>{label}</div>
+    <div className="flex items-center gap-3" title={BASIS_META[rollup.basis]?.detail}>
+      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: measured ? C.green : C.na }} />
+      <div className="w-28 shrink-0 text-xs" style={{ color: C.ink }}>{label}</div>
       <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: C.panel2 }}>
-        <div className="h-full rounded-full" style={{ width: `${score}%`, background: C.accent }} />
+        <div className="h-full rounded-full" style={{ width: `${rollup.score}%`, background: C.accent }} />
       </div>
-      <div className="w-8 text-xs text-right font-medium" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{score}</div>
+      <div className="w-8 text-xs text-right font-medium" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{rollup.score}</div>
+    </div>
+  );
+}
+
+// The view the pre-graph register had no way to show: this control, on this
+// asset, with the evidence behind it. A control's assurance is contextual, so
+// the only place a real number for it can live is here.
+function ImplementationRow({ impl }) {
+  const meta = IMPLEMENTATION_STATUS_META[impl.status];
+  const { color, bg } = colorFor(meta.color === "muted" ? "na" : meta.color);
+  const strongest = impl.evidence.reduce((best, e) => (best === null || e.confidence > best.confidence ? e : best), null);
+  return (
+    <div className="rounded-lg px-3 py-2" style={{ background: C.panel2 }}>
+      <div className="flex items-center gap-2">
+        <span className="text-xs min-w-0 flex-1 truncate" style={{ color: C.ink }}>{impl.control.friendlyName}</span>
+        <span className="text-[10px] shrink-0" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{impl.controlId}</span>
+        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0" style={{ color: meta.color === "muted" ? C.muted : color, background: meta.color === "muted" ? "transparent" : bg }}>
+          {meta.label}
+        </span>
+        <span className="text-xs font-semibold w-7 text-right shrink-0" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{impl.score}</span>
+      </div>
+      {strongest && (
+        <div className="text-[11px] mt-1 leading-relaxed" style={{ color: C.muted }}>
+          {strongest.source} · {strongest.coveragePct}% coverage · {strongest.ageDays}d ago{strongest.stale ? " (stale)" : ""}
+        </div>
+      )}
+      {impl.note && <div className="text-[11px] mt-1 leading-relaxed" style={{ color: C.muted }}>{impl.note}</div>}
     </div>
   );
 }
@@ -112,13 +145,37 @@ function AssetDetailPanel({ asset, onClose }) {
         <MetricChip label="Asset Criticality" value={asset.criticality} band={asset.criticalityBand} />
         <MetricChip label="Control Assurance" value={asset.overallAssurance} band={asset.assuranceBand} />
         <MetricChip label="Evidence Confidence" value={asset.evidenceConfidence} band={asset.evidenceConfidenceBand} />
-        <MetricChip label="Compliance Coverage" value={`${asset.complianceCoveragePct}%`} band={asset.complianceCoveragePct >= 90 ? { label: "Strong", color: "green" } : asset.complianceCoveragePct >= 75 ? { label: "Adequate", color: "amber" } : { label: "Weak", color: "red" }} />
+        {/* Replaces the old Compliance Coverage chip, which showed this asset's
+            PARENT SYSTEM's coverage — identical across every asset in the
+            boundary, and so unable to say anything about this one. */}
+        <MetricChip
+          label="Control-Backed"
+          value={`${asset.controlBackedPct}%`}
+          band={asset.controlBackedPct >= 90 ? { label: "Strong", color: "green" } : asset.controlBackedPct >= 75 ? { label: "Adequate", color: "amber" } : { label: "Partial", color: "red" }}
+        />
       </div>
 
       <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
         <div className="text-[10px] uppercase tracking-wide mb-3" style={{ color: C.muted }}>Control Assurance by Category</div>
         <div className="space-y-2.5">
-          {ASSURANCE_CATEGORIES.map((c) => <CategoryBar key={c} label={c} score={asset.categoryScores[c]} />)}
+          {ASSURANCE_CATEGORIES.map((c) => <CategoryBar key={c} label={c} rollup={asset.categories[c]} />)}
+        </div>
+        <div className="text-[11px] mt-3 leading-relaxed" style={{ color: C.muted }}>
+          A filled dot means the score is backed by evidenced control implementations; a grey one means it rests on the category-level assessment alone.
+        </div>
+      </div>
+
+      <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
+        <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>
+          Tracked Controls — {asset.evidencedControlCount} of {asset.requiredControlCount} evidenced
+        </div>
+        <div className="text-[11px] mb-3 leading-relaxed" style={{ color: C.muted }}>
+          Each control scored against this specific asset. The same control can be strong here and weak elsewhere, which is why no score is stored on the control itself.
+        </div>
+        <div className="space-y-1.5">
+          {[...asset.implementations].sort((a, b) => a.score - b.score).map((impl) => (
+            <ImplementationRow key={impl.controlId} impl={impl} />
+          ))}
         </div>
       </div>
 
@@ -144,11 +201,11 @@ function AssetDetailPanel({ asset, onClose }) {
 }
 
 export default function AssetRegister() {
-  const [selectedId, setSelectedId] = useState(ASSET_SUMMARIES[0]?.id ?? null);
-  const selected = ASSET_SUMMARIES.find((a) => a.id === selectedId) || null;
+  const [selectedId, setSelectedId] = useState(ASSETS[0]?.id ?? null);
+  const selected = ASSETS.find((a) => a.id === selectedId) || null;
 
   const groups = [];
-  ASSET_SUMMARIES.forEach((asset) => {
+  ASSETS.forEach((asset) => {
     let group = groups.find((g) => g.system.id === asset.system.id);
     if (!group) {
       group = { system: asset.system, assets: [] };
@@ -166,7 +223,7 @@ export default function AssetRegister() {
           description="Criticality, control assurance, evidence confidence, and residual risk for individual resources inside each system's boundary."
           right={
             <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
-              {ASSET_SUMMARIES.length} assets across {groups.length} systems
+              {ASSETS.length} assets across {groups.length} systems
             </div>
           }
         />
