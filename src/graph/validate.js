@@ -78,6 +78,23 @@ EVIDENCE.forEach((e) => {
   check(EVIDENCE_RESULTS.includes(e.result), `evidence ${e.id}: result "${e.result}" must be one of ${EVIDENCE_RESULTS.join(", ")}`);
   check(INDEPENDENCE_LEVELS.includes(e.independence), `evidence ${e.id}: independence "${e.independence}" is not a known level`);
   check(e.coveragePct >= 0 && e.coveragePct <= 100, `evidence ${e.id}: coveragePct ${e.coveragePct} is outside 0-100`);
+
+  // Prevalence is optional, but half of it is worse than none: a population
+  // with no exception count (or the reverse) would silently score as if no
+  // counts were reported at all, which hides the fact that someone meant to
+  // record one.
+  const hasPop = e.population !== undefined;
+  const hasExc = e.exceptions !== undefined;
+  check(hasPop === hasExc, `evidence ${e.id}: population and exceptions must be given together — one without the other reads as no prevalence data at all`);
+  if (hasPop && hasExc) {
+    check(Number.isInteger(e.population) && e.population > 0, `evidence ${e.id}: population must be a positive integer`);
+    check(Number.isInteger(e.exceptions) && e.exceptions >= 0, `evidence ${e.id}: exceptions must be a non-negative integer`);
+    check(e.exceptions <= e.population, `evidence ${e.id}: ${e.exceptions} exceptions in a population of ${e.population} — more failures than members`);
+    check(Boolean(e.populationUnit?.trim()), `evidence ${e.id}: needs a populationUnit so "${e.exceptions} of ${e.population}" says what is being counted`);
+    // A passing collection that found exceptions is contradicting itself.
+    check(!(e.result === "pass" && e.exceptions > 0), `evidence ${e.id}: result is "pass" but ${e.exceptions} exceptions were recorded — a collection that found breaches did not pass`);
+    check(!(e.result !== "pass" && e.exceptions === 0), `evidence ${e.id}: result is "${e.result}" but zero exceptions were recorded — a failing collection has to name what failed`);
+  }
   check(Number.isFinite(e.validForDays) && e.validForDays > 0, `evidence ${e.id}: validForDays must be a positive number`);
   check(!Number.isNaN(new Date(e.collectedAt).getTime()), `evidence ${e.id}: collectedAt "${e.collectedAt}" is not a parseable date`);
   e.assetIds.forEach((id) => check(Object.hasOwn(ASSET_BY_ID, id), `evidence ${e.id}: assetId "${id}" is not an asset`));

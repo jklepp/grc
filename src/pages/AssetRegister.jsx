@@ -84,6 +84,16 @@ function ImplementationRow({ impl }) {
       {strongest && (
         <div className="text-[11px] mt-1 leading-relaxed" style={{ color: C.muted }}>
           {strongest.source} · {strongest.coveragePct}% coverage · {strongest.ageDays}d ago{strongest.stale ? " (stale)" : ""}
+          {impl.evidenceAllocation.length > 1 && ` · +${impl.evidenceAllocation.length - 1} more composing coverage`}
+        </div>
+      )}
+      {/* Prevalence, not just the pass/fail label. "1 of 10,000" and "9,000 of
+          10,000" are both failures and are not the same condition. */}
+      {impl.exceptionSummary && (
+        <div className="text-[11px] mt-1" style={{ color: impl.exceptionSummary.rate >= 0.5 ? C.red : impl.exceptionSummary.rate >= 0.1 ? C.amber : C.muted }}>
+          {impl.exceptionSummary.exceptions} of {impl.exceptionSummary.population} {impl.exceptionSummary.unit} in breach
+          {" "}({(impl.exceptionSummary.rate * 100).toFixed(impl.exceptionSummary.rate < 0.01 ? 2 : 1)}%)
+          {impl.exceptionSummary.rate >= 0.5 ? " — systemic" : impl.exceptionSummary.rate < 0.05 ? " — isolated" : ""}
         </div>
       )}
       {impl.note && <div className="text-[11px] mt-1 leading-relaxed" style={{ color: C.muted }}>{impl.note}</div>}

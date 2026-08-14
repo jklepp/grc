@@ -467,7 +467,10 @@ export default function SystemSecurityPlan() {
                         {impl.evidence.map((e) => (
                           <div key={e.id} className="flex items-center gap-2 mt-1 text-[11px]" style={{ color: C.muted }}>
                             <Link2 size={10} />
-                            <span className="min-w-0 truncate">{e.source} · {e.result.toUpperCase()} · {e.coveragePct}%</span>
+                            <span className="min-w-0 truncate">
+                              {e.source} · {e.result.toUpperCase()}
+                              {e.exceptionRate != null && ` (${e.exceptions}/${e.population})`} · {e.coveragePct}%
+                            </span>
                             <span className="shrink-0">{e.ageDays === 0 ? "today" : `${e.ageDays}d ago`}</span>
                             {e.stale && <span className="font-semibold px-1.5 py-0.5 rounded shrink-0" style={{ background: C.amberBg, color: C.amber }}>STALE</span>}
                           </div>

@@ -174,7 +174,10 @@ function factsFor(type, node) {
       return [
         { label: "Type", value: node.evidenceType },
         { label: "Result", value: node.result.toUpperCase() },
+        { label: "Exceptions", value: node.exceptionRate == null ? null : `${node.exceptions} of ${node.population} ${node.populationUnit}` },
+        { label: "Exception rate", value: node.exceptionRate == null ? null : `${(node.exceptionRate * 100).toFixed(2)}%` },
         { label: "Coverage", value: `${node.coveragePct}%` },
+        { label: "Quality", value: node.quality },
         { label: "Collected", value: `${node.collectedAt} (${node.ageDays}d ago)` },
         { label: "Valid for", value: `${node.validForDays} days` },
         { label: "Freshness factor", value: node.freshness },
