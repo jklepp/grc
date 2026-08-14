@@ -7,7 +7,7 @@
 // Confidential/Restricted tiers already used everywhere else in the app
 // (see CLASS_ORDER in theme.js).
 import { CLASS_ORDER } from "../theme";
-import { MATURITY_STAGES, EVIDENCE_TYPES, ASSURANCE_CATEGORIES, MATURITY_SCORE, EVIDENCE_CONFIDENCE } from "./assuranceModel";
+import { MATURITY_STAGES, EVIDENCE_TYPES, ASSURANCE_CATEGORIES, MATURITY_SCORE, EVIDENCE_CONFIDENCE, categoryAssuranceScore } from "./assuranceModel";
 
 // Baseline bar every asset at a tier must clear, before any category-specific
 // bump. Each tier is one full "how convincingly can we prove this" step up
@@ -60,4 +60,17 @@ export function evaluateAssetAgainstProfile(classification, categories) {
     result[category] = { status, required, actual, requiredMaturityScore: MATURITY_SCORE[required.maturity], requiredEvidenceScore: EVIDENCE_CONFIDENCE[required.evidence] };
   });
   return result;
+}
+
+// The assurance score a system would need to fully clear its tier's Required
+// Control Profile — every category's required maturity+evidence run through
+// the same categoryAssuranceScore formula assets are judged by, at 100%
+// effectiveness (the ceiling, since "required" describes the bar itself, not
+// an observed asset). Not a separately hand-picked round number per tier.
+export function tierTargetScore(tier) {
+  const profile = CONTROL_PROFILES[tier];
+  const scores = ASSURANCE_CATEGORIES.map((category) =>
+    categoryAssuranceScore({ maturityStage: profile[category].maturity, evidenceType: profile[category].evidence, effectivenessPct: 100 })
+  );
+  return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
 }

@@ -1,8 +1,26 @@
 import React, { useState } from "react";
-import { Search, X, AlertCircle, CheckCircle2, Circle, MinusCircle, Clock, User, RefreshCw, Link2, Lock, ScrollText, ShieldCheck } from "lucide-react";
+import {
+  Search, X, AlertCircle, CheckCircle2, Circle, MinusCircle, Clock, User, RefreshCw, Link2, Lock, ScrollText, ShieldCheck,
+  Users, HeartPulse, DollarSign, FileText, KeyRound, Activity, Briefcase, Megaphone, Sparkles,
+} from "lucide-react";
 import { C, CLASS_META, CLASS_ORDER } from "../theme";
 import { ClassificationTag, DataTypeChip, StandardChip, SourceBadge } from "../components/SystemBadges";
-import { SYSTEMS, CONTROLS, controlBreakdown } from "../data/systemRegister";
+import { SYSTEMS, controlBreakdown } from "../data/systemRegister";
+import { ASSET_SUMMARIES } from "../data/assets";
+import { criticalityBand, assuranceBand, riskBand, ASSURANCE_TARGET, ADEQUATE_THRESHOLD } from "../data/assuranceModel";
+import { tierTargetScore } from "../data/controlProfiles";
+
+const DATA_ELEMENT_ICON = {
+  pii: Users,
+  phi: HeartPulse,
+  financial: DollarSign,
+  documents: FileText,
+  secrets: KeyRound,
+  telemetry: Activity,
+  employee: Briefcase,
+  marketing: Megaphone,
+  modelData: Sparkles,
+};
 
 const SUMMARY_COLUMNS = [
   { key: "required", label: "Required Controls", color: () => C.ink },
@@ -12,16 +30,53 @@ const SUMMARY_COLUMNS = [
   { key: "notImplemented", label: "Not Implemented", color: () => C.red },
 ];
 
-// A compact checklist of foundational controls shown to the left of the CCF
-// rollup — encryption at rest/in transit reuse this system's own tracked control
-// status; Okta/MFA are separate identity-layer controls not otherwise tracked here.
-function keyControls(system) {
-  return [
-    { label: "Encryption in Transit Enforced", status: system.controls[1].status },
-    { label: "Encryption at Rest Enforced", status: system.controls[0].status },
-    { label: "Okta Identities Enforced", status: system.oktaEnforced },
-    { label: "MFA Enforced", status: system.mfaEnforced },
-  ];
+function ownerFor(system) {
+  return system.roles?.find((r) => r.role === "System Owner")?.assignment ?? "—";
+}
+
+// System-level Criticality/Assurance/Risk are averaged across that system's
+// own assets (ASSET_SUMMARIES) rather than a second hand-typed system-level
+// number — the same real per-asset scores the Asset Register and Control
+// Profile pages show, just rolled up to one row per system.
+function systemAssetRollup(system) {
+  const assets = ASSET_SUMMARIES.filter((a) => a.system.id === system.id);
+  const avg = (fn) => Math.round(assets.reduce((sum, a) => sum + fn(a), 0) / assets.length);
+  return {
+    criticality: avg((a) => a.criticality),
+    assurance: avg((a) => a.overallAssurance),
+    evidenceConfidence: avg((a) => a.evidenceConfidence),
+    residualScore: Math.round((assets.reduce((sum, a) => sum + a.residualRisk.score, 0) / assets.length) * 10) / 10,
+  };
+}
+
+function ScoreTile({ label, value, band }) {
+  return (
+    <div className="rounded-lg px-3 py-2" style={{ background: C.panel2 }}>
+      <div className="text-[10px] uppercase tracking-wide" style={{ color: C.muted }}>{label}</div>
+      <div className="text-lg font-semibold mt-0.5" style={{ color: band ? C[band.color] : C.ink, fontFamily: "'Source Serif 4', serif" }}>{value}</div>
+    </div>
+  );
+}
+
+function DataTypeTile({ item }) {
+  const Icon = DATA_ELEMENT_ICON[item.kind] || FileText;
+  return (
+    <div className="rounded-lg p-3 flex items-center gap-2.5" style={{ background: C.panel2 }}>
+      <div className="shrink-0 rounded-md p-1.5" style={{ background: C.accentBg }}>
+        <Icon size={14} color={C.accent} />
+      </div>
+      <span className="text-xs font-medium" style={{ color: C.ink }}>{item.label}</span>
+    </div>
+  );
+}
+
+// Collapses riskBand()'s real 5-tier scale (Critical/High/Moderate/Low/Minimal)
+// into the 3 states this column shows, without inventing new thresholds.
+function systemRiskMeta(residualScore) {
+  const band = riskBand(residualScore);
+  if (band.label === "Critical") return { label: "High", color: band.color };
+  if (band.label === "Minimal") return { label: "Low", color: band.color };
+  return band;
 }
 
 function statusMeta(status) {
@@ -36,12 +91,6 @@ function ticketMeta(status) {
   if (status === "blocked") return { color: C.red, label: "Blocked" };
   return { color: C.muted, label: "Not started" };
 }
-function sourceLabel(source) {
-  if (source === "vanta_test") return "Vanta automated test";
-  if (source === "private_integration") return "Private integration test";
-  return "Manually verified";
-}
-
 function CoverageBar({ confidence, status }) {
   const color = statusMeta(status).color;
   return (
@@ -118,6 +167,10 @@ export default function DataClassificationGapMatrix() {
   const totalOpenItems = SYSTEMS.flatMap((s) => s.remediation).filter((r) => r.ticketStatus !== "done").length;
   const staleCount = SYSTEMS.flatMap((s) => s.controls).filter((c) => c.stale).length;
   const selectedBreakdown = selected ? controlBreakdown(selected) : null;
+  const selectedRoll = selected ? systemAssetRollup(selected) : null;
+  const selectedCoveragePct = selectedBreakdown ? Math.round(((selectedBreakdown.satisfied + selectedBreakdown.inherited) / selectedBreakdown.required) * 100) : null;
+  const selectedTarget = selected ? tierTargetScore(selected.classification) : null;
+  const selectedRisk = selectedRoll ? systemRiskMeta(selectedRoll.residualScore) : null;
 
   function openSystem(s) {
     setSelected(s);
@@ -193,14 +246,18 @@ export default function DataClassificationGapMatrix() {
 
       <div className="px-8 pb-12">
         <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-          <div className="grid" style={{ gridTemplateColumns: "320px 210px repeat(5, 1fr)" }}>
+          <div className="grid" style={{ gridTemplateColumns: "320px 170px repeat(4, 1fr)" }}>
             <div className="p-4" style={{ borderBottom: `1px solid ${C.border}` }} />
-            <div className="p-3 text-center text-xs font-medium" style={{ borderBottom: `1px solid ${C.border}`, borderLeft: `1px solid ${C.border}`, color: C.muted }}>Key Controls</div>
-            {SUMMARY_COLUMNS.map((col) => (
-              <div key={col.key} className="p-3 text-center text-xs font-medium" style={{ borderBottom: `1px solid ${C.border}`, borderLeft: `1px solid ${C.border}`, color: C.muted }}>{col.label}</div>
+            {["Owner", "Criticality", "Assurance", "Target", "Risk"].map((label) => (
+              <div key={label} className="p-3 text-center text-xs font-medium" style={{ borderBottom: `1px solid ${C.border}`, borderLeft: `1px solid ${C.border}`, color: C.muted }}>{label}</div>
             ))}
             {filtered.map((s) => {
-              const breakdown = controlBreakdown(s);
+              const roll = systemAssetRollup(s);
+              const critColor = C[criticalityBand(roll.criticality).color];
+              const assureColor = C[assuranceBand(roll.assurance).color];
+              const target = tierTargetScore(s.classification);
+              const risk = systemRiskMeta(roll.residualScore);
+              const riskColor = C[risk.color];
               return (
                 <React.Fragment key={s.id}>
                   <button onClick={() => openSystem(s)} className="p-4 text-left hover:bg-white/[0.02] transition-colors" style={{ borderBottom: `1px solid ${C.border}` }}>
@@ -217,47 +274,35 @@ export default function DataClassificationGapMatrix() {
                       {s.standards.map((std, i) => <StandardChip key={i} standard={std} />)}
                     </div>
                   </button>
-                  <div
-                    className="cursor-pointer p-3 space-y-1.5"
-                    style={{ borderBottom: `1px solid ${C.border}`, borderLeft: `1px solid ${C.border}` }}
-                    onClick={() => openSystem(s)}
-                  >
-                    {keyControls(s).map((item, i) => {
-                      const meta = statusMeta(item.status);
-                      return (
-                        <div key={i} className="flex items-center gap-1.5 text-[11px]">
-                          <meta.Icon size={11} color={meta.color} strokeWidth={2.5} className="shrink-0" />
-                          <span style={{ color: C.ink }}>{item.label}</span>
-                        </div>
-                      );
-                    })}
+                  <div className="cursor-pointer flex items-center px-3" style={{ borderBottom: `1px solid ${C.border}`, borderLeft: `1px solid ${C.border}` }} onClick={() => openSystem(s)}>
+                    <span className="text-sm truncate" style={{ color: C.ink }}>{ownerFor(s)}</span>
                   </div>
-                  {SUMMARY_COLUMNS.map((col) => {
-                    const value = breakdown[col.key];
-                    const pct = Math.min(100, Math.round((value / breakdown.required) * 100));
-                    return (
-                      <div
-                        key={col.key}
-                        className="cursor-pointer flex flex-col items-center justify-center gap-1.5"
-                        style={{ borderBottom: `1px solid ${C.border}`, borderLeft: `1px solid ${C.border}` }}
-                        onClick={() => openSystem(s)}
-                      >
-                        <span className="text-sm font-semibold" style={{ color: col.color(), fontFamily: "'IBM Plex Mono', monospace" }}>{value.toLocaleString()}</span>
-                        {col.key !== "required" && (
-                          <div className="w-12 h-1 rounded-full overflow-hidden" style={{ background: C.panel2 }}>
-                            <div className="h-full rounded-full" style={{ width: `${pct}%`, background: col.color() }} />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  <div className="cursor-pointer flex flex-col items-center justify-center gap-1.5" style={{ borderBottom: `1px solid ${C.border}`, borderLeft: `1px solid ${C.border}` }} onClick={() => openSystem(s)}>
+                    <span className="text-sm font-semibold" style={{ color: critColor, fontFamily: "'IBM Plex Mono', monospace" }}>{roll.criticality}</span>
+                    <div className="w-12 h-1 rounded-full overflow-hidden" style={{ background: C.panel2 }}>
+                      <div className="h-full rounded-full" style={{ width: `${roll.criticality}%`, background: critColor }} />
+                    </div>
+                  </div>
+                  <div className="cursor-pointer flex flex-col items-center justify-center gap-1.5" style={{ borderBottom: `1px solid ${C.border}`, borderLeft: `1px solid ${C.border}` }} onClick={() => openSystem(s)}>
+                    <span className="text-sm font-semibold" style={{ color: assureColor, fontFamily: "'IBM Plex Mono', monospace" }}>{roll.assurance}</span>
+                    <div className="w-12 h-1 rounded-full overflow-hidden" style={{ background: C.panel2 }}>
+                      <div className="h-full rounded-full" style={{ width: `${roll.assurance}%`, background: assureColor }} />
+                    </div>
+                  </div>
+                  <div className="cursor-pointer flex items-center justify-center" style={{ borderBottom: `1px solid ${C.border}`, borderLeft: `1px solid ${C.border}` }} onClick={() => openSystem(s)}>
+                    <span className="text-sm font-semibold" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{target}</span>
+                  </div>
+                  <div className="cursor-pointer flex items-center justify-center gap-1.5" style={{ borderBottom: `1px solid ${C.border}`, borderLeft: `1px solid ${C.border}` }} onClick={() => openSystem(s)}>
+                    <Circle size={7} fill={riskColor} color={riskColor} />
+                    <span className="text-xs font-semibold" style={{ color: riskColor }}>{risk.label}</span>
+                  </div>
                 </React.Fragment>
               );
             })}
           </div>
         </div>
         <div className="text-xs mt-3" style={{ color: C.muted }}>
-          Key Controls is a quick read on foundational protections, independent of the CCF rollup. Required Controls is the count of the 298 CCF-matched controls that apply to each system's compliance standards; Inherited Controls are covered by the hosting cloud/SaaS vendor's own certification rather than needing separate evidence.
+          Criticality and Assurance are averaged across each system's own assets from the Asset Register. Target is the assurance score a system's classification tier requires at full effectiveness against its Required Control Profile. Risk is each system's average residual risk across those same assets. Click a row for the full CCF rollup and control detail.
         </div>
       </div>
 
@@ -297,28 +342,23 @@ export default function DataClassificationGapMatrix() {
                 ))}
               </div>
 
-              <div className="text-xs uppercase tracking-wide mb-3" style={{ color: C.muted }}>Tracked Control Detail</div>
-              <div className="space-y-2 mb-6">
-                {CONTROLS.map((c, i) => {
-                  const control = selected.controls[i];
-                  const meta = statusMeta(control.status);
-                  return (
-                    <div key={i} className="p-2.5 rounded-lg" style={{ background: meta.bg }}>
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 text-xs">
-                          <meta.Icon size={13} color={meta.color} />
-                          <span style={{ color: C.ink }}>{c}</span>
-                        </div>
-                        {control.stale && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: "rgba(78,143,214,0.12)", color: C.amber }}>STALE</span>}
-                      </div>
-                      <div className="flex items-center gap-3 mt-1.5 pl-5 text-[11px]" style={{ color: C.muted }}>
-                        <span>{sourceLabel(control.source)}</span><span>·</span>
-                        <span>Verified {control.age === 0 ? "today" : `${control.age}d ago`}</span><span>·</span>
-                        <span className="flex items-center gap-0.5" style={{ fontFamily: "'IBM Plex Mono', monospace" }}><Link2 size={10} /> {control.evidenceRef}</span>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="text-xs uppercase tracking-wide mb-3" style={{ color: C.muted }}>Data Types</div>
+              <div className="grid grid-cols-2 gap-2 mb-6">
+                {selected.dataElements.map((item, i) => <DataTypeTile key={i} item={item} />)}
+              </div>
+
+              <div className="text-xs uppercase tracking-wide mb-3" style={{ color: C.muted }}>Score</div>
+              <div className="grid grid-cols-2 gap-2 mb-6">
+                <ScoreTile label="Criticality" value={selectedRoll.criticality} band={criticalityBand(selectedRoll.criticality)} />
+                <ScoreTile label="Required Assurance" value={selectedTarget} />
+                <ScoreTile label="Assurance" value={selectedRoll.assurance} band={assuranceBand(selectedRoll.assurance)} />
+                <ScoreTile label="Evidence Confidence" value={selectedRoll.evidenceConfidence} band={assuranceBand(selectedRoll.evidenceConfidence)} />
+                <ScoreTile
+                  label="Compliance Coverage"
+                  value={`${selectedCoveragePct}%`}
+                  band={selectedCoveragePct >= ASSURANCE_TARGET ? { label: "Strong", color: "green" } : selectedCoveragePct >= ADEQUATE_THRESHOLD ? { label: "Adequate", color: "amber" } : { label: "Weak", color: "red" }}
+                />
+                <ScoreTile label="Residual Risk" value={selectedRisk.label} band={selectedRisk} />
               </div>
 
               <div className="text-xs uppercase tracking-wide mb-2" style={{ color: C.muted }}>Framework Requirements</div>
