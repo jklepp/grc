@@ -34,8 +34,8 @@ const GROUPS = [
     items: [
       { id: "data-footprint", label: "Data Footprint", icon: Database },
       { id: "data-map", label: "Enterprise Data Map", icon: Network },
-      { id: "asset-register", label: "Asset Register", icon: Boxes },
       { id: "gap-matrix", label: "Systems Register", icon: ShieldCheck },
+      { id: "asset-register", label: "Asset Register", icon: Boxes },
     ],
   },
   {

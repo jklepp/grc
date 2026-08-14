@@ -210,7 +210,7 @@ export const POLICIES = [
       {
         level: "Confidential",
         definition: "Would cause real competitive or operational harm to ACME if disclosed. This is the default label when you're not sure.",
-        examples: ["Employee data in the HR Information System (Workday)", "Financial forecasts and board materials", "Source code", "Customer contracts", "Marketing analytics containing personal data"],
+        examples: ["Employee data in Workday", "Financial forecasts and board materials", "Source code", "Customer contracts", "Marketing analytics containing personal data"],
         systemRequirements: [
           "Encryption at rest and in transit (TLS 1.2+)",
           "Access logging & review",
@@ -223,7 +223,7 @@ export const POLICIES = [
       {
         level: "Restricted",
         definition: "Regulated or highly sensitive data. Severe legal, financial, or reputational harm if disclosed.",
-        examples: ["Customer PII/financial data (e.g., the Customer Data Warehouse)", "Customer PII/PHI (e.g., the Support Ticketing Platform)", "Cardholder-adjacent financial data (e.g., legacy billing systems)", "Authentication credentials and cryptographic keys"],
+        examples: ["Customer PII and documents processed by the Production AI Platform", "Model prompts and outputs containing customer data", "Authentication credentials and cryptographic keys"],
         systemRequirements: [
           "Same six controls as Confidential, held to the strictest evidenced standard — e.g., AES-256 (not AES-128) at rest, TLS 1.2+ enforced on every segment including internal connections, quarterly access review, active (not just planned) DLP",
           "MFA/Okta enforcement required on every access path, no exceptions",
