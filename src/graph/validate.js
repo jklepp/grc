@@ -15,6 +15,7 @@
 // engine/validate.js, since deriving it requires the engine and the graph must
 // stay free of scoring.
 import { CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES, MATURITY_STAGES, EVIDENCE_TYPES } from "./nodes/taxonomy";
+import { CATEGORY_WEIGHTS } from "./nodes/controlProfiles";
 import { SYSTEMS, SYSTEM_BY_ID, HOSTING_TYPES, INHERITED_DOMAINS } from "./nodes/systems";
 import { ASSETS, ASSET_BY_ID, ASSET_KINDS } from "./nodes/assets";
 import { DATA_TYPES, DATA_TYPE_BY_ID } from "./nodes/dataTypes";
@@ -116,6 +117,23 @@ RISKS.forEach((r) => {
 BOARD_MATERIAL_RISK_IDS.forEach((id) =>
   check(Object.hasOwn(RISK_BY_ID, id), `BOARD_MATERIAL_RISK_IDS references "${id}", which is not in RISKS`)
 );
+
+// A tier whose weights quietly summed to 95 instead of 100 would rescale every
+// asset at that tier without anything looking wrong, so this is checked rather
+// than trusted.
+CLASSIFICATION_TIERS.forEach((tier) => {
+  const weights = CATEGORY_WEIGHTS[tier];
+  check(Boolean(weights), `controlProfiles: no category weights defined for tier "${tier}"`);
+  if (!weights) return;
+  ASSURANCE_CATEGORIES.forEach((c) =>
+    check(Number.isFinite(weights[c]) && weights[c] > 0, `controlProfiles: tier "${tier}" has no positive weight for "${c}" — a zero weight would silently exclude a category from the score`)
+  );
+  Object.keys(weights).forEach((c) =>
+    check(ASSURANCE_CATEGORIES.includes(c), `controlProfiles: tier "${tier}" weights an unknown category "${c}"`)
+  );
+  const total = ASSURANCE_CATEGORIES.reduce((a, c) => a + (weights[c] ?? 0), 0);
+  check(total === 100, `controlProfiles: tier "${tier}" weights sum to ${total}, not 100`);
+});
 
 // ---- Edges --------------------------------------------------------------------
 ASSET_DATA_TYPES.forEach((e, i) => {

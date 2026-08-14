@@ -50,16 +50,20 @@ function AssetCard({ asset, selected, onSelect }) {
 // The dot marks whether this category's score rests on evidenced control
 // implementations or only on the category-level assessment. Same number either
 // way; very different strength of claim, which used to be invisible.
-function CategoryBar({ label, rollup }) {
+function CategoryBar({ label, rollup, weight }) {
   const measured = rollup.basis === "measured";
   return (
-    <div className="flex items-center gap-3" title={BASIS_META[rollup.basis]?.detail}>
+    <div className="flex items-center gap-2" title={BASIS_META[rollup.basis]?.detail}>
       <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: measured ? C.green : C.na }} />
-      <div className="w-28 shrink-0 text-xs" style={{ color: C.ink }}>{label}</div>
-      <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: C.panel2 }}>
+      <div className="w-24 shrink-0 text-xs truncate" style={{ color: C.ink }}>{label}</div>
+      {/* Bar height tracks the category's weight in this asset's tier profile,
+          so a heavily-weighted shortfall is visibly heavier than a light one
+          rather than every category drawing the same bar. */}
+      <div className="flex-1 rounded-full overflow-hidden" style={{ background: C.panel2, height: 2 + (weight / 25) * 6 }}>
         <div className="h-full rounded-full" style={{ width: `${rollup.score}%`, background: C.accent }} />
       </div>
-      <div className="w-8 text-xs text-right font-medium" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{rollup.score}</div>
+      <div className="w-7 text-[10px] text-right shrink-0" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{weight}%</div>
+      <div className="w-7 text-xs text-right font-medium shrink-0" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{rollup.score}</div>
     </div>
   );
 }
@@ -168,10 +172,11 @@ function AssetDetailPanel({ asset, onClose }) {
       <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
         <div className="text-[10px] uppercase tracking-wide mb-3" style={{ color: C.muted }}>Control Assurance by Category</div>
         <div className="space-y-2.5">
-          {ASSURANCE_CATEGORIES.map((c) => <CategoryBar key={c} label={c} rollup={asset.categories[c]} />)}
+          {ASSURANCE_CATEGORIES.map((c) => <CategoryBar key={c} label={c} rollup={asset.categories[c]} weight={asset.categoryWeights[c]} />)}
         </div>
         <div className="text-[11px] mt-3 leading-relaxed" style={{ color: C.muted }}>
-          A filled dot means the score is backed by evidenced control implementations; a grey one means it rests on the category-level assessment alone.
+          Weighted by the {asset.classification} control profile — thicker bars count for more. A filled dot means the score is backed by evidenced
+          control implementations; a grey one means it rests on the category-level assessment alone.
         </div>
       </div>
 

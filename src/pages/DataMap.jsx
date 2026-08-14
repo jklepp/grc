@@ -26,15 +26,16 @@ function AssuranceChip({ label, value, band }) {
   );
 }
 
-function AssuranceCategoryBar({ label, rollup }) {
+function AssuranceCategoryBar({ label, rollup, weight }) {
   return (
     <div className="flex items-center gap-2">
       <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: rollup.basis === "measured" ? C.green : C.na }} />
-      <div className="w-24 shrink-0 text-[11px]" style={{ color: C.ink }}>{label}</div>
-      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: C.panel2 }}>
+      <div className="w-20 shrink-0 text-[11px] truncate" style={{ color: C.ink }}>{label}</div>
+      <div className="flex-1 rounded-full overflow-hidden" style={{ background: C.panel2, height: 2 + (weight / 25) * 5 }}>
         <div className="h-full rounded-full" style={{ width: `${rollup.score}%`, background: C.accent }} />
       </div>
-      <div className="w-6 text-[11px] text-right font-medium" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{rollup.score}</div>
+      <div className="w-6 text-[10px] text-right shrink-0" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{weight}%</div>
+      <div className="w-6 text-[11px] text-right font-medium shrink-0" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{rollup.score}</div>
     </div>
   );
 }
@@ -254,7 +255,7 @@ function SystemDetailPanel({ assetId, onClose }) {
           />
         </div>
         <div className="space-y-2 mb-4">
-          {ASSURANCE_CATEGORIES.map((c) => <AssuranceCategoryBar key={c} label={c} rollup={asset.categories[c]} />)}
+          {ASSURANCE_CATEGORIES.map((c) => <AssuranceCategoryBar key={c} label={c} rollup={asset.categories[c]} weight={asset.categoryWeights[c]} />)}
         </div>
         <div className="flex gap-2">
           <AssuranceRiskCard title="Inherent Risk" risk={asset.inherentRisk} />

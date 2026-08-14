@@ -13,58 +13,34 @@
 //   category assessment. So an asset whose evidenced controls are failing no
 //   longer clears its profile on the strength of a self-assessment that says
 //   otherwise.
-import { CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES, MATURITY_STAGES, EVIDENCE_TYPES } from "../graph/nodes/taxonomy";
+import { ASSURANCE_CATEGORIES } from "../graph/nodes/taxonomy";
+import { CONTROL_PROFILES, categoryWeightsFor, categoryWeight } from "../graph/nodes/controlProfiles";
 import { assessmentFor } from "../graph/edges/categoryAssessments";
-import { blendAssurance, maturityScore, evidenceBaseConfidence, meetsMaturity, meetsEvidence, mean, display } from "./assurance";
+import { blendAssurance, maturityScore, evidenceBaseConfidence, meetsMaturity, meetsEvidence, weightedMean, display } from "./assurance";
 import { ASSET_ROLLUP_BY_ID } from "./rollups";
 
-// The baseline bar every asset at a tier must clear before any category-specific
-// bump. Each tier is one full "how convincingly can we prove this" step up from
-// the last: attest it in a doc, show it, have it examined, prove it by machine.
-const TIER_BASELINE = {
-  Public: { maturity: "Policy", evidence: "Document" },
-  Internal: { maturity: "Procedure", evidence: "Screenshot" },
-  Confidential: { maturity: "Implemented", evidence: "Auditor examination" },
-  Restricted: { maturity: "Managed", evidence: "Automated technical test" },
-};
-
-// These three carry the most direct exposure when a breach involves sensitive
-// data, so they're held one notch stricter than the tier baseline once data
-// actually becomes sensitive.
-const HIGH_SENSITIVITY_CATEGORIES = ["Data Protection", "Identity & Access", "Detection"];
-const BUMPED_TIERS = ["Confidential", "Restricted"];
-
-function bump(list, value) {
-  return list[Math.min(list.indexOf(value) + 1, list.length - 1)];
-}
-
-export const CONTROL_PROFILES = {};
-CLASSIFICATION_TIERS.forEach((tier) => {
-  const base = TIER_BASELINE[tier];
-  CONTROL_PROFILES[tier] = {};
-  ASSURANCE_CATEGORIES.forEach((category) => {
-    const shouldBump = BUMPED_TIERS.includes(tier) && HIGH_SENSITIVITY_CATEGORIES.includes(category);
-    CONTROL_PROFILES[tier][category] = shouldBump
-      ? { maturity: bump(MATURITY_STAGES, base.maturity), evidence: bump(EVIDENCE_TYPES, base.evidence) }
-      : { maturity: base.maturity, evidence: base.evidence };
-  });
-});
+export { CONTROL_PROFILES, categoryWeightsFor, categoryWeight };
 
 // The assurance score an asset would need to fully clear its tier's profile:
 // every category's required maturity and evidence run through the same formula
 // assets are judged by, at 100% effectiveness (the ceiling, since "required"
 // describes the bar itself, not an observed asset).
+//
+// Weighted by the same tier weights the asset itself is scored with — a target
+// computed on a flat mean while the actual is computed on a weighted one would
+// be comparing two different things.
 export function tierTargetScore(tier) {
   const profile = CONTROL_PROFILES[tier];
   return display(
-    mean(
-      ASSURANCE_CATEGORIES.map((category) =>
-        blendAssurance({
+    weightedMean(
+      ASSURANCE_CATEGORIES.map((category) => ({
+        value: blendAssurance({
           maturityStage: profile[category].maturity,
           evidenceConfidence: evidenceBaseConfidence(profile[category].evidence),
           effectivenessPct: 100,
-        })
-      )
+        }),
+        weight: categoryWeight(tier, category),
+      }))
     )
   );
 }
@@ -96,6 +72,10 @@ export function evaluateAssetAgainstProfile(assetId) {
     result[category] = {
       status,
       required,
+      weight: required.weight,
+      // How much this category's shortfall actually costs the asset's score —
+      // the number a flat mean could not express.
+      contribution: Math.round(((rollup.raw * required.weight) / 100) * 10) / 10,
       actual: { maturityStage: assessment.maturityStage, evidenceType: assessment.evidenceType, effectivenessPct: assessment.effectivenessPct },
       score: rollup.score,
       basis: rollup.basis,
