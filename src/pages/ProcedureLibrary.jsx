@@ -5,6 +5,7 @@ import {
   AlertTriangle, Paperclip, Ticket, Calculator,
 } from "lucide-react";
 import { C } from "../theme";
+import { PageHeader, SectionHeading } from "../components/Headings";
 import { PROCEDURES } from "../data/procedures";
 import { POLICIES, getFrameworkClauses, MAPPED_STANDARDS, STANDARD_ABBR } from "../data/policies";
 import { ASSET_SUMMARIES } from "../data/assets";
@@ -85,14 +86,6 @@ function computeReliability(executions) {
     totalExceptions: exceptionsPerRun.reduce((a, b) => a + b, 0),
     reliabilityPct: Math.round((100 * cleanRuns) / completed.length),
   };
-}
-
-function SectionLabel({ icon: Icon, children }) {
-  return (
-    <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide mb-3" style={{ color: C.muted }}>
-      <Icon size={12} /> {children}
-    </div>
-  );
 }
 
 function MetaChip({ icon: Icon, label, value }) {
@@ -672,17 +665,12 @@ export default function ProcedureLibrary({ onNavigate }) {
 
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <div className="px-8 pt-8 pb-4">
-        <div className="flex items-center gap-2 text-xs uppercase tracking-widest mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-          <ListChecks size={13} /> Procedure Library
-        </div>
-        <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>ACME SOP Library</h1>
-        <p className="text-sm mt-2 max-w-2xl" style={{ color: C.muted }}>
-          One Standard Operating Procedure per Assurance Category — the "how" behind each policy's "what," generic
-          enough to cover every asset in a category rather than one per asset. Each SOP links to the policy it
-          operationalizes and the real assets currently scored against it.
-        </p>
-      </div>
+      <PageHeader
+        icon={ListChecks}
+        title="Procedure Library"
+        tagline="ACME SOP Library"
+        description={'One Standard Operating Procedure per Assurance Category — the "how" behind each policy\'s "what," generic enough to cover every asset in a category rather than one per asset. Each SOP links to the policy it operationalizes and the real assets currently scored against it.'}
+      />
 
       <div className="px-8 flex gap-5 pb-12">
         <div className="w-64 shrink-0 rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}`, height: "fit-content" }}>
@@ -717,7 +705,7 @@ export default function ProcedureLibrary({ onNavigate }) {
 
           {linkedPolicy && (
             <div className="mb-6">
-              <SectionLabel icon={Link2}>Implements policy</SectionLabel>
+              <SectionHeading icon={Link2}>Implements policy</SectionHeading>
               <button
                 onClick={() => onNavigate && onNavigate("policy-center")}
                 className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg"
@@ -779,7 +767,7 @@ export default function ProcedureLibrary({ onNavigate }) {
             </div>
           ) : (
             <>
-              <SectionLabel icon={ClipboardList}>Procedure steps</SectionLabel>
+              <SectionHeading icon={ClipboardList}>Procedure steps</SectionHeading>
               <div className="space-y-3 mb-6">
                 {selected.steps.map((s, i) => (
                   <div key={i} className="flex gap-2.5">
@@ -820,10 +808,10 @@ export default function ProcedureLibrary({ onNavigate }) {
                 </span>
               </div>
 
-              <SectionLabel icon={Layers}>Control mapping</SectionLabel>
+              <SectionHeading icon={Layers}>Control mapping</SectionHeading>
               <div className="mb-6"><ControlMapping controlIds={selected.controlIds} uncitedControlIds={selected.uncitedControlIds} /></div>
 
-              <SectionLabel icon={Boxes}>Assets scored against this category</SectionLabel>
+              <SectionHeading icon={Boxes}>Assets scored against this category</SectionHeading>
               <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
                 {scoredAssets.map((a, i) => (
                   <button

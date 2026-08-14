@@ -4,6 +4,7 @@ import {
   ChevronDown, ChevronRight, Info, Network, Layers, Users2, ListTodo, BookOpen, ArrowRight, AlertCircle, Clock, User,
 } from "lucide-react";
 import { C } from "../theme";
+import { PageHeader, SectionHeading } from "../components/Headings";
 import { ClassificationTag, DataTypeChip, StandardChip } from "../components/SystemBadges";
 import { SYSTEMS, getSystemControlMatrix, IMPLEMENTATION_TYPES } from "../data/systemRegister";
 import { POLICIES } from "../data/policies";
@@ -59,14 +60,10 @@ function getReferencedPolicies(matrix) {
   return [...counts.values()].sort((a, b) => a.policy.code.localeCompare(b.policy.code));
 }
 
-function DocSection({ number, title, icon: Icon, children }) {
+function DocSection({ number, title, icon, children }) {
   return (
     <div className="px-8 pb-10">
-      <div className="flex items-center gap-2 mb-4 pb-2" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <span className="text-xs font-semibold px-2 py-0.5 rounded" style={{ background: C.accentBg, color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>{number}</span>
-        <Icon size={15} color={C.muted} />
-        <h2 className="text-lg" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>{title}</h2>
-      </div>
+      <SectionHeading icon={icon} number={number}>{title}</SectionHeading>
       {children}
     </div>
   );
@@ -221,15 +218,12 @@ export default function SystemSecurityPlan() {
 
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <div className="px-8 pt-8 pb-4">
-        <div className="flex items-center gap-2 text-xs uppercase tracking-widest mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-          <ClipboardCheck size={13} /> System Security Plan
-        </div>
-        <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>Restricted-Tier Control Matrix</h1>
-        <p className="text-sm mt-2 max-w-2xl" style={{ color: C.muted }}>
-          A full security plan for each Restricted system — identification, boundaries, the control matrix grouped by how it's satisfied, roles, open remediation, and the policies that govern it.
-        </p>
-      </div>
+      <PageHeader
+        icon={ClipboardCheck}
+        title="System Security Plan"
+        tagline="Restricted-Tier Control Matrix"
+        description="A full security plan for each Restricted system — identification, boundaries, the control matrix grouped by how it's satisfied, roles, open remediation, and the policies that govern it."
+      />
 
       <div className="px-8 grid grid-cols-3 gap-4 mb-8">
         {RESTRICTED_SYSTEMS.map((s) => {

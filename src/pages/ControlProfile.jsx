@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { SlidersHorizontal, Check, Minus, X as XIcon } from "lucide-react";
+import { SlidersHorizontal, Check, Minus, X as XIcon, ClipboardList, Boxes } from "lucide-react";
 import { C, CLASS_META, CLASS_ORDER } from "../theme";
+import { PageHeader, SectionHeading } from "../components/Headings";
 import { CONTROL_PROFILES } from "../data/controlProfiles";
 import { ASSURANCE_CATEGORIES } from "../data/assuranceModel";
 import { ASSET_SUMMARIES } from "../data/assets";
@@ -85,16 +86,11 @@ export default function ControlProfile() {
 
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <div className="px-8 pt-8 pb-4">
-        <div className="flex items-center gap-2 text-xs uppercase tracking-widest mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-          <SlidersHorizontal size={13} /> Control Profile
-        </div>
-        <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>Control Profile</h1>
-        <p className="text-sm mt-2 max-w-2xl" style={{ color: C.muted }}>
-          The minimum control maturity and evidence quality required for a given data classification tier — the bar
-          every asset at that tier is judged against before it's considered adequately controlled.
-        </p>
-      </div>
+      <PageHeader
+        icon={SlidersHorizontal}
+        title="Control Profile"
+        description="The minimum control maturity and evidence quality required for a given data classification tier — the bar every asset at that tier is judged against before it's considered adequately controlled."
+      />
 
       <div className="px-8">
         <div className="flex items-center gap-2 mt-4">
@@ -103,7 +99,7 @@ export default function ControlProfile() {
       </div>
 
       <div className="px-8 pt-6">
-        <div className="text-sm font-semibold mb-3" style={{ color: C.ink }}>Required Control Profile — {tier}</div>
+        <SectionHeading icon={ClipboardList}>Required Control Profile — {tier}</SectionHeading>
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
           {ASSURANCE_CATEGORIES.map((category) => (
             <RequirementCard key={category} category={category} requirement={profile[category]} />
@@ -112,10 +108,9 @@ export default function ControlProfile() {
       </div>
 
       <div className="px-8 py-6 pb-12">
-        <div className="flex items-center justify-between mb-3">
-          <div className="text-sm font-semibold" style={{ color: C.ink }}>Assets at {tier}</div>
-          <div className="text-xs" style={{ color: C.muted }}>{assetsAtTier.length} assets</div>
-        </div>
+        <SectionHeading icon={Boxes} right={<div className="text-xs" style={{ color: C.muted }}>{assetsAtTier.length} assets</div>}>
+          Assets at {tier}
+        </SectionHeading>
         {assetsAtTier.length === 0 ? (
           <div className="text-sm rounded-xl p-6 text-center" style={{ color: C.muted, background: C.panel, border: `1px solid ${C.border}` }}>
             No assets currently classified {tier}.

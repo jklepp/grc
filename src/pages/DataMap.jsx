@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { Network, ArrowRight, ArrowDown, AlertTriangle, X } from "lucide-react";
 import { C, CLASS_META } from "../theme";
+import { PageHeader } from "../components/Headings";
 import { SYSTEM_MAPS, TOTAL_ASSET_COUNT, TOTAL_RELATIONSHIP_COUNT, weakestLink, flowAssurancePct, getNode } from "../data/dataMap";
 import { ASSURANCE_CATEGORIES, assuranceBand } from "../data/assuranceModel";
 
@@ -328,22 +329,16 @@ export default function DataMap() {
   return (
     <div className="w-full flex" style={{ fontFamily: "'Inter', sans-serif" }}>
       <div className="flex-1 min-w-0">
-        <div className="px-8 pt-8 pb-4">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div>
-              <div className="flex items-center gap-2 text-xs uppercase tracking-widest mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-                <Network size={13} /> Enterprise Data Map
-              </div>
-              <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>Enterprise Data Map</h1>
-            </div>
+        <PageHeader
+          icon={Network}
+          title="Enterprise Data Map"
+          description="Choose a system to see how data moves through its real assets, from ingress to primary custody to processing and delivery. Grades are computed live from the Asset Register — the same data behind the System Security Plan. Click any asset in the chart for details."
+          right={
             <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
               {SYSTEM_MAPS.length} systems · {TOTAL_ASSET_COUNT} assets mapped · {TOTAL_RELATIONSHIP_COUNT} custody relationships mapped
             </div>
-          </div>
-          <p className="text-sm mt-2 max-w-2xl" style={{ color: C.muted }}>
-            Choose a system to see how data moves through its real assets, from ingress to primary custody to processing and delivery. Grades are computed live from the Asset Register — the same data behind the System Security Plan. Click any asset in the chart for details.
-          </p>
-        </div>
+          }
+        />
 
         <div className="px-8 grid grid-cols-4 gap-3 mb-6">
           {SYSTEM_MAPS.map((s) => (

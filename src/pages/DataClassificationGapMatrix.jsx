@@ -4,6 +4,7 @@ import {
   Users, HeartPulse, DollarSign, FileText, KeyRound, Activity, Briefcase, Megaphone, Sparkles,
 } from "lucide-react";
 import { C, CLASS_META, CLASS_ORDER } from "../theme";
+import { PageHeader } from "../components/Headings";
 import { ClassificationTag, DataTypeChip, StandardChip, SourceBadge } from "../components/SystemBadges";
 import { SYSTEMS, controlBreakdown } from "../data/systemRegister";
 import { ASSET_SUMMARIES } from "../data/assets";
@@ -180,22 +181,17 @@ export default function DataClassificationGapMatrix() {
 
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <div className="px-8 pt-8 pb-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <div className="flex items-center gap-2 text-xs uppercase tracking-widest mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-              <ShieldCheck size={13} /> Data Classification Policy v3.2 · Confidential & Restricted
-            </div>
-            <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>Systems Register</h1>
-          </div>
+      <PageHeader
+        icon={ShieldCheck}
+        title="Systems Register"
+        tagline="Data Classification Policy v3.2 · Confidential & Restricted"
+        description="Systems handling data classified Confidential or Restricted under policy, evaluated against the six controls required for their tier. Status reflects live test results — this view does not modify Vanta or Jira."
+        right={
           <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
             <Lock size={12} /><span>Read-only</span><span style={{ color: C.border }}>|</span><RefreshCw size={12} /><span>Synced from Vanta · 8 min ago</span>
           </div>
-        </div>
-        <p className="text-sm mt-2 max-w-xl" style={{ color: C.muted }}>
-          Systems handling data classified Confidential or Restricted under policy, evaluated against the six controls required for their tier. Status reflects live test results — this view does not modify Vanta or Jira.
-        </p>
-      </div>
+        }
+      />
 
       <div className="px-8 grid grid-cols-5 gap-4 mb-5">
         {[

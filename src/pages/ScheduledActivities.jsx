@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { CalendarClock, Layers, Info } from "lucide-react";
 import { C } from "../theme";
+import { PageHeader, SectionHeading } from "../components/Headings";
 import {
   FREQUENCIES, PERIODS_PER_YEAR, PERIOD_LABELS, ACTIVITY_TYPES, STATUS_META, CURRENT_YEAR,
   activitiesForFrequency, currentPeriod, statusCountsForPeriod, parseLocalDate,
@@ -55,17 +56,12 @@ export default function ScheduledActivities({ onNavigate }) {
 
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <div className="px-8 pt-8 pb-4">
-        <div className="flex items-center gap-2 text-xs uppercase tracking-widest mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-          <CalendarClock size={13} /> Activity Timeliness
-        </div>
-        <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>Control Timeliness</h1>
-        <p className="text-sm mt-2 max-w-2xl" style={{ color: C.muted }}>
-          Every control that runs on a fixed cadence, grouped by activity type since auditing user accounts and
-          scanning for vulnerabilities are different jobs, not the same "review" checkbox. Status is computed from
-          each item's real due date, not hand-typed.
-        </p>
-      </div>
+      <PageHeader
+        icon={CalendarClock}
+        title="Activity Timeliness"
+        tagline="Control Timeliness"
+        description={'Every control that runs on a fixed cadence, grouped by activity type since auditing user accounts and scanning for vulnerabilities are different jobs, not the same "review" checkbox. Status is computed from each item\'s real due date, not hand-typed.'}
+      />
 
       <div className="px-8 pb-5">
         <div className="inline-flex items-center gap-1 rounded-xl p-1" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
@@ -120,9 +116,7 @@ export default function ScheduledActivities({ onNavigate }) {
           if (typeItems.length === 0) return null;
           return (
             <div key={type}>
-              <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide font-semibold mb-2" style={{ color: C.muted }}>
-                <Layers size={12} /> {type}
-              </div>
+              <SectionHeading icon={Layers}>{type}</SectionHeading>
               <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}`, background: C.panel }}>
                 {/* table-layout: fixed + an identical <colgroup> in every
                     section's table (for the current frequency) is what keeps

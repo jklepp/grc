@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { Search, X, Lock, RefreshCw, AlertTriangle, ChevronDown, Circle, Clock, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { C } from "../theme";
+import { PageHeader } from "../components/Headings";
 import { RISKS, MATERIAL_RISKS, SEVERITY_VALUE, LIKELIHOOD_VALUE, score } from "../data/riskRegister";
 
 const SEVERITY_LEVELS = ["Minor", "Moderate", "Major", "Severe"]; // 1-4, bottom to top on heatmap
@@ -187,23 +188,17 @@ export default function RiskRegister() {
 
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <div className="px-8 pt-8 pb-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <div className="flex items-center gap-2 text-xs uppercase tracking-widest mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-              <AlertTriangle size={13} /> Risk Register
-            </div>
-            <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>
-              Product & Enterprise Risk Register
-            </h1>
-          </div>
+      <PageHeader
+        icon={AlertTriangle}
+        title="Risk Register"
+        tagline="Product & Enterprise Risk Register"
+        description="Scenario-based risk register with appetite thresholds, control linkage, treatment plans, milestones, and accountable owners."
+        right={
           <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
             <Lock size={12} /><span>Read-only</span><span style={{ color: C.border }}>|</span><RefreshCw size={12} /><span>Synced from Vanta · 8 min ago</span>
           </div>
-        </div>
-        <p className="text-sm mt-2 max-w-2xl" style={{ color: C.muted }}>
-          Scenario-based risk register with appetite thresholds, control linkage, treatment plans, milestones, and accountable owners.
-        </p>
+        }
+      >
         <div className="flex rounded-full overflow-hidden mt-4 w-fit" style={{ border: `1px solid ${C.border}` }}>
           {[
             { id: "board", label: "Board View" },
@@ -219,7 +214,7 @@ export default function RiskRegister() {
             </button>
           ))}
         </div>
-      </div>
+      </PageHeader>
 
       <div className="px-8 grid grid-cols-4 gap-4 mb-5">
         <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
