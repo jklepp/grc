@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { X, Boxes } from "lucide-react";
 import { C } from "../theme";
+import { PageHeader, SectionHeading } from "../components/Headings";
 import { ClassificationTag } from "../components/SystemBadges";
 import { ASSET_SUMMARIES } from "../data/assets";
 import { ASSURANCE_CATEGORIES } from "../data/assuranceModel";
@@ -159,30 +160,26 @@ export default function AssetRegister() {
   return (
     <div className="w-full flex" style={{ fontFamily: "'Inter', sans-serif" }}>
       <div className="flex-1 min-w-0">
-        <div className="px-8 pt-8 pb-4">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div>
-              <div className="flex items-center gap-2 text-xs uppercase tracking-widest mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-                <Boxes size={13} /> Asset Register
-              </div>
-              <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>Asset Register</h1>
-            </div>
+        <PageHeader
+          icon={Boxes}
+          title="Asset Register"
+          description="Criticality, control assurance, evidence confidence, and residual risk for individual resources inside each system's boundary."
+          right={
             <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
               {ASSET_SUMMARIES.length} assets across {groups.length} systems
             </div>
-          </div>
-          <p className="text-sm mt-2 max-w-2xl" style={{ color: C.muted }}>
-            Criticality, control assurance, evidence confidence, and residual risk for individual resources inside each system's boundary.
-          </p>
-        </div>
+          }
+        />
 
         <div className="px-8 py-6 space-y-8">
           {groups.map((group) => (
             <div key={group.system.id}>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-sm font-semibold" style={{ color: C.ink }}>{group.system.name}</span>
-                <span className="text-xs" style={{ color: C.muted }}>{group.system.id} · {group.system.env}</span>
-              </div>
+              <SectionHeading
+                icon={Boxes}
+                right={<span className="text-xs" style={{ color: C.muted }}>{group.system.id} · {group.system.env}</span>}
+              >
+                {group.system.name}
+              </SectionHeading>
               <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
                 {group.assets.map((asset) => (
                   <AssetCard key={asset.id} asset={asset} selected={asset.id === selectedId} onSelect={setSelectedId} />

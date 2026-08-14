@@ -1,6 +1,7 @@
 import React from "react";
 import { Database, ShieldAlert, Layers, Users, FileText, Fingerprint, KeyRound, Laptop } from "lucide-react";
 import { C } from "../theme";
+import { PageHeader, SectionHeading } from "../components/Headings";
 import {
   DATA_SOURCES, tierGradient, totalTB, formatTB, formatRecords,
   WORKFORCE_IDENTITIES, PRIVILEGED_IDENTITIES, DEVICES, TOTAL_DEVICES,
@@ -41,26 +42,19 @@ export default function DataFootprint() {
 
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <div className="px-8 pt-8 pb-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <div className="flex items-center gap-2 text-xs uppercase tracking-widest mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-              <Database size={13} /> Data Footprint
-            </div>
-            <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>Data Footprint</h1>
-          </div>
+      <PageHeader
+        icon={Database}
+        title="Data Footprint"
+        description="Estimated volume of customer, employee, financial and operational data held across ACME's core vendors."
+        right={
           <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
             Data as of Jul 15, 2026
           </div>
-        </div>
-        <p className="text-sm mt-2 max-w-2xl" style={{ color: C.muted }}>
-          Estimated volume of customer, employee, financial and operational data held across ACME's core vendors.
-        </p>
-      </div>
+        }
+      />
 
-      <div className="px-8 flex items-center gap-2 mb-3" style={{ color: C.accent }}>
-        <Layers size={13} />
-        <span className="text-xs uppercase tracking-widest font-semibold" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>Operational Systems &amp; Services</span>
+      <div className="px-8">
+        <SectionHeading icon={Layers}>Operational Systems &amp; Services</SectionHeading>
       </div>
       <div className="px-8 grid gap-5 mb-8" style={{ gridTemplateColumns: "1.6fr 1fr 1fr" }}>
         {sourcesByVolume.map((s, i) => {
@@ -117,9 +111,8 @@ export default function DataFootprint() {
         })}
       </div>
 
-      <div className="px-8 flex items-center gap-2 mb-3" style={{ color: C.accent }}>
-        <Fingerprint size={13} />
-        <span className="text-xs uppercase tracking-widest font-semibold" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>Identities &amp; Devices</span>
+      <div className="px-8">
+        <SectionHeading icon={Fingerprint}>Identities &amp; Devices</SectionHeading>
       </div>
       <div className="px-8 grid grid-cols-3 gap-5 mb-8">
         <div className="rounded-2xl p-5 flex flex-col" style={{ background: C.panel, border: `1px solid ${C.border}` }}>

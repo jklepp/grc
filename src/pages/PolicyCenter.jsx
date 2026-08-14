@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { FileText, Search, Layers, ListChecks, ClipboardList, Users2, Link2, ShieldAlert, Tags, ArrowUpRight } from "lucide-react";
 import { C, CLASS_META, CLASS_ORDER } from "../theme";
+import { PageHeader, SectionHeading } from "../components/Headings";
 import { POLICIES, POLICY_CATEGORIES, POLICY_TIERS, getFrameworkClauses, MAPPED_STANDARDS, STANDARD_ABBR } from "../data/policies";
 
 const TOTAL_DOMAINS = new Set(POLICIES.flatMap((p) => p.domains)).size;
@@ -19,14 +20,6 @@ function CoreBadge({ compact }) {
     >
       <ShieldAlert size={compact ? 11 : 10} /> {!compact && "Required for all employees"}
     </span>
-  );
-}
-
-function SectionLabel({ icon: Icon, children }) {
-  return (
-    <div className="flex items-center gap-1.5 text-xs uppercase tracking-wide mb-3" style={{ color: C.muted }}>
-      <Icon size={12} /> {children}
-    </div>
   );
 }
 
@@ -126,19 +119,16 @@ export default function PolicyCenter({ onNavigate }) {
 
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <div className="px-8 pt-8 pb-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <div className="flex items-center gap-2 text-xs uppercase tracking-widest mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-              <FileText size={13} /> Policy Center
-            </div>
-            <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>ACME Policy Library</h1>
-          </div>
-        </div>
-        <p className="text-sm mt-2 max-w-2xl" style={{ color: C.muted }}>
-          Plain-language policies for every ACME employee, backed by ISO 27001 and the same SCF control crosswalk that powers the Common Control Framework. Control mapping below each policy is pulled live from that crosswalk — never hand-typed. The {CORE_POLICIES.length} <span style={{ color: C.amber, fontWeight: 600 }}>Core</span> policies below drive the most day-to-day risk and are required reading for every employee; the rest are scoped to a role or function.
-        </p>
-      </div>
+      <PageHeader
+        icon={FileText}
+        title="Policy Center"
+        tagline="ACME Policy Library"
+        description={
+          <>
+            Plain-language policies for every ACME employee, backed by ISO 27001 and the same SCF control crosswalk that powers the Common Control Framework. Control mapping below each policy is pulled live from that crosswalk — never hand-typed. The {CORE_POLICIES.length} <span style={{ color: C.amber, fontWeight: 600 }}>Core</span> policies below drive the most day-to-day risk and are required reading for every employee; the rest are scoped to a role or function.
+          </>
+        }
+      />
 
       <div className="px-8 grid grid-cols-4 gap-4 mb-5">
         <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
@@ -237,12 +227,12 @@ export default function PolicyCenter({ onNavigate }) {
 
           {selected.classificationLevels && (
             <>
-              <SectionLabel icon={Tags}>The four classification levels</SectionLabel>
+              <SectionHeading icon={Tags}>The four classification levels</SectionHeading>
               <ClassificationLevels levels={selected.classificationLevels} onViewRegister={() => onNavigate && onNavigate("gap-matrix")} />
             </>
           )}
 
-          <SectionLabel icon={ListChecks}>What you need to know</SectionLabel>
+          <SectionHeading icon={ListChecks}>What you need to know</SectionHeading>
           <div className="space-y-3 mb-6">
             {selected.statements.map((s, i) => (
               <div key={i} className="flex gap-2.5">
@@ -255,7 +245,7 @@ export default function PolicyCenter({ onNavigate }) {
             ))}
           </div>
 
-          <SectionLabel icon={ClipboardList}>Standards &amp; procedures</SectionLabel>
+          <SectionHeading icon={ClipboardList}>Standards &amp; procedures</SectionHeading>
           <div className="space-y-2.5 mb-6">
             {selected.standards.map((s, i) => (
               <div key={i} className="rounded-lg p-3" style={{ background: C.panel2 }}>
@@ -265,7 +255,7 @@ export default function PolicyCenter({ onNavigate }) {
             ))}
           </div>
 
-          <SectionLabel icon={Users2}>Roles &amp; responsibilities</SectionLabel>
+          <SectionHeading icon={Users2}>Roles &amp; responsibilities</SectionHeading>
           <div className="rounded-lg overflow-hidden mb-6" style={{ border: `1px solid ${C.border}` }}>
             {selected.roles.map((r, i) => (
               <div
@@ -279,12 +269,12 @@ export default function PolicyCenter({ onNavigate }) {
             ))}
           </div>
 
-          <SectionLabel icon={Layers}>Control mapping</SectionLabel>
+          <SectionHeading icon={Layers}>Control mapping</SectionHeading>
           <div className="mb-6"><ControlMapping policy={selected} /></div>
 
           {relatedPolicies.length > 0 && (
             <>
-              <SectionLabel icon={Link2}>Related policies</SectionLabel>
+              <SectionHeading icon={Link2}>Related policies</SectionHeading>
               <div className="flex flex-wrap gap-2">
                 {relatedPolicies.map((rp) => (
                   <button

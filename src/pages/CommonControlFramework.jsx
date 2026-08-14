@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { Search, X, ChevronDown, ChevronRight, RefreshCw, LayoutGrid, UserX, HelpCircle } from "lucide-react";
 import { C } from "../theme";
+import { PageHeader } from "../components/Headings";
 import scf from "../data/scfControls.json";
 import { CCF_VISIBLE_CONTROLS as VISIBLE_CONTROLS, CCF_DOMAINS as VISIBLE_DOMAINS } from "../data/ccfControls";
 import { CONSOLIDATED_CONTROLS } from "../data/consolidatedControls";
@@ -73,22 +74,17 @@ export default function CommonControlFramework() {
 
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <div className="px-8 pt-8 pb-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <div className="flex items-center gap-2 text-xs uppercase tracking-widest mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-              <LayoutGrid size={13} /> Common Control Framework
-            </div>
-            <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>Unified Compliance Matrix</h1>
-          </div>
+      <PageHeader
+        icon={LayoutGrid}
+        title="Common Controls"
+        tagline="Unified Compliance Matrix"
+        description="The real SCF control library, crosswalked against SOC 2, ISO 27001, ISO 27017, ISO 27018, ISO 27701, ISO 42001, PCI DSS, and HIPAA — filtered to the controls that actually map to one of those frameworks. Ownership isn't in the source data, so every control starts unowned; about a third are still flagged Needs Review."
+        right={
           <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
             <RefreshCw size={12} /> Imported from Secure Controls Framework 2026.1
           </div>
-        </div>
-        <p className="text-sm mt-2 max-w-2xl" style={{ color: C.muted }}>
-          The real SCF control library, crosswalked against SOC 2, ISO 27001, ISO 27017, ISO 27018, ISO 27701, ISO 42001, PCI DSS, and HIPAA — filtered to the controls that actually map to one of those frameworks. Ownership isn't in the source data, so every control starts unowned; about a third are still flagged Needs Review.
-        </p>
-      </div>
+        }
+      />
 
       <div className="px-8 grid grid-cols-3 gap-4 mb-5">
         <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>

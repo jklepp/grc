@@ -4,6 +4,7 @@ import {
   Download, Sparkles, ArrowUpRight, ArrowDownRight, Database, ShieldAlert, PieChart, HardDrive,
 } from "lucide-react";
 import { C } from "../theme";
+import { PageHeader } from "../components/Headings";
 import { DATA_SOURCES, TOTAL_RECORDS, TOTAL_DATA_TB, formatRecords, formatTB } from "../data/dataFootprint";
 import { RISKS, ABOVE_APPETITE_COUNT, MATERIAL_RISKS, MATERIAL_RISK_EXPOSURE, QUANTIFIED_EXPOSURE } from "../data/riskRegister";
 import { ASSET_SUMMARIES, CATEGORY_PORTFOLIO_AVERAGES } from "../data/assets";
@@ -162,15 +163,11 @@ function GlanceStat({ icon: Icon, value, label, warn }) {
 export default function ExecutiveDashboard({ onNavigate }) {
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <div className="px-8 pt-8 pb-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <div className="flex items-center gap-2 text-xs uppercase tracking-widest mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-              <LayoutDashboard size={13} /> Executive Dashboard
-            </div>
-            <h1 className="text-3xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>Executive Overview</h1>
-            <p className="text-sm mt-1" style={{ color: C.muted }}>Enterprise Cyber Posture</p>
-          </div>
+      <PageHeader
+        icon={LayoutDashboard}
+        title="Executive Dashboard"
+        tagline="Enterprise Cyber Posture"
+        right={
           <div className="flex items-center gap-2">
             <div className="text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>2026</div>
             <button
@@ -182,8 +179,8 @@ export default function ExecutiveDashboard({ onNavigate }) {
               <Download size={13} /> Export
             </button>
           </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* KPI row */}
       <div className="px-8 grid grid-cols-4 gap-5">

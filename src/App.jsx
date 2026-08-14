@@ -36,7 +36,7 @@ const PAGES = {
 export default function App() {
   const [active, setActive] = useState("ccf");
   const [expanded, setExpanded] = useState(false);
-  const [mode, setMode] = useState("dark");
+  const [mode, setMode] = useState("light");
 
   // Mutates the shared C / CLASS_META objects in theme.js in place, before this
   // render reads any of their properties. Every page imports those same objects,
