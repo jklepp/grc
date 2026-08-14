@@ -1,7 +1,7 @@
 import React from "react";
 import {
   Menu, Sun, Moon, LayoutDashboard, LayoutGrid, ShieldCheck, AlertTriangle,
-  FileText, Circle, Database, ClipboardCheck, Network, Boxes, SlidersHorizontal, ListChecks, CalendarClock,
+  FileText, Circle, Database, ClipboardCheck, Network, Boxes, SlidersHorizontal, ListChecks, CalendarClock, Shield,
 } from "lucide-react";
 
 // Sidebar chrome is intentionally fixed dark regardless of the app-wide light/dark
@@ -51,6 +51,7 @@ const GROUPS = [
       { id: "ssp", label: "System Security Plan", icon: ClipboardCheck },
       { id: "policy-center", label: "Policy Center", icon: FileText },
       { id: "procedure-library", label: "Procedure Library", icon: ListChecks },
+      { id: "security-principles", label: "Security Principles", icon: Shield },
       { id: "activity-timeliness", label: "Activity Timeliness", icon: CalendarClock },
     ],
   },
