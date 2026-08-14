@@ -186,13 +186,13 @@ export function explain(nodeType, id, metric = "assurance") {
       label: `${asset.name} assurance`,
       value: asset.overallAssurance,
       basis: asset.controlBackedPct > 0 ? BASIS.MEASURED : BASIS.ASSESSED,
-      formula: "Equal-weighted mean of the six assurance categories. Within each category, measured implementations and the assessed remainder carry equal weight.",
+      formula: `Weighted by the ${asset.classification} control profile, so the categories that matter most for this tier of data count most. Within each category, measured implementations and the assessed remainder carry equal weight.`,
       steps: ASSURANCE_CATEGORIES.map((c) => ({
         label: c,
         value: asset.categories[c].score,
-        weight: 1,
+        weight: asset.categoryWeights[c],
         basis: asset.categories[c].basis,
-        detail: `${asset.categories[c].evidencedCount} of ${asset.categories[c].requiredCount} tracked controls evidenced; assessed baseline ${asset.categories[c].baseline}`,
+        detail: `Contributes ${Math.round((asset.categories[c].raw * asset.categoryWeights[c]) / 100 * 10) / 10} of the ${asset.overallAssurance} total. ${asset.categories[c].evidencedCount} of ${asset.categories[c].requiredCount} tracked controls evidenced; assessed baseline ${asset.categories[c].baseline}.`,
         next: { type: "category", id: `${id}::${c}` },
       })),
     };

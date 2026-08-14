@@ -32,6 +32,7 @@ import { SYSTEMS, SYSTEM_BY_ID } from "../graph/nodes/systems";
 import { ASSURANCE_CATEGORIES, BASIS } from "../graph/nodes/taxonomy";
 import { DATA_FLOWS, flowsTo } from "../graph/edges/dataFlows";
 import { assessmentFor } from "../graph/edges/categoryAssessments";
+import { categoryWeightsFor } from "../graph/nodes/controlProfiles";
 import { requiredControlsForAsset } from "./applicability";
 import { implementationsForAsset } from "./implementation";
 import {
@@ -95,11 +96,21 @@ export function assetRollup(assetId) {
   ASSURANCE_CATEGORIES.forEach((c) => (categories[c] = categoryRollup(assetId, c)));
   const categoryScores = Object.fromEntries(ASSURANCE_CATEGORIES.map((c) => [c, categories[c].score]));
 
-  // Equal-weighted across categories — no category is inherently more important
-  // to the platform than another. Asset-specific weighting belongs in the
-  // required control profile, not here. Computed from the categories' unrounded
-  // values so a control's movement isn't lost at this hop.
-  const rawAssurance = mean(ASSURANCE_CATEGORIES.map((c) => categories[c].raw));
+  // Weighted by the asset's own classification tier, from the required control
+  // profile (graph/nodes/controlProfiles.js).
+  //
+  // This was a flat mean, on the argument that no category is inherently more
+  // important and asset-specific weighting belongs in the control profile. The
+  // argument was right; it just hadn't been carried out — the profile set a
+  // floor per category and had no say in how much each counted. A flat mean let
+  // one-sixth weighting absorb a thirty-point Identity & Access shortfall on
+  // the asset whose entire risk is confidentiality.
+  //
+  // Computed from the categories' unrounded values so a control's movement
+  // isn't lost at this hop.
+  const tier = assetClassification(assetId);
+  const weights = categoryWeightsFor(tier);
+  const rawAssurance = weightedMean(ASSURANCE_CATEGORIES.map((c) => ({ value: categories[c].raw, weight: weights[c] })));
   const assurance = display(rawAssurance);
 
   const implementations = implementationsForAsset(assetId);
@@ -127,6 +138,7 @@ export function assetRollup(assetId) {
     criticalityBand: criticalityBand(criticality),
     categories,
     categoryScores,
+    categoryWeights: weights,
     overallAssurance: assurance,
     rawAssurance,
     assuranceBand: assuranceBand(assurance),

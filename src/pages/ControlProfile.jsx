@@ -32,7 +32,16 @@ function TierTab({ tier, active, onSelect }) {
 function RequirementCard({ category, requirement }) {
   return (
     <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-      <div className="text-sm font-semibold mb-3" style={{ color: C.ink }}>{category}</div>
+      <div className="flex items-baseline justify-between gap-2 mb-3">
+        <span className="text-sm font-semibold" style={{ color: C.ink }}>{category}</span>
+        <span className="text-sm font-semibold tabular-nums shrink-0" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{requirement.weight}%</span>
+      </div>
+      {/* The weight bar reads against a 25% ceiling — the heaviest any category
+          gets at any tier — so the bars are comparable across tiers rather than
+          each tier rescaling to its own maximum. */}
+      <div className="h-1.5 rounded-full overflow-hidden mb-3" style={{ background: C.panel2 }}>
+        <div className="h-full rounded-full" style={{ width: `${(requirement.weight / 25) * 100}%`, background: C.accent }} />
+      </div>
       <div className="space-y-2">
         <div className="flex items-center justify-between text-xs">
           <span style={{ color: C.muted }}>Min. maturity</span>
@@ -78,9 +87,12 @@ function AssetComplianceRow({ asset }) {
       </div>
       <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
         {ASSURANCE_CATEGORIES.map((category) => (
-          <div key={category} className="flex items-center justify-between text-xs">
-            <span style={{ color: C.muted }}>{category}</span>
-            <StatusPill status={evaluation[category].status} />
+          <div key={category} className="flex items-center justify-between gap-2 text-xs">
+            <span className="min-w-0 truncate" style={{ color: C.muted }}>{category}</span>
+            <span className="flex items-center gap-1.5 shrink-0">
+              <span className="tabular-nums" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{evaluation[category].weight}%</span>
+              <StatusPill status={evaluation[category].status} />
+            </span>
           </div>
         ))}
       </div>
@@ -106,7 +118,7 @@ export default function ControlProfile() {
       <PageHeader
         icon={SlidersHorizontal}
         title="Control Profile"
-        description="The minimum control maturity and evidence quality required for a given data classification tier — the bar every asset at that tier is judged against before it's considered adequately controlled."
+        description="The minimum control maturity and evidence quality required for a given data classification tier, and how much each assurance category counts toward an asset's overall score. Weight is the second lever: the floor sets what a category has to clear, the weight sets how much clearing it is worth. Where confidentiality exposure is catastrophic, the controls that stop data being read outweigh the ones that keep it running."
       />
 
       <div className="px-8">
