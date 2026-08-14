@@ -1,5 +1,8 @@
 // Shared by the Risk Register page and the Executive Dashboard so both report
 // the same risk counts, scores, and appetite-compliance figures.
+import { CATEGORY_PORTFOLIO_AVERAGES } from "./assets";
+import { ASSURANCE_TARGET, assuranceBand } from "./assuranceModel";
+
 export const SEVERITY_VALUE = { Minor: 1, Moderate: 2, Major: 3, Severe: 4 };
 export const LIKELIHOOD_VALUE = { Rare: 1, Unlikely: 2, Possible: 3, Likely: 4, "Almost Certain": 5 };
 
@@ -10,6 +13,7 @@ export function score(sev, like) {
 export const RISKS = [
   {
     id: "RISK-001", scenario: "Cross-tenant data exposure through authorization defect", domain: "Product", subcategory: "Confidentiality",
+    materialLabel: "Mass cross-tenant/customer data breach",
     owner: "Platform Eng", linkedControl: "Access Control", appetite: 8, treatment: "Mitigate", treatmentAtRisk: true, escalated: false, exposure: 12750000,
     inherent: { severity: "Severe", likelihood: "Almost Certain" }, residual: { severity: "Severe", likelihood: "Likely" },
     description: "A multi-tenant authorization check could allow one customer's session to access another's data under specific query conditions.",
@@ -120,12 +124,43 @@ export const RISKS = [
   },
   {
     id: "RISK-015", scenario: "Model Distillation & IP Theft", domain: "Product", subcategory: "AI Governance",
+    materialLabel: "Theft of proprietary model/IP or training assets",
     owner: "ML Eng", linkedControl: "AI Governance", appetite: 5, treatment: "Mitigate", treatmentAtRisk: true, escalated: true, exposure: 2500000,
     inherent: { severity: "Severe", likelihood: "Almost Certain" }, residual: { severity: "Severe", likelihood: "Likely" },
     description: "Third parties could query production model APIs at scale to distill proprietary model behavior into their own models, exfiltrating IP without a traditional data breach.",
     milestones: [
       { title: "Deploy query-pattern rate limiting and distillation detection", status: "in_progress", due: "2026-08-14" },
       { title: "Legal review of API terms of service for automated extraction", status: "not_started", due: "2026-08-20" },
+    ],
+  },
+  {
+    id: "RISK-016", scenario: "AI agent causes large-scale unauthorized actions", domain: "Product", subcategory: "AI Governance",
+    owner: "ML Eng", linkedControl: "AI Governance", appetite: 5, treatment: "Mitigate", treatmentAtRisk: true, escalated: true, exposure: 4200000,
+    inherent: { severity: "Severe", likelihood: "Likely" }, residual: { severity: "Severe", likelihood: "Possible" },
+    description: "Agentic product features with tool-calling access to payments, data deletion, or production systems could be manipulated through prompt injection or insufficient guardrails into taking unauthorized, high-impact actions without a human in the loop.",
+    milestones: [
+      { title: "Require human-in-the-loop approval for high-risk agent actions", status: "in_progress", due: "2026-08-16" },
+      { title: "Deploy prompt-injection detection on agent tool-calling inputs", status: "not_started", due: "2026-08-25" },
+    ],
+  },
+  {
+    id: "RISK-017", scenario: "Systemic corruption/poisoning of the core model", domain: "Product", subcategory: "AI Governance",
+    owner: "ML Eng", linkedControl: "AI Governance", appetite: 5, treatment: "Mitigate", treatmentAtRisk: true, escalated: false, exposure: 3000000,
+    inherent: { severity: "Severe", likelihood: "Possible" }, residual: { severity: "Severe", likelihood: "Possible" },
+    description: "Training and retrieval-augmented data pipelines lack integrity controls sufficient to detect a malicious or corrupted data source, which could alter model behavior, introduce backdoors, or degrade output quality across the entire production model.",
+    milestones: [
+      { title: "Implement provenance checks and anomaly detection on training/retrieval data sources", status: "in_progress", due: "2026-08-20" },
+      { title: "Establish model behavior regression baseline for drift detection", status: "not_started", due: "2026-09-05" },
+    ],
+  },
+  {
+    id: "RISK-018", scenario: "Extended loss of the production AI platform", domain: "Enterprise", subcategory: "Continuity",
+    owner: "Infrastructure", linkedControl: "Backup & Recovery", appetite: 6, treatment: "Mitigate", treatmentAtRisk: true, escalated: false, exposure: 2800000,
+    inherent: { severity: "Severe", likelihood: "Likely" }, residual: { severity: "Severe", likelihood: "Possible" },
+    description: "The model-serving layer, GPU fleet, and vector store lack multi-region failover, so a prolonged outage of any single dependency — cloud region, hosting provider, or primary model API — would take the core AI product offline with no tested recovery path.",
+    milestones: [
+      { title: "Stand up multi-region failover for the model-serving layer", status: "in_progress", due: "2026-09-01" },
+      { title: "Run tabletop exercise for an extended AI platform outage", status: "not_started", due: "2026-09-15" },
     ],
   },
 ];
@@ -135,19 +170,111 @@ export const ABOVE_APPETITE_COUNT = RISKS.filter(
 ).length;
 export const QUANTIFIED_EXPOSURE = RISKS.reduce((a, r) => a + r.exposure, 0);
 
-// A risk is "material" when it clears two bars, not one: residual severity
-// at the top tier (Severe) AND the residual score still exceeds the org's
-// own appetite for that risk. A Severe risk the business has already
-// accepted within appetite, or an above-appetite risk that's only Moderate,
-// doesn't rise to "material" — this is deliberately tighter than
-// ABOVE_APPETITE_COUNT above. Centralized here (not a "top N" cap picked in
-// a page component) so any page surfacing "material risk" shows the same
-// set, and that set can't quietly drift as risks are added or re-scored.
+// A risk clears the bar for board attention when it hits two conditions, not
+// one: residual severity at the top tier (Severe) AND the residual score
+// still exceeding the org's own appetite for that risk. Used below to
+// validate the board's curated material-risk picks, not to auto-generate
+// them — see BOARD_MATERIAL_RISK_IDS.
 export function isMaterial(r) {
   return r.residual.severity === "Severe" && score(r.residual.severity, r.residual.likelihood) > r.appetite;
 }
-export const MATERIAL_RISKS = [...RISKS]
-  .filter(isMaterial)
-  .map((r) => ({ ...r, residualScore: score(r.residual.severity, r.residual.likelihood) }))
-  .sort((a, b) => b.residualScore - a.residualScore || b.exposure - a.exposure);
+
+// ---- Board-level fields for material risks ---------------------------------
+// Everything below derives new numbers from fields the risk already carries
+// (severity/likelihood tier, exposure, linkedControl, treatmentAtRisk,
+// milestones) — nothing here is a second hand-typed figure competing with
+// the register above.
+
+// Annualized probability band per residual likelihood tier. A fixed,
+// documented judgment call (same pattern as MATURITY_SCORE / EVIDENCE_
+// CONFIDENCE in assuranceModel.js), not a per-risk invention.
+const LIKELIHOOD_ANNUAL_PROBABILITY = {
+  Rare: [1, 5],
+  Unlikely: [5, 15],
+  Possible: [15, 35],
+  Likely: [35, 65],
+  "Almost Certain": [65, 90],
+};
+
+export function annualProbabilityRange(likelihood) {
+  return LIKELIHOOD_ANNUAL_PROBABILITY[likelihood];
+}
+
+// Loss magnitude, solved algebraically from the risk's own exposure (already
+// treated app-wide as the residual annualized loss expectancy) rather than a
+// separately invented dollar figure: ALE = probability x magnitude, so
+// magnitude = ALE / probability. The low end of the probability band implies
+// the high end of the magnitude band, and vice versa.
+export function lossMagnitudeRange(exposure, likelihood) {
+  const [probLow, probHigh] = annualProbabilityRange(likelihood);
+  return [exposure / (probHigh / 100), exposure / (probLow / 100)];
+}
+
+export function computeAppetiteRatio(r) {
+  return Math.round((score(r.residual.severity, r.residual.likelihood) / r.appetite) * 10) / 10;
+}
+
+// A risk's linkedControl is free text describing which control family it
+// sits under (e.g. "AI Governance"), not one of the 6 real Assurance
+// Categories — this maps it to the closest category so the risk can cite a
+// real portfolio assurance % instead of an invented one. A judgment call,
+// same caveat as DOMAIN_ASSURANCE_CATEGORY in assuranceModel.js.
+const LINKED_CONTROL_CATEGORY = {
+  "Access Control": "Identity & Access",
+  "Identity & Access Management": "Identity & Access",
+  "Network Security": "Identity & Access",
+  "Data Retention & Disposal": "Data Protection",
+  "Data Classification & Handling": "Data Protection",
+  "Cryptography & Key Management": "Data Protection",
+  "Third-Party / Vendor Risk": "Governance",
+  "AI Governance": "Governance",
+  "Backup & Recovery": "Resilience",
+  "Physical & Environmental Security": "Resilience",
+  "API Security": "Configuration",
+  "Configuration Management": "Configuration",
+  "Incident Response": "Detection",
+};
+
+export function assuranceForRisk(r) {
+  const category = LINKED_CONTROL_CATEGORY[r.linkedControl] || "Governance";
+  const pct = CATEGORY_PORTFOLIO_AVERAGES.find((c) => c.label === category).pct;
+  return { category, pct, target: ASSURANCE_TARGET, band: assuranceBand(pct) };
+}
+
+// Improving/Stalled/Flat from two fields the risk already carries — no
+// hand-typed trend arrow. treatmentAtRisk (the register's own signal that a
+// treatment plan has slipped) outranks milestone status: a risk can have an
+// in-progress milestone and still be flagged at-risk.
+export function riskTrend(r) {
+  if (r.treatmentAtRisk) return { label: "Stalled", color: "red" };
+  if (r.milestones.some((m) => m.status === "done" || m.status === "in_progress")) return { label: "Improving", color: "green" };
+  return { label: "Flat", color: "muted" };
+}
+
+// The board's chosen set of catastrophic loss scenarios for this company —
+// a curatorial call (same caveat as LINKED_CONTROL_CATEGORY / DOMAIN_
+// ASSURANCE_CATEGORY: which of the real tracked risks the board actually
+// needs to see, not just whatever isMaterial() happens to auto-select today).
+// Two reuse an existing risk's underlying data under a board-facing name
+// (see materialLabel on RISK-001 / RISK-015 above); three are risk scenarios
+// this register didn't previously track and were added above. Every number
+// attached to each one below is still fully derived — only which 5
+// scenarios to show is a human call.
+const BOARD_MATERIAL_RISK_IDS = ["RISK-001", "RISK-015", "RISK-016", "RISK-017", "RISK-018"];
+
+export const MATERIAL_RISKS = BOARD_MATERIAL_RISK_IDS.map((id) => {
+  const r = RISKS.find((risk) => risk.id === id);
+  if (!r) throw new Error(`riskRegister.js: BOARD_MATERIAL_RISK_IDS references "${id}", which isn't in RISKS`);
+  if (!isMaterial(r)) throw new Error(`riskRegister.js: BOARD_MATERIAL_RISK_IDS includes "${id}", but it no longer clears isMaterial() (residual Severe and above appetite) — re-check its rating or drop it from the board list`);
+  return {
+    ...r,
+    boardLabel: r.materialLabel || r.scenario,
+    residualScore: score(r.residual.severity, r.residual.likelihood),
+    probability: annualProbabilityRange(r.residual.likelihood),
+    lossMagnitude: lossMagnitudeRange(r.exposure, r.residual.likelihood),
+    appetiteRatio: computeAppetiteRatio(r),
+    trend: riskTrend(r),
+    assurance: assuranceForRisk(r),
+  };
+}).sort((a, b) => b.residualScore - a.residualScore || b.exposure - a.exposure);
 export const MATERIAL_RISK_EXPOSURE = MATERIAL_RISKS.reduce((a, r) => a + r.exposure, 0);
