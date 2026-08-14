@@ -58,13 +58,69 @@ export function freshnessFactor(record) {
 export function scoreEvidence(record) {
   const freshness = freshnessFactor(record);
   const base = evidenceBaseConfidence(record.evidenceType);
+  const hasPrevalence = Number.isFinite(record.population) && Number.isFinite(record.exceptions) && record.population > 0;
   return {
     ...record,
     ageDays: ageInDays(record.collectedAt),
     stale: ageInDays(record.collectedAt) > record.validForDays,
     freshness: Math.round(freshness * 100) / 100,
+    // How good this collection is as proof, independent of how much of the
+    // population it looked at. Coverage is deliberately NOT folded in here:
+    // composeEvidenceConfidence() allocates coverage across records, so folding
+    // it in twice would penalize a narrow high-grade test for being narrow and
+    // then again for not covering the rest.
+    quality: Math.round(base * freshness),
+    coverage: record.coveragePct / 100,
+    // What share of the population this collection actually found in breach.
+    // Null when the record doesn't count — see effectivenessFactor().
+    exceptionRate: hasPrevalence ? record.exceptions / record.population : null,
+    // Retained for anything that wants a single per-record figure.
     confidence: Math.round(base * (record.coveragePct / 100) * freshness),
   };
+}
+
+// EVIDENCE CONFIDENCE ACROSS SEVERAL COLLECTIONS
+// -----------------------------------------------
+// The naive options are both wrong. Averaging means adding a weak corroborating
+// document makes a strong technical test look worse, so a control is punished
+// for having more evidence. Taking the maximum means a 20%-coverage automated
+// test and a 100% API observation report only the better of the two, throwing
+// away the fact that between them they cover the whole population — and that a
+// fifth of it is evidenced at a higher grade than the max alone admits.
+//
+// So coverage is allocated rather than compared. Records are sorted by quality,
+// the best claims its share of the population first, and each subsequent record
+// claims only what is left unclaimed. Confidence is the coverage-weighted mean
+// of the qualities that ended up claiming each portion, with any unevidenced
+// remainder contributing zero.
+//
+//   A: automated test, quality 95, coverage 20%   -> claims 20% at 95
+//   B: API observation, quality 90, coverage 100% -> claims the other 80% at 90
+//   confidence = 0.2*95 + 0.8*90 = 91
+//
+// which is higher than either max (90) or mean, and correctly so.
+//
+// THE ASSUMPTION, STATED: we don't model WHICH members of a population each
+// collection looked at, so this assumes two records covering 20% and 100% touch
+// different portions wherever they can. That is the optimistic reading; the
+// pessimistic one is that the 20% is a subset of the 100%, which is exactly
+// max(). Making this exact needs evidence scoped to identified population
+// segments — a data-model change, not a formula change.
+export function composeEvidenceConfidence(records) {
+  if (records.length === 0) return null;
+  const sorted = [...records].sort((a, b) => b.quality - a.quality);
+  let remaining = 1;
+  let accumulated = 0;
+  const allocation = [];
+  sorted.forEach((r) => {
+    const claimed = Math.min(r.coverage, remaining);
+    if (claimed > 0) {
+      accumulated += claimed * r.quality;
+      allocation.push({ id: r.id, source: r.source, quality: r.quality, claimed: Math.round(claimed * 1000) / 1000 });
+      remaining -= claimed;
+    }
+  });
+  return { confidence: accumulated, allocation, uncovered: Math.round(remaining * 1000) / 1000 };
 }
 
 // Worst result wins. If one collection says a control failed, the control
@@ -72,15 +128,53 @@ export function scoreEvidence(record) {
 // it didn't happen.
 const RESULT_RANK = { fail: 0, partial: 1, pass: 2 };
 
-function aggregateResult(records) {
+// The record that establishes the worst verified condition, and therefore the
+// one whose prevalence governs. Ties break toward the higher exception rate, so
+// two failing tests resolve to the more systemic of the two. Keeping a single
+// governing record means a deficient implementation can always name the
+// collection that made it deficient.
+function governingRecord(records) {
   if (records.length === 0) return null;
-  return records.reduce((worst, r) => (RESULT_RANK[r.result] < RESULT_RANK[worst] ? r.result : worst), "pass");
+  return records.reduce((worst, r) => {
+    if (RESULT_RANK[r.result] !== RESULT_RANK[worst.result]) {
+      return RESULT_RANK[r.result] < RESULT_RANK[worst.result] ? r : worst;
+    }
+    return (r.exceptionRate ?? 0) > (worst.exceptionRate ?? 0) ? r : worst;
+  });
 }
 
-// How much a result moves effectiveness away from the assessed baseline. A
-// failing test doesn't zero the control — compensating pieces usually remain —
-// but it should cost most of its credit.
+// FAILURE PREVALENCE
+// -------------------
+// A verified failure is a finding regardless of how many members of the
+// population it touched — the status stays deficient, the control still counts
+// as failing, and it still drags the risks it holds down. But "1 of 10,000
+// identities has excessive access" and "9,000 of 10,000 do" are not the same
+// control-effectiveness condition, and a fixed factor per result label reported
+// them identically.
+//
+// So prevalence scales the MAGNITUDE of the hit, never whether there was one.
+// Two properties matter:
+//
+//   The ceiling is below 1. An isolated exception still costs something,
+//   because a control with a verified breach is not operating perfectly.
+//   The curve is sqrt, not linear, so early exceptions bite. A 5% exception
+//   rate is a real problem and linear interpolation would wave it through at
+//   ~92% of baseline; sqrt puts it at ~79%.
+const PREVALENCE_CEILING = 0.95;
+const PREVALENCE_FLOOR = 0.25;
+
+// Used when a collection reports a result but no counts. Unchanged from the
+// previous fixed factors, so a record that says nothing about prevalence is
+// scored exactly as it was before.
 const RESULT_EFFECTIVENESS_FACTOR = { pass: 1, partial: 0.75, fail: 0.35 };
+
+export function effectivenessFactor(result, exceptionRate) {
+  if (result === "pass") return 1;
+  if (result === null) return 1;
+  if (exceptionRate == null) return RESULT_EFFECTIVENESS_FACTOR[result];
+  const clamped = Math.min(1, Math.max(0, exceptionRate));
+  return PREVALENCE_CEILING - (PREVALENCE_CEILING - PREVALENCE_FLOOR) * Math.sqrt(clamped);
+}
 
 // The category baseline for program-scoped controls: the portfolio mean of that
 // category across every asset. Derived rather than a separate hand-set figure,
@@ -145,18 +239,19 @@ export function buildImplementation(assetId, controlId) {
   }
 
   const maturityStage = override?.maturityStage ?? baseline.maturityStage;
-  const result = aggregateResult(records);
 
-  // Strongest single collection, not an average: this is the evidence you would
-  // actually put in front of an auditor. Averaging in a weaker corroborating
-  // document would make a well-evidenced control look worse for having more
-  // evidence.
-  const evidenceConfidence = records.length > 0 ? Math.max(...records.map((r) => r.confidence)) : null;
+  // The worst verified condition governs, and it stays nameable: `governing` is
+  // the specific collection this implementation's status and prevalence come
+  // from, so a deficient control can always say which test made it deficient.
+  const governing = governingRecord(records);
+  const result = governing ? governing.result : null;
+  const exceptionRate = governing ? governing.exceptionRate : null;
 
-  const effectivenessPct =
-    result === null
-      ? baseline.effectivenessPct
-      : Math.round(baseline.effectivenessPct * RESULT_EFFECTIVENESS_FACTOR[result]);
+  const composed = composeEvidenceConfidence(records);
+  const evidenceConfidence = composed ? composed.confidence : null;
+
+  const factor = effectivenessFactor(result, exceptionRate);
+  const effectivenessPct = result === null ? baseline.effectivenessPct : baseline.effectivenessPct * factor;
 
   const basis = records.length > 0 ? BASIS.MEASURED : BASIS.ASSESSED;
 
@@ -172,8 +267,20 @@ export function buildImplementation(assetId, controlId) {
     basis,
     result,
     maturityStage,
-    effectivenessPct,
-    evidenceConfidence: confidenceForScore,
+    effectivenessPct: display(effectivenessPct),
+    rawEffectivenessPct: effectivenessPct,
+    // Where the status and the size of the hit came from, kept together so the
+    // drawer and the trace can say "deficient because THIS test found N of M".
+    governing,
+    exceptionRate,
+    exceptionSummary: governing && governing.exceptionRate != null
+      ? { exceptions: governing.exceptions, population: governing.population, unit: governing.populationUnit, rate: governing.exceptionRate, source: governing.source }
+      : null,
+    effectivenessFactor: factor,
+    evidenceConfidence: display(confidenceForScore),
+    rawEvidenceConfidence: confidenceForScore,
+    evidenceAllocation: composed ? composed.allocation : [],
+    evidenceUncovered: composed ? composed.uncovered : null,
     // `score` is for display; `rawScore` is what the category rollup consumes,
     // so a control's movement survives the trip upward instead of being rounded
     // away at the first hop.

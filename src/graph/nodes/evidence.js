@@ -109,12 +109,14 @@ const RAW_EVIDENCE = [
     id: "EV-9106", source: "S3 lifecycle policy configuration", evidenceType: "API configuration observation",
     controlId: "DCH-18", assetIds: ["AST-003-05"],
     collectedAt: "2026-07-05", coveragePct: 70, result: "partial", independence: "automated",
+    exceptions: 2, population: 6, populationUnit: "storage prefixes",
     note: "A lifecycle rule exists on the raw document prefix, but not on the ingestion staging prefix.",
   },
   {
     id: "EV-9107", source: "Retention schedule review — vector store", evidenceType: "Document",
     controlId: "DCH-18", assetIds: ["AST-003-04"],
     collectedAt: "2026-06-18", coveragePct: 0, result: "fail", independence: "internal",
+    exceptions: 2, population: 2, populationUnit: "derived data stores",
     note: "No retention or disposal schedule defined for embeddings — the open item behind SEC-2262.",
   },
   {
@@ -149,6 +151,7 @@ const RAW_EVIDENCE = [
     id: "EV-9122", source: "OpenSearch domain configuration review", evidenceType: "API configuration observation",
     controlId: "CFG-02", assetIds: ["AST-003-04"],
     collectedAt: "2026-07-28", coveragePct: 85, result: "partial", independence: "automated",
+    exceptions: 1, population: 34, populationUnit: "baseline settings",
     note: "Domain matches baseline except for a fine-grained access-control setting left at the service default.",
   },
 
@@ -162,6 +165,7 @@ const RAW_EVIDENCE = [
     id: "EV-9124", source: "RAG service task definition review", evidenceType: "API configuration observation",
     controlId: "CFG-03", assetIds: ["AST-003-03"],
     collectedAt: "2026-07-14", coveragePct: 100, result: "partial", independence: "internal",
+    exceptions: 3, population: 12, populationUnit: "exposed routes",
     note: "Debug endpoints still reachable inside the service mesh; not internet-exposed but not disabled either.",
   },
 
@@ -178,12 +182,14 @@ const RAW_EVIDENCE = [
     id: "EV-9130", source: "Automated cross-tenant access test", evidenceType: "Automated technical test",
     controlId: "CLD-06", assetIds: ["AST-003-03"],
     collectedAt: "2026-08-13", coveragePct: 100, result: "fail", independence: "automated",
+    exceptions: 38, population: 240, populationUnit: "tenant-pair probes",
     note: "Retrieval scoping is enforced in the application query layer only. The test that walks a session across tenant boundaries returned documents it should not have — the technical finding behind RISK-001.",
   },
   {
     id: "EV-9131", source: "Automated cross-tenant access test", evidenceType: "Automated technical test",
     controlId: "CLD-06", assetIds: ["AST-003-04"],
     collectedAt: "2026-08-13", coveragePct: 100, result: "partial", independence: "automated",
+    exceptions: 12, population: 240, populationUnit: "tenant-pair probes",
     note: "Index-level separation holds, but tenant filtering on vector search relies on the caller passing the right filter rather than the engine enforcing it.",
   },
   {
@@ -214,6 +220,7 @@ const RAW_EVIDENCE = [
     id: "EV-9105", source: "Microsoft Sentinel ingestion telemetry", evidenceType: "Continuous telemetry",
     controlId: "MON-02", assetIds: ["AST-003-03", "AST-003-04"],
     collectedAt: "2026-08-14", coveragePct: 60, result: "partial", independence: "automated",
+    exceptions: 2, population: 5, populationUnit: "log sources",
     note: "Application logs arrive; retrieval-level query logs are not forwarded, so a cross-tenant read would not appear in Sentinel.",
   },
   {
@@ -233,6 +240,7 @@ const RAW_EVIDENCE = [
     id: "EV-9141", source: "Sentinel log schema conformance test", evidenceType: "Automated technical test",
     controlId: "MON-03", assetIds: ["AST-003-03", "AST-003-04"],
     collectedAt: "2026-08-11", coveragePct: 45, result: "partial", independence: "automated",
+    exceptions: 6, population: 11, populationUnit: "event types",
     note: "Retrieval events carry a request id but no acting identity, so they cannot answer who read what.",
   },
 
@@ -246,6 +254,7 @@ const RAW_EVIDENCE = [
     id: "EV-7011", source: "Log export immutability review", evidenceType: "Screenshot",
     controlId: "MON-08", assetIds: ["AST-042-07", "AST-042-01"],
     collectedAt: "2026-06-11", coveragePct: 100, result: "partial", independence: "internal",
+    exceptions: 5, population: 14, populationUnit: "log categories",
     note: "Export is append-only in the destination, but the tenant-side retention window is shorter than ACME's 12-month standard.",
   },
 
@@ -259,6 +268,7 @@ const RAW_EVIDENCE = [
     id: "EV-9151", source: "Tenable — production scan", evidenceType: "Automated technical test",
     controlId: "VPM-05", assetIds: ["AST-003-03", "AST-003-04"],
     collectedAt: "2026-08-08", coveragePct: 100, result: "partial", independence: "automated",
+    exceptions: 2, population: 148, populationUnit: "deployed packages",
     note: "Two medium-severity library findings on the retrieval path are past their remediation window.",
   },
 
@@ -272,6 +282,7 @@ const RAW_EVIDENCE = [
     id: "EV-9161", source: "AWS IAM Access Analyzer", evidenceType: "Continuous telemetry",
     controlId: "IAC-21", assetIds: ["AST-003-03"],
     collectedAt: "2026-08-14", coveragePct: 100, result: "fail", independence: "automated",
+    exceptions: 1, population: 1, populationUnit: "service roles",
     note: "The RAG service role holds broad read access across every data store in the boundary, well beyond its actual query pattern — the open finding behind SEC-2260.",
   },
   {
@@ -283,11 +294,27 @@ const RAW_EVIDENCE = [
     id: "EV-7004", source: "Workday role assignment review", evidenceType: "Screenshot",
     controlId: "IAC-21", assetIds: ["AST-042-01", "AST-042-02", "AST-042-04", "AST-042-05", "AST-042-06", "AST-042-07"],
     collectedAt: "2026-05-28", coveragePct: 100, result: "partial", independence: "internal",
+    exceptions: 47, population: 1240, populationUnit: "role assignments",
+  },
+  // Deliberately narrow, and deliberately alongside EV-7004's broad screenshot
+  // review of the same control on the same asset. This is the case that makes
+  // composeEvidenceConfidence() worth having: a high-grade automated test over
+  // 18% of the population plus a lower-grade review over all of it should score
+  // better than either alone, because between them the whole population is
+  // evidenced and a fifth of it is evidenced well. Taking the maximum would
+  // report only the broad review and discard the better proof entirely.
+  {
+    id: "EV-7021", source: "Privileged role entitlement test", evidenceType: "Automated technical test",
+    controlId: "IAC-21", assetIds: ["AST-042-01"],
+    collectedAt: "2026-08-11", coveragePct: 18, result: "partial", independence: "automated",
+    exceptions: 9, population: 223, populationUnit: "privileged role assignments",
+    note: "Covers only the privileged tier of the tenant's role model, but does so by machine rather than by screenshot.",
   },
   {
     id: "EV-7012", source: "Integration account permission review", evidenceType: "Screenshot",
     controlId: "IAC-21", assetIds: ["AST-042-03"],
     collectedAt: "2026-05-28", coveragePct: 100, result: "partial", independence: "internal",
+    exceptions: 1, population: 1, populationUnit: "service accounts",
     note: "The integration account carries tenant-wide read scope because the connectors were provisioned against one shared role.",
   },
 
@@ -301,6 +328,7 @@ const RAW_EVIDENCE = [
     id: "EV-7013", source: "Quarterly access recertification campaign", evidenceType: "Document",
     controlId: "IAC-17", assetIds: ["AST-042-01"],
     collectedAt: "2026-04-30", coveragePct: 60, result: "partial", independence: "internal",
+    exceptions: 31, population: 84, populationUnit: "manager-role holders",
     note: "Manager-role recertification is past its due date — the open item behind SEC-2210.",
   },
   {
@@ -312,6 +340,7 @@ const RAW_EVIDENCE = [
     id: "EV-9164", source: "Quarterly privileged access review", evidenceType: "Document",
     controlId: "IAC-17", assetIds: ["AST-003-03", "AST-003-04"],
     collectedAt: "2026-06-30", coveragePct: 50, result: "partial", independence: "internal",
+    exceptions: 9, population: 18, populationUnit: "service-role grants",
     note: "Service-role grants on the retrieval path were listed but not individually re-justified.",
   },
 
@@ -325,6 +354,7 @@ const RAW_EVIDENCE = [
     id: "EV-7014", source: "Service account credential age report", evidenceType: "API configuration observation",
     controlId: "IAC-10", assetIds: ["AST-042-03"],
     collectedAt: "2026-08-04", coveragePct: 100, result: "fail", independence: "automated",
+    exceptions: 1, population: 1, populationUnit: "integration credentials",
     note: "The integration credential is a static secret with no expiry and no rotation history on record.",
   },
   {
@@ -343,6 +373,7 @@ const RAW_EVIDENCE = [
     id: "EV-9167", source: "Vanta — authorization policy test", evidenceType: "Automated technical test",
     controlId: "IAC-20", assetIds: ["AST-003-03", "AST-003-04"],
     collectedAt: "2026-08-12", coveragePct: 100, result: "partial", independence: "automated",
+    exceptions: 9, population: 9, populationUnit: "retrieval endpoints",
     note: "Authentication is enforced at the service edge, but the retrieval call itself performs no separate per-resource permission check.",
   },
 
@@ -366,6 +397,7 @@ const RAW_EVIDENCE = [
     id: "EV-7017", source: "Workday IP allowlist configuration", evidenceType: "API configuration observation",
     controlId: "NET-03", assetIds: ["AST-042-06"],
     collectedAt: "2026-07-22", coveragePct: 40, result: "partial", independence: "automated",
+    exceptions: 4, population: 6, populationUnit: "permitted source ranges",
     note: "The export endpoint accepts requests from outside the allowlisted integration ranges.",
   },
 
@@ -374,17 +406,20 @@ const RAW_EVIDENCE = [
     id: "EV-9180", source: "DLP scanning coverage report", evidenceType: "Document",
     controlId: "NET-17", assetIds: ["AST-003-05"],
     collectedAt: "2026-07-10", coveragePct: 0, result: "fail", independence: "internal",
+    exceptions: 4, population: 4, populationUnit: "ingestion paths",
     note: "No DLP scanning deployed on the ingestion path into prod-customer-data — the open item behind SEC-2261.",
   },
   {
     id: "EV-9181", source: "API Gateway response inspection", evidenceType: "Automated technical test",
     controlId: "NET-17", assetIds: ["AST-003-01"],
     collectedAt: "2026-08-05", coveragePct: 70, result: "partial", independence: "automated",
+    exceptions: 6, population: 22, populationUnit: "response types",
   },
   {
     id: "EV-7018", source: "Export path DLP inspection", evidenceType: "Screenshot",
     controlId: "NET-17", assetIds: ["AST-042-06"],
     collectedAt: "2026-06-02", coveragePct: 0, result: "fail", independence: "internal",
+    exceptions: 3, population: 3, populationUnit: "export jobs",
     note: "Bulk export runs without content inspection, so employee PII can leave the tenant uninspected.",
   },
   {
@@ -403,6 +438,7 @@ const RAW_EVIDENCE = [
     id: "EV-9191", source: "Vector store snapshot configuration", evidenceType: "Document",
     controlId: "BCD-11", assetIds: ["AST-003-04"],
     collectedAt: "2026-05-04", coveragePct: 50, result: "partial", independence: "internal",
+    exceptions: 4, population: 4, populationUnit: "snapshot sets",
     note: "Snapshots are taken but have never been restore-tested, so recoverability is asserted rather than demonstrated.",
   },
   {
@@ -421,6 +457,7 @@ const RAW_EVIDENCE = [
     id: "EV-9196", source: "Azure Monitor / CloudWatch capacity telemetry", evidenceType: "Continuous telemetry",
     controlId: "CAP-01", assetIds: ["AST-003-03", "AST-003-04"],
     collectedAt: "2026-08-14", coveragePct: 100, result: "partial", independence: "automated",
+    exceptions: 2, population: 6, populationUnit: "service paths",
     note: "Alerting thresholds are set on the serving path but not on the retrieval or embedding path.",
   },
 
@@ -436,6 +473,7 @@ const RAW_EVIDENCE = [
     id: "EV-P-002", source: "Personal data retention schedule review", evidenceType: "Document",
     controlId: "PRI-05", assetIds: [],
     collectedAt: "2026-01-20", coveragePct: 70, result: "partial", independence: "internal",
+    exceptions: 4, population: 9, populationUnit: "data types",
     note: "A schedule exists for the HR system of record but not for derived AI-platform data.",
   },
   {
@@ -447,6 +485,7 @@ const RAW_EVIDENCE = [
     id: "EV-P-004", source: "Incident response tabletop exercise", evidenceType: "Document",
     controlId: "IRO-02", assetIds: [],
     collectedAt: "2025-09-08", coveragePct: 100, result: "partial", independence: "internal",
+    exceptions: 1, population: 1, populationUnit: "response plans",
     note: "Last exercised outside the annual window — the timing gap RISK-012 tracks.",
   },
   {
@@ -458,12 +497,14 @@ const RAW_EVIDENCE = [
     id: "EV-P-006", source: "Vendor reassessment backlog report", evidenceType: "Document",
     controlId: "TPM-04", assetIds: [],
     collectedAt: "2026-07-02", coveragePct: 55, result: "partial", independence: "internal",
+    exceptions: 17, population: 38, populationUnit: "critical vendors",
     note: "Several critical vendors are operating past their review cycle — the backlog RISK-004 tracks.",
   },
   {
     id: "EV-P-007", source: "AI model and agent inventory review", evidenceType: "Document",
     controlId: "AAT-01", assetIds: [],
     collectedAt: "2026-06-25", coveragePct: 60, result: "partial", independence: "internal",
+    exceptions: 7, population: 7, populationUnit: "production models",
     note: "Models in production are inventoried with owners, but there is no pre-release security or bias review gate — the gap RISK-011 tracks.",
   },
 ];

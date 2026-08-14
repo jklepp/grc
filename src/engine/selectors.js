@@ -236,15 +236,35 @@ export function explain(nodeType, id, metric = "assurance") {
       label: `${impl.control.friendlyName} on ${assetId === "program" ? "the program" : ASSET_BY_ID[assetId]?.name}`,
       value: impl.score,
       basis: impl.basis,
-      formula: "40% maturity + 30% evidence confidence + 30% effectiveness. Effectiveness starts from the category baseline and moves with what the evidence returned.",
+      formula: "40% maturity + 30% evidence confidence + 30% effectiveness. Effectiveness starts from the category baseline and is scaled by how prevalent the verified failures were, not merely by whether there were any.",
       steps: [
         { label: `Maturity — ${impl.maturityStage ?? "none"}`, value: impl.maturityStage, basis: impl.override ? BASIS.MEASURED : BASIS.ASSESSED, detail: impl.override?.note ?? "Inherited from the asset's category assessment." },
-        { label: `Effectiveness — ${impl.effectivenessPct}%`, value: impl.effectivenessPct, basis: impl.basis, detail: impl.result ? `Baseline ${impl.baseline?.effectivenessPct}% adjusted for an aggregate evidence result of "${impl.result}".` : "No evidence — baseline carried through unchanged." },
+        {
+          label: `Effectiveness — ${impl.effectivenessPct}%`,
+          value: impl.effectivenessPct,
+          basis: impl.basis,
+          detail: impl.exceptionSummary
+            ? `Baseline ${Math.round(impl.baseline?.effectivenessPct)}% x ${impl.effectivenessFactor.toFixed(2)}, from ${impl.exceptionSummary.exceptions} of ${impl.exceptionSummary.population} ${impl.exceptionSummary.unit} in breach (${(impl.exceptionSummary.rate * 100).toFixed(2)}%) per ${impl.exceptionSummary.source}. An isolated exception costs little; a systemic one costs most of the control's credit.`
+            : impl.result
+              ? `Baseline ${Math.round(impl.baseline?.effectivenessPct)}% x ${impl.effectivenessFactor.toFixed(2)} for an aggregate result of "${impl.result}". No exception counts were recorded, so the fixed factor for that result applies.`
+              : "No evidence — baseline carried through unchanged.",
+        },
+        // How the population was actually divided up between collections. The
+        // whole point of composing rather than taking the strongest: a narrow
+        // high-grade test and a broad lower-grade one each cover a share.
+        ...(impl.evidenceAllocation.length > 1
+          ? [{
+              label: `Evidence confidence — ${impl.evidenceConfidence}`,
+              value: impl.evidenceConfidence,
+              basis: BASIS.MEASURED,
+              detail: `${impl.evidenceAllocation.map((a) => `${Math.round(a.claimed * 100)}% at quality ${a.quality} (${a.source})`).join("; ")}${impl.evidenceUncovered > 0 ? `; ${Math.round(impl.evidenceUncovered * 100)}% unevidenced` : ""}.`,
+            }]
+          : []),
         ...impl.evidence.map((e) => ({
           label: e.source,
           value: e.confidence,
           basis: BASIS.MEASURED,
-          detail: `${e.evidenceType}, ${e.coveragePct}% coverage, collected ${e.collectedAt} (${e.ageDays} days ago${e.stale ? ", stale" : ""}) — ${e.result.toUpperCase()}${e.note ? `. ${e.note}` : ""}`,
+          detail: `${e.evidenceType}, ${e.coveragePct}% coverage, collected ${e.collectedAt} (${e.ageDays} days ago${e.stale ? ", stale" : ""}) — ${e.result.toUpperCase()}${e.exceptionRate != null ? `, ${e.exceptions}/${e.population} ${e.populationUnit}` : ""}${e.note ? `. ${e.note}` : ""}`,
           next: { type: "evidence", id: e.id },
         })),
       ],
