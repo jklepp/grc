@@ -162,6 +162,7 @@ export const POLICIES = [
       { title: "Access recertification", detail: "Privileged accounts are recertified quarterly; standard accounts semi-annually, by the relevant system or data owner." },
       { title: "Authenticator standard", detail: "Microsoft Authenticator or a platform passkey is the preferred MFA method; SMS is a fallback only, not a default." },
       { title: "Session controls", detail: "Idle session timeout is 15 minutes on managed endpoints; concurrent session limits apply to privileged accounts; sessions terminate on logout or timeout without leaving residual access." },
+      { title: "Least-standing-privilege", detail: "Privileged access defaults to just-in-time activation through Privileged Identity Management rather than a standing grant; production access is treated as an exception — time-bound, attributable to a named individual, and fully logged. Service and integration credentials use managed/workload identity or short-lived, minimum-scope tokens instead of static, long-lived secrets." },
     ],
     roles: [
       { role: "Employees", responsibility: "Protect credentials, use MFA, report suspicious login prompts" },
@@ -244,6 +245,7 @@ export const POLICIES = [
       { title: "System security baseline by tier", detail: "Public/Internal systems get standard baseline controls. Confidential/Restricted systems must evidence all six register controls: Encryption at Rest, Encryption in Transit, Access Logging & Review, Least-Privilege Access, DLP Monitoring, and Retention & Disposal." },
       { title: "Encryption strength", detail: "Confidential data: AES-256 (or equivalent) at rest, TLS 1.2+ in transit. Restricted data is held to the same floor with zero tolerance for weaker legacy algorithms (e.g., AES-128) or unencrypted internal segments." },
       { title: "Key management", detail: "Encryption keys and certificates are managed centrally in Azure Key Vault; public certificates are issued through DigiCert. Individual employees do not generate or hold production encryption keys." },
+      { title: "Secrets management", detail: "Application secrets — API keys, database credentials, connection strings — are never embedded in source code, container images, configuration files, or CI/CD variables where a managed identity or a Key Vault reference is feasible. Key access follows least privilege and separation of duties: no individual both manages key material and approves their own access to it." },
       { title: "Evidence & monitoring", detail: "Control status for Confidential/Restricted systems is evidenced through Vanta automated tests where available, private integrations, or manual verification, and tracked live in the Data Classification Register rather than attested to once a year." },
       { title: "Media handling & retention", detail: "Removable media containing Confidential/Restricted data is discouraged and, where used, must be encrypted; retention periods follow the data retention schedule maintained by Legal and Security." },
     ],
@@ -472,6 +474,7 @@ export const POLICIES = [
       { title: "Web application protection", detail: "Customer-facing web applications sit behind Cloudflare's WAF and CDN, with TLS enforced and change detection monitoring for unauthorized modifications." },
       { title: "Developer access & screening", detail: "Engineers with production source code or deployment access undergo the same screening as other sensitive roles, and access is reviewed on the standard access recertification cycle." },
       { title: "Acquisition review", detail: "New technology (including embedded/IoT and third-party software) is evaluated against ACME's minimum security requirements before purchase or deployment approval." },
+      { title: "Authorization & tenant isolation", detail: "A valid authentication token establishes identity, not permission — every protected resource or action is independently authorized. Multi-tenant systems enforce isolation in more than one layer (session/token scoping, service tenant context, and database-level controls such as row-level security where supported), and every production artifact is traceable to the approved source commit and build pipeline that produced it." },
     ],
     roles: [
       { role: "Engineering", responsibility: "Follows the secure SDLC, environment separation, and code review requirements" },
@@ -503,6 +506,7 @@ export const POLICIES = [
       { title: "Criticality tiering", detail: "Vendors are tiered (Critical / High / Standard / Low) based on data sensitivity and business dependency; tier determines assessment depth and reassessment frequency." },
       { title: "Contractual requirements", detail: "Data processing agreements, breach notification timelines, and right-to-audit clauses are standard contract terms for vendors handling Confidential/Restricted data." },
       { title: "Supply chain risk", detail: "Critical vendors' own sub-processors and supply chain dependencies are considered as part of the risk assessment." },
+      { title: "Vendor vs. integration assurance", detail: "A vendor's SOC 2 report or ISO 27001 certificate establishes trust in the vendor as a company; it does not by itself establish that a specific OAuth or API integration with that vendor is securely configured. Integrations get their own review of granted scopes, token storage and lifetime, reachable data/tenants, write/delete capability, revocability, and monitoring." },
     ],
     roles: [
       { role: "Procurement/Business Owner", responsibility: "Initiates vendor risk review before signing; owns the vendor relationship" },
@@ -534,6 +538,7 @@ export const POLICIES = [
     ],
     standards: [
       { title: "Backup strategy", detail: "Veeam performs scheduled backups of business-critical systems with defined RPO/RTO targets per system tier; backups are encrypted and stored separately from production, including an offsite/immutable copy." },
+      { title: "Immutable recovery", detail: "Backup copies are isolated from production by credentials, access path, or immutable/write-once storage, so that a full compromise of production cannot also destroy the means of recovering from it." },
       { title: "DR replication", detail: "Critical Azure workloads use Azure Site Recovery to an alternate region as the recovery site." },
       { title: "Testing cadence", detail: "Tabletop exercises occur at least annually; technical failover/restore testing occurs at least annually for Tier 1 (critical) systems." },
       { title: "Capacity monitoring", detail: "Infrastructure capacity and performance are monitored continuously (Azure Monitor) with alerting thresholds set ahead of actual resource exhaustion." },
@@ -603,6 +608,7 @@ export const POLICIES = [
     standards: [
       { title: "SIEM & log centralization", detail: "Microsoft Sentinel centralizes security event logs from identity (Entra ID), endpoint (Defender for Endpoint), network (Zscaler), and cloud (Azure) sources, with synchronized time stamps." },
       { title: "Log retention & protection", detail: "Security logs are retained for a minimum of 12 months, access-restricted, and write-protected against tampering." },
+      { title: "Signal over noise", detail: "Logging is scoped to security-relevant events and their outcomes — authentication, privilege changes, access to sensitive data, administrative actions — rather than every routine, successful execution of a normal operation, so alert volume stays something a human can actually act on." },
       { title: "Anomaly detection & alerting", detail: "Behavioral analytics (Defender XDR, Sentinel analytics rules) generate alerts triaged by the security team against defined response SLAs." },
       { title: "Threat intelligence & disclosure", detail: "External threat intelligence feeds inform detection rules and advisories; ACME publishes a vulnerability disclosure program (VDP) contact for external researchers." },
       { title: "Insider threat monitoring", detail: "Privileged and sensitive-data access is monitored for anomalous patterns consistent with insider risk, reviewed by Security with HR/Legal involvement where warranted." },
@@ -727,6 +733,7 @@ export const POLICIES = [
       { title: "AI/agent inventory", detail: "AI models and agents ACME builds or deploys are tracked with owner, purpose, and lifecycle status from development through decommissioning." },
       { title: "Stakeholder & fairness review", detail: "AI features with meaningful user impact undergo review incorporating diverse stakeholder input and assessment for reliability, safety, and fairness before release, per the AI governance process." },
       { title: "Data handling in prompts", detail: "Prompts and outputs are treated at the classification level of the most sensitive data they contain, per the Data Classification & Handling Policy." },
+      { title: "Authorization enforced outside the model", detail: "Tenant, customer, and data-access permission checks for an AI system are enforced by the surrounding application or tool layer before a request reaches the model — never by an instruction inside a prompt. An AI agent is granted only the tool permissions and data access its current task requires, not the full permission set of the account it runs under, and its own instructions are never treated as a security boundary." },
     ],
     roles: [
       { role: "IT Security", responsibility: "Maintains the approved AI tool list, evaluates new AI tool requests" },

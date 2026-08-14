@@ -12,6 +12,7 @@ import AssetRegister from "./pages/AssetRegister";
 import ControlProfile from "./pages/ControlProfile";
 import ProcedureLibrary from "./pages/ProcedureLibrary";
 import ScheduledActivities from "./pages/ScheduledActivities";
+import SecurityPrinciples from "./pages/SecurityPrinciples";
 import { C, applyTheme, FONT_IMPORT } from "./theme";
 
 // Map nav item ids (defined in Sidebar.jsx) to the page component to render.
@@ -28,6 +29,7 @@ const PAGES = {
   "asset-register": AssetRegister,
   "control-profile": ControlProfile,
   "procedure-library": ProcedureLibrary,
+  "security-principles": SecurityPrinciples,
   "activity-timeliness": ScheduledActivities,
 };
 
