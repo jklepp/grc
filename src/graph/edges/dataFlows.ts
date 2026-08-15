@@ -41,7 +41,7 @@ export interface DataFlow {
 export const DATA_FLOWS: DataFlow[] = [
   // ---- SYS-003 Production AI Platform: request path ---------------------------
   { id: "FLOW-003-01", from: "AST-003-01", to: "AST-003-03", kind: "data", dataTypeIds: ["DT-003", "DT-001"], note: "Authenticated customer query enters retrieval." },
-  { id: "FLOW-003-02", from: "AST-003-01", to: "AST-003-02", kind: "data", dataTypeIds: ["DT-003"], note: "Prompt forwarded to the model service." },
+  { id: "FLOW-003-02", from: "AST-003-01", to: "AST-003-02", kind: "data", dataTypeIds: ["DT-003"], note: "Prompt forwarded to the agent runtime." },
   { id: "FLOW-003-03", from: "AST-003-01", to: "AST-003-06", kind: "data", dataTypeIds: ["DT-005"], note: "Session and usage records written per request." },
   { id: "FLOW-003-04", from: "AST-003-03", to: "AST-003-04", kind: "data", dataTypeIds: ["DT-002"], note: "Similarity search against document embeddings." },
   { id: "FLOW-003-05", from: "AST-003-03", to: "AST-003-05", kind: "data", dataTypeIds: ["DT-002", "DT-001"], note: "Retrieval of matched source documents." },
@@ -56,6 +56,7 @@ export const DATA_FLOWS: DataFlow[] = [
   { id: "FLOW-003-20", from: "AST-003-02", to: "AST-003-13", kind: "data", dataTypeIds: ["DT-003"], note: "Agent tool calls are mediated through the gateway for allowlisting, schema validation, and credential injection." },
   { id: "FLOW-003-21", from: "AST-003-13", to: "AST-003-15", kind: "data", dataTypeIds: ["DT-003"], note: "Tool calls to external systems exit through the controlled egress path." },
   { id: "FLOW-003-42", from: "AST-003-02", to: "AST-003-14", kind: "data", dataTypeIds: ["DT-005"], note: "In-flight agent workflow and session state cached during multi-step tool use." },
+  { id: "FLOW-003-43", from: "AST-003-11", to: "AST-003-15", kind: "data", dataTypeIds: ["DT-003"], note: "Model provider calls exit through the same controlled egress path as tool calls, rather than reaching the internet directly from the gateway." },
 
   // ---- SYS-003: control plane --------------------------------------------------
   { id: "FLOW-003-10", from: "AST-003-07", to: "AST-003-05", kind: "control-plane", dataTypeIds: ["DT-004"], note: "Envelope encryption of objects at rest." },
