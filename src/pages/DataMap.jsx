@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Network, AlertTriangle, X, KeyRound, User, Cpu, Database, Search, ChevronDown } from "lucide-react";
+import { Network, AlertTriangle, X, KeyRound, User, Cpu, Database, Search, ChevronDown, Workflow, LayoutList, Download, Loader2 } from "lucide-react";
 import { C, CLASS_META } from "../theme";
 import { PageHeader } from "../components/Headings";
 import { ClassificationTag } from "../components/SystemBadges";
@@ -8,6 +8,10 @@ import {
   ASSURANCE_CATEGORIES, assuranceBand, evaluateAssetAgainstProfile, IMPLEMENTATION_STATUS_META,
   ACTOR_KINDS,
 } from "../engine";
+import { buildDataFlowDiagram, buildControlPlaneMatrix } from "../utils/flowDiagramLayout";
+import FlowDiagramSVG, { FlowDiagramLegend } from "../components/FlowDiagramSVG";
+import FlowMatrixSVG, { FlowMatrixLegend } from "../components/FlowMatrixSVG";
+import { exportFlowDiagramPdf } from "../utils/exportFlowDiagramPdf";
 
 const SYSTEMS = getAllSystems();
 
@@ -533,6 +537,10 @@ export default function DataMap() {
   const [systemId, setSystemId] = useState(SYSTEMS[0]?.id ?? null);
   const [selectedKey, setSelectedKey] = useState(null);
   const [dataTypeId, setDataTypeId] = useState("all");
+  const [viewMode, setViewMode] = useState("cards");
+  const [exporting, setExporting] = useState(false);
+  const dataSvgRef = useRef(null);
+  const controlSvgRef = useRef(null);
 
   const system = SYSTEMS.find((s) => s.id === systemId);
   const systemDataTypes = useMemo(() => (systemId ? dataTypesForSystem(systemId) : []), [systemId]);
@@ -565,10 +573,42 @@ export default function DataMap() {
     return dataForAsset(assetId).filter((h) => h.dataTypeId === dataTypeId).map((h) => h.role);
   }, [dataTypeId]);
 
+  // The true diagrams: real point-to-point edges instead of stage buckets,
+  // split into a data-movement page and a control-plane page (see
+  // utils/flowDiagramLayout.js) so the control layer's fan-out doesn't bury
+  // the request path. Built from the same (possibly data-type-filtered)
+  // layout the card view uses, so switching views never changes what's
+  // actually being shown.
+  const dataFlowDiagram = useMemo(() => buildDataFlowDiagram(layout), [layout]);
+  const controlPlaneMatrix = useMemo(() => buildControlPlaneMatrix(layout, getAsset), [layout]);
+
   function selectSystem(id) {
     setSystemId(id);
     setSelectedKey(null);
     setDataTypeId("all");
+  }
+
+  async function handleExportPdf() {
+    if (!dataSvgRef.current || !system) return;
+    setExporting(true);
+    try {
+      const dataTypeLabel = dataTypeId !== "all" ? getAllDataTypes().find((d) => d.id === dataTypeId)?.name : null;
+      await exportFlowDiagramPdf({
+        dataSvgEl: dataSvgRef.current,
+        dataDiagram: dataFlowDiagram,
+        controlSvgEl: controlPlaneMatrix ? controlSvgRef.current : null,
+        controlDiagram: controlPlaneMatrix,
+        system,
+        dataTypeLabel,
+        layout,
+        getAssetLabel: (assetId) => {
+          const a = getAsset(assetId);
+          return a ? `${a.code} — ${a.name}` : assetId;
+        },
+      });
+    } finally {
+      setExporting(false);
+    }
   }
 
   return (
@@ -594,25 +634,94 @@ export default function DataMap() {
 
           {system ? (
             <>
-              <div className="flex items-center gap-2 mb-4 overflow-x-auto" style={{ scrollbarWidth: "thin" }}>
-                <span className="text-[11px] mr-1 shrink-0" style={{ color: C.muted }}>Filter by data type:</span>
-                {[{ id: "all", name: "All data" }, ...systemDataTypes].map((dt) => (
-                  <button
-                    key={dt.id}
-                    onClick={() => setDataTypeId(dt.id)}
-                    className="px-2.5 py-1 rounded-lg text-[11px] font-medium shrink-0"
-                    style={{
-                      background: dataTypeId === dt.id ? C.accentBg : "transparent",
-                      color: dataTypeId === dt.id ? C.accent : C.muted,
-                      border: `1px solid ${dataTypeId === dt.id ? C.accent : C.border}`,
-                    }}
-                  >
-                    {dt.name}
-                  </button>
-                ))}
+              <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                <div className="flex items-center gap-2 overflow-x-auto" style={{ scrollbarWidth: "thin" }}>
+                  <span className="text-[11px] mr-1 shrink-0" style={{ color: C.muted }}>Filter by data type:</span>
+                  {[{ id: "all", name: "All data" }, ...systemDataTypes].map((dt) => (
+                    <button
+                      key={dt.id}
+                      onClick={() => setDataTypeId(dt.id)}
+                      className="px-2.5 py-1 rounded-lg text-[11px] font-medium shrink-0"
+                      style={{
+                        background: dataTypeId === dt.id ? C.accentBg : "transparent",
+                        color: dataTypeId === dt.id ? C.accent : C.muted,
+                        border: `1px solid ${dataTypeId === dt.id ? C.accent : C.border}`,
+                      }}
+                    >
+                      {dt.name}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center rounded-lg p-0.5" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+                    <button
+                      onClick={() => setViewMode("cards")}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium"
+                      style={{ background: viewMode === "cards" ? C.panel : "transparent", color: viewMode === "cards" ? C.ink : C.muted }}
+                    >
+                      <LayoutList size={12} /> Cards
+                    </button>
+                    <button
+                      onClick={() => setViewMode("diagram")}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium"
+                      style={{ background: viewMode === "diagram" ? C.panel : "transparent", color: viewMode === "diagram" ? C.ink : C.muted }}
+                      title="Real point-to-point edges, laid out from the graph — not stage buckets."
+                    >
+                      <Workflow size={12} /> Diagram
+                    </button>
+                  </div>
+                  {viewMode === "diagram" && (
+                    <button
+                      onClick={handleExportPdf}
+                      disabled={exporting}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium"
+                      style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accent}`, opacity: exporting ? 0.6 : 1 }}
+                    >
+                      {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                      {exporting ? "Exporting…" : "Export PDF"}
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <FlowChart layout={layout} selectedKey={selectedKey} onSelectNode={(k) => setSelectedKey((cur) => (cur === k ? null : k))} rolesFor={rolesFor} />
+              {viewMode === "cards" ? (
+                <FlowChart layout={layout} selectedKey={selectedKey} onSelectNode={(k) => setSelectedKey((cur) => (cur === k ? null : k))} rolesFor={rolesFor} />
+              ) : (
+                <div className="flex flex-col gap-4">
+                  <div className="rounded-2xl p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+                    <SectionLabel hint="Ingress actors through the request path to egress — the request-path story only.">
+                      Data Movement
+                    </SectionLabel>
+                    <div className="mb-3 mt-2 overflow-x-auto" style={{ scrollbarWidth: "thin" }}>
+                      <FlowDiagramSVG
+                        ref={dataSvgRef}
+                        diagram={dataFlowDiagram}
+                        selectedKey={selectedKey}
+                        onSelectNode={(k) => setSelectedKey((cur) => (cur === k ? null : k))}
+                      />
+                    </div>
+                    <FlowDiagramLegend kinds={["data", "actor-in", "actor-out"]} />
+                  </div>
+
+                  {controlPlaneMatrix && (
+                    <div className="rounded-2xl p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+                      <SectionLabel hint="Every protector against everything it protects. Shown as a matrix rather than a diagram: this relationship is dense many-to-many (several protectors cover nearly identical asset sets), which no line-based layout can draw without crossings.">
+                        Control Plane
+                      </SectionLabel>
+                      <div className="mb-3 mt-2 overflow-x-auto" style={{ scrollbarWidth: "thin" }}>
+                        <FlowMatrixSVG
+                          ref={controlSvgRef}
+                          matrix={controlPlaneMatrix}
+                          selectedKey={selectedKey}
+                          onSelectNode={(k) => setSelectedKey((cur) => (cur === k ? null : k))}
+                        />
+                      </div>
+                      <FlowMatrixLegend />
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="text-[11px] mt-3" style={{ color: C.muted }}>
                 {layout.edges.length} data flow{layout.edges.length === 1 ? "" : "s"} shown
