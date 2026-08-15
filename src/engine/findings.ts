@@ -10,7 +10,7 @@
 // evidenceIds are read off evidence records that declare `findingId`
 // themselves, matching evidence.js's existing convention that a record
 // declares its own scope rather than being pointed at from elsewhere.
-import { FINDINGS, FINDING_STATUSES } from "../graph/nodes/findings";
+import { FINDINGS, FINDING_STATUSES, type Finding } from "../graph/nodes/findings";
 import { ASSET_BY_ID } from "../graph/nodes/assets";
 import { KEY_CONTROL_BY_ID } from "../graph/nodes/keyControls";
 import { EVIDENCE } from "../graph/nodes/evidence";
@@ -29,7 +29,7 @@ export const FINDING_STATUS_META = {
   closed: { label: "Closed", color: "muted" },
 };
 
-function riskIdsFor(assetId, controlId) {
+function riskIdsFor(assetId: string, controlId: string): string[] {
   return RISKS.filter(
     (r) =>
       controlsForRisk(r.id).some((c) => c.controlId === controlId) &&
@@ -37,7 +37,7 @@ function riskIdsFor(assetId, controlId) {
   ).map((r) => r.id);
 }
 
-function buildFinding(f) {
+function buildFinding(f: Finding) {
   const asset = ASSET_BY_ID[f.assetId];
   const control = KEY_CONTROL_BY_ID[f.controlId];
   const owner = ORG_BY_ID[f.ownerId];
@@ -63,18 +63,20 @@ function buildFinding(f) {
   };
 }
 
-export const ALL_FINDINGS = FINDINGS.map(buildFinding);
-export const FINDING_BY_ID = Object.fromEntries(ALL_FINDINGS.map((f) => [f.id, f]));
+export type EngineFinding = ReturnType<typeof buildFinding>;
 
-export function findingsForSystem(systemId) {
+export const ALL_FINDINGS: EngineFinding[] = FINDINGS.map(buildFinding);
+export const FINDING_BY_ID: Record<string, EngineFinding> = Object.fromEntries(ALL_FINDINGS.map((f) => [f.id, f]));
+
+export function findingsForSystem(systemId: string): EngineFinding[] {
   return ALL_FINDINGS.filter((f) => f.systemId === systemId);
 }
 
-export function findingsForAsset(assetId) {
+export function findingsForAsset(assetId: string): EngineFinding[] {
   return ALL_FINDINGS.filter((f) => f.assetId === assetId);
 }
 
-export function findingsForRisk(riskId) {
+export function findingsForRisk(riskId: string): EngineFinding[] {
   return ALL_FINDINGS.filter((f) => f.riskIds.includes(riskId));
 }
 

@@ -34,7 +34,7 @@ import { assetsForSystem } from "../graph/nodes/assets";
 import { controlsForStandards, controlsSatisfyingClause, clausesForFramework, CONTROL_BY_ID } from "../graph/nodes/controls";
 import { isKeyControl, KEY_CONTROL_BY_ID } from "../graph/nodes/keyControls";
 import { BASIS } from "../graph/nodes/taxonomy";
-import { buildImplementation, programImplementation } from "./implementation";
+import { buildImplementation, programImplementation, type Implementation } from "./implementation";
 import { assetsRequiringControl, PROGRAM_CONTROL_IDS } from "./applicability";
 import { ASSET_ROLLUP_BY_ID, SYSTEM_ROLLUP_BY_ID } from "./rollups";
 import { mean, assuranceBand, display } from "./assurance";
@@ -54,25 +54,26 @@ export const COVERAGE_STATUS_META = {
 // Worst status across a control's implementations on one system's assets. A
 // control that is effective on five assets and deficient on a sixth is not
 // "mostly satisfied" — the sixth is the finding.
-const STATUS_RANK = { "not-implemented": 0, deficient: 1, partial: 2, unevidenced: 3, effective: 4 };
+const STATUS_RANK: Record<string, number> = { "not-implemented": 0, deficient: 1, partial: 2, unevidenced: 3, effective: 4 };
 
-function aggregateImplementationStatus(implementations) {
+function aggregateImplementationStatus(implementations: Implementation[]): string | null {
   if (implementations.length === 0) return null;
   const worst = implementations.reduce((w, i) => (STATUS_RANK[i.status] < STATUS_RANK[w.status] ? i : w));
-  const map = { effective: "satisfied", partial: "partial", deficient: "deficient", "not-implemented": "not-implemented", unevidenced: "assessed" };
+  const map: Record<string, string> = { effective: "satisfied", partial: "partial", deficient: "deficient", "not-implemented": "not-implemented", unevidenced: "assessed" };
   return map[worst.status] ?? "assessed";
 }
 
 // One row of a system's control matrix.
-export function controlCoverageForSystem(systemId, controlId) {
+export function controlCoverageForSystem(systemId: string, controlId: string) {
   const system = SYSTEM_BY_ID[systemId];
   const control = CONTROL_BY_ID[controlId];
   const rollup = SYSTEM_ROLLUP_BY_ID[systemId];
 
   if (inheritsDomain(system.hostingType, control.domain)) {
     return {
-      controlId, control, systemId, status: "inherited", basis: BASIS.INHERITED, score: null, implementations: [],
+      controlId, control, systemId, status: "inherited", basis: BASIS.INHERITED, score: null as number | null, implementations: [] as Implementation[],
       explanation: `${system.provider} carries this domain under the ${system.hostingType === "saas" ? "SaaS" : "cloud"} shared-responsibility split.`,
+      keyControl: undefined as ReturnType<typeof buildImplementation>["control"] | undefined,
     };
   }
 
@@ -80,7 +81,7 @@ export function controlCoverageForSystem(systemId, controlId) {
     const keyControl = KEY_CONTROL_BY_ID[controlId];
 
     if (keyControl.scope === "program") {
-      const impl = programImplementation(controlId);
+      const impl = programImplementation(controlId)!;
       return {
         controlId, control, systemId, keyControl,
         status: aggregateImplementationStatus([impl]) ?? "unassessed",
@@ -94,9 +95,9 @@ export function controlCoverageForSystem(systemId, controlId) {
     if (implementations.length > 0) {
       return {
         controlId, control, systemId, keyControl,
-        status: aggregateImplementationStatus(implementations),
+        status: aggregateImplementationStatus(implementations)!,
         basis: implementations.some((i) => i.basis === BASIS.MEASURED) ? BASIS.MEASURED : BASIS.ASSESSED,
-        score: display(mean(implementations.map((i) => i.rawScore))),
+        score: display(mean(implementations.map((i) => i.rawScore as number))),
         implementations,
         explanation: `Implemented on ${implementations.length} asset${implementations.length === 1 ? "" : "s"} in this boundary.`,
       };
@@ -109,29 +110,31 @@ export function controlCoverageForSystem(systemId, controlId) {
   const categoryScore = rollup?.categoryScores?.[control.category];
   if (categoryScore != null) {
     return {
-      controlId, control, systemId, status: "assessed", basis: BASIS.ASSESSED, score: categoryScore, implementations: [],
+      controlId, control, systemId, status: "assessed", basis: BASIS.ASSESSED, score: categoryScore, implementations: [] as Implementation[],
       explanation: `Not individually tracked. Covered by this system's ${control.category} assessment.`,
     };
   }
 
   return {
-    controlId, control, systemId, status: "unassessed", basis: BASIS.UNASSESSED, score: null, implementations: [],
+    controlId, control, systemId, status: "unassessed", basis: BASIS.UNASSESSED, score: null as number | null, implementations: [] as Implementation[],
     explanation: "No implementation, inheritance, or category assessment covers this control.",
   };
 }
 
+export type ControlCoverage = ReturnType<typeof controlCoverageForSystem>;
+
 // The full matrix for one system — every control its standards actually
 // require, sorted by domain then id, same ordering the SSP page used.
-export function systemControlMatrix(systemId) {
+export function systemControlMatrix(systemId: string): ControlCoverage[] {
   const system = SYSTEM_BY_ID[systemId];
   return controlsForStandards(system.standards)
     .map((c) => controlCoverageForSystem(systemId, c.id))
     .sort((a, b) => (a.control.domain === b.control.domain ? a.controlId.localeCompare(b.controlId) : a.control.domain.localeCompare(b.control.domain)));
 }
 
-export function systemCoverageBreakdown(systemId) {
+export function systemCoverageBreakdown(systemId: string) {
   const rows = systemControlMatrix(systemId);
-  const count = (...statuses) => rows.filter((r) => statuses.includes(r.status)).length;
+  const count = (...statuses: string[]) => rows.filter((r) => statuses.includes(r.status)).length;
   return {
     required: rows.length,
     inherited: count("inherited"),
@@ -162,37 +165,37 @@ export const SYSTEM_COVERAGE = Object.fromEntries(SYSTEMS.map((s) => [s.id, syst
 // certifying against that framework. This is the payoff the old model couldn't
 // reach: when an S3 IAM control fails, the SOC 2 clauses citing that control
 // move, without anyone editing a compliance page.
-export function clauseCoverage(standard, clause) {
+export function clauseCoverage(standard: string, clause: string) {
   const controls = controlsSatisfyingClause(standard, clause);
   const systems = SYSTEMS.filter((s) => s.standards.includes(standard));
   const rows = systems.flatMap((s) => controls.map((c) => controlCoverageForSystem(s.id, c.id)));
 
   const scored = rows.filter((r) => r.score != null);
-  const worst = rows.reduce((w, r) => {
-    const rank = { "not-implemented": 0, deficient: 1, partial: 2, assessed: 3, inherited: 4, satisfied: 5, unassessed: 6 };
+  const worst = rows.reduce((w: ControlCoverage | null, r) => {
+    const rank: Record<string, number> = { "not-implemented": 0, deficient: 1, partial: 2, assessed: 3, inherited: 4, satisfied: 5, unassessed: 6 };
     return w === null || rank[r.status] < rank[w.status] ? r : w;
   }, null);
 
   return {
     standard, clause, controls, rows,
-    score: display(mean(scored.map((r) => r.score))),
-    band: assuranceBand(display(mean(scored.map((r) => r.score)))),
+    score: display(mean(scored.map((r) => r.score as number))),
+    band: assuranceBand(display(mean(scored.map((r) => r.score as number)))),
     weakest: worst,
     satisfiedCount: rows.filter((r) => r.status === "satisfied" || r.status === "inherited").length,
     totalCount: rows.length,
   };
 }
 
-export function frameworkPosture(standard) {
+export function frameworkPosture(standard: string) {
   const clauses = clausesForFramework(standard);
   const systems = SYSTEMS.filter((s) => s.standards.includes(standard));
-  if (systems.length === 0) return { standard, inScope: false, clauses: [], score: null };
+  if (systems.length === 0) return { standard, inScope: false, clauses: [] as string[], score: null as number | null };
 
   const controlRows = systems.flatMap((s) =>
     controlsForStandards([standard]).map((c) => controlCoverageForSystem(s.id, c.id))
   );
   const scored = controlRows.filter((r) => r.score != null);
-  const score = display(mean(scored.map((r) => r.score)));
+  const score = display(mean(scored.map((r) => r.score as number)));
 
   return {
     standard,
@@ -220,12 +223,15 @@ export function frameworkPosture(standard) {
 // Only key controls are shown. A clause satisfied purely by category-assessed
 // controls has nothing specific to say about itself, and listing it with a
 // derived-looking number would be the exact overclaim this replaced.
-export function systemStandardMappings(systemId, standard) {
+export function systemStandardMappings(systemId: string, standard: string) {
   const system = SYSTEM_BY_ID[systemId];
   if (!system?.standards.includes(standard)) return [];
 
-  const rows = [];
-  const seen = new Set();
+  const rows: {
+    req: string; control: string; controlId: string; confidence: number;
+    status: string; basis: string; reasoning: string;
+  }[] = [];
+  const seen = new Set<string>();
 
   controlsForStandards([standard])
     .filter((c) => isKeyControl(c.id))
@@ -240,7 +246,7 @@ export function systemStandardMappings(systemId, standard) {
       seen.add(`${primary}::${control.id}`);
 
       const weakest = coverage.implementations.reduce(
-        (w, i) => (w === null || i.score < w.score ? i : w),
+        (w: Implementation | null, i) => (w === null || (i.score as number) < (w.score as number) ? i : w),
         null
       );
       const weakAsset = weakest?.assetId ? assetsForSystem(systemId).find((a) => a.id === weakest.assetId) : null;

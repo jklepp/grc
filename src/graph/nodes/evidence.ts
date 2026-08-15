@@ -34,16 +34,20 @@
 // propagation work end to end: flip one to "fail" and the implementation, the
 // asset, its system, the enterprise score, that control's framework coverage,
 // and any risk it contributes to all move together.
+import type { EvidenceType } from "./taxonomy";
 
-export const EVIDENCE_RESULTS = ["pass", "partial", "fail"];
-export const INDEPENDENCE_LEVELS = ["automated", "internal", "external"];
+export const EVIDENCE_RESULTS = ["pass", "partial", "fail"] as const;
+export type EvidenceResult = (typeof EVIDENCE_RESULTS)[number];
+
+export const INDEPENDENCE_LEVELS = ["automated", "internal", "external"] as const;
+export type IndependenceLevel = (typeof INDEPENDENCE_LEVELS)[number];
 
 // Deliberately duplicated (not imported) from evidenceSources.js's identical
 // function: that file derives EVIDENCE_SOURCES FROM this file's RAW_EVIDENCE,
 // so importing it back here would be a cycle. It's one pure three-line
 // function, not a fact — nothing about what a source id IS lives in two
 // places, just the formula for computing one from a name.
-export function sourceIdFromName(name) {
+export function sourceIdFromName(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-+|-+$)/g, "");
 }
 
@@ -51,7 +55,7 @@ export function sourceIdFromName(name) {
 // keyed by evidence type. A continuous telemetry feed is worthless the moment
 // it stops reporting; an auditor's examination is reasonably good for a year.
 // Records may override with their own validForDays.
-export const DEFAULT_VALIDITY_DAYS = {
+export const DEFAULT_VALIDITY_DAYS: Record<EvidenceType, number> = {
   "Continuous telemetry": 2,
   "Automated technical test": 14,
   "API configuration observation": 30,
@@ -61,7 +65,25 @@ export const DEFAULT_VALIDITY_DAYS = {
   "Self-attestation": 180,
 };
 
-export const RAW_EVIDENCE = [
+export interface RawEvidence {
+  id: string;
+  source: string;
+  evidenceType: EvidenceType;
+  controlId: string;
+  assetIds: string[];
+  collectedAt: string;
+  coveragePct: number;
+  result: EvidenceResult;
+  independence: IndependenceLevel;
+  validForDays?: number;
+  exceptions?: number;
+  population?: number;
+  populationUnit?: string;
+  findingId?: string;
+  note?: string;
+}
+
+export const RAW_EVIDENCE: RawEvidence[] = [
   // ---- Encryption at rest (CRY-05) -------------------------------------------
   {
     id: "EV-9101", source: "Vanta — AWS encryption-at-rest test", evidenceType: "Automated technical test",
@@ -522,18 +544,23 @@ export const RAW_EVIDENCE = [
   },
 ];
 
-export const EVIDENCE = RAW_EVIDENCE.map((e) => ({
+export interface Evidence extends RawEvidence {
+  validForDays: number;
+  sourceId: string;
+}
+
+export const EVIDENCE: Evidence[] = RAW_EVIDENCE.map((e) => ({
   ...e,
   validForDays: e.validForDays ?? DEFAULT_VALIDITY_DAYS[e.evidenceType],
   sourceId: sourceIdFromName(e.source),
 }));
 
-export const EVIDENCE_BY_ID = Object.fromEntries(EVIDENCE.map((e) => [e.id, e]));
+export const EVIDENCE_BY_ID: Record<string, Evidence> = Object.fromEntries(EVIDENCE.map((e) => [e.id, e]));
 
 // Every collection covering one implementation. The lookup direction that
 // makes evidence-on-the-record work: implementations never store evidence ids,
 // they ask for them.
-const BY_PAIR = {};
+const BY_PAIR: Record<string, Evidence[]> = {};
 EVIDENCE.forEach((e) => {
   if (e.assetIds.length === 0) {
     (BY_PAIR[`program::${e.controlId}`] ||= []).push(e);
@@ -542,6 +569,6 @@ EVIDENCE.forEach((e) => {
   e.assetIds.forEach((assetId) => (BY_PAIR[`${assetId}::${e.controlId}`] ||= []).push(e));
 });
 
-export function evidenceFor(assetId, controlId) {
+export function evidenceFor(assetId: string | null | undefined, controlId: string): Evidence[] {
   return BY_PAIR[`${assetId ?? "program"}::${controlId}`] || [];
 }

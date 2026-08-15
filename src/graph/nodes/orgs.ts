@@ -36,9 +36,17 @@
 // "Product Leadership" is a Business Unit rather than a Team, because
 // systems.js uses it as a Data Owner assignment at the leadership/business
 // level, not an operating team.
-export const ORG_KINDS = { TEAM: "team", USER: "user", BUSINESS_UNIT: "business-unit" };
+export const ORG_KINDS = { TEAM: "team", USER: "user", BUSINESS_UNIT: "business-unit" } as const;
+export type OrgKind = (typeof ORG_KINDS)[keyof typeof ORG_KINDS];
 
-export const ORGS = [
+export interface Org {
+  id: string;
+  name: string;
+  kind: OrgKind;
+  parentId?: string;
+}
+
+export const ORGS: Org[] = [
   { id: "it-security", name: "IT Security", kind: ORG_KINDS.TEAM },
   { id: "it-security-soc", name: "IT Security — SOC Function", kind: ORG_KINDS.TEAM, parentId: "it-security" },
   { id: "it-security-saas-admin", name: "IT Security (SaaS Administration)", kind: ORG_KINDS.TEAM, parentId: "it-security" },
@@ -62,15 +70,15 @@ export const ORGS = [
   { id: "r-chen", name: "R. Chen", kind: ORG_KINDS.USER },
 ];
 
-export const ORG_BY_ID = Object.fromEntries(ORGS.map((o) => [o.id, o]));
+export const ORG_BY_ID: Record<string, Org> = Object.fromEntries(ORGS.map((o) => [o.id, o]));
 
 // Resolves an id to a display name; falls back to the raw id so a bad
 // reference is visible in the UI instead of rendering blank (validate.js is
 // what actually catches the bad reference — this is just a display fallback).
-export function orgName(id) {
+export function orgName(id: string): string {
   return ORG_BY_ID[id]?.name ?? id;
 }
 
-export function orgNames(ids) {
+export function orgNames(ids?: string[] | null): string {
   return (ids || []).map(orgName).join(" / ");
 }

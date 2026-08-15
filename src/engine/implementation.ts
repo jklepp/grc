@@ -26,8 +26,8 @@
 // was worth on the day it was collected.
 import { KEY_CONTROL_BY_ID, PROGRAM_SCOPED_CONTROLS } from "../graph/nodes/keyControls";
 import { ASSET_BY_ID } from "../graph/nodes/assets";
-import { BASIS, ASSURANCE_CATEGORIES } from "../graph/nodes/taxonomy";
-import { evidenceFor } from "../graph/nodes/evidence";
+import { BASIS, ASSURANCE_CATEGORIES, type AssuranceCategory, type MaturityStage } from "../graph/nodes/taxonomy";
+import { evidenceFor, type Evidence } from "../graph/nodes/evidence";
 import { assessmentFor, CATEGORY_ASSESSMENTS } from "../graph/edges/categoryAssessments";
 import { overrideFor, notImplementedFor, ownerIdsFor, ownerOverrideFor } from "../graph/edges/controlImplementations";
 import { ORG_BY_ID } from "../graph/nodes/orgs";
@@ -40,8 +40,8 @@ import { blendAssurance, evidenceBaseConfidence, mean, display } from "./assuran
 const NOW = new Date();
 const DAY_MS = 86400000;
 
-export function ageInDays(collectedAt) {
-  return Math.max(0, Math.floor((NOW - new Date(collectedAt)) / DAY_MS));
+export function ageInDays(collectedAt: string): number {
+  return Math.max(0, Math.floor((NOW.getTime() - new Date(collectedAt).getTime()) / DAY_MS));
 }
 
 // Full strength inside the validity window, then decaying to a floor. The floor
@@ -49,17 +49,27 @@ export function ageInDays(collectedAt) {
 // SOC 2 report from fourteen months ago still says something.
 const STALE_FLOOR = 0.35;
 
-export function freshnessFactor(record) {
+export function freshnessFactor(record: Evidence): number {
   const age = ageInDays(record.collectedAt);
   if (age <= record.validForDays) return 1;
   const overdue = age - record.validForDays;
   return Math.max(STALE_FLOOR, 1 - overdue / (record.validForDays * 2));
 }
 
-export function scoreEvidence(record) {
+export interface ScoredEvidence extends Evidence {
+  ageDays: number;
+  stale: boolean;
+  freshness: number;
+  quality: number;
+  coverage: number;
+  exceptionRate: number | null;
+  confidence: number;
+}
+
+export function scoreEvidence(record: Evidence): ScoredEvidence {
   const freshness = freshnessFactor(record);
   const base = evidenceBaseConfidence(record.evidenceType);
-  const hasPrevalence = Number.isFinite(record.population) && Number.isFinite(record.exceptions) && record.population > 0;
+  const hasPrevalence = Number.isFinite(record.population) && Number.isFinite(record.exceptions) && (record.population as number) > 0;
   return {
     ...record,
     ageDays: ageInDays(record.collectedAt),
@@ -74,7 +84,7 @@ export function scoreEvidence(record) {
     coverage: record.coveragePct / 100,
     // What share of the population this collection actually found in breach.
     // Null when the record doesn't count — see effectivenessFactor().
-    exceptionRate: hasPrevalence ? record.exceptions / record.population : null,
+    exceptionRate: hasPrevalence ? (record.exceptions as number) / (record.population as number) : null,
     // Retained for anything that wants a single per-record figure.
     confidence: Math.round(base * (record.coveragePct / 100) * freshness),
   };
@@ -107,12 +117,18 @@ export function scoreEvidence(record) {
 // pessimistic one is that the 20% is a subset of the 100%, which is exactly
 // max(). Making this exact needs evidence scoped to identified population
 // segments — a data-model change, not a formula change.
-export function composeEvidenceConfidence(records) {
+export interface ComposedEvidenceConfidence {
+  confidence: number;
+  allocation: { id: string; source: string; quality: number; claimed: number }[];
+  uncovered: number;
+}
+
+export function composeEvidenceConfidence(records: ScoredEvidence[]): ComposedEvidenceConfidence | null {
   if (records.length === 0) return null;
   const sorted = [...records].sort((a, b) => b.quality - a.quality);
   let remaining = 1;
   let accumulated = 0;
-  const allocation = [];
+  const allocation: ComposedEvidenceConfidence["allocation"] = [];
   sorted.forEach((r) => {
     const claimed = Math.min(r.coverage, remaining);
     if (claimed > 0) {
@@ -127,14 +143,14 @@ export function composeEvidenceConfidence(records) {
 // Worst result wins. If one collection says a control failed, the control
 // failed — a second passing collection means the failure is narrower, not that
 // it didn't happen.
-const RESULT_RANK = { fail: 0, partial: 1, pass: 2 };
+const RESULT_RANK: Record<string, number> = { fail: 0, partial: 1, pass: 2 };
 
 // The record that establishes the worst verified condition, and therefore the
 // one whose prevalence governs. Ties break toward the higher exception rate, so
 // two failing tests resolve to the more systemic of the two. Keeping a single
 // governing record means a deficient implementation can always name the
 // collection that made it deficient.
-function governingRecord(records) {
+function governingRecord(records: ScoredEvidence[]): ScoredEvidence | null {
   if (records.length === 0) return null;
   return records.reduce((worst, r) => {
     if (RESULT_RANK[r.result] !== RESULT_RANK[worst.result]) {
@@ -167,9 +183,9 @@ const PREVALENCE_FLOOR = 0.25;
 // Used when a collection reports a result but no counts. Unchanged from the
 // previous fixed factors, so a record that says nothing about prevalence is
 // scored exactly as it was before.
-const RESULT_EFFECTIVENESS_FACTOR = { pass: 1, partial: 0.75, fail: 0.35 };
+const RESULT_EFFECTIVENESS_FACTOR: Record<string, number> = { pass: 1, partial: 0.75, fail: 0.35 };
 
-export function effectivenessFactor(result, exceptionRate) {
+export function effectivenessFactor(result: string | null, exceptionRate: number | null): number {
   if (result === "pass") return 1;
   if (result === null) return 1;
   if (exceptionRate == null) return RESULT_EFFECTIVENESS_FACTOR[result];
@@ -180,7 +196,7 @@ export function effectivenessFactor(result, exceptionRate) {
 // The category baseline for program-scoped controls: the portfolio mean of that
 // category across every asset. Derived rather than a separate hand-set figure,
 // so a program control's floor moves with the estate it governs.
-const PROGRAM_BASELINE = {};
+const PROGRAM_BASELINE = {} as Record<AssuranceCategory, { maturityStage: MaturityStage; effectivenessPct: number }>;
 ASSURANCE_CATEGORIES.forEach((category) => {
   const rows = CATEGORY_ASSESSMENTS.filter((a) => a.category === category);
   PROGRAM_BASELINE[category] = {
@@ -190,7 +206,7 @@ ASSURANCE_CATEGORIES.forEach((category) => {
 });
 
 // assetId of null means a program-scoped control.
-export function buildImplementation(assetId, controlId) {
+export function buildImplementation(assetId: string | null, controlId: string) {
   const control = KEY_CONTROL_BY_ID[controlId];
   const isProgram = assetId === null;
   const asset = isProgram ? null : ASSET_BY_ID[assetId];
@@ -226,13 +242,29 @@ export function buildImplementation(assetId, controlId) {
     override,
   };
 
+  // Fields only the fully-scored branch below computes for real. Included as
+  // null/empty in the earlier branches too so every return of this function
+  // has one consistent shape rather than a narrower one callers have to guard.
+  const unscored = {
+    result: null as string | null,
+    rawEffectivenessPct: null as number | null,
+    governing: null as ScoredEvidence | null,
+    exceptionRate: null as number | null,
+    exceptionSummary: null as { exceptions?: number; population?: number; unit?: string; rate: number; source: string } | null,
+    effectivenessFactor: null as number | null,
+    rawEvidenceConfidence: null as number | null,
+    evidenceAllocation: [] as ComposedEvidenceConfidence["allocation"],
+    evidenceUncovered: null as number | null,
+  };
+
   if (!applicability.required) {
-    return { ...common, status: "not-applicable", basis: BASIS.UNASSESSED, score: null, rawScore: null, evidenceConfidence: null, effectivenessPct: null, maturityStage: null };
+    return { ...common, ...unscored, status: "not-applicable", basis: BASIS.UNASSESSED, score: null, rawScore: null, evidenceConfidence: null, effectivenessPct: null, maturityStage: null, note: null as string | null };
   }
 
   if (declaredMissing) {
     return {
       ...common,
+      ...unscored,
       status: "not-implemented",
       // Knowing a control is absent IS a measurement — it's the one case where
       // a zero is a finding rather than a blank.
@@ -246,7 +278,8 @@ export function buildImplementation(assetId, controlId) {
     };
   }
 
-  const maturityStage = override?.maturityStage ?? baseline.maturityStage;
+  const baselineEntry = baseline!;
+  const maturityStage = override?.maturityStage ?? baselineEntry.maturityStage;
 
   // The worst verified condition governs, and it stays nameable: `governing` is
   // the specific collection this implementation's status and prevalence come
@@ -259,13 +292,13 @@ export function buildImplementation(assetId, controlId) {
   const evidenceConfidence = composed ? composed.confidence : null;
 
   const factor = effectivenessFactor(result, exceptionRate);
-  const effectivenessPct = result === null ? baseline.effectivenessPct : baseline.effectivenessPct * factor;
+  const effectivenessPct = result === null ? baselineEntry.effectivenessPct : baselineEntry.effectivenessPct * factor;
 
   const basis = records.length > 0 ? BASIS.MEASURED : BASIS.ASSESSED;
 
   // With no evidence, confidence falls back to the assessment's own declared
   // evidence type — the honest reading of "someone said so at this grade."
-  const confidenceForScore = evidenceConfidence ?? evidenceBaseConfidence(baseline.evidenceType);
+  const confidenceForScore = evidenceConfidence ?? evidenceBaseConfidence((baselineEntry as { evidenceType?: import("../graph/nodes/taxonomy").EvidenceType }).evidenceType);
 
   const raw = blendAssurance({ maturityStage, evidenceConfidence: confidenceForScore, effectivenessPct });
 
@@ -298,6 +331,8 @@ export function buildImplementation(assetId, controlId) {
   };
 }
 
+export type Implementation = ReturnType<typeof buildImplementation>;
+
 export const IMPLEMENTATION_STATUS_META = {
   effective: { label: "Effective", color: "green" },
   partial: { label: "Partial", color: "amber" },
@@ -307,16 +342,16 @@ export const IMPLEMENTATION_STATUS_META = {
   "not-applicable": { label: "Not applicable", color: "muted" },
 };
 
-export function implementationsForAsset(assetId) {
+export function implementationsForAsset(assetId: string): Implementation[] {
   return requiredControlsForAsset(assetId).map((c) => buildImplementation(assetId, c.id));
 }
 
-export function implementationsForAssetInCategory(assetId, category) {
+export function implementationsForAssetInCategory(assetId: string, category: string): Implementation[] {
   return implementationsForAsset(assetId).filter((i) => i.category === category);
 }
 
-export const PROGRAM_IMPLEMENTATIONS = PROGRAM_SCOPED_CONTROLS.map((c) => buildImplementation(null, c.id));
+export const PROGRAM_IMPLEMENTATIONS: Implementation[] = PROGRAM_SCOPED_CONTROLS.map((c) => buildImplementation(null, c.id));
 
-export function programImplementation(controlId) {
+export function programImplementation(controlId: string): Implementation | null {
   return PROGRAM_IMPLEMENTATIONS.find((i) => i.controlId === controlId) || null;
 }

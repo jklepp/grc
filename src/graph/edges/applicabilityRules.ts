@@ -28,6 +28,9 @@
 // apply, each with a stated reason. They are the answer to "why doesn't DP-019
 // apply here" — an exception is a decision someone made, and it should read
 // like one rather than being absent from the model.
+import type { AssetKind } from "../nodes/assets";
+import type { ClassificationTier } from "../nodes/taxonomy";
+import type { HostingType } from "../nodes/systems";
 
 export const APPLICABILITY_SOURCES = {
   CLASSIFICATION: "Data classification tier",
@@ -35,9 +38,24 @@ export const APPLICABILITY_SOURCES = {
   DATA_HANDLING: "Personal data handling",
   HOSTING: "Hosting arrangement",
   UNIVERSAL: "Applies to every asset in scope",
-};
+} as const;
+export type ApplicabilitySource = (typeof APPLICABILITY_SOURCES)[keyof typeof APPLICABILITY_SOURCES];
 
-export const APPLICABILITY_RULES = [
+export interface ApplicabilityCondition {
+  assetKinds?: AssetKind[];
+  minClassification?: ClassificationTier;
+  hostingTypes?: HostingType[];
+  dataKinds?: string[];
+}
+
+export interface ApplicabilityRule {
+  controlId: string;
+  requiredWhen: ApplicabilityCondition;
+  rationale: string;
+  source: ApplicabilitySource;
+}
+
+export const APPLICABILITY_RULES: ApplicabilityRule[] = [
   // ---- Data Protection ---------------------------------------------------------
   {
     controlId: "CRY-05",
@@ -169,10 +187,16 @@ export const APPLICABILITY_RULES = [
   },
 ];
 
+export interface ApplicabilityException {
+  assetId: string;
+  controlId: string;
+  reason: string;
+}
+
 // Where a rule fires but the control genuinely doesn't apply. Each needs a
 // reason, because "not applicable" without one is indistinguishable from "we
 // never got to it" — and those are very different answers to give an auditor.
-export const APPLICABILITY_EXCEPTIONS = [
+export const APPLICABILITY_EXCEPTIONS: ApplicabilityException[] = [
   {
     assetId: "AST-042-07", controlId: "DCH-18",
     reason: "Retention for the exported log stream is set and enforced in ACME's central monitoring destination, not in the vendor feed. Assessing it here would double-count the same control the destination already carries.",
@@ -185,12 +209,12 @@ export const APPLICABILITY_EXCEPTIONS = [
 
 const EXCEPTION_KEY = new Set(APPLICABILITY_EXCEPTIONS.map((e) => `${e.assetId}::${e.controlId}`));
 
-export function exceptionFor(assetId, controlId) {
+export function exceptionFor(assetId: string, controlId: string): ApplicabilityException | null {
   return EXCEPTION_KEY.has(`${assetId}::${controlId}`)
-    ? APPLICABILITY_EXCEPTIONS.find((e) => e.assetId === assetId && e.controlId === controlId)
+    ? APPLICABILITY_EXCEPTIONS.find((e) => e.assetId === assetId && e.controlId === controlId) ?? null
     : null;
 }
 
-export function rulesForControl(controlId) {
+export function rulesForControl(controlId: string): ApplicabilityRule[] {
   return APPLICABILITY_RULES.filter((r) => r.controlId === controlId);
 }

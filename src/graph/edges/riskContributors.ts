@@ -20,9 +20,17 @@
 // averaging the RAG service against five healthier assets would wash out
 // exactly the signal the risk exists to carry.
 
-export const CONTRIBUTOR_ROLES = { PRIMARY: "primary", CONTRIBUTING: "contributing" };
+export const CONTRIBUTOR_ROLES = { PRIMARY: "primary", CONTRIBUTING: "contributing" } as const;
+export type ContributorRole = (typeof CONTRIBUTOR_ROLES)[keyof typeof CONTRIBUTOR_ROLES];
 
-export const RISK_ASSETS = [
+export interface RiskAsset {
+  riskId: string;
+  assetId: string;
+  role: ContributorRole;
+  note?: string;
+}
+
+export const RISK_ASSETS: RiskAsset[] = [
   // RISK-001 — cross-tenant data exposure
   { riskId: "RISK-001", assetId: "AST-003-03", role: "primary", note: "Retrieval scoping is where the defect lives." },
   { riskId: "RISK-001", assetId: "AST-003-04", role: "primary", note: "Vector search applies tenant filtering only when the caller passes it." },
@@ -97,7 +105,12 @@ export const RISK_ASSETS = [
   { riskId: "RISK-018", assetId: "AST-003-03", role: "contributing" },
 ];
 
-export const RISK_CONTROLS = [
+export interface RiskControl {
+  riskId: string;
+  controlId: string;
+}
+
+export const RISK_CONTROLS: RiskControl[] = [
   { riskId: "RISK-001", controlId: "CLD-06" },
   { riskId: "RISK-001", controlId: "IAC-20" },
   { riskId: "RISK-001", controlId: "IAC-21" },
@@ -131,21 +144,21 @@ export const RISK_CONTROLS = [
 // Risks with no asset edges, and why. Four of the eighteen are genuinely not
 // about any resource in this register, and saying so explicitly is the point —
 // an unexplained absence of edges reads identically to an unfinished one.
-export const RISKS_WITHOUT_ASSETS = {
+export const RISKS_WITHOUT_ASSETS: Record<string, string> = {
   "RISK-004": "A vendor-reassessment backlog is a program condition, not a property of any asset. It's held down by TPM-04 at program scope.",
   "RISK-012": "An untested runbook is a program condition. Held down by IRO-02 at program scope.",
   "RISK-013": "Physical badge systems at a satellite office are outside this register's boundary — no asset here represents them, and inventing one to give the risk an edge would be worse than the gap.",
 };
 
 // Risks with no control edges, and why.
-export const RISKS_WITHOUT_CONTROLS = {
+export const RISKS_WITHOUT_CONTROLS: Record<string, string> = {
   "RISK-013": "No key control covers physical access. Physical & Environmental Security is governed at the domain level by SOP-13 rather than tracked as a key control, so this risk's assurance is reported as unassessed rather than borrowed from an unrelated control.",
 };
 
-const ASSETS_BY_RISK = {};
-const CONTROLS_BY_RISK = {};
-const RISKS_BY_ASSET = {};
-const RISKS_BY_CONTROL = {};
+const ASSETS_BY_RISK: Record<string, RiskAsset[]> = {};
+const CONTROLS_BY_RISK: Record<string, RiskControl[]> = {};
+const RISKS_BY_ASSET: Record<string, RiskAsset[]> = {};
+const RISKS_BY_CONTROL: Record<string, RiskControl[]> = {};
 RISK_ASSETS.forEach((e) => {
   (ASSETS_BY_RISK[e.riskId] ||= []).push(e);
   (RISKS_BY_ASSET[e.assetId] ||= []).push(e);
@@ -155,18 +168,18 @@ RISK_CONTROLS.forEach((e) => {
   (RISKS_BY_CONTROL[e.controlId] ||= []).push(e);
 });
 
-export function assetsForRisk(riskId) {
+export function assetsForRisk(riskId: string): RiskAsset[] {
   return ASSETS_BY_RISK[riskId] || [];
 }
 
-export function controlsForRisk(riskId) {
+export function controlsForRisk(riskId: string): RiskControl[] {
   return CONTROLS_BY_RISK[riskId] || [];
 }
 
-export function risksForAsset(assetId) {
+export function risksForAsset(assetId: string): RiskAsset[] {
   return RISKS_BY_ASSET[assetId] || [];
 }
 
-export function risksForControl(controlId) {
+export function risksForControl(controlId: string): RiskControl[] {
   return RISKS_BY_CONTROL[controlId] || [];
 }

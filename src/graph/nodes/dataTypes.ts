@@ -22,8 +22,18 @@
 // mark of its assets, and an asset's is the high-water mark of its data — so a
 // log feed that only ever carries access metadata stops being labelled
 // "Restricted" just because it sits inside a Restricted boundary.
+import type { ClassificationTier } from "./taxonomy";
 
-export const DATA_TYPES = [
+export interface DataType {
+  id: string;
+  name: string;
+  kind: string;
+  sensitivity: ClassificationTier;
+  regulatedBy: string[];
+  description: string;
+}
+
+export const DATA_TYPES: DataType[] = [
   {
     id: "DT-001",
     name: "Customer PII",
@@ -107,7 +117,7 @@ export const DATA_TYPES = [
   },
 ];
 
-export const DATA_TYPE_BY_ID = Object.fromEntries(DATA_TYPES.map((d) => [d.id, d]));
+export const DATA_TYPE_BY_ID: Record<string, DataType> = Object.fromEntries(DATA_TYPES.map((d) => [d.id, d]));
 
 // Which data-type kinds count as personal data for applicability rules that
 // turn on "does this asset touch personal data at all" (see PRI-05 and NET-17

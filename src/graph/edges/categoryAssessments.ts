@@ -21,9 +21,15 @@
 // real implementations contribute their measured scores, and the remainder
 // contributes this baseline, weighted by how much of the category each covers.
 // That blend is what controlBackedPct reports.
-import { ASSURANCE_CATEGORIES } from "../nodes/taxonomy";
+import { ASSURANCE_CATEGORIES, type AssuranceCategory, type MaturityStage, type EvidenceType } from "../nodes/taxonomy";
 
-const ASSESSMENTS = {
+interface AssessmentEntry {
+  maturityStage: MaturityStage;
+  evidenceType: EvidenceType;
+  effectivenessPct: number;
+}
+
+const ASSESSMENTS: Record<string, Record<AssuranceCategory, AssessmentEntry>> = {
   "AST-003-01": {
     "Data Protection": { maturityStage: "Managed", evidenceType: "Continuous telemetry", effectivenessPct: 90 },
     Configuration: { maturityStage: "Managed", evidenceType: "API configuration observation", effectivenessPct: 92 },
@@ -146,10 +152,17 @@ const ASSESSMENTS = {
   },
 };
 
+export interface CategoryAssessment extends AssessmentEntry {
+  assetId: string;
+  category: AssuranceCategory;
+  assessedBy: string;
+  assessedAt: string;
+}
+
 // Flattened into edge records so the graph has one shape everywhere. The nested
 // literal above stays because a 6-key block per asset is far easier to read and
 // keep consistent than 90 free-standing rows.
-export const CATEGORY_ASSESSMENTS = Object.entries(ASSESSMENTS).flatMap(([assetId, byCategory]) =>
+export const CATEGORY_ASSESSMENTS: CategoryAssessment[] = Object.entries(ASSESSMENTS).flatMap(([assetId, byCategory]) =>
   ASSURANCE_CATEGORIES.map((category) => ({
     assetId,
     category,
@@ -159,17 +172,17 @@ export const CATEGORY_ASSESSMENTS = Object.entries(ASSESSMENTS).flatMap(([assetI
   }))
 );
 
-const BY_ASSET = {};
+const BY_ASSET: Record<string, Partial<Record<AssuranceCategory, CategoryAssessment>>> = {};
 CATEGORY_ASSESSMENTS.forEach((a) => {
   (BY_ASSET[a.assetId] ||= {})[a.category] = a;
 });
 
-export function assessmentFor(assetId, category) {
-  return BY_ASSET[assetId]?.[category] || null;
+export function assessmentFor(assetId: string, category: string): CategoryAssessment | null {
+  return BY_ASSET[assetId]?.[category as AssuranceCategory] || null;
 }
 
-export function assessmentsForAsset(assetId) {
+export function assessmentsForAsset(assetId: string): Partial<Record<AssuranceCategory, CategoryAssessment>> {
   return BY_ASSET[assetId] || {};
 }
 
-export const ASSESSED_ASSET_IDS = Object.keys(ASSESSMENTS);
+export const ASSESSED_ASSET_IDS: string[] = Object.keys(ASSESSMENTS);

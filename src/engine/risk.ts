@@ -7,23 +7,23 @@
 // reported the same number, and none of them could move when the thing the risk
 // was about moved. RISK-001 is a defect in retrieval scoping; it reported an
 // Identity & Access average that included the payroll connector.
-import { RISKS, RISK_BY_ID, SEVERITY_LEVELS, LIKELIHOOD_LEVELS, BOARD_MATERIAL_RISK_IDS } from "../graph/nodes/risks";
+import { RISKS, RISK_BY_ID, SEVERITY_LEVELS, LIKELIHOOD_LEVELS, BOARD_MATERIAL_RISK_IDS, type SeverityLevel, type LikelihoodLevel, type Risk } from "../graph/nodes/risks";
 import { KEY_CONTROL_BY_ID } from "../graph/nodes/keyControls";
 import { ORG_BY_ID } from "../graph/nodes/orgs";
 import { assetsForRisk, controlsForRisk, RISKS_WITHOUT_ASSETS, RISKS_WITHOUT_CONTROLS } from "../graph/edges/riskContributors";
 import { BASIS } from "../graph/nodes/taxonomy";
 import { ASSET_ROLLUP_BY_ID } from "./rollups";
-import { buildImplementation, programImplementation } from "./implementation";
+import { buildImplementation, programImplementation, type Implementation } from "./implementation";
 import { assetsRequiringControl } from "./applicability";
 import { weightedMean, mean, assuranceBand, display, ASSURANCE_TARGET } from "./assurance";
 
 // A tier's weight is its position in the ordering, so the label list and the
 // numeric scale cannot disagree — the previous pair of hand-typed lookup
 // objects could, and nothing checked them.
-export const SEVERITY_VALUE = Object.fromEntries(SEVERITY_LEVELS.map((l, i) => [l, i + 1]));
-export const LIKELIHOOD_VALUE = Object.fromEntries(LIKELIHOOD_LEVELS.map((l, i) => [l, i + 1]));
+export const SEVERITY_VALUE: Record<SeverityLevel, number> = Object.fromEntries(SEVERITY_LEVELS.map((l, i) => [l, i + 1])) as Record<SeverityLevel, number>;
+export const LIKELIHOOD_VALUE: Record<LikelihoodLevel, number> = Object.fromEntries(LIKELIHOOD_LEVELS.map((l, i) => [l, i + 1])) as Record<LikelihoodLevel, number>;
 
-export function score(severity, likelihood) {
+export function score(severity: SeverityLevel, likelihood: LikelihoodLevel): number {
   return SEVERITY_VALUE[severity] * LIKELIHOOD_VALUE[likelihood];
 }
 
@@ -31,28 +31,28 @@ export function score(severity, likelihood) {
 // in it. Averaging them as equals would let four healthy participants wash out
 // the one asset the risk is actually about, which is the failure mode the
 // portfolio average had.
-const ROLE_WEIGHT = { primary: 3, contributing: 1 };
+const ROLE_WEIGHT: Record<string, number> = { primary: 3, contributing: 1 };
 
 // The controls holding a risk down, resolved to their real implementations on
 // the assets that carry it. This is the chain that makes "why did this move"
 // answerable: risk -> control -> implementation -> evidence.
-export function controlPostureForRisk(riskId) {
+export function controlPostureForRisk(riskId: string) {
   const contributingAssetIds = assetsForRisk(riskId).map((e) => e.assetId);
   return controlsForRisk(riskId).map((edge) => {
     const control = KEY_CONTROL_BY_ID[edge.controlId];
     if (control.scope === "program") {
-      const impl = programImplementation(edge.controlId);
-      return { control, scope: "program", implementations: [impl], score: impl.score, rawScore: impl.rawScore, weakest: impl };
+      const impl = programImplementation(edge.controlId)!;
+      return { control, scope: "program" as const, implementations: [impl], score: impl.score, rawScore: impl.rawScore, weakest: impl, meanScore: undefined as number | null | undefined };
     }
     const implementations = assetsRequiringControl(edge.controlId)
       .filter((a) => contributingAssetIds.includes(a.id))
       .map((a) => buildImplementation(a.id, edge.controlId));
-    const weakest = implementations.length
-      ? implementations.reduce((w, i) => (i.score < w.score ? i : w))
+    const weakest: Implementation | null = implementations.length
+      ? implementations.reduce((w, i) => ((i.score as number) < (w.score as number) ? i : w))
       : null;
     return {
       control,
-      scope: "asset",
+      scope: "asset" as const,
       implementations,
       // The weakest implementation, not the mean. A control holds a risk down
       // only as well as its worst instance: a cross-tenant defect on one
@@ -60,26 +60,26 @@ export function controlPostureForRisk(riskId) {
       // other five, and averaging would let those five hide it.
       score: weakest ? weakest.score : null,
       rawScore: weakest ? weakest.rawScore : null,
-      meanScore: display(implementations.length ? mean(implementations.map((i) => i.rawScore)) : null),
+      meanScore: display(implementations.length ? mean(implementations.map((i) => i.rawScore as number)) : null),
       weakest,
     };
   });
 }
 
-export function assuranceForRisk(riskId) {
+export function assuranceForRisk(riskId: string) {
   const assetEdges = assetsForRisk(riskId);
   const controlPosture = controlPostureForRisk(riskId);
 
   const assetEntries = assetEdges
     .map((e) => ({ edge: e, rollup: ASSET_ROLLUP_BY_ID[e.assetId] }))
     .filter((x) => x.rollup)
-    .map((x) => ({ value: x.rollup.rawAssurance, weight: ROLE_WEIGHT[x.edge.role], asset: x.rollup, role: x.edge.role, note: x.edge.note }));
+    .map((x) => ({ value: x.rollup.rawAssurance as number, weight: ROLE_WEIGHT[x.edge.role], asset: x.rollup, role: x.edge.role, note: x.edge.note }));
 
   const controlScores = controlPosture.filter((c) => c.rawScore != null);
 
   // Controls lead where they exist: they're the specific thing holding this
   // scenario down. Asset assurance is the broader context around them.
-  const controlPct = controlScores.length ? mean(controlScores.map((c) => c.rawScore)) : null;
+  const controlPct = controlScores.length ? mean(controlScores.map((c) => c.rawScore as number)) : null;
   const assetPct = assetEntries.length ? weightedMean(assetEntries) : null;
 
   const raw =
@@ -97,7 +97,7 @@ export function assuranceForRisk(riskId) {
     basis: pct == null ? BASIS.UNASSESSED : measured ? BASIS.MEASURED : BASIS.ASSESSED,
     assets: assetEntries,
     controls: controlPosture,
-    weakestControl: controlScores.length ? controlScores.reduce((w, c) => (c.score < w.score ? c : w)) : null,
+    weakestControl: controlScores.length ? controlScores.reduce((w, c) => ((c.score as number) < (w.score as number) ? c : w)) : null,
     noAssetsReason: assetEntries.length === 0 ? (RISKS_WITHOUT_ASSETS[riskId] ?? null) : null,
     noControlsReason: controlPosture.length === 0 ? (RISKS_WITHOUT_CONTROLS[riskId] ?? null) : null,
   };
@@ -106,7 +106,7 @@ export function assuranceForRisk(riskId) {
 // ---- Board-level derivations -----------------------------------------------------
 // Annualized probability band per residual likelihood tier. A fixed, documented
 // judgment, the same pattern as the maturity and evidence scales.
-const LIKELIHOOD_ANNUAL_PROBABILITY = {
+const LIKELIHOOD_ANNUAL_PROBABILITY: Record<LikelihoodLevel, [number, number]> = {
   Rare: [1, 5],
   Unlikely: [5, 15],
   Possible: [15, 35],
@@ -114,7 +114,7 @@ const LIKELIHOOD_ANNUAL_PROBABILITY = {
   "Almost Certain": [65, 90],
 };
 
-export function annualProbabilityRange(likelihood) {
+export function annualProbabilityRange(likelihood: LikelihoodLevel): [number, number] {
   return LIKELIHOOD_ANNUAL_PROBABILITY[likelihood];
 }
 
@@ -122,25 +122,25 @@ export function annualProbabilityRange(likelihood) {
 // residual annualized loss expectancy) rather than a separately invented dollar
 // figure: ALE = probability x magnitude, so magnitude = ALE / probability. The
 // low end of the probability band implies the high end of the magnitude band.
-export function lossMagnitudeRange(exposure, likelihood) {
+export function lossMagnitudeRange(exposure: number, likelihood: LikelihoodLevel): [number, number] {
   const [low, high] = annualProbabilityRange(likelihood);
   return [exposure / (high / 100), exposure / (low / 100)];
 }
 
-export function appetiteRatio(risk) {
+export function appetiteRatio(risk: Risk): number {
   return Math.round((score(risk.residual.severity, risk.residual.likelihood) / risk.appetite) * 10) / 10;
 }
 
 // Improving / Stalled / Flat from fields the risk already carries.
 // treatmentAtRisk outranks milestone status: a risk can have an in-progress
 // milestone and still be flagged as slipping.
-export function riskTrend(risk) {
+export function riskTrend(risk: Risk): { label: string; color: string } {
   if (risk.treatmentAtRisk) return { label: "Stalled", color: "red" };
   if (risk.milestones.some((m) => m.status === "done" || m.status === "in_progress")) return { label: "Improving", color: "green" };
   return { label: "Flat", color: "muted" };
 }
 
-export function riskRollup(riskId) {
+export function riskRollup(riskId: string) {
   const risk = RISK_BY_ID[riskId];
   const ownerOrg = ORG_BY_ID[risk.ownerId];
   return {
@@ -161,8 +161,10 @@ export function riskRollup(riskId) {
   };
 }
 
-export const RISK_ROLLUPS = RISKS.map((r) => riskRollup(r.id));
-export const RISK_ROLLUP_BY_ID = Object.fromEntries(RISK_ROLLUPS.map((r) => [r.id, r]));
+export type RiskRollup = ReturnType<typeof riskRollup>;
+
+export const RISK_ROLLUPS: RiskRollup[] = RISKS.map((r) => riskRollup(r.id));
+export const RISK_ROLLUP_BY_ID: Record<string, RiskRollup> = Object.fromEntries(RISK_ROLLUPS.map((r) => [r.id, r]));
 
 export const ABOVE_APPETITE_COUNT = RISK_ROLLUPS.filter((r) => r.residualScore > r.appetite).length;
 export const QUANTIFIED_EXPOSURE = RISKS.reduce((a, r) => a + r.exposure, 0);
@@ -170,7 +172,7 @@ export const QUANTIFIED_EXPOSURE = RISKS.reduce((a, r) => a + r.exposure, 0);
 // A risk clears the bar for board attention on two conditions, not one:
 // residual severity at the top tier AND a residual score still exceeding the
 // org's own appetite for it.
-export function isMaterial(risk) {
+export function isMaterial(risk: Risk | RiskRollup): boolean {
   return risk.residual.severity === "Severe" && score(risk.residual.severity, risk.residual.likelihood) > risk.appetite;
 }
 
@@ -192,6 +194,6 @@ export const MATERIAL_RISK_EXPOSURE = MATERIAL_RISKS.reduce((a, r) => a + r.expo
 
 // Every risk one asset contributes to — the reverse lookup the Asset Register
 // can use to show what a weak asset is actually putting at stake.
-export function risksForAssetRollup(assetId) {
+export function risksForAssetRollup(assetId: string): RiskRollup[] {
   return RISK_ROLLUPS.filter((r) => r.contributingAssets.some((c) => c.assetId === assetId));
 }
