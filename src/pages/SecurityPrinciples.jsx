@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import {
   Shield, Fingerprint, Network, GitBranch, Lock, Layers, Link2, Bot, Activity, Save,
-  ChevronRight, X, ArrowRight, SlidersHorizontal, Boxes, ShieldAlert, Bug, Compass,
+  ChevronRight, X, ArrowRight, SlidersHorizontal, Boxes, ShieldAlert, Bug, Compass, Plug,
 } from "lucide-react";
 import { C } from "../theme";
 import { PageHeader, SectionHeading } from "../components/Headings";
@@ -17,6 +17,7 @@ const DOMAIN_ICONS = {
   "data-lifecycle": Lock,
   "multi-tenancy": Layers,
   "third-party-integration": Link2,
+  "api-security": Plug,
   "ai-agent": Bot,
   "logging-monitoring": Activity,
   "backup-recovery": Save,
