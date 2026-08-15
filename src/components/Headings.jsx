@@ -8,7 +8,7 @@ import { C } from "../theme";
 // `tagline` is optional flavor text for pages whose old h1 said something more
 // descriptive than the nav label — kept as a small line under the title
 // instead of being the title itself.
-export function PageHeader({ icon: Icon, title, tagline, description, right, children }) {
+export function PageHeader({ icon: Icon, title, tagline, description, descriptionClassName = "max-w-2xl", right, children }) {
   return (
     <div className="px-8 pt-8 pb-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -28,7 +28,7 @@ export function PageHeader({ icon: Icon, title, tagline, description, right, chi
         </div>
         {right}
       </div>
-      {description && <p className="text-sm mt-3 max-w-2xl" style={{ color: C.muted }}>{description}</p>}
+      {description && <p className={`text-sm mt-3 ${descriptionClassName}`} style={{ color: C.muted }}>{description}</p>}
       {children}
     </div>
   );
