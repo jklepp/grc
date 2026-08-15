@@ -611,6 +611,14 @@ export default function ProcedureLibrary({ onNavigate }) {
   const selected = PROCEDURES.find((p) => p.id === selectedId) || PROCEDURES[0];
   const linkedPolicy = POLICIES.find((p) => p.id === selected.policyId);
 
+  // Every SOP's steps are authored Required-first (see the file header in
+  // procedures.js), so the split and divider can be derived from a simple
+  // count rather than re-sorting here. Required means the step carries a
+  // `controls` citation; Recommended means it doesn't yet — not that it's
+  // optional (see ControlMapping below for the same distinction at the
+  // procedure-wide, rather than step, level).
+  const requiredCount = selected.steps.filter((s) => s.controls && s.controls.length > 0).length;
+
   const scoredAssets = [...ASSET_SUMMARIES]
     .filter((a) => a.categoryScores[selected.category] != null)
     .sort((a, b) => b.categoryScores[selected.category] - a.categoryScores[selected.category]);
@@ -768,31 +776,74 @@ export default function ProcedureLibrary({ onNavigate }) {
             </div>
           ) : (
             <>
-              <SectionHeading icon={ClipboardList}>Procedure steps</SectionHeading>
+              <SectionHeading
+                icon={ClipboardList}
+                right={(
+                  <span className="text-[11px]" style={{ color: C.muted }}>
+                    <span style={{ color: C.accent, fontWeight: 600 }}>{requiredCount} Required</span>
+                    {" · "}
+                    <span style={{ color: C.ink, fontWeight: 600 }}>{selected.steps.length - requiredCount} Recommended</span>
+                  </span>
+                )}
+              >
+                Procedure steps
+              </SectionHeading>
+              <div className="text-[11px] leading-relaxed mb-3" style={{ color: C.muted }}>
+                <span style={{ color: C.accent, fontWeight: 600 }}>Required</span> steps are individually mapped to a
+                specific control in ACME's framework crosswalk (tagged inline below the step).{" "}
+                <span style={{ color: C.ink, fontWeight: 600 }}>Recommended</span> steps are security practice ACME
+                follows beyond what's currently cited to a specific control — not optional, just not yet tied to one.
+              </div>
               <div className="space-y-3 mb-6">
-                {selected.steps.map((s, i) => (
-                  <div key={i} className="flex gap-2.5">
-                    <span className="text-xs font-semibold shrink-0 w-5" style={{ color: C.accent }}>{i + 1}.</span>
-                    <div>
-                      <div className="text-sm font-semibold" style={{ color: C.ink }}>{s.title}</div>
-                      <div className="text-xs mt-0.5 leading-relaxed" style={{ color: C.muted }}>{s.detail}</div>
-                      {s.controls && s.controls.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1.5">
-                          {s.controls.map((id) => (
-                            <span
-                              key={id}
-                              className="text-[10px] px-1.5 py-0.5 rounded"
-                              style={{ background: C.panel2, color: C.accent, fontFamily: "'IBM Plex Mono', monospace", border: `1px solid ${C.border}` }}
-                              title="Control this step operationalizes"
-                            >
-                              {id}
-                            </span>
-                          ))}
+                {selected.steps.map((s, i) => {
+                  const isRequired = s.controls && s.controls.length > 0;
+                  const showDivider = i === requiredCount && requiredCount > 0 && requiredCount < selected.steps.length;
+                  return (
+                    <React.Fragment key={i}>
+                      {showDivider && (
+                        <div className="flex items-center gap-2 pt-1">
+                          <span className="text-[10px] uppercase tracking-wide font-semibold shrink-0" style={{ color: C.muted }}>
+                            Recommended — beyond the current framework mapping
+                          </span>
+                          <div className="flex-1 h-px" style={{ background: C.border }} />
                         </div>
                       )}
-                    </div>
-                  </div>
-                ))}
+                      <div className="flex gap-2.5">
+                        <span className="text-xs font-semibold shrink-0 w-5" style={{ color: C.accent }}>{i + 1}.</span>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="text-sm font-semibold" style={{ color: C.ink }}>{s.title}</div>
+                            <span
+                              className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full shrink-0"
+                              style={{
+                                background: isRequired ? C.accentBg : C.panel2,
+                                color: isRequired ? C.accent : C.muted,
+                                border: `1px solid ${isRequired ? C.accent : C.border}`,
+                              }}
+                            >
+                              {isRequired ? "Required" : "Recommended"}
+                            </span>
+                          </div>
+                          <div className="text-xs mt-0.5 leading-relaxed" style={{ color: C.muted }}>{s.detail}</div>
+                          {s.controls && s.controls.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {s.controls.map((id) => (
+                                <span
+                                  key={id}
+                                  className="text-[10px] px-1.5 py-0.5 rounded"
+                                  style={{ background: C.panel2, color: C.accent, fontFamily: "'IBM Plex Mono', monospace", border: `1px solid ${C.border}` }}
+                                  title="Control this step operationalizes"
+                                >
+                                  {id}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
               </div>
 
               <div className="flex items-start gap-2 text-[11px] leading-relaxed rounded-lg p-3 mb-6" style={{ background: C.panel2, color: C.muted }}>
