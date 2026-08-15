@@ -92,7 +92,7 @@ function stageLabel(depth) {
 // aligned. Ingress/Stage/Egress cards only grow a footer when a data-type
 // filter is active — reserving space for one they don't have most of the
 // time just made every path-stage tile taller than it needed to be.
-const NODE_CARD_WIDTH = 168;
+const NODE_CARD_WIDTH = 200;
 const NODE_CARD_HEIGHT = 98;
 // ActorCard keeps its own constant rather than sharing NODE_CARD_WIDTH, so
 // widening the stage cards (for name/type readability) doesn't drag actor
@@ -103,7 +103,7 @@ const ACTOR_CARD_WIDTH = 144;
 // wider-and-shorter footprint instead of inheriting the stage card's — that
 // footer line (often a long code list) needs the width, and the fixed height
 // only needs to fit 2-3 short lines, not the taller box a stage card reserves.
-const WIDE_NODE_CARD_WIDTH = 208;
+const WIDE_NODE_CARD_WIDTH = 240;
 const WIDE_NODE_CARD_HEIGHT = 72;
 
 // Left rail carries identity (code) and status (score) as two color-coded
