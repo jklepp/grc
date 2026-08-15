@@ -91,7 +91,7 @@ export const RISK_ASSETS: RiskAsset[] = [
   { riskId: "RISK-015", assetId: "AST-003-02", role: "primary", note: "The model behaviour being distilled is served here." },
 
   // RISK-016 — AI agent causes unauthorized actions
-  { riskId: "RISK-016", assetId: "AST-003-02", role: "primary", note: "Tool-calling decisions originate in the model service." },
+  { riskId: "RISK-016", assetId: "AST-003-02", role: "primary", note: "Tool-calling decisions originate in the agent runtime." },
   { riskId: "RISK-016", assetId: "AST-003-03", role: "primary", note: "Injected content reaches the model through retrieved context." },
   { riskId: "RISK-016", assetId: "AST-003-01", role: "contributing" },
 
