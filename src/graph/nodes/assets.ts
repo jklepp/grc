@@ -53,6 +53,13 @@ export type AssetKind = (typeof ASSET_KINDS)[number];
 // so has no node with zero inbound edges.
 export const BOUNDARY_INGRESS_KINDS: AssetKind[] = ["api-gateway", "saas-api"];
 
+// The kinds that are primarily data stores — where data actually lands at
+// rest — rather than compute or transport. Used to pull these out of the
+// request-path stage sequence and into their own Data Plane section on the
+// flow diagram: where the data actually lands is a distinct fact from how
+// many hops it took to get there.
+export const DATABASE_KINDS: AssetKind[] = ["relational-db", "vector-db", "object-storage"];
+
 export interface CriticalityFactor {
   score: number;
   reason: string;
@@ -212,6 +219,23 @@ export const ASSETS: Asset[] = [
       availability: { score: 82, reason: "Every service in the boundary resolves credentials through this at runtime" },
       regulatory: { score: 80, reason: "Secrets gate access to every Restricted-tier data store in the boundary" },
       businessDependency: { score: 82, reason: "Underpins every service-to-service authentication in the platform" },
+    },
+    inherentLikelihood: 3,
+  },
+  {
+    id: "AST-003-09",
+    systemId: "SYS-003",
+    name: "Partner API Gateway",
+    type: "AWS API Gateway",
+    kind: "integration-endpoint",
+    provider: "AWS",
+    code: "PAPI",
+    criticalityFactors: {
+      confidentiality: { score: 82, reason: "Delivers model completions and retrieved context to partner integrations over the same trust boundary as customer data" },
+      integrity: { score: 78, reason: "A tampered delivery could hand a partner manipulated or mismatched completions" },
+      availability: { score: 65, reason: "Partner delivery runs independently of the synchronous customer response path" },
+      regulatory: { score: 78, reason: "Restricted-tier model outputs leave the boundary through this endpoint" },
+      businessDependency: { score: 70, reason: "Backs partner-facing integrations built on top of the platform's completions" },
     },
     inherentLikelihood: 3,
   },

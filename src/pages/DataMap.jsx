@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from "react";
-import { Network, ArrowRight, ArrowDown, AlertTriangle, X, KeyRound } from "lucide-react";
+import { Network, ArrowDown, AlertTriangle, X, KeyRound, User, Cpu, Database } from "lucide-react";
 import { C, CLASS_META } from "../theme";
 import { PageHeader } from "../components/Headings";
 import {
   getAllSystems, getAsset, getDataFlows, getAllDataTypes, dataTypesForSystem, dataForAsset,
-  ASSURANCE_CATEGORIES, assuranceBand, evaluateAssetAgainstProfile, IMPLEMENTATION_STATUS_META, TOTAL_FLOW_COUNT, getAllAssets,
+  ASSURANCE_CATEGORIES, assuranceBand, evaluateAssetAgainstProfile, IMPLEMENTATION_STATUS_META,
+  TOTAL_FLOW_COUNT, TOTAL_ACTOR_COUNT, getAllAssets, ACTOR_KINDS,
 } from "../engine";
 
 const SYSTEMS = getAllSystems();
@@ -58,10 +59,14 @@ const PROFILE_STATUS_META = {
 };
 
 // Depth is derived by walking inbound data edges, so a stage has no stored
-// name to print. Depth 0 is whatever nothing else in the boundary feeds; the
-// rest are labelled by how many hops from there they sit.
-function stageLabel(depth) {
-  return depth === 0 ? "Ingress" : `Hop ${depth}`;
+// name to print. Depth 0 is whatever nothing else in the boundary feeds;
+// the deepest stage is where the walk ran out of new nodes to reach, which
+// is why it's labelled Egress rather than another Stage. Everything between
+// is labelled by how many hops from ingress it sits.
+function stageLabel(depth, isLast) {
+  if (depth === 0) return "Ingress";
+  if (isLast) return "Egress";
+  return `Stage ${depth}`;
 }
 
 function NodeCard({ asset, roles, selected, onSelect, isBranch }) {
@@ -90,13 +95,53 @@ function NodeCard({ asset, roles, selected, onSelect, isBranch }) {
   );
 }
 
-function StageColumn({ stage, selectedKey, onSelectNode, rolesFor }) {
+function ActorCard({ actor }) {
+  const isHuman = actor.kind === ACTOR_KINDS.HUMAN;
+  const Icon = isHuman ? User : Cpu;
   return (
-    <div className="flex flex-col items-center" style={{ minWidth: 168 }}>
-      <div className="text-[10px] uppercase tracking-widest font-semibold mb-3" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
-        {stageLabel(stage.depth)}
+    <div className="rounded-xl overflow-hidden shrink-0 text-left" style={{ background: C.panel, border: `1px solid ${C.border}`, width: 168 }}>
+      <div className="p-3">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: isHuman ? C.accent : C.na, color: "#fff" }}>
+            {isHuman ? "HUMAN" : "MACHINE"}
+          </span>
+          <Icon size={14} color={C.muted} />
+        </div>
+        <div className="text-sm font-semibold leading-tight" style={{ color: C.ink }}>{actor.name}</div>
+        <div className="text-[11px] mt-0.5 leading-snug" style={{ color: C.muted }}>{actor.description}</div>
       </div>
-      <div className="flex flex-col items-center gap-2">
+    </div>
+  );
+}
+
+function ActorRow({ actorAccess, isFirst }) {
+  if (actorAccess.length === 0) return null;
+  return (
+    <div className="flex flex-col items-start w-full" style={isFirst ? undefined : { marginTop: 24, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
+          Actors
+        </span>
+      </div>
+      <div className="flex flex-wrap items-start justify-center gap-3 w-full">
+        {actorAccess.map(({ actor }) => (
+          <ActorCard key={actor.id} actor={actor} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StageRow({ stage, isFirst, isLast, selectedKey, onSelectNode, rolesFor }) {
+  return (
+    <div className="flex flex-col items-start w-full" style={isFirst ? undefined : { marginTop: 24, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
+      <div className="flex items-center gap-2 mb-3">
+        {!isFirst && <ArrowDown size={12} color={C.muted} />}
+        <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
+          {stageLabel(stage.depth, isLast)}
+        </span>
+      </div>
+      <div className="flex flex-wrap items-start justify-center gap-3 w-full">
         {stage.nodes.map((asset) => (
           <NodeCard key={asset.id} asset={asset} roles={rolesFor(asset.id)} selected={asset.id === selectedKey} onSelect={onSelectNode} />
         ))}
@@ -106,33 +151,57 @@ function StageColumn({ stage, selectedKey, onSelectNode, rolesFor }) {
 }
 
 function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
-  if (layout.stages.length === 0) {
+  if (layout.stages.length === 0 && layout.dataPlane.length === 0) {
     return (
       <div className="rounded-2xl p-8 text-center text-sm" style={{ background: C.panel2, border: `1px dashed ${C.border}`, color: C.muted }}>
         No asset in this boundary carries the selected data type.
       </div>
     );
   }
+  const hasActors = layout.actorAccess && layout.actorAccess.length > 0;
   return (
-    <div className="rounded-2xl p-6 overflow-x-auto" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-      <div className="flex items-start" style={{ minWidth: "fit-content" }}>
+    <div className="rounded-2xl p-6" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+      <div className="flex flex-col items-stretch">
+        {hasActors && <ActorRow actorAccess={layout.actorAccess} isFirst />}
         {layout.stages.map((s, i) => (
-          <React.Fragment key={s.depth}>
-            <StageColumn stage={s} selectedKey={selectedKey} onSelectNode={onSelectNode} rolesFor={rolesFor} />
-            {i < layout.stages.length - 1 && (
-              <div className="flex items-center justify-center shrink-0" style={{ width: 32, marginTop: 44 }}>
-                <ArrowRight size={16} color={C.muted} />
-              </div>
-            )}
-          </React.Fragment>
+          <StageRow key={s.depth} stage={s} isFirst={!hasActors && i === 0} isLast={i === layout.stages.length - 1} selectedKey={selectedKey} onSelectNode={onSelectNode} rolesFor={rolesFor} />
         ))}
       </div>
 
+      {layout.dataPlane.length > 0 && (
+        <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${C.border}` }}>
+          <div className="flex items-center gap-2 mb-3 px-4 py-2 rounded-full w-full" style={{ border: `1.5px solid ${C.accent}` }}>
+            <Database size={12} color={C.accent} />
+            <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
+              Data plane
+            </span>
+            <span className="text-[11px]" style={{ color: C.muted }}>
+              — where request-path data actually lands, shown by store rather than by hop count
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-4">
+            {layout.dataPlane.map(({ asset, fedBy }) => (
+              <div key={asset.id} className="flex flex-col items-center gap-1">
+                <NodeCard asset={asset} selected={asset.id === selectedKey} onSelect={onSelectNode} />
+                {fedBy.length > 0 && (
+                  <>
+                    <ArrowDown size={12} color={C.border} />
+                    <div className="text-[10px] text-center max-w-[168px]" style={{ color: C.muted }}>
+                      {fedBy.map((p) => p.code).join(" · ")}
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {layout.branches.length > 0 && (
         <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${C.border}` }}>
-          <div className="flex items-center gap-2 mb-3">
-            <KeyRound size={12} color={C.muted} />
-            <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
+          <div className="flex items-center gap-2 mb-3 px-4 py-2 rounded-full w-full" style={{ border: `1.5px solid ${C.accent}` }}>
+            <KeyRound size={12} color={C.accent} />
+            <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
               Control plane
             </span>
             <span className="text-[11px]" style={{ color: C.muted }}>
@@ -344,6 +413,7 @@ export default function DataMap() {
         .map((s) => ({ ...s, nodes: s.nodes.filter((n) => carries(n.id)) }))
         .filter((s) => s.nodes.length > 0),
       branches: fullLayout.branches.filter((b) => carries(b.asset.id) || b.protects.some((p) => carries(p.id))),
+      dataPlane: fullLayout.dataPlane.filter((d) => carries(d.asset.id) || d.fedBy.some((p) => carries(p.id))),
       edges: fullLayout.edges.filter((e) => e.dataTypeIds.includes(dataTypeId)),
     };
   }, [fullLayout, dataTypeId]);
@@ -365,10 +435,10 @@ export default function DataMap() {
         <PageHeader
           icon={Network}
           title="Systems Data Flow"
-          description="How data moves between a system's assets, from ingress to storage."
+          description="How data moves between a system's assets, from ingress to egress."
           right={
             <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
-              {SYSTEMS.length} systems · {getAllAssets().length} assets · {TOTAL_FLOW_COUNT} data flows
+              {SYSTEMS.length} systems · {getAllAssets().length} assets · {TOTAL_ACTOR_COUNT} actors · {TOTAL_FLOW_COUNT} data flows
             </div>
           }
         />

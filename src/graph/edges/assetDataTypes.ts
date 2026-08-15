@@ -75,6 +75,7 @@ export const ASSET_DATA_TYPES: AssetDataType[] = [
 
   { assetId: "AST-003-07", dataTypeId: "DT-004", role: "stores" },
   { assetId: "AST-003-08", dataTypeId: "DT-004", role: "stores" },
+  { assetId: "AST-003-09", dataTypeId: "DT-003", role: "transits" },
 
   // ---- SYS-042 Workday ---------------------------------------------------------
   { assetId: "AST-042-01", dataTypeId: "DT-007", role: "stores" },
