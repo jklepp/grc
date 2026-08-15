@@ -31,9 +31,9 @@
 //
 // Every row sums to 100 — asserted in graph/validate.js, since a tier whose
 // weights quietly summed to 95 would rescale that tier's entire estate.
-import { CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES, MATURITY_STAGES, EVIDENCE_TYPES } from "./taxonomy";
+import { CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES, MATURITY_STAGES, EVIDENCE_TYPES, type ClassificationTier, type AssuranceCategory, type MaturityStage, type EvidenceType } from "./taxonomy";
 
-export const CATEGORY_WEIGHTS = {
+export const CATEGORY_WEIGHTS: Record<ClassificationTier, Record<AssuranceCategory, number>> = {
   Restricted: {
     "Identity & Access": 25,
     "Data Protection": 25,
@@ -71,18 +71,18 @@ export const CATEGORY_WEIGHTS = {
   },
 };
 
-export function categoryWeightsFor(tier) {
-  return CATEGORY_WEIGHTS[tier] ?? CATEGORY_WEIGHTS.Internal;
+export function categoryWeightsFor(tier: string): Record<AssuranceCategory, number> {
+  return CATEGORY_WEIGHTS[tier as ClassificationTier] ?? CATEGORY_WEIGHTS.Internal;
 }
 
-export function categoryWeight(tier, category) {
-  return categoryWeightsFor(tier)[category] ?? 0;
+export function categoryWeight(tier: string, category: string): number {
+  return categoryWeightsFor(tier)[category as AssuranceCategory] ?? 0;
 }
 
 // The baseline bar every asset at a tier must clear before any category-specific
 // bump. Each tier is one full "how convincingly can we prove this" step up from
 // the last: attest it in a doc, show it, have it examined, prove it by machine.
-const TIER_BASELINE = {
+const TIER_BASELINE: Record<ClassificationTier, { maturity: MaturityStage; evidence: EvidenceType }> = {
   Public: { maturity: "Policy", evidence: "Document" },
   Internal: { maturity: "Procedure", evidence: "Screenshot" },
   Confidential: { maturity: "Implemented", evidence: "Auditor examination" },
@@ -94,18 +94,24 @@ const TIER_BASELINE = {
 // actually becomes sensitive. Note this is a separate lever from the weights
 // above: the bump raises the bar a category has to clear, the weight decides
 // how much clearing it counts for.
-const HIGH_SENSITIVITY_CATEGORIES = ["Data Protection", "Identity & Access", "Detection"];
-const BUMPED_TIERS = ["Confidential", "Restricted"];
+const HIGH_SENSITIVITY_CATEGORIES: AssuranceCategory[] = ["Data Protection", "Identity & Access", "Detection"];
+const BUMPED_TIERS: ClassificationTier[] = ["Confidential", "Restricted"];
 
-function bump(list, value) {
+function bump<T>(list: readonly T[], value: T): T {
   return list[Math.min(list.indexOf(value) + 1, list.length - 1)];
 }
 
+export interface ControlProfileEntry {
+  maturity: MaturityStage;
+  evidence: EvidenceType;
+  weight: number;
+}
+
 // Resolved once: CONTROL_PROFILES[tier][category] -> { maturity, evidence, weight }
-export const CONTROL_PROFILES = {};
+export const CONTROL_PROFILES = {} as Record<ClassificationTier, Record<AssuranceCategory, ControlProfileEntry>>;
 CLASSIFICATION_TIERS.forEach((tier) => {
   const base = TIER_BASELINE[tier];
-  CONTROL_PROFILES[tier] = {};
+  CONTROL_PROFILES[tier] = {} as Record<AssuranceCategory, ControlProfileEntry>;
   ASSURANCE_CATEGORIES.forEach((category) => {
     const shouldBump = BUMPED_TIERS.includes(tier) && HIGH_SENSITIVITY_CATEGORIES.includes(category);
     CONTROL_PROFILES[tier][category] = {

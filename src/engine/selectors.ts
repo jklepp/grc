@@ -22,18 +22,18 @@ import { DATA_FLOWS, flowsFrom, flowsTo, flowsCarrying } from "../graph/edges/da
 import { risksForAsset, risksForControl, assetsForRisk, controlsForRisk } from "../graph/edges/riskContributors";
 import { ASSET_ROLLUP_BY_ID, ASSET_ROLLUPS, SYSTEM_ROLLUP_BY_ID, SYSTEM_ROLLUPS, ENTERPRISE, CATEGORY_PORTFOLIO_AVERAGES, flowLayoutForSystem } from "./rollups";
 import { RISK_ROLLUP_BY_ID, RISK_ROLLUPS, risksForAssetRollup } from "./risk";
-import { buildImplementation, implementationsForAsset, programImplementation, PROGRAM_IMPLEMENTATIONS, scoreEvidence } from "./implementation";
+import { buildImplementation, implementationsForAsset, programImplementation, PROGRAM_IMPLEMENTATIONS, scoreEvidence, type Implementation } from "./implementation";
 import { resolveApplicability, requiredControlsForAsset, assetsRequiringControl, allExceptions } from "./applicability";
 import { assetClassification, dataForAsset, dataTypesForSystem, assetsHoldingDataType } from "./classification";
 import { systemControlMatrix, systemCoverageBreakdown, systemStandardMappings, clauseCoverage, controlCoverageForSystem, frameworkPosture, FRAMEWORK_POSTURE, ENTERPRISE_COVERAGE, IN_SCOPE_FRAMEWORKS } from "./compliance";
 
 // ---- Entity access ---------------------------------------------------------------
-export const getAsset = (id) => ASSET_ROLLUP_BY_ID[id] ?? null;
-export const getSystem = (id) => SYSTEM_ROLLUP_BY_ID[id] ?? null;
-export const getRisk = (id) => RISK_ROLLUP_BY_ID[id] ?? null;
-export const getDataType = (id) => DATA_TYPE_BY_ID[id] ?? null;
-export const getControl = (id) => KEY_CONTROL_BY_ID[id] ?? CONTROL_BY_ID[id] ?? null;
-export const getEvidence = (id) => (EVIDENCE_BY_ID[id] ? scoreEvidence(EVIDENCE_BY_ID[id]) : null);
+export const getAsset = (id: string) => ASSET_ROLLUP_BY_ID[id] ?? null;
+export const getSystem = (id: string) => SYSTEM_ROLLUP_BY_ID[id] ?? null;
+export const getRisk = (id: string) => RISK_ROLLUP_BY_ID[id] ?? null;
+export const getDataType = (id: string) => DATA_TYPE_BY_ID[id] ?? null;
+export const getControl = (id: string) => KEY_CONTROL_BY_ID[id] ?? CONTROL_BY_ID[id] ?? null;
+export const getEvidence = (id: string) => (EVIDENCE_BY_ID[id] ? scoreEvidence(EVIDENCE_BY_ID[id]) : null);
 
 export const getAllAssets = () => ASSET_ROLLUPS;
 export const getAllSystems = () => SYSTEM_ROLLUPS;
@@ -46,34 +46,37 @@ export const getEnterprise = () => ENTERPRISE;
 export const getCategoryAverages = () => CATEGORY_PORTFOLIO_AVERAGES;
 
 // ---- Relationship traversal --------------------------------------------------------
-export function getImplementations(assetId) {
+export function getImplementations(assetId: string) {
   return implementationsForAsset(assetId);
 }
 
-export function getImplementation(assetId, controlId) {
+export function getImplementation(assetId: string | null, controlId: string) {
   return buildImplementation(assetId, controlId);
 }
 
 // Every implementation of one control across the estate — the view that shows
 // why a single global score for a control would be meaningless.
-export function getControlImplementations(controlId) {
+export function getControlImplementations(controlId: string): Implementation[] {
   const control = KEY_CONTROL_BY_ID[controlId];
   if (!control) return [];
-  if (control.scope === "program") return [programImplementation(controlId)];
+  if (control.scope === "program") {
+    const impl = programImplementation(controlId);
+    return impl ? [impl] : [];
+  }
   return assetsRequiringControl(controlId).map((a) => buildImplementation(a.id, controlId));
 }
 
-export function getApplicability(assetId, controlId) {
+export function getApplicability(assetId: string, controlId: string) {
   return resolveApplicability(assetId, controlId);
 }
 
 // Both halves of the auditor's question, for every key control against one
 // asset: what applies and why, and what doesn't and why not.
-export function getApplicabilityProfile(assetId) {
+export function getApplicabilityProfile(assetId: string) {
   return KEY_CONTROLS.filter((c) => c.scope === "asset").map((c) => resolveApplicability(assetId, c.id));
 }
 
-export function getDataFlows(systemId) {
+export function getDataFlows(systemId: string) {
   return flowLayoutForSystem(systemId);
 }
 
@@ -81,9 +84,15 @@ export { flowsFrom, flowsTo, flowsCarrying, dataForAsset, dataTypesForSystem, as
 export { systemControlMatrix, systemCoverageBreakdown, systemStandardMappings, clauseCoverage, controlCoverageForSystem, frameworkPosture, FRAMEWORK_POSTURE, ENTERPRISE_COVERAGE, IN_SCOPE_FRAMEWORKS };
 export { requiredControlsForAsset, assetsRequiringControl, allExceptions, evidenceFor, risksForAssetRollup };
 
+interface NeighborGroup {
+  relation: string;
+  type: string;
+  nodes: unknown[];
+}
+
 // Everything one node connects to, typed. The Graph Explorer's navigation
 // model, and the quickest way to see whether the graph is actually joined up.
-export function getNeighbors(nodeType, id) {
+export function getNeighbors(nodeType: string, id: string): NeighborGroup[] {
   switch (nodeType) {
     case "system": {
       const system = getSystem(id);
@@ -140,11 +149,28 @@ export function getNeighbors(nodeType, id) {
   }
 }
 
+interface ExplainStep {
+  label: string;
+  value: unknown;
+  weight?: number;
+  basis?: string | null;
+  detail?: string | null;
+  next?: { type: string; id: string } | null;
+}
+
+interface Explanation {
+  label: string;
+  value: unknown;
+  basis: string | null;
+  formula: string;
+  steps: ExplainStep[];
+}
+
 // ---- explain() ---------------------------------------------------------------------
 // The derivation trace behind one number. Each step names what it contributed
 // and on what basis, so a reader can walk from an enterprise score down to a
 // specific test that ran on a specific day.
-export function explain(nodeType, id, metric = "assurance") {
+export function explain(nodeType: string, id: string, metric: string = "assurance"): Explanation | null {
   if (nodeType === "enterprise") {
     return {
       label: "Enterprise assurance",
@@ -192,7 +218,7 @@ export function explain(nodeType, id, metric = "assurance") {
         value: asset.categories[c].score,
         weight: asset.categoryWeights[c],
         basis: asset.categories[c].basis,
-        detail: `Contributes ${Math.round((asset.categories[c].raw * asset.categoryWeights[c]) / 100 * 10) / 10} of the ${asset.overallAssurance} total. ${asset.categories[c].evidencedCount} of ${asset.categories[c].requiredCount} tracked controls evidenced; assessed baseline ${asset.categories[c].baseline}.`,
+        detail: `Contributes ${Math.round((((asset.categories[c].raw as number) * asset.categoryWeights[c]) / 100) * 10) / 10} of the ${asset.overallAssurance} total. ${asset.categories[c].evidencedCount} of ${asset.categories[c].requiredCount} tracked controls evidenced; assessed baseline ${asset.categories[c].baseline}.`,
         next: { type: "category", id: `${id}::${c}` },
       })),
     };
@@ -201,10 +227,10 @@ export function explain(nodeType, id, metric = "assurance") {
   if (nodeType === "category") {
     const [assetId, category] = id.split("::");
     const asset = getAsset(assetId);
-    const rollup = asset?.categories?.[category];
+    const rollup = asset?.categories?.[category as keyof typeof asset.categories];
     if (!rollup) return null;
     return {
-      label: `${asset.name} — ${category}`,
+      label: `${asset!.name} — ${category}`,
       value: rollup.score,
       basis: rollup.basis,
       formula: "Measured implementations and the assessed baseline carry equal total weight. The baseline stands in for every in-scope control in this category that isn't individually tracked.",
@@ -244,9 +270,9 @@ export function explain(nodeType, id, metric = "assurance") {
           value: impl.effectivenessPct,
           basis: impl.basis,
           detail: impl.exceptionSummary
-            ? `Baseline ${Math.round(impl.baseline?.effectivenessPct)}% x ${impl.effectivenessFactor.toFixed(2)}, from ${impl.exceptionSummary.exceptions} of ${impl.exceptionSummary.population} ${impl.exceptionSummary.unit} in breach (${(impl.exceptionSummary.rate * 100).toFixed(2)}%) per ${impl.exceptionSummary.source}. An isolated exception costs little; a systemic one costs most of the control's credit.`
+            ? `Baseline ${Math.round(impl.baseline?.effectivenessPct as number)}% x ${(impl.effectivenessFactor as number).toFixed(2)}, from ${impl.exceptionSummary.exceptions} of ${impl.exceptionSummary.population} ${impl.exceptionSummary.unit} in breach (${((impl.exceptionSummary.rate as number) * 100).toFixed(2)}%) per ${impl.exceptionSummary.source}. An isolated exception costs little; a systemic one costs most of the control's credit.`
             : impl.result
-              ? `Baseline ${Math.round(impl.baseline?.effectivenessPct)}% x ${impl.effectivenessFactor.toFixed(2)} for an aggregate result of "${impl.result}". No exception counts were recorded, so the fixed factor for that result applies.`
+              ? `Baseline ${Math.round(impl.baseline?.effectivenessPct as number)}% x ${(impl.effectivenessFactor as number).toFixed(2)} for an aggregate result of "${impl.result}". No exception counts were recorded, so the fixed factor for that result applies.`
               : "No evidence — baseline carried through unchanged.",
         },
         // How the population was actually divided up between collections. The
@@ -257,7 +283,7 @@ export function explain(nodeType, id, metric = "assurance") {
               label: `Evidence confidence — ${impl.evidenceConfidence}`,
               value: impl.evidenceConfidence,
               basis: BASIS.MEASURED,
-              detail: `${impl.evidenceAllocation.map((a) => `${Math.round(a.claimed * 100)}% at quality ${a.quality} (${a.source})`).join("; ")}${impl.evidenceUncovered > 0 ? `; ${Math.round(impl.evidenceUncovered * 100)}% unevidenced` : ""}.`,
+              detail: `${impl.evidenceAllocation.map((a) => `${Math.round(a.claimed * 100)}% at quality ${a.quality} (${a.source})`).join("; ")}${(impl.evidenceUncovered as number) > 0 ? `; ${Math.round((impl.evidenceUncovered as number) * 100)}% unevidenced` : ""}.`,
             }]
           : []),
         ...impl.evidence.map((e) => ({
@@ -352,11 +378,11 @@ export function modelHealth() {
       risksWithoutControls: RISK_ROLLUPS.filter((r) => r.linkedControls.length === 0),
     },
     basisDistribution: Object.entries(
-      allImplementations.reduce((acc, i) => {
+      allImplementations.reduce((acc: Record<string, number>, i) => {
         acc[i.basis] = (acc[i.basis] || 0) + 1;
         return acc;
       }, {})
-    ).map(([basis, count]) => ({ basis, count, ...BASIS_META[basis] })),
+    ).map(([basis, count]) => ({ basis, count, ...BASIS_META[basis as keyof typeof BASIS_META] })),
     controlBackedByAsset: assets
       .map((a) => ({ id: a.id, name: a.name, pct: a.controlBackedPct, required: a.requiredControlCount, evidenced: a.evidencedControlCount }))
       .sort((a, b) => a.pct - b.pct),

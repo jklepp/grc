@@ -44,6 +44,7 @@
 //                          distinguishable
 //
 // engine/implementation.js does the composing.
+import type { AssuranceCategory, MaturityStage } from "../nodes/taxonomy";
 
 // Who operates a control, by the category it belongs to and the system it runs
 // in. Ownership genuinely varies by team and platform rather than by individual
@@ -52,7 +53,7 @@
 // team, but a few are genuinely jointly owned (e.g. Data Protection on SYS-003
 // spans both Data Platform and IT Security), and a joint fact should be two
 // edges, not one string with a slash in it.
-export const OWNERSHIP = {
+export const OWNERSHIP: Record<string, Record<AssuranceCategory, string[]>> = {
   "SYS-003": {
     "Data Protection": ["data-platform", "it-security"],
     Configuration: ["ml-platform-team"],
@@ -79,6 +80,13 @@ export const OWNERSHIP = {
   },
 };
 
+export interface OwnerOverride {
+  assetId: string;
+  controlId: string;
+  ownerIds: string[];
+  note: string;
+}
+
 // Where a specific implementation's owner differs from the system+category
 // default above. The default exists because ownership genuinely tracks team
 // and platform rather than individual resource — but not always: within a
@@ -88,18 +96,26 @@ export const OWNERSHIP = {
 // Data Platform + IT Security. That's a real split in who-runs-this, not a
 // split in maturity or evidence, so it belongs here rather than forcing the
 // whole category's default to fork or the fact to be lost.
-export const OWNER_OVERRIDES = [
+export const OWNER_OVERRIDES: OwnerOverride[] = [
   {
     assetId: "AST-003-07", controlId: "CRY-09", ownerIds: ["cloud-security"],
     note: "Key administration is MFA-gated through PIM and run directly by Cloud Security, not the Data Platform/IT Security pair that owns Data Protection defaults elsewhere on this system.",
   },
 ];
 
+export interface ImplementationOverride {
+  assetId: string;
+  controlId: string;
+  maturityStage: MaturityStage;
+  note: string;
+  findingId?: string;
+}
+
 // Where the recorded maturity of a specific implementation differs from the
 // asset's category baseline. Each carries the reason it differs — an override
 // without one is just an unexplained number, which is what this model exists to
 // get rid of.
-export const IMPLEMENTATION_OVERRIDES = [
+export const IMPLEMENTATION_OVERRIDES: ImplementationOverride[] = [
   {
     assetId: "AST-003-03", controlId: "CLD-06", maturityStage: "Procedure",
     note: "Tenant separation on the retrieval path is enforced by a filter the application is expected to pass, with no independent enforcement below it. Documented as a procedure rather than an implemented control, which is what the failing cross-tenant test confirms.",
@@ -158,11 +174,17 @@ export const IMPLEMENTATION_OVERRIDES = [
   },
 ];
 
+export interface NotImplemented {
+  assetId: string;
+  controlId: string;
+  reason: string;
+}
+
 // Required controls with no implementation. Declared rather than inferred,
 // because an absent record could equally mean "not built" or "not looked at,"
 // and those are different answers. Anything required, not excepted, and not
 // listed here is expected to have an implementation — validate.js enforces it.
-export const NOT_IMPLEMENTED = [
+export const NOT_IMPLEMENTED: NotImplemented[] = [
   {
     assetId: "AST-042-03", controlId: "MON-03",
     reason: "The tenant emits no per-action log for this service account's API calls, so there is nothing to shape into a conformant event. Raised with the vendor; no ACME-side implementation is possible today.",
@@ -177,25 +199,25 @@ export const NOT_IMPLEMENTED = [
   },
 ];
 
-const OVERRIDE_BY_PAIR = Object.fromEntries(IMPLEMENTATION_OVERRIDES.map((o) => [`${o.assetId}::${o.controlId}`, o]));
-const OWNER_OVERRIDE_BY_PAIR = Object.fromEntries(OWNER_OVERRIDES.map((o) => [`${o.assetId}::${o.controlId}`, o]));
-const NOT_IMPLEMENTED_BY_PAIR = Object.fromEntries(NOT_IMPLEMENTED.map((n) => [`${n.assetId}::${n.controlId}`, n]));
+const OVERRIDE_BY_PAIR: Record<string, ImplementationOverride> = Object.fromEntries(IMPLEMENTATION_OVERRIDES.map((o) => [`${o.assetId}::${o.controlId}`, o]));
+const OWNER_OVERRIDE_BY_PAIR: Record<string, OwnerOverride> = Object.fromEntries(OWNER_OVERRIDES.map((o) => [`${o.assetId}::${o.controlId}`, o]));
+const NOT_IMPLEMENTED_BY_PAIR: Record<string, NotImplemented> = Object.fromEntries(NOT_IMPLEMENTED.map((n) => [`${n.assetId}::${n.controlId}`, n]));
 
-export function overrideFor(assetId, controlId) {
+export function overrideFor(assetId: string, controlId: string): ImplementationOverride | null {
   return OVERRIDE_BY_PAIR[`${assetId}::${controlId}`] || null;
 }
 
-export function ownerOverrideFor(assetId, controlId) {
+export function ownerOverrideFor(assetId: string, controlId: string): OwnerOverride | null {
   return OWNER_OVERRIDE_BY_PAIR[`${assetId}::${controlId}`] || null;
 }
 
-export function notImplementedFor(assetId, controlId) {
+export function notImplementedFor(assetId: string, controlId: string): NotImplemented | null {
   return NOT_IMPLEMENTED_BY_PAIR[`${assetId}::${controlId}`] || null;
 }
 
 // Returns org ids, not resolved orgs — engine/implementation.js does the
 // resolution, keeping this file (and its tests) free of a dependency on
 // display concerns.
-export function ownerIdsFor(systemId, category) {
-  return OWNERSHIP[systemId]?.[category] || OWNERSHIP.program[category];
+export function ownerIdsFor(systemId: string, category: string): string[] {
+  return OWNERSHIP[systemId]?.[category as AssuranceCategory] || OWNERSHIP.program[category as AssuranceCategory];
 }

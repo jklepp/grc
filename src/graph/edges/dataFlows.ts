@@ -24,9 +24,19 @@
 // engine/rollups.js by walking inbound edges, so a new flow reshapes the map
 // instead of requiring someone to also remember to re-slot the asset.
 
-export const FLOW_KINDS = { DATA: "data", CONTROL_PLANE: "control-plane" };
+export const FLOW_KINDS = { DATA: "data", CONTROL_PLANE: "control-plane" } as const;
+export type FlowKind = (typeof FLOW_KINDS)[keyof typeof FLOW_KINDS];
 
-export const DATA_FLOWS = [
+export interface DataFlow {
+  id: string;
+  from: string;
+  to: string;
+  kind: FlowKind;
+  dataTypeIds: string[];
+  note?: string;
+}
+
+export const DATA_FLOWS: DataFlow[] = [
   // ---- SYS-003 Production AI Platform: request path ---------------------------
   { id: "FLOW-003-01", from: "AST-003-01", to: "AST-003-03", kind: "data", dataTypeIds: ["DT-003", "DT-001"], note: "Authenticated customer query enters retrieval." },
   { id: "FLOW-003-02", from: "AST-003-01", to: "AST-003-02", kind: "data", dataTypeIds: ["DT-003"], note: "Prompt forwarded to the model service." },
@@ -55,23 +65,23 @@ export const DATA_FLOWS = [
   { id: "FLOW-042-06", from: "AST-042-03", to: "AST-042-02", kind: "control-plane", dataTypeIds: ["DT-007", "DT-008", "DT-009"], note: "Every integration authenticates as this single account, which is why its reach is the reach of all three data types." },
 ];
 
-const OUTBOUND = {};
-const INBOUND = {};
+const OUTBOUND: Record<string, DataFlow[]> = {};
+const INBOUND: Record<string, DataFlow[]> = {};
 DATA_FLOWS.forEach((f) => {
   (OUTBOUND[f.from] ||= []).push(f);
   (INBOUND[f.to] ||= []).push(f);
 });
 
-export function flowsFrom(assetId) {
+export function flowsFrom(assetId: string): DataFlow[] {
   return OUTBOUND[assetId] || [];
 }
 
-export function flowsTo(assetId) {
+export function flowsTo(assetId: string): DataFlow[] {
   return INBOUND[assetId] || [];
 }
 
 // Every flow carrying a given data type — the filter the Data Map lost when
 // its per-data-type view collapsed into a single combined chart.
-export function flowsCarrying(dataTypeId) {
+export function flowsCarrying(dataTypeId: string): DataFlow[] {
   return DATA_FLOWS.filter((f) => f.dataTypeIds.includes(dataTypeId));
 }

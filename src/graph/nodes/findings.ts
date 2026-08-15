@@ -26,9 +26,21 @@
 // an owner, a due date, a ticket. A documented gap without those (e.g. the
 // MON-03 note on AST-003-03) stays a plain override note rather than being
 // forced into a Finding with an invented owner.
-export const FINDING_STATUSES = ["open", "accepted", "remediating", "verified", "closed"];
+export const FINDING_STATUSES = ["open", "accepted", "remediating", "verified", "closed"] as const;
+export type FindingStatus = (typeof FINDING_STATUSES)[number];
 
-export const FINDINGS = [
+export interface Finding {
+  id: string;
+  title: string;
+  detail: string;
+  assetId: string;
+  controlId: string;
+  status: FindingStatus;
+  ownerId: string;
+  due: string;
+}
+
+export const FINDINGS: Finding[] = [
   {
     id: "SEC-2260",
     title: "Scope RAG service's IAM role to least privilege",

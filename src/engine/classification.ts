@@ -19,20 +19,29 @@
 // What's gained isn't a different answer today — it's that the answer now moves
 // on its own when the data edges change, instead of waiting for someone to
 // remember to retype it.
-import { ASSETS, ASSET_BY_ID, assetsForSystem } from "../graph/nodes/assets";
-import { DATA_TYPE_BY_ID } from "../graph/nodes/dataTypes";
-import { dataTypesForAsset } from "../graph/edges/assetDataTypes";
+import { ASSETS, ASSET_BY_ID, assetsForSystem, type Asset } from "../graph/nodes/assets";
+import { DATA_TYPE_BY_ID, type DataType } from "../graph/nodes/dataTypes";
+import { dataTypesForAsset, type AssetDataType } from "../graph/edges/assetDataTypes";
 import { highestTier, CLASSIFICATION_TIERS } from "../graph/nodes/taxonomy";
 
+export interface AssetDataHolding extends AssetDataType {
+  dataType: DataType;
+}
+
 // The data types one asset touches, resolved to full nodes with their role.
-export function dataForAsset(assetId) {
+export function dataForAsset(assetId: string): AssetDataHolding[] {
   return dataTypesForAsset(assetId).map((edge) => ({
     ...edge,
     dataType: DATA_TYPE_BY_ID[edge.dataTypeId],
   }));
 }
 
-const ASSET_CLASSIFICATION = {};
+interface AssetClassificationEntry {
+  tier: string | null;
+  drivenBy: AssetDataHolding[];
+}
+
+const ASSET_CLASSIFICATION: Record<string, AssetClassificationEntry> = {};
 ASSETS.forEach((asset) => {
   const held = dataForAsset(asset.id);
   const tier = highestTier(held.map((h) => h.dataType.sensitivity));
@@ -44,20 +53,20 @@ ASSETS.forEach((asset) => {
   };
 });
 
-export function assetClassification(assetId) {
+export function assetClassification(assetId: string): string | null {
   return ASSET_CLASSIFICATION[assetId]?.tier ?? null;
 }
 
-export function assetClassificationDetail(assetId) {
+export function assetClassificationDetail(assetId: string): AssetClassificationEntry | null {
   return ASSET_CLASSIFICATION[assetId] ?? null;
 }
 
-export function systemClassification(systemId) {
+export function systemClassification(systemId: string): string | null {
   const assets = assetsForSystem(systemId);
-  return highestTier(assets.map((a) => assetClassification(a.id)).filter(Boolean));
+  return highestTier(assets.map((a) => assetClassification(a.id)).filter((t): t is string => Boolean(t)));
 }
 
-export function systemClassificationDetail(systemId) {
+export function systemClassificationDetail(systemId: string): { tier: string | null; drivenBy: Asset[] } {
   const tier = systemClassification(systemId);
   return {
     tier,
@@ -68,8 +77,8 @@ export function systemClassificationDetail(systemId) {
 // Every data type flowing through a system, deduped — what `dataElements` used
 // to assert directly, now reachable from the asset edges instead of maintained
 // alongside them.
-export function dataTypesForSystem(systemId) {
-  const seen = new Map();
+export function dataTypesForSystem(systemId: string): DataType[] {
+  const seen = new Map<string, DataType>();
   assetsForSystem(systemId).forEach((asset) => {
     dataForAsset(asset.id).forEach((h) => seen.set(h.dataTypeId, h.dataType));
   });
@@ -78,10 +87,10 @@ export function dataTypesForSystem(systemId) {
 
 // Which data kinds an asset touches, in any role — the input applicability
 // rules use for conditions like "wherever personal data lands."
-export function dataKindsForAsset(assetId) {
+export function dataKindsForAsset(assetId: string): string[] {
   return [...new Set(dataForAsset(assetId).map((h) => h.dataType.kind))];
 }
 
-export function assetsHoldingDataType(dataTypeId) {
+export function assetsHoldingDataType(dataTypeId: string): Asset[] {
   return ASSETS.filter((a) => dataTypesForAsset(a.id).some((e) => e.dataTypeId === dataTypeId)).map((a) => ASSET_BY_ID[a.id]);
 }

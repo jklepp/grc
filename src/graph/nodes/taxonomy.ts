@@ -22,16 +22,17 @@
 // Ordered least to most sensitive. validate.js asserts this stays in lockstep
 // with CLASS_ORDER in theme.js, which drives the display colors — the two
 // existing separately is a presentation concern, the two disagreeing is a bug.
-export const CLASSIFICATION_TIERS = ["Public", "Internal", "Confidential", "Restricted"];
+export const CLASSIFICATION_TIERS = ["Public", "Internal", "Confidential", "Restricted"] as const;
+export type ClassificationTier = (typeof CLASSIFICATION_TIERS)[number];
 
-export function tierRank(tier) {
-  return CLASSIFICATION_TIERS.indexOf(tier);
+export function tierRank(tier: string): number {
+  return CLASSIFICATION_TIERS.indexOf(tier as ClassificationTier);
 }
 
 // The high-water mark across a set of tiers — the operation behind both
 // "an asset is as sensitive as the most sensitive data it holds" and
 // "a system is as sensitive as its most sensitive asset."
-export function highestTier(tiers) {
+export function highestTier(tiers: string[]): string | null {
   if (tiers.length === 0) return null;
   return tiers.reduce((a, b) => (tierRank(b) > tierRank(a) ? b : a));
 }
@@ -39,7 +40,8 @@ export function highestTier(tiers) {
 // ---- Maturity and evidence vocabularies ---------------------------------------
 // Both ordered weakest to strongest, so a comparison against a required minimum
 // is an index comparison rather than a lookup table.
-export const MATURITY_STAGES = ["Policy", "Procedure", "Implemented", "Monitored", "Managed"];
+export const MATURITY_STAGES = ["Policy", "Procedure", "Implemented", "Monitored", "Managed"] as const;
+export type MaturityStage = (typeof MATURITY_STAGES)[number];
 
 export const EVIDENCE_TYPES = [
   "Self-attestation",
@@ -49,13 +51,15 @@ export const EVIDENCE_TYPES = [
   "API configuration observation",
   "Automated technical test",
   "Continuous telemetry",
-];
+] as const;
+export type EvidenceType = (typeof EVIDENCE_TYPES)[number];
 
 // ---- Assurance categories ------------------------------------------------------
 // The 6 rollup buckets every SCF domain resolves into for reporting.
-export const ASSURANCE_CATEGORIES = ["Data Protection", "Configuration", "Detection", "Identity & Access", "Governance", "Resilience"];
+export const ASSURANCE_CATEGORIES = ["Data Protection", "Configuration", "Detection", "Identity & Access", "Governance", "Resilience"] as const;
+export type AssuranceCategory = (typeof ASSURANCE_CATEGORIES)[number];
 
-export const DOMAIN_ASSURANCE_CATEGORY = {
+export const DOMAIN_ASSURANCE_CATEGORY: Record<string, AssuranceCategory> = {
   "Security, Compliance & Resilience Governance": "Governance",
   "Artificial Intelligence & Autonomous Technologies": "Governance",
   "Asset Management": "Configuration",
@@ -91,7 +95,7 @@ export const DOMAIN_ASSURANCE_CATEGORY = {
   "Web Security": "Identity & Access",
 };
 
-export function categoryForDomain(domain) {
+export function categoryForDomain(domain: string): AssuranceCategory {
   return DOMAIN_ASSURANCE_CATEGORY[domain] || "Governance";
 }
 
@@ -104,9 +108,10 @@ export const IMPLEMENTATION_TYPES = {
   AUTOMATED: "Automated",
   MANUAL: "Manual",
   PROCESS: "Process & Procedure",
-};
+} as const;
+export type ImplementationType = (typeof IMPLEMENTATION_TYPES)[keyof typeof IMPLEMENTATION_TYPES];
 
-const DOMAIN_IMPLEMENTATION_TYPE = {
+const DOMAIN_IMPLEMENTATION_TYPE: Record<string, ImplementationType> = {
   "Security, Compliance & Resilience Governance": IMPLEMENTATION_TYPES.PROCESS,
   "Artificial Intelligence & Autonomous Technologies": IMPLEMENTATION_TYPES.PROCESS,
   "Asset Management": IMPLEMENTATION_TYPES.MANUAL,
@@ -144,7 +149,7 @@ const DOMAIN_IMPLEMENTATION_TYPE = {
 // Only populated for Automated domains — the primary tool that continuously
 // enforces controls in that domain, reusing the same tool stack referenced
 // throughout the Policy Center.
-const DOMAIN_TOOL_HINT = {
+const DOMAIN_TOOL_HINT: Record<string, string> = {
   "Capacity & Performance Planning": "Azure Monitor",
   "Cloud Security": "Microsoft Defender for Cloud",
   "Configuration Management": "Intune / Azure Policy",
@@ -159,11 +164,11 @@ const DOMAIN_TOOL_HINT = {
   "Web Security": "Cloudflare",
 };
 
-export function getImplementationType(domain) {
+export function getImplementationType(domain: string): ImplementationType {
   return DOMAIN_IMPLEMENTATION_TYPE[domain] || IMPLEMENTATION_TYPES.PROCESS;
 }
 
-export function getToolHint(domain) {
+export function getToolHint(domain: string): string | null {
   return DOMAIN_TOOL_HINT[domain] || null;
 }
 
@@ -177,11 +182,12 @@ export const BASIS = {
   ASSESSED: "assessed", // backed only by a category-level judgment
   INHERITED: "inherited", // covered by a vendor's own certification
   UNASSESSED: "unassessed", // nothing backs this yet — a gap, not a score
-};
+} as const;
+export type Basis = (typeof BASIS)[keyof typeof BASIS];
 
-export const BASIS_ORDER = [BASIS.MEASURED, BASIS.ASSESSED, BASIS.INHERITED, BASIS.UNASSESSED];
+export const BASIS_ORDER: Basis[] = [BASIS.MEASURED, BASIS.ASSESSED, BASIS.INHERITED, BASIS.UNASSESSED];
 
-export const BASIS_META = {
+export const BASIS_META: Record<Basis, { label: string; detail: string }> = {
   [BASIS.MEASURED]: { label: "Measured", detail: "Computed from control implementations backed by evidence records." },
   [BASIS.ASSESSED]: { label: "Assessed", detail: "Computed from a category-level judgment, not from control-level evidence." },
   [BASIS.INHERITED]: { label: "Inherited", detail: "Covered by the hosting provider's own certification rather than ACME evidence." },

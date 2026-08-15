@@ -18,10 +18,44 @@
 // numeric weight of a tier is its position in the ordering, so the two can't
 // disagree — the old pair of hand-typed lookup objects could.
 
-export const SEVERITY_LEVELS = ["Minor", "Moderate", "Major", "Severe"];
-export const LIKELIHOOD_LEVELS = ["Rare", "Unlikely", "Possible", "Likely", "Almost Certain"];
+export const SEVERITY_LEVELS = ["Minor", "Moderate", "Major", "Severe"] as const;
+export type SeverityLevel = (typeof SEVERITY_LEVELS)[number];
 
-export const RISKS = [
+export const LIKELIHOOD_LEVELS = ["Rare", "Unlikely", "Possible", "Likely", "Almost Certain"] as const;
+export type LikelihoodLevel = (typeof LIKELIHOOD_LEVELS)[number];
+
+export interface RiskExposure {
+  severity: SeverityLevel;
+  likelihood: LikelihoodLevel;
+}
+
+export type MilestoneStatus = "not_started" | "in_progress" | "blocked" | "done";
+
+export interface RiskMilestone {
+  title: string;
+  status: MilestoneStatus;
+  due: string;
+}
+
+export interface Risk {
+  id: string;
+  scenario: string;
+  domain: string;
+  subcategory: string;
+  materialLabel?: string;
+  ownerId: string;
+  appetite: number;
+  treatment: string;
+  treatmentAtRisk: boolean;
+  escalated: boolean;
+  exposure: number;
+  inherent: RiskExposure;
+  residual: RiskExposure;
+  description: string;
+  milestones: RiskMilestone[];
+}
+
+export const RISKS: Risk[] = [
   {
     id: "RISK-001", scenario: "Cross-tenant data exposure through authorization defect", domain: "Product", subcategory: "Confidentiality",
     materialLabel: "Mass cross-tenant/customer data breach",
@@ -176,7 +210,7 @@ export const RISKS = [
   },
 ];
 
-export const RISK_BY_ID = Object.fromEntries(RISKS.map((r) => [r.id, r]));
+export const RISK_BY_ID: Record<string, Risk> = Object.fromEntries(RISKS.map((r) => [r.id, r]));
 
 // The board's chosen set of catastrophic loss scenarios. A curatorial call —
 // which of the tracked risks the board actually needs to see, not whatever an

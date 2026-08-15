@@ -32,7 +32,8 @@
 // string on every call the way systemRegister.js's hostingType() did — the
 // substring match on "SaaS"/"on-prem" was doing inference where a field will do.
 
-export const HOSTING_TYPES = ["cloud", "saas", "on-prem"];
+export const HOSTING_TYPES = ["cloud", "saas", "on-prem"] as const;
+export type HostingType = (typeof HOSTING_TYPES)[number];
 
 // Which control DOMAINS a hosting arrangement's provider already covers under
 // its own certification, rather than needing separate ACME evidence.
@@ -50,7 +51,7 @@ export const HOSTING_TYPES = ["cloud", "saas", "on-prem"];
 // is no provider. Which domains fall where is a judgment about the contract —
 // the same kind of call as the domain maps in taxonomy.js — but it is at least
 // a judgment about something nameable.
-export const INHERITED_DOMAINS = {
+export const INHERITED_DOMAINS: Record<HostingType, string[]> = {
   cloud: ["Physical & Environmental Security", "Maintenance"],
   saas: [
     "Physical & Environmental Security",
@@ -65,11 +66,34 @@ export const INHERITED_DOMAINS = {
   "on-prem": [],
 };
 
-export function inheritsDomain(hostingType, domain) {
-  return (INHERITED_DOMAINS[hostingType] || []).includes(domain);
+export function inheritsDomain(hostingType: string, domain: string): boolean {
+  return (INHERITED_DOMAINS[hostingType as HostingType] || []).includes(domain);
 }
 
-export const SYSTEMS = [
+export interface SystemRole {
+  role: string;
+  ownerId: string;
+  note?: string;
+}
+
+export interface System {
+  id: string;
+  name: string;
+  env: string;
+  hostingType: HostingType;
+  provider: string;
+  standards: string[];
+  mission: string;
+  boundary: string;
+  connections: string[];
+  roles: SystemRole[];
+  syncSource: string;
+  lastSynced: string;
+  oktaEnforced: string;
+  mfaEnforced: string;
+}
+
+export const SYSTEMS: System[] = [
   {
     id: "SYS-003",
     name: "Production AI Platform",
@@ -127,7 +151,7 @@ export const SYSTEMS = [
   },
 ];
 
-export const SYSTEM_BY_ID = Object.fromEntries(SYSTEMS.map((s) => [s.id, s]));
+export const SYSTEM_BY_ID: Record<string, System> = Object.fromEntries(SYSTEMS.map((s) => [s.id, s]));
 
 // The curated classification each system carried before it became derived.
 // This is not used for display — it exists so validate.js can assert the
@@ -136,7 +160,7 @@ export const SYSTEM_BY_ID = Object.fromEntries(SYSTEMS.map((s) => [s.id, s]));
 // data edges change such that a system's tier would move, that's either a real
 // finding or a data-entry mistake, and either way it should stop the build
 // rather than silently reclassify a system.
-export const EXPECTED_CLASSIFICATION = {
+export const EXPECTED_CLASSIFICATION: Record<string, string> = {
   "SYS-003": "Restricted",
   "SYS-042": "Confidential",
 };

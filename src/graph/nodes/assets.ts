@@ -42,16 +42,42 @@ export const ASSET_KINDS = [
   "integration-endpoint",
   "export-endpoint",
   "log-feed",
-];
+] as const;
+export type AssetKind = (typeof ASSET_KINDS)[number];
 
 // The kinds that sit where data crosses into the boundary from outside. Used
 // to find the entry point of a system's request path without storing a layout:
 // the flow graph alone can't identify one, because a real request path cycles
 // (the gateway calls the model service, which answers back to the gateway) and
 // so has no node with zero inbound edges.
-export const BOUNDARY_INGRESS_KINDS = ["api-gateway", "saas-api"];
+export const BOUNDARY_INGRESS_KINDS: AssetKind[] = ["api-gateway", "saas-api"];
 
-export const ASSETS = [
+export interface CriticalityFactor {
+  score: number;
+  reason: string;
+}
+
+export interface CriticalityFactors {
+  confidentiality: CriticalityFactor;
+  integrity: CriticalityFactor;
+  availability: CriticalityFactor;
+  regulatory: CriticalityFactor;
+  businessDependency: CriticalityFactor;
+}
+
+export interface Asset {
+  id: string;
+  systemId: string;
+  name: string;
+  type: string;
+  kind: AssetKind;
+  provider: string;
+  code: string;
+  criticalityFactors: CriticalityFactors;
+  inherentLikelihood: number;
+}
+
+export const ASSETS: Asset[] = [
   {
     id: "AST-003-01",
     systemId: "SYS-003",
@@ -309,8 +335,8 @@ export const ASSETS = [
   },
 ];
 
-export const ASSET_BY_ID = Object.fromEntries(ASSETS.map((a) => [a.id, a]));
+export const ASSET_BY_ID: Record<string, Asset> = Object.fromEntries(ASSETS.map((a) => [a.id, a]));
 
-export function assetsForSystem(systemId) {
+export function assetsForSystem(systemId: string): Asset[] {
   return ASSETS.filter((a) => a.systemId === systemId);
 }

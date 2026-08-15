@@ -15,26 +15,33 @@
 // CONTROL_PROFILES[tier], which sets a maturity/evidence floor per assurance
 // category — enough to say a Restricted asset needs Managed-grade Data
 // Protection, never which controls that means.
-import { ASSETS, ASSET_BY_ID } from "../graph/nodes/assets";
+import { ASSETS, ASSET_BY_ID, type Asset } from "../graph/nodes/assets";
 import { SYSTEM_BY_ID } from "../graph/nodes/systems";
-import { ASSET_SCOPED_CONTROLS, PROGRAM_SCOPED_CONTROLS, KEY_CONTROL_BY_ID } from "../graph/nodes/keyControls";
-import { APPLICABILITY_RULES, exceptionFor } from "../graph/edges/applicabilityRules";
+import { ASSET_SCOPED_CONTROLS, PROGRAM_SCOPED_CONTROLS, KEY_CONTROL_BY_ID, type KeyControl } from "../graph/nodes/keyControls";
+import { APPLICABILITY_RULES, exceptionFor, type ApplicabilityRule, type ApplicabilityException, type ApplicabilityCondition } from "../graph/edges/applicabilityRules";
 import { tierRank } from "../graph/nodes/taxonomy";
 import { assetClassification, assetClassificationDetail, dataKindsForAsset } from "./classification";
+
+interface ApplicabilityContext {
+  kind: string;
+  hostingType: string;
+  classification: string | null;
+  dataKinds: string[];
+}
 
 // A rule matches when every condition it names holds. An unnamed condition is
 // not a wildcard failure — it simply isn't part of that rule's test, which is
 // how a rule with `requiredWhen: {}` reads as "applies to everything."
-function ruleMatches(rule, context) {
-  const { assetKinds, minClassification, dataKinds, hostingTypes } = rule.requiredWhen;
-  if (assetKinds && !assetKinds.includes(context.kind)) return false;
-  if (hostingTypes && !hostingTypes.includes(context.hostingType)) return false;
-  if (minClassification && tierRank(context.classification) < tierRank(minClassification)) return false;
+function ruleMatches(rule: ApplicabilityRule, context: ApplicabilityContext): boolean {
+  const { assetKinds, minClassification, dataKinds, hostingTypes }: ApplicabilityCondition = rule.requiredWhen;
+  if (assetKinds && !assetKinds.includes(context.kind as Asset["kind"])) return false;
+  if (hostingTypes && !hostingTypes.includes(context.hostingType as (typeof hostingTypes)[number])) return false;
+  if (minClassification && context.classification !== null && tierRank(context.classification) < tierRank(minClassification)) return false;
   if (dataKinds && !dataKinds.some((k) => context.dataKinds.includes(k))) return false;
   return true;
 }
 
-function contextFor(assetId) {
+function contextFor(assetId: string): ApplicabilityContext {
   const asset = ASSET_BY_ID[assetId];
   const system = SYSTEM_BY_ID[asset.systemId];
   return {
@@ -45,9 +52,20 @@ function contextFor(assetId) {
   };
 }
 
+export interface ApplicabilityResolution {
+  assetId: string;
+  controlId: string;
+  required: boolean;
+  exception: ApplicabilityException | null;
+  reasons: { rationale: string; source: string }[];
+  notRequiredBecause: string | null;
+  context: ApplicabilityContext;
+  classificationDrivenBy?: unknown[];
+}
+
 // Everything known about whether one control applies to one asset — the shape
 // the Graph Explorer renders and the engine branches on.
-export function resolveApplicability(assetId, controlId) {
+export function resolveApplicability(assetId: string, controlId: string): ApplicabilityResolution {
   const context = contextFor(assetId);
   const matched = APPLICABILITY_RULES.filter((r) => r.controlId === controlId && ruleMatches(r, context));
   const exception = exceptionFor(assetId, controlId);
@@ -91,30 +109,30 @@ export function resolveApplicability(assetId, controlId) {
 }
 
 // Precomputed, because every rollup walks this and the rule set is static.
-const REQUIRED_BY_ASSET = {};
+const REQUIRED_BY_ASSET: Record<string, string[]> = {};
 ASSETS.forEach((asset) => {
   REQUIRED_BY_ASSET[asset.id] = ASSET_SCOPED_CONTROLS.filter((c) => resolveApplicability(asset.id, c.id).required).map((c) => c.id);
 });
 
-export function requiredControlsForAsset(assetId) {
+export function requiredControlsForAsset(assetId: string): KeyControl[] {
   return (REQUIRED_BY_ASSET[assetId] || []).map((id) => KEY_CONTROL_BY_ID[id]);
 }
 
-export function requiredControlsForAssetInCategory(assetId, category) {
+export function requiredControlsForAssetInCategory(assetId: string, category: string): KeyControl[] {
   return requiredControlsForAsset(assetId).filter((c) => c.category === category);
 }
 
-export function assetsRequiringControl(controlId) {
+export function assetsRequiringControl(controlId: string): Asset[] {
   return ASSETS.filter((a) => (REQUIRED_BY_ASSET[a.id] || []).includes(controlId));
 }
 
 // Every asset/control pair a rule excused, with its stated reason. Surfaced on
 // the Graph Explorer so exceptions are reviewable as a set rather than only
 // discoverable one control at a time.
-export function allExceptions() {
+export function allExceptions(): ApplicabilityResolution[] {
   return ASSETS.flatMap((asset) =>
     ASSET_SCOPED_CONTROLS.map((c) => resolveApplicability(asset.id, c.id)).filter((r) => r.exception)
   );
 }
 
-export const PROGRAM_CONTROL_IDS = PROGRAM_SCOPED_CONTROLS.map((c) => c.id);
+export const PROGRAM_CONTROL_IDS: string[] = PROGRAM_SCOPED_CONTROLS.map((c) => c.id);

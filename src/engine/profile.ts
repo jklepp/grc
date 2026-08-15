@@ -29,8 +29,8 @@ export { CONTROL_PROFILES, categoryWeightsFor, categoryWeight };
 // Weighted by the same tier weights the asset itself is scored with — a target
 // computed on a flat mean while the actual is computed on a weighted one would
 // be comparing two different things.
-export function tierTargetScore(tier) {
-  const profile = CONTROL_PROFILES[tier];
+export function tierTargetScore(tier: string): number | null {
+  const profile = CONTROL_PROFILES[tier as keyof typeof CONTROL_PROFILES];
   return display(
     weightedMean(
       ASSURANCE_CATEGORIES.map((category) => ({
@@ -48,15 +48,27 @@ export function tierTargetScore(tier) {
 // Per-category met / partial / gap for one asset against its tier's minimums.
 // "met" needs both maturity and evidence to clear the bar; "partial" is one of
 // the two; anything else is a genuine gap.
-export function evaluateAssetAgainstProfile(assetId) {
+export function evaluateAssetAgainstProfile(assetId: string) {
   const asset = ASSET_ROLLUP_BY_ID[assetId];
   if (!asset) return null;
-  const profile = CONTROL_PROFILES[asset.classification];
-  const result = {};
+  const profile = CONTROL_PROFILES[asset.classification as keyof typeof CONTROL_PROFILES];
+  const result = {} as Record<string, {
+    status: string;
+    required: (typeof profile)[keyof typeof profile];
+    weight: number;
+    contribution: number;
+    actual: { maturityStage: string; evidenceType: string; effectivenessPct: number };
+    score: number | null;
+    basis: string;
+    requiredMaturityScore: number;
+    requiredEvidenceScore: number;
+    measuredShortfall: boolean;
+    failingControls: unknown[];
+  }>;
 
   ASSURANCE_CATEGORIES.forEach((category) => {
     const required = profile[category];
-    const assessment = assessmentFor(assetId, category);
+    const assessment = assessmentFor(assetId, category)!;
     const rollup = asset.categories[category];
 
     const maturityMet = meetsMaturity(assessment.maturityStage, required.maturity);
@@ -75,7 +87,7 @@ export function evaluateAssetAgainstProfile(assetId) {
       weight: required.weight,
       // How much this category's shortfall actually costs the asset's score —
       // the number a flat mean could not express.
-      contribution: Math.round(((rollup.raw * required.weight) / 100) * 10) / 10,
+      contribution: Math.round((((rollup.raw as number) * required.weight) / 100) * 10) / 10,
       actual: { maturityStage: assessment.maturityStage, evidenceType: assessment.evidenceType, effectivenessPct: assessment.effectivenessPct },
       score: rollup.score,
       basis: rollup.basis,
@@ -89,18 +101,18 @@ export function evaluateAssetAgainstProfile(assetId) {
   return result;
 }
 
-export function profileSummary(assetId) {
-  const evaluation = evaluateAssetAgainstProfile(assetId);
+export function profileSummary(assetId: string) {
+  const evaluation = evaluateAssetAgainstProfile(assetId)!;
   const asset = ASSET_ROLLUP_BY_ID[assetId];
   const statuses = Object.values(evaluation).map((e) => e.status);
   return {
     evaluation,
     tier: asset.classification,
-    target: tierTargetScore(asset.classification),
+    target: tierTargetScore(asset.classification as string),
     actual: asset.overallAssurance,
     met: statuses.filter((s) => s === "met").length,
     partial: statuses.filter((s) => s === "partial").length,
     gap: statuses.filter((s) => s === "gap").length,
-    clears: asset.overallAssurance >= tierTargetScore(asset.classification),
+    clears: (asset.overallAssurance ?? 0) >= (tierTargetScore(asset.classification as string) ?? 0),
   };
 }

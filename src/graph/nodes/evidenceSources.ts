@@ -22,9 +22,19 @@
 // real problem) or a typo (also a real problem) — either way it should stop
 // the build rather than quietly average together.
 import { RAW_EVIDENCE, sourceIdFromName } from "./evidence";
+import type { IndependenceLevel } from "./evidence";
+import type { EvidenceType } from "./taxonomy";
 
-const byId = new Map();
-export const EVIDENCE_SOURCE_CONFLICTS = [];
+export interface EvidenceSource {
+  id: string;
+  name: string;
+  evidenceType: EvidenceType;
+  independence: IndependenceLevel;
+  observationIds: string[];
+}
+
+const byId = new Map<string, EvidenceSource>();
+export const EVIDENCE_SOURCE_CONFLICTS: string[] = [];
 
 RAW_EVIDENCE.forEach((e) => {
   const id = sourceIdFromName(e.source);
@@ -42,9 +52,9 @@ RAW_EVIDENCE.forEach((e) => {
   }
 });
 
-export const EVIDENCE_SOURCES = [...byId.values()];
-export const EVIDENCE_SOURCE_BY_ID = Object.fromEntries(EVIDENCE_SOURCES.map((s) => [s.id, s]));
+export const EVIDENCE_SOURCES: EvidenceSource[] = [...byId.values()];
+export const EVIDENCE_SOURCE_BY_ID: Record<string, EvidenceSource> = Object.fromEntries(EVIDENCE_SOURCES.map((s) => [s.id, s]));
 
-export function observationsForSource(sourceId) {
+export function observationsForSource(sourceId: string): string[] {
   return EVIDENCE_SOURCE_BY_ID[sourceId]?.observationIds ?? [];
 }

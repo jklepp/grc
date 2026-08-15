@@ -35,11 +35,20 @@
 // `category` and `domain` are NOT typed here. They're read from the control's
 // own SCF definition, so a key control can't claim a category its domain
 // doesn't actually map to.
-import { CONTROL_BY_ID } from "./controls";
+import { CONTROL_BY_ID, type Control, type ControlFramework } from "./controls";
+import type { AssuranceCategory, ImplementationType } from "./taxonomy";
 
-export const CONTROL_SCOPES = { ASSET: "asset", PROGRAM: "program" };
+export const CONTROL_SCOPES = { ASSET: "asset", PROGRAM: "program" } as const;
+export type ControlScope = (typeof CONTROL_SCOPES)[keyof typeof CONTROL_SCOPES];
 
-const KEY_CONTROL_DEFS = [
+interface KeyControlDef {
+  id: string;
+  friendlyName: string;
+  scope: ControlScope;
+  legacyTracked?: boolean;
+}
+
+const KEY_CONTROL_DEFS: KeyControlDef[] = [
   // ---- Data Protection -------------------------------------------------------
   { id: "CRY-05", friendlyName: "Encryption at Rest", scope: "asset", legacyTracked: true },
   { id: "CRY-03", friendlyName: "Encryption in Transit", scope: "asset", legacyTracked: true },
@@ -86,8 +95,18 @@ const KEY_CONTROL_DEFS = [
   { id: "CAP-01", friendlyName: "Capacity & Performance Management", scope: "asset" },
 ];
 
-export const KEY_CONTROLS = KEY_CONTROL_DEFS.map((def) => {
-  const control = CONTROL_BY_ID[def.id];
+export interface KeyControl extends KeyControlDef {
+  domain: string;
+  category: AssuranceCategory;
+  name: string;
+  description: string;
+  frameworks: ControlFramework[];
+  implementationType: ImplementationType;
+  toolHint: string | null;
+}
+
+export const KEY_CONTROLS: KeyControl[] = KEY_CONTROL_DEFS.map((def) => {
+  const control: Control | undefined = CONTROL_BY_ID[def.id];
   if (!control) {
     throw new Error(`keyControls.js: "${def.id}" is not a control in scfControls.json — a key control must reference a real SCF id`);
   }
@@ -103,16 +122,16 @@ export const KEY_CONTROLS = KEY_CONTROL_DEFS.map((def) => {
   };
 });
 
-export const KEY_CONTROL_BY_ID = Object.fromEntries(KEY_CONTROLS.map((c) => [c.id, c]));
-export const KEY_CONTROL_IDS = KEY_CONTROLS.map((c) => c.id);
+export const KEY_CONTROL_BY_ID: Record<string, KeyControl> = Object.fromEntries(KEY_CONTROLS.map((c) => [c.id, c]));
+export const KEY_CONTROL_IDS: string[] = KEY_CONTROLS.map((c) => c.id);
 
-export const ASSET_SCOPED_CONTROLS = KEY_CONTROLS.filter((c) => c.scope === CONTROL_SCOPES.ASSET);
-export const PROGRAM_SCOPED_CONTROLS = KEY_CONTROLS.filter((c) => c.scope === CONTROL_SCOPES.PROGRAM);
+export const ASSET_SCOPED_CONTROLS: KeyControl[] = KEY_CONTROLS.filter((c) => c.scope === CONTROL_SCOPES.ASSET);
+export const PROGRAM_SCOPED_CONTROLS: KeyControl[] = KEY_CONTROLS.filter((c) => c.scope === CONTROL_SCOPES.PROGRAM);
 
-export function isKeyControl(controlId) {
+export function isKeyControl(controlId: string): boolean {
   return Object.hasOwn(KEY_CONTROL_BY_ID, controlId);
 }
 
-export function keyControlsForCategory(category) {
+export function keyControlsForCategory(category: string): KeyControl[] {
   return KEY_CONTROLS.filter((c) => c.category === category);
 }

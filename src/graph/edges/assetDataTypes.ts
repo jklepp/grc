@@ -31,9 +31,10 @@ export const DATA_ROLES = {
   TRANSITS: "transits",
   DERIVES: "derives",
   ACCESSES: "accesses",
-};
+} as const;
+export type DataRole = (typeof DATA_ROLES)[keyof typeof DATA_ROLES];
 
-export const DATA_ROLE_META = {
+export const DATA_ROLE_META: Record<DataRole, { label: string; detail: string }> = {
   stores: { label: "Stores", detail: "Holds this data at rest." },
   processes: { label: "Processes", detail: "Operates on this data in memory without being its system of record." },
   transits: { label: "Transits", detail: "This data passes through, but is not retained here." },
@@ -41,7 +42,13 @@ export const DATA_ROLE_META = {
   accesses: { label: "Accesses", detail: "Holds no data itself, but grants reach to it." },
 };
 
-export const ASSET_DATA_TYPES = [
+export interface AssetDataType {
+  assetId: string;
+  dataTypeId: string;
+  role: DataRole;
+}
+
+export const ASSET_DATA_TYPES: AssetDataType[] = [
   // ---- SYS-003 Production AI Platform ----------------------------------------
   { assetId: "AST-003-01", dataTypeId: "DT-001", role: "transits" },
   { assetId: "AST-003-01", dataTypeId: "DT-002", role: "transits" },
@@ -93,17 +100,17 @@ export const ASSET_DATA_TYPES = [
   { assetId: "AST-042-07", dataTypeId: "DT-006", role: "stores" },
 ];
 
-const BY_ASSET = {};
-const BY_DATA_TYPE = {};
+const BY_ASSET: Record<string, AssetDataType[]> = {};
+const BY_DATA_TYPE: Record<string, AssetDataType[]> = {};
 ASSET_DATA_TYPES.forEach((e) => {
   (BY_ASSET[e.assetId] ||= []).push(e);
   (BY_DATA_TYPE[e.dataTypeId] ||= []).push(e);
 });
 
-export function dataTypesForAsset(assetId) {
+export function dataTypesForAsset(assetId: string): AssetDataType[] {
   return BY_ASSET[assetId] || [];
 }
 
-export function assetsForDataType(dataTypeId) {
+export function assetsForDataType(dataTypeId: string): AssetDataType[] {
   return BY_DATA_TYPE[dataTypeId] || [];
 }
