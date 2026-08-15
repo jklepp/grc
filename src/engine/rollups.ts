@@ -27,13 +27,13 @@
 // everything they don't cover. controlBackedPct is reported separately and is
 // NOT this weight, so "how much of this rests on evidence" stays an honest
 // answer rather than a restatement of the formula.
-import { ASSETS, ASSET_BY_ID, assetsForSystem, BOUNDARY_INGRESS_KINDS, DATABASE_KINDS, type CriticalityFactors } from "../graph/nodes/assets";
+import { ASSETS, ASSET_BY_ID, assetsForSystem, BOUNDARY_INGRESS_KINDS, BOUNDARY_EGRESS_KINDS, DATABASE_KINDS, type CriticalityFactors } from "../graph/nodes/assets";
 import { SYSTEMS, SYSTEM_BY_ID } from "../graph/nodes/systems";
 import { ORG_BY_ID } from "../graph/nodes/orgs";
 import { findingsForSystem } from "./findings";
 import { ASSURANCE_CATEGORIES, BASIS, type AssuranceCategory } from "../graph/nodes/taxonomy";
 import { DATA_FLOWS, flowsTo } from "../graph/edges/dataFlows";
-import { ACTOR_ACCESS } from "../graph/edges/actorAccess";
+import { ACTOR_ACCESS, ACTOR_DIRECTIONS } from "../graph/edges/actorAccess";
 import { ACTOR_BY_ID } from "../graph/nodes/actors";
 import { assessmentFor, type CategoryAssessment } from "../graph/edges/categoryAssessments";
 import { categoryWeightsFor } from "../graph/nodes/controlProfiles";
@@ -276,7 +276,15 @@ export function flowLayoutForSystem(systemId: SystemId) {
   // out of it), so that holds today, but would need revisiting the day a
   // database has an outbound data edge of its own.
   const dbIds = new Set(assets.filter((a) => (DATABASE_KINDS as string[]).includes(a.kind)).map((a) => a.id));
-  const pathDataEdges = dataEdges.filter((f) => !dbIds.has(f.from) && !dbIds.has(f.to));
+
+  // Egress-kind assets (BOUNDARY_EGRESS_KINDS) are pulled out of the stage
+  // walk the same way database-kind assets are: they're where data leaves
+  // the boundary, a distinct fact from how many hops it took to get there.
+  // Without this, "Egress" would mean nothing more than "whatever the walk
+  // happened to dead-end at," which is just as often an internal worker or
+  // log feed as an actual boundary component.
+  const egressIds = new Set(assets.filter((a) => (BOUNDARY_EGRESS_KINDS as string[]).includes(a.kind)).map((a) => a.id));
+  const pathDataEdges = dataEdges.filter((f) => !dbIds.has(f.from) && !dbIds.has(f.to) && !egressIds.has(f.from) && !egressIds.has(f.to));
 
   // Control-plane-only assets (a key store, a service account) aren't in the
   // request path at all. They hang off the assets they protect rather than
@@ -341,7 +349,7 @@ export function flowLayoutForSystem(systemId: SystemId) {
   }
 
   const branches = assets
-    .filter((a) => depth[a.id] === null && !dbIds.has(a.id))
+    .filter((a) => depth[a.id] === null && !dbIds.has(a.id) && !egressIds.has(a.id))
     .map((a) => ({
       asset: ASSET_ROLLUP_BY_ID[a.id],
       protects: DATA_FLOWS.filter((f) => f.from === a.id && f.kind === "control-plane").map((f) => ASSET_ROLLUP_BY_ID[f.to]),
@@ -356,18 +364,37 @@ export function flowLayoutForSystem(systemId: SystemId) {
       fedBy: dataEdges.filter((f) => f.to === a.id).map((f) => ASSET_ROLLUP_BY_ID[f.from]),
     }));
 
-  // Every actor tied to this system — human or machine, whichever direction
-  // they call — renders together in the one Actors stage before Ingress.
-  // `direction` stays on the edge as a real fact (some call in, some are
-  // called out to), but that distinction lives in each actor's description
-  // rather than splitting the diagram into a second category.
-  const actorAccess = ACTOR_ACCESS.filter((a) => ids.has(a.assetId)).map((a) => ({
+  // Egress: the egress-kind assets pulled out of the walk above, paired with
+  // whoever's data edges actually feed them — same shape as Data Plane,
+  // because both are terminal sinks the walk doesn't continue past.
+  const egress = assets
+    .filter((a) => egressIds.has(a.id))
+    .map((a) => ({
+      asset: ASSET_ROLLUP_BY_ID[a.id],
+      fedBy: dataEdges.filter((f) => f.to === a.id).map((f) => ASSET_ROLLUP_BY_ID[f.from]),
+    }));
+
+  // Every actor tied to this system — human or machine — split by which way
+  // the call goes. An inbound actor calls into the system (rendered before
+  // Ingress); an outbound actor is one of our assets calling out to it (a
+  // third-party model provider, an external SaaS destination), rendered
+  // after Egress. Splitting on `direction` instead of merging them into one
+  // row keeps an outbound-only actor from visually reading as if it were
+  // entering the system.
+  const systemActorAccess = ACTOR_ACCESS.filter((a) => ids.has(a.assetId)).map((a) => ({
     actor: ACTOR_BY_ID[a.actorId],
     assetId: a.assetId,
     note: a.note,
+    direction: a.direction,
   }));
+  const ingressActors = systemActorAccess.filter((a) => a.direction === ACTOR_DIRECTIONS.INBOUND);
+  const egressActors = systemActorAccess.filter((a) => a.direction === ACTOR_DIRECTIONS.OUTBOUND);
 
-  return { systemId, stages, branches, dataPlane, actorAccess, edges: dataEdges, controlPlaneEdges: DATA_FLOWS.filter((f) => f.kind === "control-plane" && ids.has(f.from)) };
+  return {
+    systemId, stages, branches, dataPlane, egress, ingressActors, egressActors,
+    edges: dataEdges,
+    controlPlaneEdges: DATA_FLOWS.filter((f) => f.kind === "control-plane" && ids.has(f.from)),
+  };
 }
 
 export const TOTAL_ACTOR_COUNT = ACTOR_ACCESS.length;

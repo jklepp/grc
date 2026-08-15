@@ -70,6 +70,21 @@ export type AssetKind = (typeof ASSET_KINDS)[number];
 // visited before it's followed.
 export const BOUNDARY_INGRESS_KINDS: AssetKind[] = ["waf", "api-gateway", "saas-api"];
 
+// The kinds that sit where data crosses OUT of the boundary to an external
+// destination: a secure egress proxy, an integration endpoint calling an
+// external system, a bulk export leaving the tenant. Depth alone can't be
+// trusted to mean "Egress" — the deepest node the BFS below reaches is
+// whatever the graph happens to dead-end at, which is just as often an
+// internal worker, queue, or log feed as an actual boundary component. So
+// Egress is a role assets are given explicitly here, the same way
+// BOUNDARY_INGRESS_KINDS makes Ingress a role rather than "depth 0" being
+// coincidence. An asset of one of these kinds is pulled out of the normal
+// stage walk in engine/rollups.ts and placed in its own Egress section
+// regardless of how many hops it took to reach it — mirroring how
+// DATABASE_KINDS below are pulled into their own Data Plane section instead
+// of occupying a stage.
+export const BOUNDARY_EGRESS_KINDS: AssetKind[] = ["egress-gateway", "export-endpoint", "integration-endpoint"];
+
 // The kinds that are primarily data stores — where data actually lands at
 // rest — rather than compute or transport. Used to pull these out of the
 // request-path stage sequence and into their own Data Plane section on the
