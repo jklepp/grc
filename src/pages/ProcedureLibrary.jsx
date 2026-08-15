@@ -100,6 +100,45 @@ function MetaChip({ icon: Icon, label, value }) {
   );
 }
 
+function ProcedureStepRow({ step: s, index }) {
+  const isRequired = s.controls && s.controls.length > 0;
+  return (
+    <div className="flex gap-2.5">
+      {index != null && <span className="text-xs font-semibold shrink-0 w-5" style={{ color: C.accent }}>{index + 1}.</span>}
+      <div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="text-sm font-semibold" style={{ color: C.ink }}>{s.title}</div>
+          <span
+            className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full shrink-0"
+            style={{
+              background: isRequired ? C.accentBg : C.panel2,
+              color: isRequired ? C.accent : C.muted,
+              border: `1px solid ${isRequired ? C.accent : C.border}`,
+            }}
+          >
+            {isRequired ? "Required" : "Recommended"}
+          </span>
+        </div>
+        <div className="text-xs mt-0.5 leading-relaxed" style={{ color: C.muted }}>{s.detail}</div>
+        {s.controls && s.controls.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1.5">
+            {s.controls.map((id) => (
+              <span
+                key={id}
+                className="text-[10px] px-1.5 py-0.5 rounded"
+                style={{ background: C.panel2, color: C.accent, fontFamily: "'IBM Plex Mono', monospace", border: `1px solid ${C.border}` }}
+                title="Control this step operationalizes"
+              >
+                {id}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Some SOPs now cover up to ~46 real controls (the Governance, Risk &
 // Compliance group), so the raw ID list and clause citations both need to
 // stay usable rather than dumping a wall of IDs — collapsed by default with
@@ -795,55 +834,48 @@ export default function ProcedureLibrary({ onNavigate }) {
                 follows beyond what's currently cited to a specific control — not optional, just not yet tied to one.
               </div>
               <div className="space-y-3 mb-6">
-                {selected.steps.map((s, i) => {
-                  const isRequired = s.controls && s.controls.length > 0;
-                  const showDivider = i === requiredCount && requiredCount > 0 && requiredCount < selected.steps.length;
-                  return (
-                    <React.Fragment key={i}>
-                      {showDivider && (
-                        <div className="flex items-center gap-2 pt-1">
-                          <span className="text-[10px] uppercase tracking-wide font-semibold shrink-0" style={{ color: C.muted }}>
-                            Recommended — beyond the current framework mapping
-                          </span>
-                          <div className="flex-1 h-px" style={{ background: C.border }} />
-                        </div>
-                      )}
-                      <div className="flex gap-2.5">
-                        <span className="text-xs font-semibold shrink-0 w-5" style={{ color: C.accent }}>{i + 1}.</span>
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <div className="text-sm font-semibold" style={{ color: C.ink }}>{s.title}</div>
-                            <span
-                              className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full shrink-0"
-                              style={{
-                                background: isRequired ? C.accentBg : C.panel2,
-                                color: isRequired ? C.accent : C.muted,
-                                border: `1px solid ${isRequired ? C.accent : C.border}`,
-                              }}
-                            >
-                              {isRequired ? "Required" : "Recommended"}
-                            </span>
+                {selected.stepGroups ? (
+                  selected.stepGroups.map((g) => {
+                    const groupSteps = selected.steps.filter((s) => s.group === g.id);
+                    if (groupSteps.length === 0) return null;
+                    return (
+                      <div key={g.id} className="mb-5">
+                        <div className="pb-1">
+                          <div
+                            className="block w-full text-sm font-bold uppercase tracking-wide px-3 py-0.5 rounded-lg"
+                            style={{ color: C.accent, border: `1px solid ${C.accent}` }}
+                          >
+                            {g.title}
                           </div>
-                          <div className="text-xs mt-0.5 leading-relaxed" style={{ color: C.muted }}>{s.detail}</div>
-                          {s.controls && s.controls.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1.5">
-                              {s.controls.map((id) => (
-                                <span
-                                  key={id}
-                                  className="text-[10px] px-1.5 py-0.5 rounded"
-                                  style={{ background: C.panel2, color: C.accent, fontFamily: "'IBM Plex Mono', monospace", border: `1px solid ${C.border}` }}
-                                  title="Control this step operationalizes"
-                                >
-                                  {id}
-                                </span>
-                              ))}
-                            </div>
-                          )}
+                          <div className="text-[11px] mt-0.5 leading-snug" style={{ color: C.muted }}>{g.blurb}</div>
+                        </div>
+                        <div className="space-y-3">
+                          {groupSteps.map((s) => (
+                            <ProcedureStepRow key={s.title} step={s} index={selected.steps.indexOf(s)} />
+                          ))}
                         </div>
                       </div>
-                    </React.Fragment>
-                  );
-                })}
+                    );
+                  })
+                ) : (
+                  selected.steps.map((s, i) => {
+                    const isRequired = s.controls && s.controls.length > 0;
+                    const showDivider = i === requiredCount && requiredCount > 0 && requiredCount < selected.steps.length;
+                    return (
+                      <React.Fragment key={i}>
+                        {showDivider && (
+                          <div className="flex items-center gap-2 pt-1">
+                            <span className="text-[10px] uppercase tracking-wide font-semibold shrink-0" style={{ color: C.muted }}>
+                              Recommended — beyond the current framework mapping
+                            </span>
+                            <div className="flex-1 h-px" style={{ background: C.border }} />
+                          </div>
+                        )}
+                        <ProcedureStepRow step={s} index={i} />
+                      </React.Fragment>
+                    );
+                  })
+                )}
               </div>
 
               <div className="flex items-start gap-2 text-[11px] leading-relaxed rounded-lg p-3 mb-6" style={{ background: C.panel2, color: C.muted }}>
