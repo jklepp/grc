@@ -29,11 +29,13 @@ export interface ActorAccess {
 }
 
 export const ACTOR_ACCESS: ActorAccess[] = [
-  { id: "ACC-003-01", actorId: "ACTOR-CUSTOMER", assetId: "AST-003-01", direction: "inbound", note: "Authenticated customer query enters through the API Gateway." },
-  { id: "ACC-003-03", actorId: "ACTOR-PARTNER-API", assetId: "AST-003-01", direction: "inbound", note: "Partner integrations call the gateway directly with an API key, outside the product UI." },
+  { id: "ACC-003-01", actorId: "ACTOR-CUSTOMER", assetId: "AST-003-10", direction: "inbound", note: "Authenticated customer query enters through the WAF." },
+  { id: "ACC-003-03", actorId: "ACTOR-PARTNER-API", assetId: "AST-003-10", direction: "inbound", note: "Partner integrations call the gateway directly with an API key, outside the product UI." },
+  { id: "ACC-003-04", actorId: "ACTOR-PLATFORM-ADMIN", assetId: "AST-003-16", direction: "inbound", note: "Privileged administrators authenticate via IAM roles and SSO rather than the public API surface." },
   { id: "ACC-042-01", actorId: "ACTOR-WORKDAY-INTEGRATION", assetId: "AST-042-02", direction: "inbound", note: "Every integration authenticates as this single account before calling the API Endpoint." },
 
-  { id: "ACC-003-02", actorId: "ACTOR-MODEL-PROVIDER", assetId: "AST-003-02", direction: "outbound", note: "Prompts and completions are exchanged with the third-party model provider at runtime, using keys resolved from Secrets Manager." },
+  { id: "ACC-003-02", actorId: "ACTOR-MODEL-PROVIDER", assetId: "AST-003-11", direction: "outbound", note: "Prompts and completions are exchanged with the third-party model provider through the model gateway, using keys resolved from Secrets Manager." },
+  { id: "ACC-003-05", actorId: "ACTOR-EXTERNAL-SAAS", assetId: "AST-003-15", direction: "outbound", note: "Represents external SaaS APIs and internet destinations agent tool calls may reach, subject to destination allow-listing." },
   { id: "ACC-042-02", actorId: "ACTOR-PAYROLL-PROCESSOR", assetId: "AST-042-04", direction: "outbound", note: "Compensation data is released to the external payroll processor on the pay-cycle schedule." },
 ];
 

@@ -49,15 +49,47 @@ export const DATA_FLOWS: DataFlow[] = [
   { id: "FLOW-003-07", from: "AST-003-03", to: "AST-003-02", kind: "data", dataTypeIds: ["DT-002", "DT-003"], note: "Retrieved context injected into the model prompt." },
   { id: "FLOW-003-08", from: "AST-003-02", to: "AST-003-01", kind: "data", dataTypeIds: ["DT-003"], note: "Completion returned to the caller." },
   { id: "FLOW-003-09", from: "AST-003-05", to: "AST-003-04", kind: "data", dataTypeIds: ["DT-002"], note: "Ingestion pipeline embeds source documents into the vector store." },
-  { id: "FLOW-003-16", from: "AST-003-02", to: "AST-003-09", kind: "data", dataTypeIds: ["DT-003"], note: "Completions delivered to partner integrations via API for programmatic consumption." },
+  { id: "FLOW-003-16", from: "AST-003-13", to: "AST-003-09", kind: "data", dataTypeIds: ["DT-003"], note: "Completions delivered to partner integrations via the tool gateway's governed external-delivery path, mediated the same way as any other outbound call." },
+  { id: "FLOW-003-17", from: "AST-003-10", to: "AST-003-01", kind: "data", dataTypeIds: ["DT-001", "DT-002", "DT-003"], note: "Filtered public traffic forwarded to the API Gateway after WAF inspection." },
+  { id: "FLOW-003-18", from: "AST-003-02", to: "AST-003-11", kind: "data", dataTypeIds: ["DT-003"], note: "Agent requests routed through the model gateway for provider allowlisting, quota enforcement, and AI telemetry." },
+  { id: "FLOW-003-19", from: "AST-003-02", to: "AST-003-12", kind: "data", dataTypeIds: ["DT-005"], note: "Every agent action is authorized against identity, tenant, agent, and requested resource before it proceeds — the model is never the authorization boundary." },
+  { id: "FLOW-003-20", from: "AST-003-02", to: "AST-003-13", kind: "data", dataTypeIds: ["DT-003"], note: "Agent tool calls are mediated through the gateway for allowlisting, schema validation, and credential injection." },
+  { id: "FLOW-003-21", from: "AST-003-13", to: "AST-003-15", kind: "data", dataTypeIds: ["DT-003"], note: "Tool calls to external systems exit through the controlled egress path." },
+  { id: "FLOW-003-42", from: "AST-003-02", to: "AST-003-14", kind: "data", dataTypeIds: ["DT-005"], note: "In-flight agent workflow and session state cached during multi-step tool use." },
 
   // ---- SYS-003: control plane --------------------------------------------------
   { id: "FLOW-003-10", from: "AST-003-07", to: "AST-003-05", kind: "control-plane", dataTypeIds: ["DT-004"], note: "Envelope encryption of objects at rest." },
   { id: "FLOW-003-11", from: "AST-003-07", to: "AST-003-06", kind: "control-plane", dataTypeIds: ["DT-004"], note: "Storage encryption for the metadata database." },
   { id: "FLOW-003-12", from: "AST-003-07", to: "AST-003-04", kind: "control-plane", dataTypeIds: ["DT-004"], note: "Encryption of the vector index at rest." },
   { id: "FLOW-003-13", from: "AST-003-08", to: "AST-003-03", kind: "control-plane", dataTypeIds: ["DT-004"], note: "Runtime credential resolution for the retrieval service." },
-  { id: "FLOW-003-14", from: "AST-003-08", to: "AST-003-02", kind: "control-plane", dataTypeIds: ["DT-004"], note: "Model provider API keys resolved at runtime." },
+  { id: "FLOW-003-14", from: "AST-003-08", to: "AST-003-11", kind: "control-plane", dataTypeIds: ["DT-004"], note: "Model provider API keys resolved at runtime by the model gateway — the agent itself never holds them." },
   { id: "FLOW-003-15", from: "AST-003-08", to: "AST-003-01", kind: "control-plane", dataTypeIds: ["DT-004"], note: "Authorizer signing material." },
+  { id: "FLOW-003-22", from: "AST-003-08", to: "AST-003-13", kind: "control-plane", dataTypeIds: ["DT-004"], note: "Tool and SaaS API credentials injected at runtime, never exposed to model context." },
+
+  // ---- SYS-003: identity & workload IAM ------------------------------------------
+  { id: "FLOW-003-23", from: "AST-003-16", to: "AST-003-02", kind: "control-plane", dataTypeIds: ["DT-004"], note: "Short-lived workload credentials issued via IAM role assumption." },
+  { id: "FLOW-003-24", from: "AST-003-16", to: "AST-003-03", kind: "control-plane", dataTypeIds: ["DT-004"], note: "Short-lived workload credentials issued via IAM role assumption." },
+  { id: "FLOW-003-25", from: "AST-003-16", to: "AST-003-11", kind: "control-plane", dataTypeIds: ["DT-004"], note: "Short-lived workload credentials issued via IAM role assumption." },
+  { id: "FLOW-003-26", from: "AST-003-16", to: "AST-003-12", kind: "control-plane", dataTypeIds: ["DT-004"], note: "Short-lived workload credentials issued via IAM role assumption." },
+  { id: "FLOW-003-27", from: "AST-003-16", to: "AST-003-13", kind: "control-plane", dataTypeIds: ["DT-004"], note: "Short-lived workload credentials issued via IAM role assumption." },
+
+  // ---- SYS-003: runtime security --------------------------------------------------
+  { id: "FLOW-003-28", from: "AST-003-19", to: "AST-003-02", kind: "control-plane", dataTypeIds: ["DT-006"], note: "Container runtime threat detection for this workload." },
+  { id: "FLOW-003-29", from: "AST-003-19", to: "AST-003-03", kind: "control-plane", dataTypeIds: ["DT-006"], note: "Container runtime threat detection for this workload." },
+  { id: "FLOW-003-30", from: "AST-003-19", to: "AST-003-11", kind: "control-plane", dataTypeIds: ["DT-006"], note: "Container runtime threat detection for this workload." },
+  { id: "FLOW-003-31", from: "AST-003-19", to: "AST-003-12", kind: "control-plane", dataTypeIds: ["DT-006"], note: "Container runtime threat detection for this workload." },
+  { id: "FLOW-003-32", from: "AST-003-19", to: "AST-003-13", kind: "control-plane", dataTypeIds: ["DT-006"], note: "Container runtime threat detection for this workload." },
+
+  // ---- SYS-003: security & AI telemetry -------------------------------------------
+  { id: "FLOW-003-33", from: "AST-003-17", to: "AST-003-10", kind: "control-plane", dataTypeIds: ["DT-006"], note: "Collects WAF inspection and abuse-blocking events." },
+  { id: "FLOW-003-34", from: "AST-003-17", to: "AST-003-02", kind: "control-plane", dataTypeIds: ["DT-006"], note: "Collects agent execution logs." },
+  { id: "FLOW-003-35", from: "AST-003-17", to: "AST-003-03", kind: "control-plane", dataTypeIds: ["DT-006"], note: "Collects retrieval logging and metadata-filtering events." },
+  { id: "FLOW-003-36", from: "AST-003-17", to: "AST-003-11", kind: "control-plane", dataTypeIds: ["DT-006"], note: "Collects model gateway routing, allowlisting, and quota telemetry." },
+  { id: "FLOW-003-37", from: "AST-003-17", to: "AST-003-12", kind: "control-plane", dataTypeIds: ["DT-006"], note: "Collects authorization decisions." },
+  { id: "FLOW-003-38", from: "AST-003-17", to: "AST-003-13", kind: "control-plane", dataTypeIds: ["DT-006"], note: "Collects tool-call logs." },
+  { id: "FLOW-003-39", from: "AST-003-17", to: "AST-003-15", kind: "control-plane", dataTypeIds: ["DT-006"], note: "Collects egress and destination-control events." },
+  { id: "FLOW-003-40", from: "AST-003-17", to: "AST-003-19", kind: "control-plane", dataTypeIds: ["DT-006"], note: "Collects runtime threat detection events." },
+  { id: "FLOW-003-41", from: "AST-003-17", to: "AST-003-18", kind: "control-plane", dataTypeIds: ["DT-006"], note: "Aggregated security telemetry forwarded to Splunk for detection and investigation." },
 
   // ---- SYS-042 Workday ----------------------------------------------------------
   { id: "FLOW-042-01", from: "AST-042-02", to: "AST-042-01", kind: "data", dataTypeIds: ["DT-007", "DT-008", "DT-009"], note: "Integration reads and writes against the tenant." },

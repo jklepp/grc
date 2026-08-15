@@ -43,6 +43,16 @@ export const ASSET_KINDS = [
   "integration-endpoint",
   "export-endpoint",
   "log-feed",
+  "waf",
+  "model-gateway",
+  "policy-service",
+  "tool-gateway",
+  "cache",
+  "egress-gateway",
+  "iam",
+  "telemetry",
+  "siem",
+  "runtime-security",
 ] as const;
 export type AssetKind = (typeof ASSET_KINDS)[number];
 
@@ -51,14 +61,22 @@ export type AssetKind = (typeof ASSET_KINDS)[number];
 // the flow graph alone can't identify one, because a real request path cycles
 // (the gateway calls the model service, which answers back to the gateway) and
 // so has no node with zero inbound edges.
-export const BOUNDARY_INGRESS_KINDS: AssetKind[] = ["api-gateway", "saas-api"];
+//
+// More than one kind can sit at the boundary together — a WAF in front of an
+// API Gateway are both still Ingress, not two separate hops — and the walk
+// gets that for free: every ingress-kind asset in the request path seeds the
+// breadth-first traversal at depth 0 simultaneously, so an edge between two
+// of them (WAF -> API Gateway) just never fires, since both ends are already
+// visited before it's followed.
+export const BOUNDARY_INGRESS_KINDS: AssetKind[] = ["waf", "api-gateway", "saas-api"];
 
 // The kinds that are primarily data stores — where data actually lands at
 // rest — rather than compute or transport. Used to pull these out of the
 // request-path stage sequence and into their own Data Plane section on the
 // flow diagram: where the data actually lands is a distinct fact from how
-// many hops it took to get there.
-export const DATABASE_KINDS: AssetKind[] = ["relational-db", "vector-db", "object-storage"];
+// many hops it took to get there. A cache still counts: a session or
+// workflow-state store is where its data lands even if the TTL is short.
+export const DATABASE_KINDS: AssetKind[] = ["relational-db", "vector-db", "object-storage", "cache"];
 
 export interface CriticalityFactor {
   score: number;
@@ -123,7 +141,7 @@ export const ASSETS: Asset[] = [
   {
     id: "AST-003-03",
     systemId: "SYS-003",
-    name: "RAG Service",
+    name: "RAG Retrieval Service",
     type: "AWS ECS Service (Fargate)",
     kind: "compute-service",
     provider: "AWS",
@@ -133,7 +151,7 @@ export const ASSETS: Asset[] = [
       integrity: { score: 78, reason: "Poisoned or wrong retrieval results directly bias what the model returns to customers" },
       availability: { score: 75, reason: "Degrades to base-model answers rather than a hard outage if retrieval fails" },
       regulatory: { score: 82, reason: "Pulls Restricted-tier customer records into live prompts" },
-      businessDependency: { score: 80, reason: "Differentiates the product's AI answers from a generic base model" },
+      businessDependency: { score: 80, reason: "Enforces tenant and document-level authorization before any retrieval reaches the model, and is the only path into the vector store — nothing calls it directly" },
     },
     inherentLikelihood: 4,
   },
@@ -236,6 +254,176 @@ export const ASSETS: Asset[] = [
       availability: { score: 65, reason: "Partner delivery runs independently of the synchronous customer response path" },
       regulatory: { score: 78, reason: "Restricted-tier model outputs leave the boundary through this endpoint" },
       businessDependency: { score: 70, reason: "Backs partner-facing integrations built on top of the platform's completions" },
+    },
+    inherentLikelihood: 3,
+  },
+  {
+    id: "AST-003-10",
+    systemId: "SYS-003",
+    name: "Web Application Firewall",
+    type: "AWS WAF",
+    kind: "waf",
+    provider: "AWS",
+    code: "WAF",
+    criticalityFactors: {
+      confidentiality: { score: 70, reason: "Inspects public traffic before it reaches the platform, but terminates no sensitive payloads itself" },
+      integrity: { score: 80, reason: "A bypassed or misconfigured rule set lets malicious requests reach every asset behind it" },
+      availability: { score: 90, reason: "The single internet-facing checkpoint every customer and partner request must clear" },
+      regulatory: { score: 70, reason: "A required perimeter control for a Restricted-tier public API surface" },
+      businessDependency: { score: 85, reason: "The first line of defense for every revenue-generating request the platform receives" },
+    },
+    inherentLikelihood: 4,
+  },
+  {
+    id: "AST-003-11",
+    systemId: "SYS-003",
+    name: "AI / Model Gateway",
+    type: "Internal Model Routing Gateway",
+    kind: "model-gateway",
+    provider: "AWS",
+    code: "MGW",
+    criticalityFactors: {
+      confidentiality: { score: 85, reason: "Every prompt and completion exchanged with an external model provider passes through it" },
+      integrity: { score: 82, reason: "A bypassed allowlist could route customer prompts to an unapproved or malicious model endpoint" },
+      availability: { score: 80, reason: "Every agent call to a model provider depends on this single routing point" },
+      regulatory: { score: 80, reason: "Restricted-tier prompts and completions cross the boundary to a third party through here" },
+      businessDependency: { score: 85, reason: "Governs which model providers the platform is allowed to depend on" },
+    },
+    inherentLikelihood: 3,
+  },
+  {
+    id: "AST-003-12",
+    systemId: "SYS-003",
+    name: "Agent Policy / Authorization Service",
+    type: "Deterministic Policy Decision Point",
+    kind: "policy-service",
+    provider: "AWS",
+    code: "AUTHZ",
+    criticalityFactors: {
+      confidentiality: { score: 60, reason: "Evaluates identity, tenant, and resource metadata rather than holding customer content itself" },
+      integrity: { score: 92, reason: "A bypassed or fail-open policy check lets an agent take an unauthorized action directly" },
+      availability: { score: 78, reason: "Every agent action stalls without a decision from this service, by design" },
+      regulatory: { score: 75, reason: "The deterministic control point that keeps a model from ever being the authorization boundary" },
+      businessDependency: { score: 82, reason: "The single choke point every agent action must clear before it can affect anything" },
+    },
+    inherentLikelihood: 3,
+  },
+  {
+    id: "AST-003-13",
+    systemId: "SYS-003",
+    name: "Tool / MCP Gateway",
+    type: "Agent Tool-Call Gateway",
+    kind: "tool-gateway",
+    provider: "AWS",
+    code: "TGW",
+    criticalityFactors: {
+      confidentiality: { score: 82, reason: "Injects credentials for external tool and SaaS calls, and sees every tool request and response" },
+      integrity: { score: 88, reason: "A bypassed allowlist or schema check lets an agent invoke an unapproved tool with an injected credential" },
+      availability: { score: 75, reason: "Every agent tool call depends on this single mediation point" },
+      regulatory: { score: 78, reason: "The control point where agentic tool use is allow-listed and logged rather than left to the model" },
+      businessDependency: { score: 80, reason: "Everything an agent can do outside the conversation itself goes through here" },
+    },
+    inherentLikelihood: 4,
+  },
+  {
+    id: "AST-003-14",
+    systemId: "SYS-003",
+    name: "Agent Session Cache",
+    type: "Amazon ElastiCache (Redis)",
+    kind: "cache",
+    provider: "AWS",
+    code: "REDIS",
+    criticalityFactors: {
+      confidentiality: { score: 65, reason: "Holds short-lived session tokens and in-flight agent/workflow state, not durable customer records" },
+      integrity: { score: 70, reason: "Corrupted workflow state could cause a multi-step agent task to resume incorrectly" },
+      availability: { score: 82, reason: "Session and in-flight agent state is read on every live request" },
+      regulatory: { score: 60, reason: "Session-scoped data only; nothing here outlives the interaction it belongs to" },
+      businessDependency: { score: 70, reason: "Backs the low-latency session and workflow state multi-step agent tasks depend on" },
+    },
+    inherentLikelihood: 3,
+  },
+  {
+    id: "AST-003-15",
+    systemId: "SYS-003",
+    name: "Secure Egress Gateway",
+    type: "AWS Network Firewall / Secure Proxy",
+    kind: "egress-gateway",
+    provider: "AWS",
+    code: "EGR",
+    criticalityFactors: {
+      confidentiality: { score: 80, reason: "Every byte an agent or tool call sends to an external destination passes through it" },
+      integrity: { score: 78, reason: "A gap in destination restrictions lets a compromised agent reach an unapproved or malicious endpoint" },
+      availability: { score: 68, reason: "Outbound tool and SaaS calls degrade without it; inbound customer traffic is unaffected" },
+      regulatory: { score: 75, reason: "The control point that prevents Restricted-tier data from leaving via an unapproved destination" },
+      businessDependency: { score: 72, reason: "The only sanctioned path for agent workloads to reach anything outside the boundary" },
+    },
+    inherentLikelihood: 3,
+  },
+  {
+    id: "AST-003-16",
+    systemId: "SYS-003",
+    name: "Identity & Workload IAM",
+    type: "AWS IAM / STS",
+    kind: "iam",
+    provider: "AWS",
+    code: "IAM",
+    criticalityFactors: {
+      confidentiality: { score: 85, reason: "Issues the short-lived credentials every workload and privileged administrator authenticates with" },
+      integrity: { score: 92, reason: "An over-permissioned role or compromised trust policy grants reach across the whole boundary" },
+      availability: { score: 85, reason: "Every workload identity in the boundary depends on this to authenticate at all" },
+      regulatory: { score: 85, reason: "The control point for least-privilege and privileged-access requirements across the platform" },
+      businessDependency: { score: 88, reason: "Underpins every workload-to-workload and administrator authentication in the platform" },
+    },
+    inherentLikelihood: 3,
+  },
+  {
+    id: "AST-003-17",
+    systemId: "SYS-003",
+    name: "Security & AI Telemetry",
+    type: "Centralized Log & Telemetry Pipeline",
+    kind: "telemetry",
+    provider: "AWS",
+    code: "TEL",
+    criticalityFactors: {
+      confidentiality: { score: 65, reason: "Aggregates execution, authorization, and network logs rather than customer content itself" },
+      integrity: { score: 85, reason: "Gapped or tampered telemetry blinds detection across every agentic component at once" },
+      availability: { score: 70, reason: "Detection lags rather than stops if telemetry is delayed, but visibility degrades immediately" },
+      regulatory: { score: 78, reason: "The accountability trail an agentic platform needs for every model, tool, and authorization decision" },
+      businessDependency: { score: 75, reason: "The single point every other security control's evidence ultimately flows through" },
+    },
+    inherentLikelihood: 2,
+  },
+  {
+    id: "AST-003-18",
+    systemId: "SYS-003",
+    name: "SIEM / Security Monitoring",
+    type: "Splunk",
+    kind: "siem",
+    provider: "Splunk",
+    code: "SIEM",
+    criticalityFactors: {
+      confidentiality: { score: 68, reason: "Receives aggregated security telemetry, not raw customer content" },
+      integrity: { score: 80, reason: "A blind spot here delays detection of a live compromise anywhere upstream" },
+      availability: { score: 65, reason: "Investigation and detection slow down without it; the platform itself keeps running" },
+      regulatory: { score: 75, reason: "Supports the detection and investigation obligations SOC 2 expects of a monitored environment" },
+      businessDependency: { score: 68, reason: "The team's primary detection and investigation surface across the whole platform" },
+    },
+    inherentLikelihood: 2,
+  },
+  {
+    id: "AST-003-19",
+    systemId: "SYS-003",
+    name: "Runtime Security",
+    type: "Amazon GuardDuty Runtime Monitoring",
+    kind: "runtime-security",
+    provider: "AWS",
+    code: "RTS",
+    criticalityFactors: {
+      confidentiality: { score: 60, reason: "Observes container and workload runtime behavior rather than holding customer data" },
+      integrity: { score: 82, reason: "A disabled or evaded runtime agent hides an active compromise inside the agentic workloads" },
+      availability: { score: 60, reason: "Detection-only; workloads keep running even if runtime monitoring is degraded" },
+      regulatory: { score: 68, reason: "Runtime threat detection expected of container workloads processing Restricted-tier data" },
+      businessDependency: { score: 65, reason: "The last line of detection if a container workload is compromised despite every upstream control" },
     },
     inherentLikelihood: 3,
   },

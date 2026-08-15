@@ -77,6 +77,29 @@ export const ASSET_DATA_TYPES: AssetDataType[] = [
   { assetId: "AST-003-08", dataTypeId: "DT-004", role: "stores" },
   { assetId: "AST-003-09", dataTypeId: "DT-003", role: "transits" },
 
+  { assetId: "AST-003-10", dataTypeId: "DT-001", role: "transits" },
+  { assetId: "AST-003-10", dataTypeId: "DT-002", role: "transits" },
+  { assetId: "AST-003-10", dataTypeId: "DT-003", role: "transits" },
+
+  { assetId: "AST-003-11", dataTypeId: "DT-003", role: "transits" },
+
+  { assetId: "AST-003-12", dataTypeId: "DT-005", role: "processes" },
+
+  { assetId: "AST-003-13", dataTypeId: "DT-003", role: "transits" },
+  // Injects credentials into tool calls at runtime; doesn't store them.
+  { assetId: "AST-003-13", dataTypeId: "DT-004", role: "accesses" },
+
+  { assetId: "AST-003-14", dataTypeId: "DT-005", role: "stores" },
+
+  { assetId: "AST-003-15", dataTypeId: "DT-003", role: "transits" },
+
+  // Grants reach to every credential it issues; holds none of them itself.
+  { assetId: "AST-003-16", dataTypeId: "DT-004", role: "accesses" },
+
+  { assetId: "AST-003-17", dataTypeId: "DT-006", role: "stores" },
+  { assetId: "AST-003-18", dataTypeId: "DT-006", role: "stores" },
+  { assetId: "AST-003-19", dataTypeId: "DT-006", role: "processes" },
+
   // ---- SYS-042 Workday ---------------------------------------------------------
   { assetId: "AST-042-01", dataTypeId: "DT-007", role: "stores" },
   { assetId: "AST-042-01", dataTypeId: "DT-008", role: "stores" },
