@@ -3,7 +3,7 @@
 // This is the line between the graph and the engine: an ordered list of the
 // maturity stages a control can be at is vocabulary (a fact about how ACME
 // describes posture), while the number each stage is worth is scoring (a
-// judgment the engine applies). Splitting them is what lets engine/assurance.js
+// judgment the engine applies). Splitting them is what lets engine/assurance.ts
 // stay a pure function library with no data of its own, and it keeps the graph
 // free of anything that could be recomputed.
 //

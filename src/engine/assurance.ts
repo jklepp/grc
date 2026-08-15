@@ -7,7 +7,7 @@
 // six-value category block typed onto the asset.
 //
 // The ordered vocabularies these scales attach to (MATURITY_STAGES,
-// EVIDENCE_TYPES) live in graph/nodes/taxonomy.js. The split is deliberate:
+// EVIDENCE_TYPES) live in graph/nodes/taxonomy.ts. The split is deliberate:
 // "Managed" is a fact about how ACME describes a control, "Managed is worth
 // 100" is a judgment about how to score it, and the graph should not carry
 // judgments.
@@ -21,7 +21,7 @@ export const MATURITY_SCORE: Record<MaturityStage, number> = { Policy: 20, Proce
 // ---- Evidence confidence ------------------------------------------------------
 // How much an assertion can be trusted, from "we say so" to "the system proves
 // it continuously." This is the base rate for a TYPE of evidence;
-// engine/implementation.js then adjusts it by the coverage and freshness of the
+// engine/implementation.ts then adjusts it by the coverage and freshness of the
 // specific collection, which is the part the old string-enum average could not
 // express.
 export const EVIDENCE_CONFIDENCE: Record<EvidenceType, number> = {
@@ -57,7 +57,7 @@ export function meetsEvidence(actual: EvidenceType, required: EvidenceType): boo
 // weighted average across all five (so one spike alone can't fully mask the rest
 // of the profile either).
 export const CRITICALITY_FACTORS = ["confidentiality", "integrity", "availability", "regulatory", "businessDependency"] as const;
-type CriticalityFactorName = (typeof CRITICALITY_FACTORS)[number];
+export type CriticalityFactorName = (typeof CRITICALITY_FACTORS)[number];
 const CRITICALITY_WEIGHTS: Record<CriticalityFactorName, number> = { confidentiality: 0.25, integrity: 0.2, availability: 0.15, regulatory: 0.25, businessDependency: 0.15 };
 const HIGH_WATER_MARK_WEIGHT = 0.6;
 

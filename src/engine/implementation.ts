@@ -33,6 +33,7 @@ import { overrideFor, notImplementedFor, ownerIdsFor, ownerOverrideFor } from ".
 import { ORG_BY_ID } from "../graph/nodes/orgs";
 import { resolveApplicability, requiredControlsForAsset } from "./applicability";
 import { blendAssurance, evidenceBaseConfidence, mean, display } from "./assurance";
+import type { AssetId, ControlId } from "../graph/ids";
 
 // Today, read once. Freshness is measured against the real clock rather than a
 // frozen constant so a demo left running for a month reports evidence going
@@ -206,7 +207,7 @@ ASSURANCE_CATEGORIES.forEach((category) => {
 });
 
 // assetId of null means a program-scoped control.
-export function buildImplementation(assetId: string | null, controlId: string) {
+export function buildImplementation(assetId: AssetId | null, controlId: ControlId) {
   const control = KEY_CONTROL_BY_ID[controlId];
   const isProgram = assetId === null;
   const asset = isProgram ? null : ASSET_BY_ID[assetId];
@@ -342,16 +343,16 @@ export const IMPLEMENTATION_STATUS_META = {
   "not-applicable": { label: "Not applicable", color: "muted" },
 };
 
-export function implementationsForAsset(assetId: string): Implementation[] {
+export function implementationsForAsset(assetId: AssetId): Implementation[] {
   return requiredControlsForAsset(assetId).map((c) => buildImplementation(assetId, c.id));
 }
 
-export function implementationsForAssetInCategory(assetId: string, category: string): Implementation[] {
+export function implementationsForAssetInCategory(assetId: AssetId, category: string): Implementation[] {
   return implementationsForAsset(assetId).filter((i) => i.category === category);
 }
 
 export const PROGRAM_IMPLEMENTATIONS: Implementation[] = PROGRAM_SCOPED_CONTROLS.map((c) => buildImplementation(null, c.id));
 
-export function programImplementation(controlId: string): Implementation | null {
+export function programImplementation(controlId: ControlId): Implementation | null {
   return PROGRAM_IMPLEMENTATIONS.find((i) => i.controlId === controlId) || null;
 }

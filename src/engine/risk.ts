@@ -16,6 +16,7 @@ import { ASSET_ROLLUP_BY_ID } from "./rollups";
 import { buildImplementation, programImplementation, type Implementation } from "./implementation";
 import { assetsRequiringControl } from "./applicability";
 import { weightedMean, mean, assuranceBand, display, ASSURANCE_TARGET } from "./assurance";
+import type { RiskId, AssetId } from "../graph/ids";
 
 // A tier's weight is its position in the ordering, so the label list and the
 // numeric scale cannot disagree — the previous pair of hand-typed lookup
@@ -36,7 +37,7 @@ const ROLE_WEIGHT: Record<string, number> = { primary: 3, contributing: 1 };
 // The controls holding a risk down, resolved to their real implementations on
 // the assets that carry it. This is the chain that makes "why did this move"
 // answerable: risk -> control -> implementation -> evidence.
-export function controlPostureForRisk(riskId: string) {
+export function controlPostureForRisk(riskId: RiskId) {
   const contributingAssetIds = assetsForRisk(riskId).map((e) => e.assetId);
   return controlsForRisk(riskId).map((edge) => {
     const control = KEY_CONTROL_BY_ID[edge.controlId];
@@ -66,7 +67,7 @@ export function controlPostureForRisk(riskId: string) {
   });
 }
 
-export function assuranceForRisk(riskId: string) {
+export function assuranceForRisk(riskId: RiskId) {
   const assetEdges = assetsForRisk(riskId);
   const controlPosture = controlPostureForRisk(riskId);
 
@@ -140,7 +141,7 @@ export function riskTrend(risk: Risk): { label: string; color: string } {
   return { label: "Flat", color: "muted" };
 }
 
-export function riskRollup(riskId: string) {
+export function riskRollup(riskId: RiskId) {
   const risk = RISK_BY_ID[riskId];
   const ownerOrg = ORG_BY_ID[risk.ownerId];
   return {
@@ -164,7 +165,7 @@ export function riskRollup(riskId: string) {
 export type RiskRollup = ReturnType<typeof riskRollup>;
 
 export const RISK_ROLLUPS: RiskRollup[] = RISKS.map((r) => riskRollup(r.id));
-export const RISK_ROLLUP_BY_ID: Record<string, RiskRollup> = Object.fromEntries(RISK_ROLLUPS.map((r) => [r.id, r]));
+export const RISK_ROLLUP_BY_ID: Record<RiskId, RiskRollup> = Object.fromEntries(RISK_ROLLUPS.map((r) => [r.id, r]));
 
 export const ABOVE_APPETITE_COUNT = RISK_ROLLUPS.filter((r) => r.residualScore > r.appetite).length;
 export const QUANTIFIED_EXPOSURE = RISKS.reduce((a, r) => a + r.exposure, 0);
@@ -178,9 +179,9 @@ export function isMaterial(risk: Risk | RiskRollup): boolean {
 
 export const MATERIAL_RISKS = BOARD_MATERIAL_RISK_IDS.map((id) => {
   const rollup = RISK_ROLLUP_BY_ID[id];
-  if (!rollup) throw new Error(`risk.js: BOARD_MATERIAL_RISK_IDS references "${id}", which isn't in RISKS`);
+  if (!rollup) throw new Error(`risk.ts: BOARD_MATERIAL_RISK_IDS references "${id}", which isn't in RISKS`);
   if (!isMaterial(rollup)) {
-    throw new Error(`risk.js: BOARD_MATERIAL_RISK_IDS includes "${id}", but it no longer clears isMaterial() (residual Severe and above appetite) — re-check its rating or drop it from the board list`);
+    throw new Error(`risk.ts: BOARD_MATERIAL_RISK_IDS includes "${id}", but it no longer clears isMaterial() (residual Severe and above appetite) — re-check its rating or drop it from the board list`);
   }
   return {
     ...rollup,
@@ -194,6 +195,6 @@ export const MATERIAL_RISK_EXPOSURE = MATERIAL_RISKS.reduce((a, r) => a + r.expo
 
 // Every risk one asset contributes to — the reverse lookup the Asset Register
 // can use to show what a weak asset is actually putting at stake.
-export function risksForAssetRollup(assetId: string): RiskRollup[] {
+export function risksForAssetRollup(assetId: AssetId): RiskRollup[] {
   return RISK_ROLLUPS.filter((r) => r.contributingAssets.some((c) => c.assetId === assetId));
 }

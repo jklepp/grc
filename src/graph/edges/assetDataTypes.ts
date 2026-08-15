@@ -10,7 +10,7 @@
 //
 //   Classification. An asset's tier is the high-water mark across every data
 //   type it touches, and a system's is the high-water mark across its assets
-//   (engine/rollups.js). Classification used to be a single value on the system
+//   (engine/rollups.ts). Classification used to be a single value on the system
 //   that every asset inherited wholesale, which meant an asset's tier could
 //   never be wrong — and could never be informative either.
 //
@@ -42,9 +42,11 @@ export const DATA_ROLE_META: Record<DataRole, { label: string; detail: string }>
   accesses: { label: "Accesses", detail: "Holds no data itself, but grants reach to it." },
 };
 
+import type { AssetId, DataTypeId } from "../ids";
+
 export interface AssetDataType {
-  assetId: string;
-  dataTypeId: string;
+  assetId: AssetId;
+  dataTypeId: DataTypeId;
   role: DataRole;
 }
 
@@ -100,17 +102,17 @@ export const ASSET_DATA_TYPES: AssetDataType[] = [
   { assetId: "AST-042-07", dataTypeId: "DT-006", role: "stores" },
 ];
 
-const BY_ASSET: Record<string, AssetDataType[]> = {};
-const BY_DATA_TYPE: Record<string, AssetDataType[]> = {};
+const BY_ASSET: Record<AssetId, AssetDataType[]> = {};
+const BY_DATA_TYPE: Record<DataTypeId, AssetDataType[]> = {};
 ASSET_DATA_TYPES.forEach((e) => {
   (BY_ASSET[e.assetId] ||= []).push(e);
   (BY_DATA_TYPE[e.dataTypeId] ||= []).push(e);
 });
 
-export function dataTypesForAsset(assetId: string): AssetDataType[] {
+export function dataTypesForAsset(assetId: AssetId): AssetDataType[] {
   return BY_ASSET[assetId] || [];
 }
 
-export function assetsForDataType(dataTypeId: string): AssetDataType[] {
+export function assetsForDataType(dataTypeId: DataTypeId): AssetDataType[] {
   return BY_DATA_TYPE[dataTypeId] || [];
 }

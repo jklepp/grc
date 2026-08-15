@@ -17,15 +17,16 @@
 //
 // `sensitivity` uses the same four tiers as CLASS_ORDER in theme.js, because an
 // asset's classification is now DERIVED from the data it holds (see
-// engine/rollups.js) rather than inherited wholesale from its parent system.
+// engine/rollups.ts) rather than inherited wholesale from its parent system.
 // That's the substantive change: a system's classification is the high-water
 // mark of its assets, and an asset's is the high-water mark of its data — so a
 // log feed that only ever carries access metadata stops being labelled
 // "Restricted" just because it sits inside a Restricted boundary.
 import type { ClassificationTier } from "./taxonomy";
+import type { DataTypeId } from "../ids";
 
 export interface DataType {
-  id: string;
+  id: DataTypeId;
   name: string;
   kind: string;
   sensitivity: ClassificationTier;
@@ -117,10 +118,10 @@ export const DATA_TYPES: DataType[] = [
   },
 ];
 
-export const DATA_TYPE_BY_ID: Record<string, DataType> = Object.fromEntries(DATA_TYPES.map((d) => [d.id, d]));
+export const DATA_TYPE_BY_ID: Record<DataTypeId, DataType> = Object.fromEntries(DATA_TYPES.map((d) => [d.id, d]));
 
 // Which data-type kinds count as personal data for applicability rules that
 // turn on "does this asset touch personal data at all" (see PRI-05 and NET-17
-// in edges/applicabilityRules.js). Kept here next to the kinds themselves so a
+// in edges/applicabilityRules.ts). Kept here next to the kinds themselves so a
 // new data type can't quietly fall outside a rule that should have caught it.
 export const PERSONAL_DATA_KINDS = ["pii", "employee"];

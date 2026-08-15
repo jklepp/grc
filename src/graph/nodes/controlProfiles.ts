@@ -6,7 +6,7 @@
 // with machine-generated evidence, and that identity and data protection matter
 // more than resilience when confidentiality exposure is catastrophic. Those are
 // declarations. Judging an asset against them is the derived part, and that
-// lives in engine/profile.js.
+// lives in engine/profile.ts.
 //
 // WEIGHTS, AND WHY THEY REPLACED A FLAT MEAN
 // -------------------------------------------

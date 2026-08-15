@@ -7,7 +7,7 @@
 // evidenceConfidence: 96 without there being a single collection anywhere in
 // the app that had happened, covered anything, or passed.
 //
-// Now confidence is computed (engine/implementation.js) from three things a
+// Now confidence is computed (engine/implementation.ts) from three things a
 // record actually carries:
 //
 //   type      — the same seven-value EVIDENCE_TYPES scale, unchanged, because
@@ -35,6 +35,7 @@
 // asset, its system, the enterprise score, that control's framework coverage,
 // and any risk it contributes to all move together.
 import type { EvidenceType } from "./taxonomy";
+import type { EvidenceId, ControlId, AssetId, FindingId, EvidenceSourceId } from "../ids";
 
 export const EVIDENCE_RESULTS = ["pass", "partial", "fail"] as const;
 export type EvidenceResult = (typeof EVIDENCE_RESULTS)[number];
@@ -42,12 +43,12 @@ export type EvidenceResult = (typeof EVIDENCE_RESULTS)[number];
 export const INDEPENDENCE_LEVELS = ["automated", "internal", "external"] as const;
 export type IndependenceLevel = (typeof INDEPENDENCE_LEVELS)[number];
 
-// Deliberately duplicated (not imported) from evidenceSources.js's identical
+// Deliberately duplicated (not imported) from evidenceSources.ts's identical
 // function: that file derives EVIDENCE_SOURCES FROM this file's RAW_EVIDENCE,
 // so importing it back here would be a cycle. It's one pure three-line
 // function, not a fact — nothing about what a source id IS lives in two
 // places, just the formula for computing one from a name.
-export function sourceIdFromName(name: string): string {
+export function sourceIdFromName(name: string): EvidenceSourceId {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-+|-+$)/g, "");
 }
 
@@ -66,11 +67,11 @@ export const DEFAULT_VALIDITY_DAYS: Record<EvidenceType, number> = {
 };
 
 export interface RawEvidence {
-  id: string;
+  id: EvidenceId;
   source: string;
   evidenceType: EvidenceType;
-  controlId: string;
-  assetIds: string[];
+  controlId: ControlId;
+  assetIds: AssetId[];
   collectedAt: string;
   coveragePct: number;
   result: EvidenceResult;
@@ -79,7 +80,7 @@ export interface RawEvidence {
   exceptions?: number;
   population?: number;
   populationUnit?: string;
-  findingId?: string;
+  findingId?: FindingId;
   note?: string;
 }
 
@@ -498,7 +499,7 @@ export const RAW_EVIDENCE: RawEvidence[] = [
 
   // ---- Program-scoped controls ------------------------------------------------
   // These carry no assetIds: they're evidence about ACME's program, not about
-  // any one resource. See keyControls.js on why program scope exists.
+  // any one resource. See keyControls.ts on why program scope exists.
   {
     id: "EV-P-001", source: "Data classification policy attestation", evidenceType: "Document",
     controlId: "DCH-02", assetIds: [],
@@ -546,7 +547,7 @@ export const RAW_EVIDENCE: RawEvidence[] = [
 
 export interface Evidence extends RawEvidence {
   validForDays: number;
-  sourceId: string;
+  sourceId: EvidenceSourceId;
 }
 
 export const EVIDENCE: Evidence[] = RAW_EVIDENCE.map((e) => ({
@@ -555,7 +556,7 @@ export const EVIDENCE: Evidence[] = RAW_EVIDENCE.map((e) => ({
   sourceId: sourceIdFromName(e.source),
 }));
 
-export const EVIDENCE_BY_ID: Record<string, Evidence> = Object.fromEntries(EVIDENCE.map((e) => [e.id, e]));
+export const EVIDENCE_BY_ID: Record<EvidenceId, Evidence> = Object.fromEntries(EVIDENCE.map((e) => [e.id, e]));
 
 // Every collection covering one implementation. The lookup direction that
 // makes evidence-on-the-record work: implementations never store evidence ids,
@@ -569,6 +570,6 @@ EVIDENCE.forEach((e) => {
   e.assetIds.forEach((assetId) => (BY_PAIR[`${assetId}::${e.controlId}`] ||= []).push(e));
 });
 
-export function evidenceFor(assetId: string | null | undefined, controlId: string): Evidence[] {
+export function evidenceFor(assetId: AssetId | null | undefined, controlId: ControlId): Evidence[] {
   return BY_PAIR[`${assetId ?? "program"}::${controlId}`] || [];
 }

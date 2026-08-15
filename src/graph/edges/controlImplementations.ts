@@ -16,7 +16,7 @@
 //
 //   maturity       defaults to the asset's category-level assessment for the
 //                  category this control belongs to. That assessment is a real
-//                  curated judgment (edges/categoryAssessments.js); a control
+//                  curated judgment (edges/categoryAssessments.ts); a control
 //                  inherits it unless someone has recorded something different.
 //   effectiveness  starts from the same assessment, then moves with what the
 //                  evidence for THIS control on THIS asset actually returned.
@@ -43,17 +43,18 @@
 //                          "we haven't built this" and "nobody has looked" stay
 //                          distinguishable
 //
-// engine/implementation.js does the composing.
+// engine/implementation.ts does the composing.
 import type { AssuranceCategory, MaturityStage } from "../nodes/taxonomy";
+import type { AssetId, ControlId, OrgId, FindingId, SystemScope } from "../ids";
 
 // Who operates a control, by the category it belongs to and the system it runs
 // in. Ownership genuinely varies by team and platform rather than by individual
 // resource, so recording it per asset would be fifteen copies of the same fact.
-// Values are arrays of nodes/orgs.js ids — most categories have one owning
+// Values are arrays of nodes/orgs.ts ids — most categories have one owning
 // team, but a few are genuinely jointly owned (e.g. Data Protection on SYS-003
 // spans both Data Platform and IT Security), and a joint fact should be two
 // edges, not one string with a slash in it.
-export const OWNERSHIP: Record<string, Record<AssuranceCategory, string[]>> = {
+export const OWNERSHIP: Record<SystemScope, Record<AssuranceCategory, OrgId[]>> = {
   "SYS-003": {
     "Data Protection": ["data-platform", "it-security"],
     Configuration: ["ml-platform-team"],
@@ -81,9 +82,9 @@ export const OWNERSHIP: Record<string, Record<AssuranceCategory, string[]>> = {
 };
 
 export interface OwnerOverride {
-  assetId: string;
-  controlId: string;
-  ownerIds: string[];
+  assetId: AssetId;
+  controlId: ControlId;
+  ownerIds: OrgId[];
   note: string;
 }
 
@@ -104,11 +105,11 @@ export const OWNER_OVERRIDES: OwnerOverride[] = [
 ];
 
 export interface ImplementationOverride {
-  assetId: string;
-  controlId: string;
+  assetId: AssetId;
+  controlId: ControlId;
   maturityStage: MaturityStage;
   note: string;
-  findingId?: string;
+  findingId?: FindingId;
 }
 
 // Where the recorded maturity of a specific implementation differs from the
@@ -175,8 +176,8 @@ export const IMPLEMENTATION_OVERRIDES: ImplementationOverride[] = [
 ];
 
 export interface NotImplemented {
-  assetId: string;
-  controlId: string;
+  assetId: AssetId;
+  controlId: ControlId;
   reason: string;
 }
 
@@ -203,21 +204,21 @@ const OVERRIDE_BY_PAIR: Record<string, ImplementationOverride> = Object.fromEntr
 const OWNER_OVERRIDE_BY_PAIR: Record<string, OwnerOverride> = Object.fromEntries(OWNER_OVERRIDES.map((o) => [`${o.assetId}::${o.controlId}`, o]));
 const NOT_IMPLEMENTED_BY_PAIR: Record<string, NotImplemented> = Object.fromEntries(NOT_IMPLEMENTED.map((n) => [`${n.assetId}::${n.controlId}`, n]));
 
-export function overrideFor(assetId: string, controlId: string): ImplementationOverride | null {
+export function overrideFor(assetId: AssetId, controlId: ControlId): ImplementationOverride | null {
   return OVERRIDE_BY_PAIR[`${assetId}::${controlId}`] || null;
 }
 
-export function ownerOverrideFor(assetId: string, controlId: string): OwnerOverride | null {
+export function ownerOverrideFor(assetId: AssetId, controlId: ControlId): OwnerOverride | null {
   return OWNER_OVERRIDE_BY_PAIR[`${assetId}::${controlId}`] || null;
 }
 
-export function notImplementedFor(assetId: string, controlId: string): NotImplemented | null {
+export function notImplementedFor(assetId: AssetId, controlId: ControlId): NotImplemented | null {
   return NOT_IMPLEMENTED_BY_PAIR[`${assetId}::${controlId}`] || null;
 }
 
-// Returns org ids, not resolved orgs — engine/implementation.js does the
+// Returns org ids, not resolved orgs — engine/implementation.ts does the
 // resolution, keeping this file (and its tests) free of a dependency on
 // display concerns.
-export function ownerIdsFor(systemId: string, category: string): string[] {
+export function ownerIdsFor(systemId: SystemScope, category: string): OrgId[] {
   return OWNERSHIP[systemId]?.[category as AssuranceCategory] || OWNERSHIP.program[category as AssuranceCategory];
 }

@@ -9,14 +9,16 @@
 // reported the same number, computed across all fifteen assets — including
 // assets that have nothing to do with the risk.
 //
-// It's now edges/riskContributors.js: which assets actually carry the scenario,
-// and which key controls actually hold it down. engine/risk.js reads assurance
+// It's now edges/riskContributors.ts: which assets actually carry the scenario,
+// and which key controls actually hold it down. engine/risk.ts reads assurance
 // from those, so RISK-001's number comes from the RAG service and the vector
 // store rather than from a portfolio average, and it moves when they move.
 //
 // The ordered level arrays replace SEVERITY_VALUE / LIKELIHOOD_VALUE. The
 // numeric weight of a tier is its position in the ordering, so the two can't
 // disagree — the old pair of hand-typed lookup objects could.
+
+import type { RiskId, OrgId } from "../ids";
 
 export const SEVERITY_LEVELS = ["Minor", "Moderate", "Major", "Severe"] as const;
 export type SeverityLevel = (typeof SEVERITY_LEVELS)[number];
@@ -38,12 +40,12 @@ export interface RiskMilestone {
 }
 
 export interface Risk {
-  id: string;
+  id: RiskId;
   scenario: string;
   domain: string;
   subcategory: string;
   materialLabel?: string;
-  ownerId: string;
+  ownerId: OrgId;
   appetite: number;
   treatment: string;
   treatmentAtRisk: boolean;
@@ -210,11 +212,11 @@ export const RISKS: Risk[] = [
   },
 ];
 
-export const RISK_BY_ID: Record<string, Risk> = Object.fromEntries(RISKS.map((r) => [r.id, r]));
+export const RISK_BY_ID: Record<RiskId, Risk> = Object.fromEntries(RISKS.map((r) => [r.id, r]));
 
 // The board's chosen set of catastrophic loss scenarios. A curatorial call —
 // which of the tracked risks the board actually needs to see, not whatever an
-// automatic threshold happens to select this month. engine/risk.js still
+// automatic threshold happens to select this month. engine/risk.ts still
 // asserts each one independently clears the material bar, so the curation can
 // narrow the list but never smuggle in something that doesn't qualify.
-export const BOARD_MATERIAL_RISK_IDS = ["RISK-001", "RISK-015", "RISK-016", "RISK-017", "RISK-018"];
+export const BOARD_MATERIAL_RISK_IDS: RiskId[] = ["RISK-001", "RISK-015", "RISK-016", "RISK-017", "RISK-018"];

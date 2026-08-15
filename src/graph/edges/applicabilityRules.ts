@@ -31,6 +31,7 @@
 import type { AssetKind } from "../nodes/assets";
 import type { ClassificationTier } from "../nodes/taxonomy";
 import type { HostingType } from "../nodes/systems";
+import type { AssetId, ControlId } from "../ids";
 
 export const APPLICABILITY_SOURCES = {
   CLASSIFICATION: "Data classification tier",
@@ -49,7 +50,7 @@ export interface ApplicabilityCondition {
 }
 
 export interface ApplicabilityRule {
-  controlId: string;
+  controlId: ControlId;
   requiredWhen: ApplicabilityCondition;
   rationale: string;
   source: ApplicabilitySource;
@@ -188,8 +189,8 @@ export const APPLICABILITY_RULES: ApplicabilityRule[] = [
 ];
 
 export interface ApplicabilityException {
-  assetId: string;
-  controlId: string;
+  assetId: AssetId;
+  controlId: ControlId;
   reason: string;
 }
 
@@ -209,12 +210,12 @@ export const APPLICABILITY_EXCEPTIONS: ApplicabilityException[] = [
 
 const EXCEPTION_KEY = new Set(APPLICABILITY_EXCEPTIONS.map((e) => `${e.assetId}::${e.controlId}`));
 
-export function exceptionFor(assetId: string, controlId: string): ApplicabilityException | null {
+export function exceptionFor(assetId: AssetId, controlId: ControlId): ApplicabilityException | null {
   return EXCEPTION_KEY.has(`${assetId}::${controlId}`)
     ? APPLICABILITY_EXCEPTIONS.find((e) => e.assetId === assetId && e.controlId === controlId) ?? null
     : null;
 }
 
-export function rulesForControl(controlId: string): ApplicabilityRule[] {
+export function rulesForControl(controlId: ControlId): ApplicabilityRule[] {
   return APPLICABILITY_RULES.filter((r) => r.controlId === controlId);
 }

@@ -5,32 +5,33 @@
 //
 //   classification    -> DERIVED. A system's tier is now the high-water mark of
 //                        its assets, which is in turn the high-water mark of the
-//                        data each asset holds (engine/rollups.js). validate.js
+//                        data each asset holds (engine/rollups.ts). validate.js
 //                        asserts the derived value still equals the curated one
 //                        recorded in EXPECTED_CLASSIFICATION below, so the
 //                        rollup has to reproduce the human answer or fail.
-//   dataElements      -> edges/assetDataTypes.js, at asset granularity.
-//   controls[]        -> edges/controlImplementations.js. The six hand-tracked
+//   dataElements      -> edges/assetDataTypes.ts, at asset granularity.
+//   controls[]        -> edges/controlImplementations.ts. The six hand-tracked
 //                        controls are now real per-asset implementation records
 //                        against real SCF ids instead of an unnamed array whose
 //                        index silently had to line up with CONTROLS.
-//   standardMappings  -> DERIVED by engine/compliance.js from those same
+//   standardMappings  -> DERIVED by engine/compliance.ts from those same
 //                        implementations, so a "SOC 2 CC6.1 is 92% confident"
 //                        claim is computed from the controls that actually
 //                        satisfy CC6.1 rather than typed next to it.
-//   remediation[]     -> graph/nodes/findings.js. A remediation ticket is now
+//   remediation[]     -> graph/nodes/findings.ts. A remediation ticket is now
 //                        a Finding, a real node with its own owner/status/due
 //                        instead of an array embedded on the system it
-//                        happens to affect. engine/findings.js derives which
+//                        happens to affect. engine/findings.ts derives which
 //                        findings belong to a system from the finding's asset.
-//   roles[].assignment -> roles[].ownerId, a reference into nodes/orgs.js
-//                        instead of a free-text team name. engine/rollups.js
+//   roles[].assignment -> roles[].ownerId, a reference into nodes/orgs.ts
+//                        instead of a free-text team name. engine/rollups.ts
 //                        resolves it back to a display name so nothing
 //                        downstream had to change.
 //
 // hostingType is kept as a stored fact rather than re-parsed from the `env`
 // string on every call the way systemRegister.js's hostingType() did — the
 // substring match on "SaaS"/"on-prem" was doing inference where a field will do.
+import type { SystemId, OrgId } from "../ids";
 
 export const HOSTING_TYPES = ["cloud", "saas", "on-prem"] as const;
 export type HostingType = (typeof HOSTING_TYPES)[number];
@@ -49,7 +50,7 @@ export type HostingType = (typeof HOSTING_TYPES)[number];
 // On SaaS the provider additionally owns the platform's own patching,
 // hardening, capacity, and endpoints. On-prem inherits nothing, because there
 // is no provider. Which domains fall where is a judgment about the contract —
-// the same kind of call as the domain maps in taxonomy.js — but it is at least
+// the same kind of call as the domain maps in taxonomy.ts — but it is at least
 // a judgment about something nameable.
 export const INHERITED_DOMAINS: Record<HostingType, string[]> = {
   cloud: ["Physical & Environmental Security", "Maintenance"],
@@ -72,12 +73,12 @@ export function inheritsDomain(hostingType: string, domain: string): boolean {
 
 export interface SystemRole {
   role: string;
-  ownerId: string;
+  ownerId: OrgId;
   note?: string;
 }
 
 export interface System {
-  id: string;
+  id: SystemId;
   name: string;
   env: string;
   hostingType: HostingType;
@@ -151,7 +152,7 @@ export const SYSTEMS: System[] = [
   },
 ];
 
-export const SYSTEM_BY_ID: Record<string, System> = Object.fromEntries(SYSTEMS.map((s) => [s.id, s]));
+export const SYSTEM_BY_ID: Record<SystemId, System> = Object.fromEntries(SYSTEMS.map((s) => [s.id, s]));
 
 // The curated classification each system carried before it became derived.
 // This is not used for display — it exists so validate.js can assert the
@@ -160,7 +161,7 @@ export const SYSTEM_BY_ID: Record<string, System> = Object.fromEntries(SYSTEMS.m
 // data edges change such that a system's tier would move, that's either a real
 // finding or a data-entry mistake, and either way it should stop the build
 // rather than silently reclassify a system.
-export const EXPECTED_CLASSIFICATION: Record<string, string> = {
+export const EXPECTED_CLASSIFICATION: Record<SystemId, string> = {
   "SYS-003": "Restricted",
   "SYS-042": "Confidential",
 };

@@ -27,7 +27,7 @@
 // everything they don't cover. controlBackedPct is reported separately and is
 // NOT this weight, so "how much of this rests on evidence" stays an honest
 // answer rather than a restatement of the formula.
-import { ASSETS, ASSET_BY_ID, assetsForSystem, BOUNDARY_INGRESS_KINDS } from "../graph/nodes/assets";
+import { ASSETS, ASSET_BY_ID, assetsForSystem, BOUNDARY_INGRESS_KINDS, type CriticalityFactors } from "../graph/nodes/assets";
 import { SYSTEMS, SYSTEM_BY_ID } from "../graph/nodes/systems";
 import { ORG_BY_ID } from "../graph/nodes/orgs";
 import { findingsForSystem } from "./findings";
@@ -40,8 +40,10 @@ import { implementationsForAsset } from "./implementation";
 import {
   blendAssurance, evidenceBaseConfidence, criticalityScore, criticalityBand, assuranceBand,
   impactFromCriticality, residualLikelihood, riskScore, riskBand, mean, weightedMean, display,
+  CRITICALITY_FACTORS,
 } from "./assurance";
 import { assetClassification, assetClassificationDetail, systemClassification } from "./classification";
+import type { AssetId, SystemId } from "../graph/ids";
 
 // The assessed remainder carries the same total weight as the measured set.
 const RESIDUAL_WEIGHT_RATIO = 1;
@@ -54,7 +56,7 @@ function baselineScore(assessment: CategoryAssessment): number {
   });
 }
 
-export function categoryRollup(assetId: string, category: AssuranceCategory) {
+export function categoryRollup(assetId: AssetId, category: AssuranceCategory) {
   const assessment = assessmentFor(assetId, category)!;
   const baseline = baselineScore(assessment);
   const implementations = implementationsForAsset(assetId).filter((i) => i.category === category);
@@ -86,12 +88,17 @@ export function categoryRollup(assetId: string, category: AssuranceCategory) {
   };
 }
 
-export function assetRollup(assetId: string) {
+export function assetRollup(assetId: AssetId) {
   const asset = ASSET_BY_ID[assetId];
   const system = SYSTEM_BY_ID[asset.systemId];
 
-  const factors: Record<string, number> = {};
-  Object.keys(asset.criticalityFactors).forEach((k) => (factors[k] = (asset.criticalityFactors as unknown as Record<string, { score: number }>)[k].score));
+  // CriticalityFactors is already a typed interface with exactly these five
+  // keys — reading them directly by name, rather than looping Object.keys()
+  // and casting the result back to a shape TypeScript already knew, keeps the
+  // compiler checking the property access instead of being told to trust it.
+  const factors: Record<string, number> = Object.fromEntries(
+    CRITICALITY_FACTORS.map((f) => [f, asset.criticalityFactors[f].score])
+  );
   const criticality = criticalityScore(factors);
 
   const categories = {} as Record<AssuranceCategory, ReturnType<typeof categoryRollup>>;
@@ -99,7 +106,7 @@ export function assetRollup(assetId: string) {
   const categoryScores = Object.fromEntries(ASSURANCE_CATEGORIES.map((c) => [c, categories[c].score])) as Record<AssuranceCategory, number | null>;
 
   // Weighted by the asset's own classification tier, from the required control
-  // profile (graph/nodes/controlProfiles.js).
+  // profile (graph/nodes/controlProfiles.ts).
   //
   // This was a flat mean, on the argument that no category is inherently more
   // important and asset-specific weighting belongs in the control profile. The
@@ -162,9 +169,9 @@ export type AssetRollup = ReturnType<typeof assetRollup>;
 // Built once at module load. Every consumer reads these rather than recomputing,
 // so there is exactly one value for any asset's assurance anywhere in the app.
 export const ASSET_ROLLUPS: AssetRollup[] = ASSETS.map((a) => assetRollup(a.id));
-export const ASSET_ROLLUP_BY_ID: Record<string, AssetRollup> = Object.fromEntries(ASSET_ROLLUPS.map((a) => [a.id, a]));
+export const ASSET_ROLLUP_BY_ID: Record<AssetId, AssetRollup> = Object.fromEntries(ASSET_ROLLUPS.map((a) => [a.id, a]));
 
-export function systemRollup(systemId: string) {
+export function systemRollup(systemId: SystemId) {
   const system = SYSTEM_BY_ID[systemId];
   const assets = assetsForSystem(systemId).map((a) => ASSET_ROLLUP_BY_ID[a.id]);
 
@@ -213,7 +220,7 @@ export function systemRollup(systemId: string) {
 export type SystemRollup = ReturnType<typeof systemRollup>;
 
 export const SYSTEM_ROLLUPS: SystemRollup[] = SYSTEMS.map((s) => systemRollup(s.id));
-export const SYSTEM_ROLLUP_BY_ID: Record<string, SystemRollup> = Object.fromEntries(SYSTEM_ROLLUPS.map((s) => [s.id, s]));
+export const SYSTEM_ROLLUP_BY_ID: Record<SystemId, SystemRollup> = Object.fromEntries(SYSTEM_ROLLUPS.map((s) => [s.id, s]));
 
 const ENTERPRISE_RAW = weightedMean(
   SYSTEM_ROLLUPS.map((s) => ({
@@ -253,7 +260,7 @@ export const CATEGORY_PORTFOLIO_AVERAGES = ASSURANCE_CATEGORIES.map((label) => (
 // flow also meant remembering to re-slot the asset or the picture quietly went
 // wrong. Here depth is computed by walking inbound data edges, so the layout is
 // a consequence of the flows rather than a parallel description of them.
-export function flowLayoutForSystem(systemId: string) {
+export function flowLayoutForSystem(systemId: SystemId) {
   const assets = assetsForSystem(systemId);
   const ids = new Set(assets.map((a) => a.id));
   const dataEdges = DATA_FLOWS.filter((f) => f.kind === "data" && ids.has(f.from) && ids.has(f.to));
@@ -330,7 +337,7 @@ export function flowLayoutForSystem(systemId: string) {
   return { systemId, stages, branches, edges: dataEdges, controlPlaneEdges: DATA_FLOWS.filter((f) => f.kind === "control-plane" && ids.has(f.from)) };
 }
 
-export function inboundFlowCount(assetId: string): number {
+export function inboundFlowCount(assetId: AssetId): number {
   return flowsTo(assetId).length;
 }
 

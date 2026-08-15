@@ -21,18 +21,20 @@
 // while the engine can correctly exclude it from custody-chain reasoning.
 //
 // Stage ordering is deliberately NOT stored. It's derived from the graph in
-// engine/rollups.js by walking inbound edges, so a new flow reshapes the map
+// engine/rollups.ts by walking inbound edges, so a new flow reshapes the map
 // instead of requiring someone to also remember to re-slot the asset.
 
 export const FLOW_KINDS = { DATA: "data", CONTROL_PLANE: "control-plane" } as const;
 export type FlowKind = (typeof FLOW_KINDS)[keyof typeof FLOW_KINDS];
 
+import type { AssetId, DataTypeId } from "../ids";
+
 export interface DataFlow {
   id: string;
-  from: string;
-  to: string;
+  from: AssetId;
+  to: AssetId;
   kind: FlowKind;
-  dataTypeIds: string[];
+  dataTypeIds: DataTypeId[];
   note?: string;
 }
 
@@ -65,23 +67,23 @@ export const DATA_FLOWS: DataFlow[] = [
   { id: "FLOW-042-06", from: "AST-042-03", to: "AST-042-02", kind: "control-plane", dataTypeIds: ["DT-007", "DT-008", "DT-009"], note: "Every integration authenticates as this single account, which is why its reach is the reach of all three data types." },
 ];
 
-const OUTBOUND: Record<string, DataFlow[]> = {};
-const INBOUND: Record<string, DataFlow[]> = {};
+const OUTBOUND: Record<AssetId, DataFlow[]> = {};
+const INBOUND: Record<AssetId, DataFlow[]> = {};
 DATA_FLOWS.forEach((f) => {
   (OUTBOUND[f.from] ||= []).push(f);
   (INBOUND[f.to] ||= []).push(f);
 });
 
-export function flowsFrom(assetId: string): DataFlow[] {
+export function flowsFrom(assetId: AssetId): DataFlow[] {
   return OUTBOUND[assetId] || [];
 }
 
-export function flowsTo(assetId: string): DataFlow[] {
+export function flowsTo(assetId: AssetId): DataFlow[] {
   return INBOUND[assetId] || [];
 }
 
 // Every flow carrying a given data type — the filter the Data Map lost when
 // its per-data-type view collapsed into a single combined chart.
-export function flowsCarrying(dataTypeId: string): DataFlow[] {
+export function flowsCarrying(dataTypeId: DataTypeId): DataFlow[] {
   return DATA_FLOWS.filter((f) => f.dataTypeIds.includes(dataTypeId));
 }
