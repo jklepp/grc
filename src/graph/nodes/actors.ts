@@ -57,6 +57,18 @@ export const ACTORS: Actor[] = [
     kind: ACTOR_KINDS.MACHINE,
     description: "External payroll vendor",
   },
+  {
+    id: "ACTOR-PLATFORM-ADMIN",
+    name: "Platform Administrator",
+    kind: ACTOR_KINDS.HUMAN,
+    description: "Privileged IAM access",
+  },
+  {
+    id: "ACTOR-EXTERNAL-SAAS",
+    name: "External SaaS / Tool APIs",
+    kind: ACTOR_KINDS.MACHINE,
+    description: "Agent tool destinations",
+  },
 ];
 
 export const ACTOR_BY_ID: Record<ActorId, Actor> = Object.fromEntries(ACTORS.map((a) => [a.id, a]));
