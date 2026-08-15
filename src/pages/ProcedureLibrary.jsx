@@ -670,7 +670,7 @@ export default function ProcedureLibrary({ onNavigate }) {
         icon={ListChecks}
         title="Procedure Library"
         tagline="ACME SOP Library"
-        description={'One Standard Operating Procedure per Assurance Category — the "how" behind each policy\'s "what," generic enough to cover every asset in a category rather than one per asset. Each SOP links to the policy it operationalizes and the real assets currently scored against it.'}
+        description={'One Standard Operating Procedure per Assurance Category — the "how" behind each policy\'s "what."'}
       />
 
       <div className="px-8 flex gap-5 pb-12">

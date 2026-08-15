@@ -364,8 +364,8 @@ export default function DataMap() {
       <div className="flex-1 min-w-0">
         <PageHeader
           icon={Network}
-          title="Enterprise Data Map"
-          description="How data actually moves between a system's assets. Every connection here is a stored relationship carrying named data types, and each asset's position is derived by walking those connections — not a layout someone maintained alongside them. Grades come from the same graph as every other page. Click any asset for detail."
+          title="Systems Data Flow"
+          description="How data moves between a system's assets, from ingress to storage."
           right={
             <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
               {SYSTEMS.length} systems · {getAllAssets().length} assets · {TOTAL_FLOW_COUNT} data flows

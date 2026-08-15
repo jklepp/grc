@@ -329,7 +329,7 @@ const PRINCIPLE_DOMAIN_DEFS = [
         rationale: "A support ticket's PII doesn't stop being PII once it's embedded into a vector, excerpted into a debug log, or exported to an analytics warehouse. Classification has to travel with the data through every derived form, not just the original record.",
         tags: ["blast-radius", "tenant-isolation"],
         implementedIn: [],
-        gapNote: "Would require an explicit rule — in SOP-01 or the Data Classification & Handling Policy — that a derived artifact (embedding, export, log excerpt) is tagged and protected at its source data's classification tier rather than reclassified independently. Especially relevant as the Enterprise Data Map grows to track derived and AI-processed copies, not just primary stores.",
+        gapNote: "Would require an explicit rule — in SOP-01 or the Data Classification & Handling Policy — that a derived artifact (embedding, export, log excerpt) is tagged and protected at its source data's classification tier rather than reclassified independently. Especially relevant as the Systems Data Flow page grows to track derived and AI-processed copies, not just primary stores.",
       },
     ],
   },

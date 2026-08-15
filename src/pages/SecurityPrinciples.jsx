@@ -179,16 +179,7 @@ export default function SecurityPrinciples({ onNavigate }) {
         icon={Shield}
         title="Security Principles"
         tagline="The Technical Controls Every Procedure Assumes"
-        description={
-          <>
-            A framework crosswalk can score every control "Implemented" and still miss an architectural premise —
-            standing privilege where none is needed, an app-layer query as the only thing separating two tenants'
-            data, a system prompt doing the job of an authorization check. This page is that layer: {PRINCIPLE_STATUS_COUNTS.total}{" "}
-            concrete technical requirements, organized by engineering discipline rather than procedural ownership.
-            Every one is traced back to the exact SOP step that backs it — and where no step exists yet, that's shown
-            as a real gap instead of quietly left out.
-          </>
-        }
+        description="The concrete technical requirements every procedure assumes, organized by engineering discipline."
       />
 
       <div className="px-8 pb-6">

@@ -123,11 +123,7 @@ export default function PolicyCenter({ onNavigate }) {
         icon={FileText}
         title="Policy Center"
         tagline="ACME Policy Library"
-        description={
-          <>
-            Plain-language policies for every ACME employee, backed by ISO 27001 and the same SCF control crosswalk that powers the Common Control Framework. Control mapping below each policy is pulled live from that crosswalk — never hand-typed. The {CORE_POLICIES.length} <span style={{ color: C.amber, fontWeight: 600 }}>Core</span> policies below drive the most day-to-day risk and are required reading for every employee; the rest are scoped to a role or function.
-          </>
-        }
+        description="Plain-language policies for every ACME employee, mapped to ISO 27001 and the SCF crosswalk."
       />
 
       <div className="px-8 grid grid-cols-4 gap-4 mb-5">

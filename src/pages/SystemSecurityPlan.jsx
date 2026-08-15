@@ -241,7 +241,7 @@ export default function SystemSecurityPlan() {
         icon={ClipboardCheck}
         title="System Security Plan"
         tagline="Restricted-Tier Control Matrix"
-        description="A full security plan for each Restricted system — identification, boundaries, the control matrix grouped by how it's satisfied, roles, open remediation, and the policies that govern it."
+        description="A full security plan for each Restricted system — boundaries, control implementation, roles, and open remediation."
       />
 
       <div className="px-8 grid grid-cols-3 gap-4 mb-8">

@@ -1,6 +1,6 @@
 // ASSET —[carries data type]→ ASSET
 //
-// Real relationship records. The Enterprise Data Map previously had no edge
+// Real relationship records. The Systems Data Flow page previously had no edge
 // data at all: it held a per-system dictionary of stage names to asset ids
 // ("Ingress", "Primary Custody", "Processing", "Delivery") and drew a line from
 // every asset in one stage to every asset in the next. countEdges() then

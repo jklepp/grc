@@ -484,7 +484,7 @@ export default function GraphExplorer() {
         icon={Share2}
         title="Graph Explorer"
         tagline="One model, seen directly"
-        description="Every page in this app is a lens on the same graph of facts and relationships. This is the graph itself — pick any node to see what it connects to, and trace any derived number back through the chain that produced it, down to the evidence record and the day it was collected."
+        description="The graph itself — pick any node to trace a derived number back to the evidence that produced it."
         right={
           <div className="flex items-center gap-2">
             {[["explore", "Explore"], ["health", "Model Health"]].map(([key, label]) => (

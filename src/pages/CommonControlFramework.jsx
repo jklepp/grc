@@ -2,7 +2,6 @@ import React, { useState, useMemo } from "react";
 import { Search, X, ChevronDown, ChevronRight, RefreshCw, LayoutGrid, UserX, HelpCircle } from "lucide-react";
 import { C } from "../theme";
 import { PageHeader } from "../components/Headings";
-import scf from "../data/scfControls.json";
 import { CCF_VISIBLE_CONTROLS as VISIBLE_CONTROLS, CCF_DOMAINS as VISIBLE_DOMAINS } from "../data/ccfControls";
 import { CONSOLIDATED_CONTROLS } from "../data/consolidatedControls";
 import { STANDARD_ABBR } from "../data/policies";
@@ -78,7 +77,6 @@ export default function CommonControlFramework() {
         icon={LayoutGrid}
         title="Common Controls"
         tagline="Unified Compliance Matrix"
-        description="The real SCF control library, crosswalked against SOC 2, ISO 27001, ISO 27017, ISO 27018, ISO 27701, ISO 42001, PCI DSS, and HIPAA — filtered to the controls that actually map to one of those frameworks. Ownership isn't in the source data, so every control starts unowned; about a third are still flagged Needs Review."
         right={
           <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
             <RefreshCw size={12} /> Imported from Secure Controls Framework 2026.1
@@ -88,20 +86,16 @@ export default function CommonControlFramework() {
 
       <div className="px-8 grid grid-cols-3 gap-4 mb-5">
         <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-          <div className="text-2xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{scf.stats.totalControls.toLocaleString()}</div>
-          <div className="text-xs mt-1" style={{ color: C.muted }}>Total SCF controls across {scf.stats.totalDomains} domains</div>
+          <div className="text-2xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{VISIBLE_DOMAINS.length}</div>
+          <div className="text-xs mt-1" style={{ color: C.muted }}>Control domains</div>
         </div>
         <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-          <div className="text-2xl font-semibold" style={{ color: C.na, fontFamily: "'Source Serif 4', serif" }}>{scf.stats.noMatchCount.toLocaleString()}</div>
-          <div className="text-xs mt-1" style={{ color: C.muted }}>
-            No match across any of the 8 in-scope frameworks ({Math.round((scf.stats.noMatchCount / scf.stats.totalControls) * 100)}%)
-          </div>
+          <div className="text-2xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{VISIBLE_CONTROLS.length}</div>
+          <div className="text-xs mt-1" style={{ color: C.muted }}>Controls</div>
         </div>
         <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-          <div className="text-2xl font-semibold" style={{ color: C.accent, fontFamily: "'Source Serif 4', serif" }}>
-            {(scf.stats.totalControls - scf.stats.noMatchCount).toLocaleString()}
-          </div>
-          <div className="text-xs mt-1" style={{ color: C.muted }}>Matched at least one framework in the crosswalk</div>
+          <div className="text-2xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{Object.keys(STANDARD_ABBR).length}</div>
+          <div className="text-xs mt-1" style={{ color: C.muted }}>Standards mapped — {Object.values(STANDARD_ABBR).join(", ")}</div>
         </div>
       </div>
 

@@ -213,7 +213,7 @@ export default function DataClassificationGapMatrix() {
         icon={ShieldCheck}
         title="Systems Register"
         tagline="Data Classification Policy v3.2 · Confidential & Restricted"
-        description="Systems handling data classified Confidential or Restricted under policy, evaluated against the six controls required for their tier. Status reflects live test results — this view does not modify Vanta or Jira."
+        description="Systems handling Confidential or Restricted data, evaluated against the controls required for their tier."
         right={
           <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
             <Lock size={12} /><span>Read-only</span><span style={{ color: C.border }}>|</span><RefreshCw size={12} /><span>Synced from Vanta · 8 min ago</span>
