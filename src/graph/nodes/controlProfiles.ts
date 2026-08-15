@@ -82,7 +82,7 @@ export function categoryWeight(tier: string, category: string): number {
 // The baseline bar every asset at a tier must clear before any category-specific
 // bump. Each tier is one full "how convincingly can we prove this" step up from
 // the last: attest it in a doc, show it, have it examined, prove it by machine.
-const TIER_BASELINE: Record<ClassificationTier, { maturity: MaturityStage; evidence: EvidenceType }> = {
+export const TIER_BASELINE: Record<ClassificationTier, { maturity: MaturityStage; evidence: EvidenceType }> = {
   Public: { maturity: "Policy", evidence: "Document" },
   Internal: { maturity: "Procedure", evidence: "Screenshot" },
   Confidential: { maturity: "Implemented", evidence: "Auditor examination" },
@@ -94,8 +94,8 @@ const TIER_BASELINE: Record<ClassificationTier, { maturity: MaturityStage; evide
 // actually becomes sensitive. Note this is a separate lever from the weights
 // above: the bump raises the bar a category has to clear, the weight decides
 // how much clearing it counts for.
-const HIGH_SENSITIVITY_CATEGORIES: AssuranceCategory[] = ["Data Protection", "Identity & Access", "Detection"];
-const BUMPED_TIERS: ClassificationTier[] = ["Confidential", "Restricted"];
+export const HIGH_SENSITIVITY_CATEGORIES: AssuranceCategory[] = ["Data Protection", "Identity & Access", "Detection"];
+export const BUMPED_TIERS: ClassificationTier[] = ["Confidential", "Restricted"];
 
 function bump<T>(list: readonly T[], value: T): T {
   return list[Math.min(list.indexOf(value) + 1, list.length - 1)];

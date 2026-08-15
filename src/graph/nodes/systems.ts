@@ -32,6 +32,7 @@
 // string on every call the way systemRegister.js's hostingType() did — the
 // substring match on "SaaS"/"on-prem" was doing inference where a field will do.
 import type { SystemId, OrgId } from "../ids";
+import type { ClassificationTier } from "./taxonomy";
 
 export const HOSTING_TYPES = ["cloud", "saas", "on-prem"] as const;
 export type HostingType = (typeof HOSTING_TYPES)[number];
@@ -161,7 +162,7 @@ export const SYSTEM_BY_ID: Record<SystemId, System> = Object.fromEntries(SYSTEMS
 // data edges change such that a system's tier would move, that's either a real
 // finding or a data-entry mistake, and either way it should stop the build
 // rather than silently reclassify a system.
-export const EXPECTED_CLASSIFICATION: Record<SystemId, string> = {
+export const EXPECTED_CLASSIFICATION: Record<SystemId, ClassificationTier> = {
   "SYS-003": "Restricted",
   "SYS-042": "Confidential",
 };

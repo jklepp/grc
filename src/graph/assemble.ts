@@ -1,0 +1,233 @@
+// Facts in, traversable Graph out.
+//
+// Every index built here previously lived as a module-level const inside the
+// node or edge file it indexed — BY_PAIR in evidence.ts, BY_ASSET in
+// categoryAssessments.ts, INBOUND/OUTBOUND in dataFlows.ts, and so on. That
+// worked exactly as long as there was one fact set in the process, because each
+// index was welded to the module-scope collection above it. Gathering them into
+// one function is what lets a second graph exist: a synthetic one for tests, a
+// second tenant's, or a prior revision to diff today's posture against.
+//
+// Two rules this file holds to:
+//
+//   1. Nothing here is a score. Indexes are lookups. If a function in this file
+//      ever needs a maturity weight or a confidence value, it belongs in the
+//      engine and has been put in the wrong layer.
+//
+//   2. Normalization is explicit and happens once. Evidence validity windows
+//      and source ids are filled in here so no downstream caller has to
+//      remember to, which is the bug that made `sourceId` unreliable when it
+//      was computed at three separate call sites.
+import type { Graph, GraphFacts, ControlProfileDefinition } from "./types";
+import { DEFAULT_VALIDITY_DAYS, sourceIdFromName, type Evidence } from "./nodes/evidence";
+import type { EvidenceSource } from "./nodes/evidenceSources";
+import type { ControlProfileEntry } from "./nodes/controlProfiles";
+import {
+  CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES, MATURITY_STAGES, EVIDENCE_TYPES,
+  type ClassificationTier, type AssuranceCategory,
+} from "./nodes/taxonomy";
+import type { AssetId, ControlId, RiskId, SystemId, DataTypeId, EvidenceSourceId } from "./ids";
+
+// ---- Small index helpers -----------------------------------------------------
+// byId and groupBy exist so the twenty-odd indexes below read as declarations
+// rather than twenty slightly-different reduce calls, which is how two of them
+// previously ended up with subtly different missing-key behaviour.
+function byId<T extends { id: string }>(rows: readonly T[]): Record<string, T> {
+  return Object.fromEntries(rows.map((r) => [r.id, r]));
+}
+
+function groupBy<T>(rows: readonly T[], key: (row: T) => string | null | undefined): Record<string, T[]> {
+  const out: Record<string, T[]> = {};
+  rows.forEach((row) => {
+    const k = key(row);
+    if (k === null || k === undefined) return;
+    (out[k] ||= []).push(row);
+  });
+  return out;
+}
+
+function keyBy<T>(rows: readonly T[], key: (row: T) => string): Record<string, T> {
+  return Object.fromEntries(rows.map((r) => [key(r), r]));
+}
+
+const pair = (assetId: string, controlId: string) => `${assetId}::${controlId}`;
+
+// ---- Evidence normalization --------------------------------------------------
+// An evidence row is authored with what varies (when it was collected, what it
+// found, how much it covered) and leaves what doesn't vary to be filled in: how
+// long a collection of this type stays meaningful, and which source produced it.
+function normalizeEvidence(facts: GraphFacts): Evidence[] {
+  return facts.evidence.map((e) => ({
+    ...e,
+    validForDays: e.validForDays ?? DEFAULT_VALIDITY_DAYS[e.evidenceType],
+    sourceId: sourceIdFromName(e.source),
+  }));
+}
+
+// ---- Evidence sources ---------------------------------------------------------
+// Derived, never authored. One node per distinct source name, each knowing its
+// observations. Disagreement about what kind of source a name refers to is
+// collected rather than thrown so graph/validate.ts can report every conflict
+// in one pass — see the header of nodes/evidenceSources.ts for why a conflict
+// is always a real problem and never a rounding difference.
+function deriveEvidenceSources(evidence: readonly Evidence[]): {
+  sources: EvidenceSource[];
+  conflicts: string[];
+} {
+  const byKey = new Map<EvidenceSourceId, EvidenceSource>();
+  const conflicts: string[] = [];
+
+  evidence.forEach((e) => {
+    const id = sourceIdFromName(e.source);
+    const existing = byKey.get(id);
+    if (!existing) {
+      byKey.set(id, {
+        id,
+        name: e.source,
+        evidenceType: e.evidenceType,
+        independence: e.independence,
+        observationIds: [e.id],
+      });
+      return;
+    }
+    existing.observationIds.push(e.id);
+    if (existing.evidenceType !== e.evidenceType) {
+      conflicts.push(
+        `source "${e.source}" (${id}): observation ${e.id} declares evidenceType "${e.evidenceType}", but observation ${existing.observationIds[0]} declared "${existing.evidenceType}"`
+      );
+    }
+    if (existing.independence !== e.independence) {
+      conflicts.push(
+        `source "${e.source}" (${id}): observation ${e.id} declares independence "${e.independence}", but observation ${existing.observationIds[0]} declared "${existing.independence}"`
+      );
+    }
+  });
+
+  return { sources: [...byKey.values()], conflicts };
+}
+
+// ---- Control profile resolution -----------------------------------------------
+// Turns the profile DEFINITION into the lookup the engine reads:
+// [tier][category] -> { maturity, evidence, weight }.
+//
+// `bump` moves one step along an ordered vocabulary, clamped at the top. Both
+// MATURITY_STAGES and EVIDENCE_TYPES are ordered weakest-to-strongest precisely
+// so "one notch stricter" is an index step rather than a lookup table that
+// could disagree with the vocabulary it's keyed on.
+function bump<T>(ordered: readonly T[], value: T): T {
+  return ordered[Math.min(ordered.indexOf(value) + 1, ordered.length - 1)];
+}
+
+function resolveControlProfiles(
+  definition: ControlProfileDefinition
+): Record<ClassificationTier, Record<AssuranceCategory, ControlProfileEntry>> {
+  const resolved = {} as Record<ClassificationTier, Record<AssuranceCategory, ControlProfileEntry>>;
+
+  CLASSIFICATION_TIERS.forEach((tier) => {
+    const base = definition.tierBaseline[tier];
+    resolved[tier] = {} as Record<AssuranceCategory, ControlProfileEntry>;
+    ASSURANCE_CATEGORIES.forEach((category) => {
+      const stricter =
+        definition.bumpedTiers.includes(tier) && definition.highSensitivityCategories.includes(category);
+      resolved[tier][category] = {
+        maturity: stricter ? bump(MATURITY_STAGES, base.maturity) : base.maturity,
+        evidence: stricter ? bump(EVIDENCE_TYPES, base.evidence) : base.evidence,
+        weight: definition.categoryWeights[tier]?.[category] ?? 0,
+      };
+    });
+  });
+
+  return resolved;
+}
+
+// ---- Assembly ----------------------------------------------------------------
+export function assembleGraph(facts: GraphFacts): Graph {
+  const evidence = normalizeEvidence(facts);
+  const { sources: evidenceSources, conflicts: sourceConflicts } = deriveEvidenceSources(evidence);
+
+  // Evidence with no assetIds covers a program-scoped control rather than any
+  // one asset, and is filed under the "program" sentinel so evidenceFor() has a
+  // single lookup shape for both cases.
+  const evidenceByPair: Record<string, Evidence[]> = {};
+  evidence.forEach((e) => {
+    if (e.assetIds.length === 0) {
+      (evidenceByPair[pair("program", e.controlId)] ||= []).push(e);
+      return;
+    }
+    e.assetIds.forEach((assetId) => (evidenceByPair[pair(assetId, e.controlId)] ||= []).push(e));
+  });
+
+  return {
+    facts,
+
+    // Normalized collections
+    assets: facts.assets,
+    systems: facts.systems,
+    dataTypes: facts.dataTypes,
+    controls: facts.controls,
+    keyControls: facts.keyControls,
+    evidence,
+    evidenceSources,
+    risks: facts.risks,
+    orgs: facts.orgs,
+    findings: facts.findings,
+    actors: facts.actors,
+
+    // Edges
+    assetDataTypes: facts.assetDataTypes,
+    dataFlows: facts.dataFlows,
+    actorAccess: facts.actorAccess,
+    applicabilityRules: facts.applicabilityRules,
+    applicabilityExceptions: facts.applicabilityExceptions,
+    categoryAssessments: facts.categoryAssessments,
+    ownerOverrides: facts.ownerOverrides,
+    implementationOverrides: facts.implementationOverrides,
+    notImplemented: facts.notImplemented,
+    riskAssets: facts.riskAssets,
+    riskControls: facts.riskControls,
+
+    // Entity indexes
+    assetById: byId(facts.assets) as Record<AssetId, (typeof facts.assets)[number]>,
+    systemById: byId(facts.systems) as Record<SystemId, (typeof facts.systems)[number]>,
+    dataTypeById: byId(facts.dataTypes) as Record<DataTypeId, (typeof facts.dataTypes)[number]>,
+    controlById: byId(facts.controls) as Record<ControlId, (typeof facts.controls)[number]>,
+    keyControlById: byId(facts.keyControls) as Record<ControlId, (typeof facts.keyControls)[number]>,
+    evidenceById: byId(evidence),
+    evidenceSourceById: byId(evidenceSources),
+    riskById: byId(facts.risks) as Record<RiskId, (typeof facts.risks)[number]>,
+    orgById: byId(facts.orgs),
+    actorById: byId(facts.actors),
+
+    // Traversal indexes
+    assetsBySystem: groupBy(facts.assets, (a) => a.systemId),
+    dataTypesByAsset: groupBy(facts.assetDataTypes, (e) => e.assetId),
+    assetsByDataType: groupBy(facts.assetDataTypes, (e) => e.dataTypeId),
+    flowsFromAsset: groupBy(facts.dataFlows, (f) => f.from),
+    flowsToAsset: groupBy(facts.dataFlows, (f) => f.to),
+    actorAccessByAsset: groupBy(facts.actorAccess, (a) => a.assetId),
+    rulesByControl: groupBy(facts.applicabilityRules, (r) => r.controlId),
+
+    // Pair indexes
+    evidenceByPair,
+    assessmentByPair: keyBy(facts.categoryAssessments, (a) => pair(a.assetId, a.category)),
+    exceptionByPair: keyBy(facts.applicabilityExceptions, (e) => pair(e.assetId, e.controlId)),
+    overrideByPair: keyBy(facts.implementationOverrides, (o) => pair(o.assetId, o.controlId)),
+    notImplementedByPair: keyBy(facts.notImplemented, (n) => pair(n.assetId, n.controlId)),
+
+    // Risk contribution
+    assetsByRisk: groupBy(facts.riskAssets, (r) => r.riskId),
+    controlsByRisk: groupBy(facts.riskControls, (r) => r.riskId),
+    risksByAsset: groupBy(facts.riskAssets, (r) => r.assetId),
+    risksByControl: groupBy(facts.riskControls, (r) => r.controlId),
+
+    // Derived membership sets
+    controlProfiles: resolveControlProfiles(facts.controlProfile),
+    categoryWeights: facts.controlProfile.categoryWeights,
+
+    assessedAssetIds: [...new Set(facts.categoryAssessments.map((a) => a.assetId))] as AssetId[],
+    assetScopedControls: facts.keyControls.filter((c) => c.scope === "asset"),
+    programScopedControls: facts.keyControls.filter((c) => c.scope === "program"),
+
+    sourceConflicts,
+  };
+}

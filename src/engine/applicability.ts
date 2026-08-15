@@ -11,16 +11,18 @@
 //     -> a rule matched, and it was excepted: AWS KMS exposes no configurable
 //        hardening surface, so its baseline is inherited from the provider.
 //
-// Neither was answerable before. A control expectation came from
-// CONTROL_PROFILES[tier], which sets a maturity/evidence floor per assurance
+// Neither was answerable before. A control expectation came from the control
+// profile at a tier, which sets a maturity/evidence floor per assurance
 // category — enough to say a Restricted asset needs Managed-grade Data
 // Protection, never which controls that means.
-import { ASSETS, ASSET_BY_ID, type Asset } from "../graph/nodes/assets";
-import { SYSTEM_BY_ID } from "../graph/nodes/systems";
-import { ASSET_SCOPED_CONTROLS, PROGRAM_SCOPED_CONTROLS, KEY_CONTROL_BY_ID, type KeyControl } from "../graph/nodes/keyControls";
-import { APPLICABILITY_RULES, exceptionFor, type ApplicabilityRule, type ApplicabilityException, type ApplicabilityCondition } from "../graph/edges/applicabilityRules";
+import type { Graph } from "../graph/types";
+import type { Asset } from "../graph/nodes/assets";
+import type { KeyControl } from "../graph/nodes/keyControls";
+import type {
+  ApplicabilityRule, ApplicabilityException, ApplicabilityCondition,
+} from "../graph/edges/applicabilityRules";
 import { tierRank } from "../graph/nodes/taxonomy";
-import { assetClassification, assetClassificationDetail, dataKindsForAsset } from "./classification";
+import type { ClassificationApi } from "./classification";
 import type { AssetId, ControlId } from "../graph/ids";
 
 interface ApplicabilityContext {
@@ -42,17 +44,6 @@ function ruleMatches(rule: ApplicabilityRule, context: ApplicabilityContext): bo
   return true;
 }
 
-function contextFor(assetId: AssetId): ApplicabilityContext {
-  const asset = ASSET_BY_ID[assetId];
-  const system = SYSTEM_BY_ID[asset.systemId];
-  return {
-    kind: asset.kind,
-    hostingType: system.hostingType,
-    classification: assetClassification(assetId),
-    dataKinds: dataKindsForAsset(assetId),
-  };
-}
-
 export interface ApplicabilityResolution {
   assetId: AssetId;
   controlId: ControlId;
@@ -64,76 +55,103 @@ export interface ApplicabilityResolution {
   classificationDrivenBy?: unknown[];
 }
 
-// Everything known about whether one control applies to one asset — the shape
-// the Graph Explorer renders and the engine branches on.
-export function resolveApplicability(assetId: AssetId, controlId: ControlId): ApplicabilityResolution {
-  const context = contextFor(assetId);
-  const matched = APPLICABILITY_RULES.filter((r) => r.controlId === controlId && ruleMatches(r, context));
-  const exception = exceptionFor(assetId, controlId);
-  const classificationDetail = assetClassificationDetail(assetId);
+export function createApplicability(graph: Graph, classification: ClassificationApi) {
+  function contextFor(assetId: AssetId): ApplicabilityContext {
+    const asset = graph.assetById[assetId];
+    const system = graph.systemById[asset.systemId];
+    return {
+      kind: asset.kind,
+      hostingType: system.hostingType,
+      classification: classification.assetClassification(assetId),
+      dataKinds: classification.dataKindsForAsset(assetId),
+    };
+  }
 
-  if (matched.length === 0) {
+  // Everything known about whether one control applies to one asset — the shape
+  // the Graph Explorer renders and the engine branches on.
+  function resolveApplicability(assetId: AssetId, controlId: ControlId): ApplicabilityResolution {
+    const context = contextFor(assetId);
+    const matched = (graph.rulesByControl[controlId] ?? []).filter((r) => ruleMatches(r, context));
+    const exception = graph.exceptionByPair[`${assetId}::${controlId}`] ?? null;
+    const classificationDetail = classification.assetClassificationDetail(assetId);
+
+    if (matched.length === 0) {
+      return {
+        assetId,
+        controlId,
+        required: false,
+        exception: null,
+        reasons: [],
+        // Why NOT — the half that was never expressible before.
+        notRequiredBecause: `No applicability rule for ${controlId} matches this asset (type ${context.kind}, ${context.classification} tier, ${context.hostingType} hosted).`,
+        context,
+      };
+    }
+
+    if (exception) {
+      return {
+        assetId,
+        controlId,
+        required: false,
+        exception,
+        reasons: matched.map((r) => ({ rationale: r.rationale, source: r.source })),
+        notRequiredBecause: exception.reason,
+        context,
+      };
+    }
+
     return {
       assetId,
       controlId,
-      required: false,
+      required: true,
       exception: null,
-      reasons: [],
-      // Why NOT — the half that was never expressible before.
-      notRequiredBecause: `No applicability rule for ${controlId} matches this asset (type ${context.kind}, ${context.classification} tier, ${context.hostingType} hosted).`,
+      reasons: matched.map((r) => ({ rationale: r.rationale, source: r.source })),
+      classificationDrivenBy: classificationDetail?.drivenBy ?? [],
+      notRequiredBecause: null,
       context,
     };
   }
 
-  if (exception) {
-    return {
-      assetId,
-      controlId,
-      required: false,
-      exception,
-      reasons: matched.map((r) => ({ rationale: r.rationale, source: r.source })),
-      notRequiredBecause: exception.reason,
-      context,
-    };
+  // Precomputed, because every rollup walks this and the rule set is static
+  // within one graph.
+  const requiredByAsset: Record<AssetId, ControlId[]> = {};
+  graph.assets.forEach((asset) => {
+    requiredByAsset[asset.id] = graph.assetScopedControls
+      .filter((c) => resolveApplicability(asset.id, c.id).required)
+      .map((c) => c.id);
+  });
+
+  function requiredControlsForAsset(assetId: AssetId): KeyControl[] {
+    return (requiredByAsset[assetId] || []).map((id) => graph.keyControlById[id]);
   }
+
+  function requiredControlsForAssetInCategory(assetId: AssetId, category: string): KeyControl[] {
+    return requiredControlsForAsset(assetId).filter((c) => c.category === category);
+  }
+
+  function assetsRequiringControl(controlId: ControlId): Asset[] {
+    return graph.assets.filter((a) => (requiredByAsset[a.id] || []).includes(controlId)) as Asset[];
+  }
+
+  // Every asset/control pair a rule excused, with its stated reason. Surfaced on
+  // the Graph Explorer so exceptions are reviewable as a set rather than only
+  // discoverable one control at a time.
+  function allExceptions(): ApplicabilityResolution[] {
+    return graph.assets.flatMap((asset) =>
+      graph.assetScopedControls.map((c) => resolveApplicability(asset.id, c.id)).filter((r) => r.exception)
+    );
+  }
+
+  const programControlIds: ControlId[] = graph.programScopedControls.map((c) => c.id);
 
   return {
-    assetId,
-    controlId,
-    required: true,
-    exception: null,
-    reasons: matched.map((r) => ({ rationale: r.rationale, source: r.source })),
-    classificationDrivenBy: classificationDetail?.drivenBy ?? [],
-    notRequiredBecause: null,
-    context,
+    resolveApplicability,
+    requiredControlsForAsset,
+    requiredControlsForAssetInCategory,
+    assetsRequiringControl,
+    allExceptions,
+    PROGRAM_CONTROL_IDS: programControlIds,
   };
 }
 
-// Precomputed, because every rollup walks this and the rule set is static.
-const REQUIRED_BY_ASSET: Record<AssetId, ControlId[]> = {};
-ASSETS.forEach((asset) => {
-  REQUIRED_BY_ASSET[asset.id] = ASSET_SCOPED_CONTROLS.filter((c) => resolveApplicability(asset.id, c.id).required).map((c) => c.id);
-});
-
-export function requiredControlsForAsset(assetId: AssetId): KeyControl[] {
-  return (REQUIRED_BY_ASSET[assetId] || []).map((id) => KEY_CONTROL_BY_ID[id]);
-}
-
-export function requiredControlsForAssetInCategory(assetId: AssetId, category: string): KeyControl[] {
-  return requiredControlsForAsset(assetId).filter((c) => c.category === category);
-}
-
-export function assetsRequiringControl(controlId: ControlId): Asset[] {
-  return ASSETS.filter((a) => (REQUIRED_BY_ASSET[a.id] || []).includes(controlId));
-}
-
-// Every asset/control pair a rule excused, with its stated reason. Surfaced on
-// the Graph Explorer so exceptions are reviewable as a set rather than only
-// discoverable one control at a time.
-export function allExceptions(): ApplicabilityResolution[] {
-  return ASSETS.flatMap((asset) =>
-    ASSET_SCOPED_CONTROLS.map((c) => resolveApplicability(asset.id, c.id)).filter((r) => r.exception)
-  );
-}
-
-export const PROGRAM_CONTROL_IDS: ControlId[] = PROGRAM_SCOPED_CONTROLS.map((c) => c.id);
+export type ApplicabilityApi = ReturnType<typeof createApplicability>;
