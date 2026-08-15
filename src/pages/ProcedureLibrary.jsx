@@ -718,6 +718,7 @@ export default function ProcedureLibrary({ onNavigate }) {
         title="Procedure Library"
         tagline="ACME SOP Library"
         description={'One Standard Operating Procedure per Assurance Category — the "how" behind each policy\'s "what."'}
+        descriptionClassName="max-w-none whitespace-nowrap"
       />
 
       <div className="px-8 flex gap-5 pb-12">

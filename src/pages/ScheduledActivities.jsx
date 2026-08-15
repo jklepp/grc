@@ -61,6 +61,7 @@ export default function ScheduledActivities({ onNavigate }) {
         title="Governance Schedule"
         tagline="Control Timeliness"
         description="Every control that runs on a fixed cadence, grouped by activity type and tracked against its real due date."
+        descriptionClassName="max-w-none whitespace-nowrap"
       />
 
       <div className="px-8 pb-5">
