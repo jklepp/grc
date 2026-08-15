@@ -1,14 +1,14 @@
 // Org — who's accountable, as a node instead of a string.
 //
 // Every "owner" in this app used to be free text: OWNERSHIP kept one
-// vocabulary, systems.js's roles[] kept a second, risks.js kept a third —
+// vocabulary, systems.ts's roles[] kept a second, risks.ts kept a third —
 // three registers that happened to overlap on some names ("IT Security") and
 // diverge on others ("IT Security — SOC function" vs. a sibling spelling
 // elsewhere) with nothing forcing them to agree, and no way to ask "show me
 // everything ML Platform Team owns" without grepping strings.
 //
-// This file is deliberately scoped to the GRAPH layer only — controlImplementations.js
-// ownership, systems.js roles, risks.js owners, and findings.js owners. It does
+// This file is deliberately scoped to the GRAPH layer only — controlImplementations.ts
+// ownership, systems.ts roles, risks.ts owners, and findings.ts owners. It does
 // NOT touch procedures.js's SOP owners or scheduledActivities.js: those are
 // content, not graph (see the canonical-graph-model rearchitecture), and stay
 // their own thing on purpose.
@@ -31,19 +31,21 @@
 // pretending the functions are interchangeable — "every control IT Security
 // or one of its functions owns" is still answerable by walking parents.
 //
-// Two individuals (systems.js remediation, now findings.js) are User nodes
+// Two individuals (systems.ts remediation, now findings.ts) are User nodes
 // rather than Team, because that's what they are — a person, not a function.
 // "Product Leadership" is a Business Unit rather than a Team, because
-// systems.js uses it as a Data Owner assignment at the leadership/business
+// systems.ts uses it as a Data Owner assignment at the leadership/business
 // level, not an operating team.
+import type { OrgId } from "../ids";
+
 export const ORG_KINDS = { TEAM: "team", USER: "user", BUSINESS_UNIT: "business-unit" } as const;
 export type OrgKind = (typeof ORG_KINDS)[keyof typeof ORG_KINDS];
 
 export interface Org {
-  id: string;
+  id: OrgId;
   name: string;
   kind: OrgKind;
-  parentId?: string;
+  parentId?: OrgId;
 }
 
 export const ORGS: Org[] = [
@@ -70,15 +72,15 @@ export const ORGS: Org[] = [
   { id: "r-chen", name: "R. Chen", kind: ORG_KINDS.USER },
 ];
 
-export const ORG_BY_ID: Record<string, Org> = Object.fromEntries(ORGS.map((o) => [o.id, o]));
+export const ORG_BY_ID: Record<OrgId, Org> = Object.fromEntries(ORGS.map((o) => [o.id, o]));
 
 // Resolves an id to a display name; falls back to the raw id so a bad
 // reference is visible in the UI instead of rendering blank (validate.js is
 // what actually catches the bad reference — this is just a display fallback).
-export function orgName(id: string): string {
+export function orgName(id: OrgId): string {
   return ORG_BY_ID[id]?.name ?? id;
 }
 
-export function orgNames(ids?: string[] | null): string {
+export function orgNames(ids?: OrgId[] | null): string {
   return (ids || []).map(orgName).join(" / ");
 }

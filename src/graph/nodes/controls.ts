@@ -2,7 +2,7 @@
 //
 // A control's definition (what it requires, which domain it belongs to, which
 // framework clauses cite it) is the same everywhere it appears. Its
-// IMPLEMENTATION is contextual, and lives in edges/controlImplementations.js.
+// IMPLEMENTATION is contextual, and lives in edges/controlImplementations.ts.
 // Keeping the two apart is the point: "Least Privilege" means one thing, but it
 // works very well on the KMS key and poorly on the RAG service, and there is no
 // single honest number for "how good is Least Privilege at ACME."
@@ -12,6 +12,7 @@
 // policies.js, procedures.js, and the Unified Compliance Matrix already read.
 import scf from "../../data/scfControls.json";
 import { categoryForDomain, getImplementationType, getToolHint, type AssuranceCategory, type ImplementationType } from "./taxonomy";
+import type { ControlId } from "../ids";
 
 interface ScfControl {
   id: string;
@@ -30,7 +31,7 @@ export interface ControlFramework {
 }
 
 export interface Control {
-  id: string;
+  id: ControlId;
   domain: string;
   name: string;
   description: string;
@@ -56,7 +57,7 @@ export const CONTROLS: Control[] = (scf.controls as ScfControl[]).map((c) => {
   };
 });
 
-export const CONTROL_BY_ID: Record<string, Control> = Object.fromEntries(CONTROLS.map((c) => [c.id, c]));
+export const CONTROL_BY_ID: Record<ControlId, Control> = Object.fromEntries(CONTROLS.map((c) => [c.id, c]));
 
 // Controls with at least one framework clause citing them. The rest are real
 // SCF controls but out of scope for a program certifying against the standards
@@ -72,7 +73,7 @@ export function controlsForStandards(standards: string[]): Control[] {
 
 // Every clause a control cites for one framework, and the inverse: every
 // control a given clause is satisfied by. The inverse index is what lets
-// engine/compliance.js answer "how covered is SOC 2 CC6.1" by looking at the
+// engine/compliance.ts answer "how covered is SOC 2 CC6.1" by looking at the
 // implementations of the controls that actually satisfy it.
 const CLAUSE_INDEX: Record<string, string[]> = {};
 IN_SCOPE_CONTROLS.forEach((control) => {

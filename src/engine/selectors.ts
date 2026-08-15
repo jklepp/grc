@@ -26,14 +26,15 @@ import { buildImplementation, implementationsForAsset, programImplementation, PR
 import { resolveApplicability, requiredControlsForAsset, assetsRequiringControl, allExceptions } from "./applicability";
 import { assetClassification, dataForAsset, dataTypesForSystem, assetsHoldingDataType } from "./classification";
 import { systemControlMatrix, systemCoverageBreakdown, systemStandardMappings, clauseCoverage, controlCoverageForSystem, frameworkPosture, FRAMEWORK_POSTURE, ENTERPRISE_COVERAGE, IN_SCOPE_FRAMEWORKS } from "./compliance";
+import type { AssetId, SystemId, ControlId, RiskId, DataTypeId, EvidenceId } from "../graph/ids";
 
 // ---- Entity access ---------------------------------------------------------------
-export const getAsset = (id: string) => ASSET_ROLLUP_BY_ID[id] ?? null;
-export const getSystem = (id: string) => SYSTEM_ROLLUP_BY_ID[id] ?? null;
-export const getRisk = (id: string) => RISK_ROLLUP_BY_ID[id] ?? null;
-export const getDataType = (id: string) => DATA_TYPE_BY_ID[id] ?? null;
-export const getControl = (id: string) => KEY_CONTROL_BY_ID[id] ?? CONTROL_BY_ID[id] ?? null;
-export const getEvidence = (id: string) => (EVIDENCE_BY_ID[id] ? scoreEvidence(EVIDENCE_BY_ID[id]) : null);
+export const getAsset = (id: AssetId) => ASSET_ROLLUP_BY_ID[id] ?? null;
+export const getSystem = (id: SystemId) => SYSTEM_ROLLUP_BY_ID[id] ?? null;
+export const getRisk = (id: RiskId) => RISK_ROLLUP_BY_ID[id] ?? null;
+export const getDataType = (id: DataTypeId) => DATA_TYPE_BY_ID[id] ?? null;
+export const getControl = (id: ControlId) => KEY_CONTROL_BY_ID[id] ?? CONTROL_BY_ID[id] ?? null;
+export const getEvidence = (id: EvidenceId) => (EVIDENCE_BY_ID[id] ? scoreEvidence(EVIDENCE_BY_ID[id]) : null);
 
 export const getAllAssets = () => ASSET_ROLLUPS;
 export const getAllSystems = () => SYSTEM_ROLLUPS;
@@ -46,17 +47,17 @@ export const getEnterprise = () => ENTERPRISE;
 export const getCategoryAverages = () => CATEGORY_PORTFOLIO_AVERAGES;
 
 // ---- Relationship traversal --------------------------------------------------------
-export function getImplementations(assetId: string) {
+export function getImplementations(assetId: AssetId) {
   return implementationsForAsset(assetId);
 }
 
-export function getImplementation(assetId: string | null, controlId: string) {
+export function getImplementation(assetId: AssetId | null, controlId: ControlId) {
   return buildImplementation(assetId, controlId);
 }
 
 // Every implementation of one control across the estate — the view that shows
 // why a single global score for a control would be meaningless.
-export function getControlImplementations(controlId: string): Implementation[] {
+export function getControlImplementations(controlId: ControlId): Implementation[] {
   const control = KEY_CONTROL_BY_ID[controlId];
   if (!control) return [];
   if (control.scope === "program") {
@@ -66,17 +67,17 @@ export function getControlImplementations(controlId: string): Implementation[] {
   return assetsRequiringControl(controlId).map((a) => buildImplementation(a.id, controlId));
 }
 
-export function getApplicability(assetId: string, controlId: string) {
+export function getApplicability(assetId: AssetId, controlId: ControlId) {
   return resolveApplicability(assetId, controlId);
 }
 
 // Both halves of the auditor's question, for every key control against one
 // asset: what applies and why, and what doesn't and why not.
-export function getApplicabilityProfile(assetId: string) {
+export function getApplicabilityProfile(assetId: AssetId) {
   return KEY_CONTROLS.filter((c) => c.scope === "asset").map((c) => resolveApplicability(assetId, c.id));
 }
 
-export function getDataFlows(systemId: string) {
+export function getDataFlows(systemId: SystemId) {
   return flowLayoutForSystem(systemId);
 }
 

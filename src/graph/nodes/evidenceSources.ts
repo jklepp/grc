@@ -1,7 +1,7 @@
 // Evidence Source — what produced a collection, separated from any one
 // collection event.
 //
-// evidence.js's records are Observations: `collectedAt`, `result`, coverage,
+// evidence.ts's records are Observations: `collectedAt`, `result`, coverage,
 // exceptions — the things that genuinely vary run to run. `evidenceType` and
 // `independence`, by contrast, don't vary run to run for a given source: AWS
 // IAM Access Analyzer is a continuous, automated source every time it
@@ -24,16 +24,17 @@
 import { RAW_EVIDENCE, sourceIdFromName } from "./evidence";
 import type { IndependenceLevel } from "./evidence";
 import type { EvidenceType } from "./taxonomy";
+import type { EvidenceSourceId, EvidenceId } from "../ids";
 
 export interface EvidenceSource {
-  id: string;
+  id: EvidenceSourceId;
   name: string;
   evidenceType: EvidenceType;
   independence: IndependenceLevel;
-  observationIds: string[];
+  observationIds: EvidenceId[];
 }
 
-const byId = new Map<string, EvidenceSource>();
+const byId = new Map<EvidenceSourceId, EvidenceSource>();
 export const EVIDENCE_SOURCE_CONFLICTS: string[] = [];
 
 RAW_EVIDENCE.forEach((e) => {
@@ -53,8 +54,8 @@ RAW_EVIDENCE.forEach((e) => {
 });
 
 export const EVIDENCE_SOURCES: EvidenceSource[] = [...byId.values()];
-export const EVIDENCE_SOURCE_BY_ID: Record<string, EvidenceSource> = Object.fromEntries(EVIDENCE_SOURCES.map((s) => [s.id, s]));
+export const EVIDENCE_SOURCE_BY_ID: Record<EvidenceSourceId, EvidenceSource> = Object.fromEntries(EVIDENCE_SOURCES.map((s) => [s.id, s]));
 
-export function observationsForSource(sourceId: string): string[] {
+export function observationsForSource(sourceId: EvidenceSourceId): EvidenceId[] {
   return EVIDENCE_SOURCE_BY_ID[sourceId]?.observationIds ?? [];
 }

@@ -15,7 +15,7 @@
 //     with an "assessed" basis.
 //
 // Both are honest; they're just different strengths of claim, and the engine
-// reports which one you're looking at. engine/rollups.js also emits
+// reports which one you're looking at. engine/rollups.ts also emits
 // controlBackedPct per asset, so "how much of this score rests on control-level
 // evidence" is itself a visible number rather than an assumption.
 //
@@ -37,12 +37,13 @@
 // doesn't actually map to.
 import { CONTROL_BY_ID, type Control, type ControlFramework } from "./controls";
 import type { AssuranceCategory, ImplementationType } from "./taxonomy";
+import type { ControlId } from "../ids";
 
 export const CONTROL_SCOPES = { ASSET: "asset", PROGRAM: "program" } as const;
 export type ControlScope = (typeof CONTROL_SCOPES)[keyof typeof CONTROL_SCOPES];
 
 interface KeyControlDef {
-  id: string;
+  id: ControlId;
   friendlyName: string;
   scope: ControlScope;
   legacyTracked?: boolean;
@@ -108,7 +109,7 @@ export interface KeyControl extends KeyControlDef {
 export const KEY_CONTROLS: KeyControl[] = KEY_CONTROL_DEFS.map((def) => {
   const control: Control | undefined = CONTROL_BY_ID[def.id];
   if (!control) {
-    throw new Error(`keyControls.js: "${def.id}" is not a control in scfControls.json — a key control must reference a real SCF id`);
+    throw new Error(`keyControls.ts: "${def.id}" is not a control in scfControls.json — a key control must reference a real SCF id`);
   }
   return {
     ...def,
@@ -122,13 +123,13 @@ export const KEY_CONTROLS: KeyControl[] = KEY_CONTROL_DEFS.map((def) => {
   };
 });
 
-export const KEY_CONTROL_BY_ID: Record<string, KeyControl> = Object.fromEntries(KEY_CONTROLS.map((c) => [c.id, c]));
-export const KEY_CONTROL_IDS: string[] = KEY_CONTROLS.map((c) => c.id);
+export const KEY_CONTROL_BY_ID: Record<ControlId, KeyControl> = Object.fromEntries(KEY_CONTROLS.map((c) => [c.id, c]));
+export const KEY_CONTROL_IDS: ControlId[] = KEY_CONTROLS.map((c) => c.id);
 
 export const ASSET_SCOPED_CONTROLS: KeyControl[] = KEY_CONTROLS.filter((c) => c.scope === CONTROL_SCOPES.ASSET);
 export const PROGRAM_SCOPED_CONTROLS: KeyControl[] = KEY_CONTROLS.filter((c) => c.scope === CONTROL_SCOPES.PROGRAM);
 
-export function isKeyControl(controlId: string): boolean {
+export function isKeyControl(controlId: ControlId): boolean {
   return Object.hasOwn(KEY_CONTROL_BY_ID, controlId);
 }
 

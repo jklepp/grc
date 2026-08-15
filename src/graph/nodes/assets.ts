@@ -2,20 +2,20 @@
 //
 // Two fields left this file since the pre-graph version:
 //
-//   categories{}  -> edges/categoryAssessments.js. A maturity/evidence/
+//   categories{}  -> edges/categoryAssessments.ts. A maturity/evidence/
 //                    effectiveness judgment about one assurance category is an
 //                    assertion ABOUT an asset, not an attribute OF one, and
 //                    modelling it as an edge is what lets a number carry the
 //                    "assessed at category level" basis instead of passing
 //                    itself off as control-level fact.
 //   classification -> DERIVED from the data the asset actually holds
-//                    (engine/rollups.js). It used to be inherited wholesale
+//                    (engine/rollups.ts). It used to be inherited wholesale
 //                    from the parent system, which meant all eight Production
 //                    AI Platform assets were "Restricted" and all seven Workday
 //                    assets "Confidential" regardless of what they carried.
 //
 // `kind` is new and load-bearing: it's the normalized machine-readable form of
-// the free-text `type` string, and it's what edges/applicabilityRules.js keys
+// the free-text `type` string, and it's what edges/applicabilityRules.ts keys
 // on to decide which controls a given asset is on the hook for. `type` stays as
 // the display label. Keeping both means "AWS ECS Service (Fargate)" can be
 // shown verbatim while still resolving to the same `compute-service` rules as
@@ -24,6 +24,7 @@
 // criticalityFactors and inherentLikelihood stay — a judgment about what
 // happens if this specific resource is compromised is a genuine per-asset fact
 // with no upstream to derive it from.
+import type { AssetId, SystemId } from "../ids";
 
 // The kinds applicability rules are allowed to reference. Anything not in this
 // list fails validation rather than silently matching no rule at all, which
@@ -66,8 +67,8 @@ export interface CriticalityFactors {
 }
 
 export interface Asset {
-  id: string;
-  systemId: string;
+  id: AssetId;
+  systemId: SystemId;
   name: string;
   type: string;
   kind: AssetKind;
@@ -335,8 +336,8 @@ export const ASSETS: Asset[] = [
   },
 ];
 
-export const ASSET_BY_ID: Record<string, Asset> = Object.fromEntries(ASSETS.map((a) => [a.id, a]));
+export const ASSET_BY_ID: Record<AssetId, Asset> = Object.fromEntries(ASSETS.map((a) => [a.id, a]));
 
-export function assetsForSystem(systemId: string): Asset[] {
+export function assetsForSystem(systemId: SystemId): Asset[] {
   return ASSETS.filter((a) => a.systemId === systemId);
 }

@@ -9,7 +9,7 @@
 // feed. It could not move when the RAG service moved, because it was never
 // reading the RAG service.
 //
-// With these edges, engine/risk.js reads assurance from the assets that
+// With these edges, engine/risk.ts reads assurance from the assets that
 // actually carry the scenario and the controls that actually hold it down. The
 // consequence is the traceability the whole exercise is for: RISK-001's number
 // moves when CLD-06 on the RAG service moves, and CLD-06 on the RAG service
@@ -20,12 +20,14 @@
 // averaging the RAG service against five healthier assets would wash out
 // exactly the signal the risk exists to carry.
 
+import type { RiskId, AssetId, ControlId } from "../ids";
+
 export const CONTRIBUTOR_ROLES = { PRIMARY: "primary", CONTRIBUTING: "contributing" } as const;
 export type ContributorRole = (typeof CONTRIBUTOR_ROLES)[keyof typeof CONTRIBUTOR_ROLES];
 
 export interface RiskAsset {
-  riskId: string;
-  assetId: string;
+  riskId: RiskId;
+  assetId: AssetId;
   role: ContributorRole;
   note?: string;
 }
@@ -106,8 +108,8 @@ export const RISK_ASSETS: RiskAsset[] = [
 ];
 
 export interface RiskControl {
-  riskId: string;
-  controlId: string;
+  riskId: RiskId;
+  controlId: ControlId;
 }
 
 export const RISK_CONTROLS: RiskControl[] = [
@@ -155,10 +157,10 @@ export const RISKS_WITHOUT_CONTROLS: Record<string, string> = {
   "RISK-013": "No key control covers physical access. Physical & Environmental Security is governed at the domain level by SOP-13 rather than tracked as a key control, so this risk's assurance is reported as unassessed rather than borrowed from an unrelated control.",
 };
 
-const ASSETS_BY_RISK: Record<string, RiskAsset[]> = {};
-const CONTROLS_BY_RISK: Record<string, RiskControl[]> = {};
-const RISKS_BY_ASSET: Record<string, RiskAsset[]> = {};
-const RISKS_BY_CONTROL: Record<string, RiskControl[]> = {};
+const ASSETS_BY_RISK: Record<RiskId, RiskAsset[]> = {};
+const CONTROLS_BY_RISK: Record<RiskId, RiskControl[]> = {};
+const RISKS_BY_ASSET: Record<AssetId, RiskAsset[]> = {};
+const RISKS_BY_CONTROL: Record<ControlId, RiskControl[]> = {};
 RISK_ASSETS.forEach((e) => {
   (ASSETS_BY_RISK[e.riskId] ||= []).push(e);
   (RISKS_BY_ASSET[e.assetId] ||= []).push(e);
@@ -168,18 +170,18 @@ RISK_CONTROLS.forEach((e) => {
   (RISKS_BY_CONTROL[e.controlId] ||= []).push(e);
 });
 
-export function assetsForRisk(riskId: string): RiskAsset[] {
+export function assetsForRisk(riskId: RiskId): RiskAsset[] {
   return ASSETS_BY_RISK[riskId] || [];
 }
 
-export function controlsForRisk(riskId: string): RiskControl[] {
+export function controlsForRisk(riskId: RiskId): RiskControl[] {
   return CONTROLS_BY_RISK[riskId] || [];
 }
 
-export function risksForAsset(assetId: string): RiskAsset[] {
+export function risksForAsset(assetId: AssetId): RiskAsset[] {
   return RISKS_BY_ASSET[assetId] || [];
 }
 
-export function risksForControl(controlId: string): RiskControl[] {
+export function risksForControl(controlId: ControlId): RiskControl[] {
   return RISKS_BY_CONTROL[controlId] || [];
 }

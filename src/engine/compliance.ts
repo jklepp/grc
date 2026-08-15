@@ -20,7 +20,7 @@
 // something specific:
 //
 //   inherited  the provider's certification covers this domain under the
-//              shared-responsibility split (graph/nodes/systems.js)
+//              shared-responsibility split (graph/nodes/systems.ts)
 //   measured   a key control with real implementations on this system's assets
 //   assessed   no key control, but the domain rolls up to an assurance category
 //              this system's assets have been assessed against
@@ -38,6 +38,7 @@ import { buildImplementation, programImplementation, type Implementation } from 
 import { assetsRequiringControl, PROGRAM_CONTROL_IDS } from "./applicability";
 import { ASSET_ROLLUP_BY_ID, SYSTEM_ROLLUP_BY_ID } from "./rollups";
 import { mean, assuranceBand, display } from "./assurance";
+import type { SystemId, ControlId } from "../graph/ids";
 
 export const COVERAGE_STATES = ["measured", "inherited", "assessed", "unassessed"];
 
@@ -64,7 +65,7 @@ function aggregateImplementationStatus(implementations: Implementation[]): strin
 }
 
 // One row of a system's control matrix.
-export function controlCoverageForSystem(systemId: string, controlId: string) {
+export function controlCoverageForSystem(systemId: SystemId, controlId: ControlId) {
   const system = SYSTEM_BY_ID[systemId];
   const control = CONTROL_BY_ID[controlId];
   const rollup = SYSTEM_ROLLUP_BY_ID[systemId];
@@ -125,14 +126,14 @@ export type ControlCoverage = ReturnType<typeof controlCoverageForSystem>;
 
 // The full matrix for one system — every control its standards actually
 // require, sorted by domain then id, same ordering the SSP page used.
-export function systemControlMatrix(systemId: string): ControlCoverage[] {
+export function systemControlMatrix(systemId: SystemId): ControlCoverage[] {
   const system = SYSTEM_BY_ID[systemId];
   return controlsForStandards(system.standards)
     .map((c) => controlCoverageForSystem(systemId, c.id))
     .sort((a, b) => (a.control.domain === b.control.domain ? a.controlId.localeCompare(b.controlId) : a.control.domain.localeCompare(b.control.domain)));
 }
 
-export function systemCoverageBreakdown(systemId: string) {
+export function systemCoverageBreakdown(systemId: SystemId) {
   const rows = systemControlMatrix(systemId);
   const count = (...statuses: string[]) => rows.filter((r) => statuses.includes(r.status)).length;
   return {
@@ -223,12 +224,12 @@ export function frameworkPosture(standard: string) {
 // Only key controls are shown. A clause satisfied purely by category-assessed
 // controls has nothing specific to say about itself, and listing it with a
 // derived-looking number would be the exact overclaim this replaced.
-export function systemStandardMappings(systemId: string, standard: string) {
+export function systemStandardMappings(systemId: SystemId, standard: string) {
   const system = SYSTEM_BY_ID[systemId];
   if (!system?.standards.includes(standard)) return [];
 
   const rows: {
-    req: string; control: string; controlId: string; confidence: number;
+    req: string; control: string; controlId: ControlId; confidence: number;
     status: string; basis: string; reasoning: string;
   }[] = [];
   const seen = new Set<string>();

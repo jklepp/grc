@@ -4,7 +4,7 @@
 // coverage.
 //
 // 26 key controls are implemented and evidenced individually
-// (controlImplementations.js). The other ~300 in-scope controls are not, and
+// (controlImplementations.ts). The other ~300 in-scope controls are not, and
 // pretending otherwise would mean generating thousands of implementation
 // records nobody assessed. Instead each asset carries a judgment at the level
 // those controls roll up to: for each of the six assurance categories, how
@@ -17,11 +17,12 @@
 // date, and the engine tags every number derived from it with an "assessed"
 // basis so a reader can tell it apart from one backed by evidence.
 //
-// engine/rollups.js blends the two: within a category, the controls that have
+// engine/rollups.ts blends the two: within a category, the controls that have
 // real implementations contribute their measured scores, and the remainder
 // contributes this baseline, weighted by how much of the category each covers.
 // That blend is what controlBackedPct reports.
 import { ASSURANCE_CATEGORIES, type AssuranceCategory, type MaturityStage, type EvidenceType } from "../nodes/taxonomy";
+import type { AssetId } from "../ids";
 
 interface AssessmentEntry {
   maturityStage: MaturityStage;
@@ -29,7 +30,7 @@ interface AssessmentEntry {
   effectivenessPct: number;
 }
 
-const ASSESSMENTS: Record<string, Record<AssuranceCategory, AssessmentEntry>> = {
+const ASSESSMENTS: Record<AssetId, Record<AssuranceCategory, AssessmentEntry>> = {
   "AST-003-01": {
     "Data Protection": { maturityStage: "Managed", evidenceType: "Continuous telemetry", effectivenessPct: 90 },
     Configuration: { maturityStage: "Managed", evidenceType: "API configuration observation", effectivenessPct: 92 },
@@ -153,7 +154,7 @@ const ASSESSMENTS: Record<string, Record<AssuranceCategory, AssessmentEntry>> = 
 };
 
 export interface CategoryAssessment extends AssessmentEntry {
-  assetId: string;
+  assetId: AssetId;
   category: AssuranceCategory;
   assessedBy: string;
   assessedAt: string;
@@ -172,17 +173,17 @@ export const CATEGORY_ASSESSMENTS: CategoryAssessment[] = Object.entries(ASSESSM
   }))
 );
 
-const BY_ASSET: Record<string, Partial<Record<AssuranceCategory, CategoryAssessment>>> = {};
+const BY_ASSET: Record<AssetId, Partial<Record<AssuranceCategory, CategoryAssessment>>> = {};
 CATEGORY_ASSESSMENTS.forEach((a) => {
   (BY_ASSET[a.assetId] ||= {})[a.category] = a;
 });
 
-export function assessmentFor(assetId: string, category: string): CategoryAssessment | null {
+export function assessmentFor(assetId: AssetId, category: string): CategoryAssessment | null {
   return BY_ASSET[assetId]?.[category as AssuranceCategory] || null;
 }
 
-export function assessmentsForAsset(assetId: string): Partial<Record<AssuranceCategory, CategoryAssessment>> {
+export function assessmentsForAsset(assetId: AssetId): Partial<Record<AssuranceCategory, CategoryAssessment>> {
   return BY_ASSET[assetId] || {};
 }
 
-export const ASSESSED_ASSET_IDS: string[] = Object.keys(ASSESSMENTS);
+export const ASSESSED_ASSET_IDS: AssetId[] = Object.keys(ASSESSMENTS) as AssetId[];

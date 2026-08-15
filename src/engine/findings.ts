@@ -1,14 +1,14 @@
 // Composes one Finding: resolves its owner, names the evidence and risks that
 // touch it, and computes `overdue` against the real clock instead of trusting
-// a hand-typed flag (the old systems.js remediation array had exactly that
+// a hand-typed flag (the old systems.ts remediation array had exactly that
 // bug — SEC-2210 was still marked `overdue: false` a month past its due date).
 //
 // riskIds are derived, not hand-typed: a finding contributes to exactly the
 // risks that already name both its asset and its control as carrying the
-// scenario (riskContributors.js edges), which is the same reasoning
-// engine/risk.js already applies in the other direction (risk -> assurance).
+// scenario (riskContributors.ts edges), which is the same reasoning
+// engine/risk.ts already applies in the other direction (risk -> assurance).
 // evidenceIds are read off evidence records that declare `findingId`
-// themselves, matching evidence.js's existing convention that a record
+// themselves, matching evidence.ts's existing convention that a record
 // declares its own scope rather than being pointed at from elsewhere.
 import { FINDINGS, FINDING_STATUSES, type Finding } from "../graph/nodes/findings";
 import { ASSET_BY_ID } from "../graph/nodes/assets";
@@ -17,6 +17,7 @@ import { EVIDENCE } from "../graph/nodes/evidence";
 import { ORG_BY_ID } from "../graph/nodes/orgs";
 import { RISKS } from "../graph/nodes/risks";
 import { assetsForRisk, controlsForRisk } from "../graph/edges/riskContributors";
+import type { AssetId, ControlId, SystemId, RiskId } from "../graph/ids";
 
 const NOW = new Date();
 const OPEN_STATUSES = new Set(["open", "accepted", "remediating"]);
@@ -29,7 +30,7 @@ export const FINDING_STATUS_META = {
   closed: { label: "Closed", color: "muted" },
 };
 
-function riskIdsFor(assetId: string, controlId: string): string[] {
+function riskIdsFor(assetId: AssetId, controlId: ControlId): RiskId[] {
   return RISKS.filter(
     (r) =>
       controlsForRisk(r.id).some((c) => c.controlId === controlId) &&
@@ -68,15 +69,15 @@ export type EngineFinding = ReturnType<typeof buildFinding>;
 export const ALL_FINDINGS: EngineFinding[] = FINDINGS.map(buildFinding);
 export const FINDING_BY_ID: Record<string, EngineFinding> = Object.fromEntries(ALL_FINDINGS.map((f) => [f.id, f]));
 
-export function findingsForSystem(systemId: string): EngineFinding[] {
+export function findingsForSystem(systemId: SystemId): EngineFinding[] {
   return ALL_FINDINGS.filter((f) => f.systemId === systemId);
 }
 
-export function findingsForAsset(assetId: string): EngineFinding[] {
+export function findingsForAsset(assetId: AssetId): EngineFinding[] {
   return ALL_FINDINGS.filter((f) => f.assetId === assetId);
 }
 
-export function findingsForRisk(riskId: string): EngineFinding[] {
+export function findingsForRisk(riskId: RiskId): EngineFinding[] {
   return ALL_FINDINGS.filter((f) => f.riskIds.includes(riskId));
 }
 

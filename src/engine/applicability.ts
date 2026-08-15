@@ -21,6 +21,7 @@ import { ASSET_SCOPED_CONTROLS, PROGRAM_SCOPED_CONTROLS, KEY_CONTROL_BY_ID, type
 import { APPLICABILITY_RULES, exceptionFor, type ApplicabilityRule, type ApplicabilityException, type ApplicabilityCondition } from "../graph/edges/applicabilityRules";
 import { tierRank } from "../graph/nodes/taxonomy";
 import { assetClassification, assetClassificationDetail, dataKindsForAsset } from "./classification";
+import type { AssetId, ControlId } from "../graph/ids";
 
 interface ApplicabilityContext {
   kind: string;
@@ -41,7 +42,7 @@ function ruleMatches(rule: ApplicabilityRule, context: ApplicabilityContext): bo
   return true;
 }
 
-function contextFor(assetId: string): ApplicabilityContext {
+function contextFor(assetId: AssetId): ApplicabilityContext {
   const asset = ASSET_BY_ID[assetId];
   const system = SYSTEM_BY_ID[asset.systemId];
   return {
@@ -53,8 +54,8 @@ function contextFor(assetId: string): ApplicabilityContext {
 }
 
 export interface ApplicabilityResolution {
-  assetId: string;
-  controlId: string;
+  assetId: AssetId;
+  controlId: ControlId;
   required: boolean;
   exception: ApplicabilityException | null;
   reasons: { rationale: string; source: string }[];
@@ -65,7 +66,7 @@ export interface ApplicabilityResolution {
 
 // Everything known about whether one control applies to one asset — the shape
 // the Graph Explorer renders and the engine branches on.
-export function resolveApplicability(assetId: string, controlId: string): ApplicabilityResolution {
+export function resolveApplicability(assetId: AssetId, controlId: ControlId): ApplicabilityResolution {
   const context = contextFor(assetId);
   const matched = APPLICABILITY_RULES.filter((r) => r.controlId === controlId && ruleMatches(r, context));
   const exception = exceptionFor(assetId, controlId);
@@ -109,20 +110,20 @@ export function resolveApplicability(assetId: string, controlId: string): Applic
 }
 
 // Precomputed, because every rollup walks this and the rule set is static.
-const REQUIRED_BY_ASSET: Record<string, string[]> = {};
+const REQUIRED_BY_ASSET: Record<AssetId, ControlId[]> = {};
 ASSETS.forEach((asset) => {
   REQUIRED_BY_ASSET[asset.id] = ASSET_SCOPED_CONTROLS.filter((c) => resolveApplicability(asset.id, c.id).required).map((c) => c.id);
 });
 
-export function requiredControlsForAsset(assetId: string): KeyControl[] {
+export function requiredControlsForAsset(assetId: AssetId): KeyControl[] {
   return (REQUIRED_BY_ASSET[assetId] || []).map((id) => KEY_CONTROL_BY_ID[id]);
 }
 
-export function requiredControlsForAssetInCategory(assetId: string, category: string): KeyControl[] {
+export function requiredControlsForAssetInCategory(assetId: AssetId, category: string): KeyControl[] {
   return requiredControlsForAsset(assetId).filter((c) => c.category === category);
 }
 
-export function assetsRequiringControl(controlId: string): Asset[] {
+export function assetsRequiringControl(controlId: ControlId): Asset[] {
   return ASSETS.filter((a) => (REQUIRED_BY_ASSET[a.id] || []).includes(controlId));
 }
 
@@ -135,4 +136,4 @@ export function allExceptions(): ApplicabilityResolution[] {
   );
 }
 
-export const PROGRAM_CONTROL_IDS: string[] = PROGRAM_SCOPED_CONTROLS.map((c) => c.id);
+export const PROGRAM_CONTROL_IDS: ControlId[] = PROGRAM_SCOPED_CONTROLS.map((c) => c.id);

@@ -1,11 +1,11 @@
 // The required control profile per classification tier, and how an asset
 // measures against it.
 //
-// Ported from controlProfiles.js essentially intact — the tier ladder was
+// Ported from controlProfiles.ts essentially intact — the tier ladder was
 // sound. Two things changed underneath it:
 //
 //   The tier being evaluated is now DERIVED from the data an asset holds
-//   (engine/classification.js) rather than inherited from its parent system, so
+//   (engine/classification.ts) rather than inherited from its parent system, so
 //   an asset is judged against the bar its own data earns.
 //
 //   The actual posture being compared is the category ROLLUP, which blends
@@ -18,6 +18,7 @@ import { CONTROL_PROFILES, categoryWeightsFor, categoryWeight } from "../graph/n
 import { assessmentFor } from "../graph/edges/categoryAssessments";
 import { blendAssurance, maturityScore, evidenceBaseConfidence, meetsMaturity, meetsEvidence, weightedMean, display } from "./assurance";
 import { ASSET_ROLLUP_BY_ID } from "./rollups";
+import type { AssetId } from "../graph/ids";
 
 export { CONTROL_PROFILES, categoryWeightsFor, categoryWeight };
 
@@ -48,7 +49,7 @@ export function tierTargetScore(tier: string): number | null {
 // Per-category met / partial / gap for one asset against its tier's minimums.
 // "met" needs both maturity and evidence to clear the bar; "partial" is one of
 // the two; anything else is a genuine gap.
-export function evaluateAssetAgainstProfile(assetId: string) {
+export function evaluateAssetAgainstProfile(assetId: AssetId) {
   const asset = ASSET_ROLLUP_BY_ID[assetId];
   if (!asset) return null;
   const profile = CONTROL_PROFILES[asset.classification as keyof typeof CONTROL_PROFILES];
@@ -101,7 +102,7 @@ export function evaluateAssetAgainstProfile(assetId: string) {
   return result;
 }
 
-export function profileSummary(assetId: string) {
+export function profileSummary(assetId: AssetId) {
   const evaluation = evaluateAssetAgainstProfile(assetId)!;
   const asset = ASSET_ROLLUP_BY_ID[assetId];
   const statuses = Object.values(evaluation).map((e) => e.status);
