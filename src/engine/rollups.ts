@@ -27,12 +27,14 @@
 // everything they don't cover. controlBackedPct is reported separately and is
 // NOT this weight, so "how much of this rests on evidence" stays an honest
 // answer rather than a restatement of the formula.
-import { ASSETS, ASSET_BY_ID, assetsForSystem, BOUNDARY_INGRESS_KINDS, type CriticalityFactors } from "../graph/nodes/assets";
+import { ASSETS, ASSET_BY_ID, assetsForSystem, BOUNDARY_INGRESS_KINDS, DATABASE_KINDS, type CriticalityFactors } from "../graph/nodes/assets";
 import { SYSTEMS, SYSTEM_BY_ID } from "../graph/nodes/systems";
 import { ORG_BY_ID } from "../graph/nodes/orgs";
 import { findingsForSystem } from "./findings";
 import { ASSURANCE_CATEGORIES, BASIS, type AssuranceCategory } from "../graph/nodes/taxonomy";
 import { DATA_FLOWS, flowsTo } from "../graph/edges/dataFlows";
+import { ACTOR_ACCESS } from "../graph/edges/actorAccess";
+import { ACTOR_BY_ID } from "../graph/nodes/actors";
 import { assessmentFor, type CategoryAssessment } from "../graph/edges/categoryAssessments";
 import { categoryWeightsFor } from "../graph/nodes/controlProfiles";
 import { requiredControlsForAsset } from "./applicability";
@@ -265,12 +267,23 @@ export function flowLayoutForSystem(systemId: SystemId) {
   const ids = new Set(assets.map((a) => a.id));
   const dataEdges = DATA_FLOWS.filter((f) => f.kind === "data" && ids.has(f.from) && ids.has(f.to));
 
+  // Database-kind assets carry real data edges — they aren't control-plane
+  // branches — but where the data lands is a different fact from how many
+  // hops it took to get there, so they're pulled out of the stage walk below
+  // and given their own Data Plane section instead. Excluding their edges
+  // from the walk is safe as long as nothing downstream is reachable only
+  // through one; every database in this model is a sink (nothing flows back
+  // out of it), so that holds today, but would need revisiting the day a
+  // database has an outbound data edge of its own.
+  const dbIds = new Set(assets.filter((a) => (DATABASE_KINDS as string[]).includes(a.kind)).map((a) => a.id));
+  const pathDataEdges = dataEdges.filter((f) => !dbIds.has(f.from) && !dbIds.has(f.to));
+
   // Control-plane-only assets (a key store, a service account) aren't in the
   // request path at all. They hang off the assets they protect rather than
   // occupying a stage of their own — the same shape the old map drew with a
   // cosmetic `branch` flag, now meaning something.
   const inRequestPath = new Set<string>();
-  dataEdges.forEach((f) => { inRequestPath.add(f.from); inRequestPath.add(f.to); });
+  pathDataEdges.forEach((f) => { inRequestPath.add(f.from); inRequestPath.add(f.to); });
 
   // A real request path cycles — the model service answers back to the gateway
   // it was called from — so there is no node with zero inbound edges to start
@@ -283,7 +296,7 @@ export function flowLayoutForSystem(systemId: SystemId) {
   // No ingress-kind asset (a boundary that only stores, say) falls back to
   // whatever nothing else feeds, and failing that to the least-fed node.
   const inDegree: Record<string, number> = {};
-  assets.forEach((a) => (inDegree[a.id] = dataEdges.filter((f) => f.to === a.id).length));
+  assets.forEach((a) => (inDegree[a.id] = pathDataEdges.filter((f) => f.to === a.id).length));
   const pathAssets = assets.filter((a) => inRequestPath.has(a.id));
   const sources = entries.length
     ? entries
@@ -301,7 +314,7 @@ export function flowLayoutForSystem(systemId: SystemId) {
     level += 1;
     const next: string[] = [];
     frontier.forEach((id) => {
-      dataEdges
+      pathDataEdges
         .filter((f) => f.from === id)
         .forEach((f) => {
           if (depth[f.to] === null) {
@@ -328,14 +341,36 @@ export function flowLayoutForSystem(systemId: SystemId) {
   }
 
   const branches = assets
-    .filter((a) => depth[a.id] === null)
+    .filter((a) => depth[a.id] === null && !dbIds.has(a.id))
     .map((a) => ({
       asset: ASSET_ROLLUP_BY_ID[a.id],
       protects: DATA_FLOWS.filter((f) => f.from === a.id && f.kind === "control-plane").map((f) => ASSET_ROLLUP_BY_ID[f.to]),
     }));
 
-  return { systemId, stages, branches, edges: dataEdges, controlPlaneEdges: DATA_FLOWS.filter((f) => f.kind === "control-plane" && ids.has(f.from)) };
+  // Data plane: the database-kind assets pulled out of the walk above,
+  // paired with whoever's data edges actually feed them.
+  const dataPlane = assets
+    .filter((a) => dbIds.has(a.id))
+    .map((a) => ({
+      asset: ASSET_ROLLUP_BY_ID[a.id],
+      fedBy: dataEdges.filter((f) => f.to === a.id).map((f) => ASSET_ROLLUP_BY_ID[f.from]),
+    }));
+
+  // Every actor tied to this system — human or machine, whichever direction
+  // they call — renders together in the one Actors stage before Ingress.
+  // `direction` stays on the edge as a real fact (some call in, some are
+  // called out to), but that distinction lives in each actor's description
+  // rather than splitting the diagram into a second category.
+  const actorAccess = ACTOR_ACCESS.filter((a) => ids.has(a.assetId)).map((a) => ({
+    actor: ACTOR_BY_ID[a.actorId],
+    assetId: a.assetId,
+    note: a.note,
+  }));
+
+  return { systemId, stages, branches, dataPlane, actorAccess, edges: dataEdges, controlPlaneEdges: DATA_FLOWS.filter((f) => f.kind === "control-plane" && ids.has(f.from)) };
 }
+
+export const TOTAL_ACTOR_COUNT = ACTOR_ACCESS.length;
 
 export function inboundFlowCount(assetId: AssetId): number {
   return flowsTo(assetId).length;

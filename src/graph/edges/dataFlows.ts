@@ -49,6 +49,7 @@ export const DATA_FLOWS: DataFlow[] = [
   { id: "FLOW-003-07", from: "AST-003-03", to: "AST-003-02", kind: "data", dataTypeIds: ["DT-002", "DT-003"], note: "Retrieved context injected into the model prompt." },
   { id: "FLOW-003-08", from: "AST-003-02", to: "AST-003-01", kind: "data", dataTypeIds: ["DT-003"], note: "Completion returned to the caller." },
   { id: "FLOW-003-09", from: "AST-003-05", to: "AST-003-04", kind: "data", dataTypeIds: ["DT-002"], note: "Ingestion pipeline embeds source documents into the vector store." },
+  { id: "FLOW-003-16", from: "AST-003-02", to: "AST-003-09", kind: "data", dataTypeIds: ["DT-003"], note: "Completions delivered to partner integrations via API for programmatic consumption." },
 
   // ---- SYS-003: control plane --------------------------------------------------
   { id: "FLOW-003-10", from: "AST-003-07", to: "AST-003-05", kind: "control-plane", dataTypeIds: ["DT-004"], note: "Envelope encryption of objects at rest." },

@@ -32,6 +32,8 @@ import { RISK_ASSETS, RISK_CONTROLS, RISKS_WITHOUT_ASSETS, RISKS_WITHOUT_CONTROL
 import { ORGS, ORG_BY_ID, ORG_KINDS } from "./nodes/orgs";
 import { FINDINGS, FINDING_STATUSES } from "./nodes/findings";
 import { EVIDENCE_SOURCE_CONFLICTS } from "./nodes/evidenceSources";
+import { ACTORS, ACTOR_BY_ID, ACTOR_KINDS } from "./nodes/actors";
+import { ACTOR_ACCESS, ACTOR_DIRECTIONS } from "./edges/actorAccess";
 
 const problems = [];
 
@@ -255,6 +257,19 @@ FINDINGS.forEach((f) => {
 check(new Set(FINDINGS.map((f) => f.id)).size === FINDINGS.length, `findings: duplicate id in FINDINGS`);
 
 check(EVIDENCE_SOURCE_CONFLICTS.length === 0, `evidence sources: ${EVIDENCE_SOURCE_CONFLICTS.join("; ")}`);
+
+ACTORS.forEach((a) => {
+  check(Object.values(ACTOR_KINDS).includes(a.kind), `actor ${a.id}: kind "${a.kind}" is not a known actor kind`);
+  check(Boolean(a.description?.trim()), `actor ${a.id}: needs a description`);
+});
+check(new Set(ACTORS.map((a) => a.id)).size === ACTORS.length, `actors: duplicate id in ACTORS`);
+
+ACTOR_ACCESS.forEach((a) => {
+  check(Object.hasOwn(ACTOR_BY_ID, a.actorId), `actor access ${a.id}: actorId "${a.actorId}" is not an actor`);
+  check(Object.hasOwn(ASSET_BY_ID, a.assetId), `actor access ${a.id}: assetId "${a.assetId}" is not an asset`);
+  check(Object.values(ACTOR_DIRECTIONS).includes(a.direction), `actor access ${a.id}: direction "${a.direction}" is not a known direction`);
+});
+check(new Set(ACTOR_ACCESS.map((a) => a.id)).size === ACTOR_ACCESS.length, `actor access: duplicate id in ACTOR_ACCESS`);
 
 EVIDENCE.forEach((e) => {
   if (!e.findingId) return;

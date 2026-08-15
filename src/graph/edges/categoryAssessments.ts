@@ -95,6 +95,14 @@ const ASSESSMENTS: Record<AssetId, Record<AssuranceCategory, AssessmentEntry>> =
     Governance: { maturityStage: "Managed", evidenceType: "Auditor examination", effectivenessPct: 90 },
     Resilience: { maturityStage: "Monitored", evidenceType: "Automated technical test", effectivenessPct: 80 },
   },
+  "AST-003-09": {
+    "Data Protection": { maturityStage: "Managed", evidenceType: "Continuous telemetry", effectivenessPct: 85 },
+    Configuration: { maturityStage: "Managed", evidenceType: "API configuration observation", effectivenessPct: 88 },
+    Detection: { maturityStage: "Implemented", evidenceType: "Automated technical test", effectivenessPct: 74 },
+    "Identity & Access": { maturityStage: "Managed", evidenceType: "API configuration observation", effectivenessPct: 82 },
+    Governance: { maturityStage: "Implemented", evidenceType: "Auditor examination", effectivenessPct: 76 },
+    Resilience: { maturityStage: "Monitored", evidenceType: "Automated technical test", effectivenessPct: 72 },
+  },
   "AST-042-01": {
     "Data Protection": { maturityStage: "Managed", evidenceType: "Continuous telemetry", effectivenessPct: 92 },
     Configuration: { maturityStage: "Managed", evidenceType: "API configuration observation", effectivenessPct: 90 },
