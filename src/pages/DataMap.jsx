@@ -94,10 +94,9 @@ function stageLabel(depth) {
 // time just made every path-stage tile taller than it needed to be.
 const NODE_CARD_WIDTH = 200;
 const NODE_CARD_HEIGHT = 98;
-// ActorCard keeps its own constant rather than sharing NODE_CARD_WIDTH, so
-// widening the stage cards (for name/type readability) doesn't drag actor
-// cards along with it.
-const ACTOR_CARD_WIDTH = 144;
+// ActorCard keeps its own constant rather than sharing NODE_CARD_WIDTH, so it
+// can be tuned independently of the stage cards.
+const ACTOR_CARD_WIDTH = 176;
 // Data Plane / Control Plane cards carry the same content as a stage card
 // plus a near-always-present fed-by/protects footer, so they get their own,
 // wider-and-shorter footprint instead of inheriting the stage card's — that
@@ -253,7 +252,7 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
               Data plane
             </span>
             <span className="text-[11px]" style={{ color: C.muted }}>
-              — where request-path data actually lands, shown by store rather than by hop count
+              — persistent and stateful stores used by the system
             </span>
           </div>
           <div className="flex flex-wrap gap-3">
