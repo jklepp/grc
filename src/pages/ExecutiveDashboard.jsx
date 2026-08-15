@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   LayoutDashboard, ShieldCheck, ArrowRight, AlertTriangle, DollarSign, ClipboardCheck,
   Download, Sparkles, ArrowUpRight, ArrowDownRight, Database, ShieldAlert, PieChart, HardDrive,
+  ChevronDown, ChevronUp,
 } from "lucide-react";
 import { C } from "../theme";
 import { PageHeader } from "../components/Headings";
@@ -171,6 +172,7 @@ function GlanceStat({ icon: Icon, value, label, warn }) {
 }
 
 export default function ExecutiveDashboard({ onNavigate }) {
+  const [showDetail, setShowDetail] = useState(false);
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
       <PageHeader
@@ -319,6 +321,26 @@ export default function ExecutiveDashboard({ onNavigate }) {
         </div>
       </div>
 
+      {/* Supporting detail toggle */}
+      <div className="px-8 pt-6">
+        <button
+          onClick={() => setShowDetail((v) => !v)}
+          className="w-full flex items-center gap-3"
+        >
+          <span style={{ flex: 1, height: 1, background: C.border }} />
+          <span
+            className="flex items-center gap-1.5 px-2 text-xs font-semibold uppercase tracking-wide"
+            style={{ color: C.muted }}
+          >
+            {showDetail ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            {showDetail ? "Hide" : "Show"} supporting detail
+          </span>
+          <span style={{ flex: 1, height: 1, background: C.border }} />
+        </button>
+      </div>
+
+      {showDetail && (
+      <>
       {/* What Changed + Assurance Overview */}
       <div className="px-8 pt-5 grid grid-cols-2 gap-5">
         <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
@@ -470,6 +492,8 @@ export default function ExecutiveDashboard({ onNavigate }) {
           </div>
         </div>
       </div>
+      </>
+      )}
 
       {/* Footer disclaimer */}
       <div className="px-8 pt-5 pb-8">
