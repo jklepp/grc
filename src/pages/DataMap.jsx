@@ -1,18 +1,27 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Network, ArrowDown, AlertTriangle, X, KeyRound, User, Cpu, Database, Search, ChevronDown } from "lucide-react";
+import { Network, AlertTriangle, X, KeyRound, User, Cpu, Database, Search, ChevronDown } from "lucide-react";
 import { C, CLASS_META } from "../theme";
 import { PageHeader } from "../components/Headings";
 import { ClassificationTag } from "../components/SystemBadges";
 import {
   getAllSystems, getAsset, getDataFlows, getAllDataTypes, dataTypesForSystem, dataForAsset,
   ASSURANCE_CATEGORIES, assuranceBand, evaluateAssetAgainstProfile, IMPLEMENTATION_STATUS_META,
-  TOTAL_FLOW_COUNT, TOTAL_ACTOR_COUNT, getAllAssets, ACTOR_KINDS,
+  ACTOR_KINDS,
 } from "../engine";
 
 const SYSTEMS = getAllSystems();
 
 function colorFor(key) {
   return { color: C[key], bg: C[`${key}Bg`] };
+}
+
+// The shared `na` token is a light-to-medium grey tuned for small dots and
+// borders elsewhere in the app; on the flow diagram's Control Plane rail and
+// MACHINE badge it's a solid fill behind white text, where that lighter grey
+// reads low-contrast. Darkened here rather than in theme.js so the shared
+// token (and its other, smaller uses) is untouched.
+function naFill() {
+  return `color-mix(in srgb, ${C.na} 60%, black)`;
 }
 
 function AssuranceChip({ label, value, band }) {
@@ -72,28 +81,63 @@ function stageLabel(depth) {
   return `Stage ${depth}`;
 }
 
-function NodeCard({ asset, roles, selected, onSelect, isBranch }) {
+// Fixed height + single-line truncation (with a title tooltip for the full
+// text) keeps every card in a wrapped row the same height regardless of name
+// length or whether it carries a footer line — so a row's height is set by
+// the layout, not by whichever card happens to have the longest name.
+//
+// `compact` drops that fixed height instead of reserving footer space: Data
+// Plane / Control Plane cards almost always carry a fed-by/protects footer,
+// so pinning it to the bottom of a fixed-height card keeps that section
+// aligned. Ingress/Stage/Egress cards only grow a footer when a data-type
+// filter is active — reserving space for one they don't have most of the
+// time just made every path-stage tile taller than it needed to be.
+const NODE_CARD_WIDTH = 168;
+const NODE_CARD_HEIGHT = 98;
+// ActorCard keeps its own constant rather than sharing NODE_CARD_WIDTH, so
+// widening the stage cards (for name/type readability) doesn't drag actor
+// cards along with it.
+const ACTOR_CARD_WIDTH = 144;
+// Data Plane / Control Plane cards carry the same content as a stage card
+// plus a near-always-present fed-by/protects footer, so they get their own,
+// wider-and-shorter footprint instead of inheriting the stage card's — that
+// footer line (often a long code list) needs the width, and the fixed height
+// only needs to fit 2-3 short lines, not the taller box a stage card reserves.
+const WIDE_NODE_CARD_WIDTH = 208;
+const WIDE_NODE_CARD_HEIGHT = 72;
+
+// Left rail carries identity (code) and status (score) as two color-coded
+// bands rather than inline text, so both read at a glance without adding a
+// line to the card. The bottom border repeats the score color a second time
+// — redundant with the rail, but it's what lets a whole row of cards read as
+// a strip of status color even when you're not close enough to read digits.
+function NodeCard({ asset, footer, selected, onSelect, isBranch, compact, width = NODE_CARD_WIDTH, height }) {
   const { color } = colorFor(asset.assuranceBand.color);
+  const cardHeight = height !== undefined ? height : (compact ? undefined : NODE_CARD_HEIGHT);
   return (
     <button
       onClick={() => onSelect(asset.id)}
-      className="rounded-xl overflow-hidden shrink-0 text-left transition-colors"
-      style={{ background: C.panel, border: `1px solid ${selected ? C.accent : C.border}`, width: 168 }}
+      className="rounded-xl overflow-hidden shrink-0 text-left transition-colors flex flex-col"
+      style={{ background: C.panel, border: `1px solid ${selected ? C.accent : C.border}`, width, height: cardHeight }}
     >
-      <div className="p-3">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: isBranch ? C.na : C.accent, color: "#fff" }}>
-            {asset.code}
-          </span>
-          <span className="text-sm font-bold" style={{ color, fontFamily: "'IBM Plex Mono', monospace" }}>{asset.overallAssurance}%</span>
+      <div className="flex flex-1 min-w-0">
+        <div className="flex flex-col shrink-0" style={{ width: 40 }}>
+          <div className="flex-1 flex items-center justify-center" style={{ background: isBranch ? naFill() : C.accent }}>
+            <span className="text-[10px] font-bold" style={{ color: "#fff" }}>{asset.code}</span>
+          </div>
+          <div className="flex-1 flex items-center justify-center" style={{ background: color }}>
+            <span className="text-[10px] font-bold" style={{ color: "#fff" }}>{asset.overallAssurance}%</span>
+          </div>
         </div>
-        <div className="text-sm font-semibold leading-tight" style={{ color: C.ink }}>{asset.name}</div>
-        <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{asset.type}</div>
-        {roles && roles.length > 0 && (
-          <div className="text-[10px] mt-1" style={{ color: C.accent }}>{roles.join(" · ")}</div>
-        )}
+        <div className="p-2 flex-1 flex flex-col min-w-0 justify-center">
+          <div className="text-xs font-semibold leading-tight truncate" style={{ color: C.ink }} title={asset.name}>{asset.name}</div>
+          <div className="text-[10px] mt-0.5 truncate" style={{ color: C.muted }} title={asset.type}>{asset.type}</div>
+          {footer && (
+            <div className="text-[10px] mt-0.5 truncate" style={{ color: C.accent }} title={footer}>{footer}</div>
+          )}
+        </div>
       </div>
-      <div style={{ height: 3, background: color }} />
+      <div className="shrink-0" style={{ height: 3, background: color }} />
     </button>
   );
 }
@@ -102,17 +146,18 @@ function ActorCard({ actor }) {
   const isHuman = actor.kind === ACTOR_KINDS.HUMAN;
   const Icon = isHuman ? User : Cpu;
   return (
-    <div className="rounded-xl overflow-hidden shrink-0 text-left" style={{ background: C.panel, border: `1px solid ${C.border}`, width: 168 }}>
-      <div className="p-3">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: isHuman ? C.accent : C.na, color: "#fff" }}>
-            {isHuman ? "HUMAN" : "MACHINE"}
-          </span>
-          <Icon size={14} color={C.muted} />
-        </div>
-        <div className="text-sm font-semibold leading-tight" style={{ color: C.ink }}>{actor.name}</div>
-        <div className="text-[11px] mt-0.5 leading-snug" style={{ color: C.muted }}>{actor.description}</div>
+    <div
+      className="rounded-xl overflow-hidden shrink-0 text-left p-2 flex flex-col"
+      style={{ background: C.panel, border: `1px solid ${C.border}`, width: ACTOR_CARD_WIDTH, height: 76 }}
+    >
+      <div className="flex items-center justify-between gap-1.5 mb-1">
+        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ background: isHuman ? C.accent : naFill(), color: "#fff" }}>
+          {isHuman ? "HUMAN" : "MACHINE"}
+        </span>
+        <Icon size={13} color={C.muted} className="shrink-0" />
       </div>
+      <div className="text-xs font-semibold leading-tight truncate" style={{ color: C.ink }} title={actor.name}>{actor.name}</div>
+      <div className="text-[10px] mt-0.5 truncate" style={{ color: C.muted }} title={actor.description}>{actor.description}</div>
     </div>
   );
 }
@@ -134,7 +179,7 @@ function SectionLabel({ children, hint }) {
 function ActorRow({ actorAccess, title, hint, isFirst }) {
   if (actorAccess.length === 0) return null;
   return (
-    <div className="flex flex-col items-start w-full" style={isFirst ? undefined : { marginTop: 24, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
+    <div className="flex flex-col items-start w-full" style={isFirst ? undefined : { marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
       <SectionLabel hint={hint}>{title}</SectionLabel>
       <div className="flex flex-wrap items-start justify-center gap-3 w-full">
         {actorAccess.map(({ actor }) => (
@@ -147,11 +192,11 @@ function ActorRow({ actorAccess, title, hint, isFirst }) {
 
 function StageRow({ stage, isFirst, selectedKey, onSelectNode, rolesFor }) {
   return (
-    <div className="flex flex-col items-start w-full" style={isFirst ? undefined : { marginTop: 24, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
+    <div className="flex flex-col items-start w-full" style={isFirst ? undefined : { marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
       <SectionLabel>{stageLabel(stage.depth)}</SectionLabel>
       <div className="flex flex-wrap items-start justify-center gap-3 w-full">
         {stage.nodes.map((asset) => (
-          <NodeCard key={asset.id} asset={asset} roles={rolesFor(asset.id)} selected={asset.id === selectedKey} onSelect={onSelectNode} />
+          <NodeCard key={asset.id} asset={asset} footer={rolesFor(asset.id)?.join(" · ")} selected={asset.id === selectedKey} onSelect={onSelectNode} compact />
         ))}
       </div>
     </div>
@@ -160,11 +205,11 @@ function StageRow({ stage, isFirst, selectedKey, onSelectNode, rolesFor }) {
 
 function EgressRow({ egress, isFirst, selectedKey, onSelectNode, rolesFor }) {
   return (
-    <div className="flex flex-col items-start w-full" style={isFirst ? undefined : { marginTop: 24, paddingTop: 20, borderTop: `1px solid ${C.border}` }}>
+    <div className="flex flex-col items-start w-full" style={isFirst ? undefined : { marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
       <SectionLabel>Egress</SectionLabel>
       <div className="flex flex-wrap items-start justify-center gap-3 w-full">
         {egress.map(({ asset }) => (
-          <NodeCard key={asset.id} asset={asset} roles={rolesFor(asset.id)} selected={asset.id === selectedKey} onSelect={onSelectNode} />
+          <NodeCard key={asset.id} asset={asset} footer={rolesFor(asset.id)?.join(" · ")} selected={asset.id === selectedKey} onSelect={onSelectNode} compact />
         ))}
       </div>
     </div>
@@ -201,8 +246,8 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
       </div>
 
       {layout.dataPlane.length > 0 && (
-        <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${C.border}` }}>
-          <div className="flex items-center gap-2 mb-3 px-4 py-2 rounded-full w-full" style={{ border: `1.5px solid ${C.accent}` }}>
+        <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <Database size={12} color={C.accent} />
             <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
               Data plane
@@ -211,27 +256,25 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
               — where request-path data actually lands, shown by store rather than by hop count
             </span>
           </div>
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap gap-3">
             {layout.dataPlane.map(({ asset, fedBy }) => (
-              <div key={asset.id} className="flex flex-col items-center gap-1">
-                <NodeCard asset={asset} selected={asset.id === selectedKey} onSelect={onSelectNode} />
-                {fedBy.length > 0 && (
-                  <>
-                    <ArrowDown size={12} color={C.border} />
-                    <div className="text-[10px] text-center max-w-[168px]" style={{ color: C.muted }}>
-                      {fedBy.map((p) => p.code).join(" · ")}
-                    </div>
-                  </>
-                )}
-              </div>
+              <NodeCard
+                key={asset.id}
+                asset={asset}
+                footer={fedBy.length > 0 ? `fed by ${fedBy.map((p) => p.code).join(" · ")}` : null}
+                selected={asset.id === selectedKey}
+                onSelect={onSelectNode}
+                width={WIDE_NODE_CARD_WIDTH}
+                height={WIDE_NODE_CARD_HEIGHT}
+              />
             ))}
           </div>
         </div>
       )}
 
       {layout.branches.length > 0 && (
-        <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${C.border}` }}>
-          <div className="flex items-center gap-2 mb-3 px-4 py-2 rounded-full w-full" style={{ border: `1.5px solid ${C.accent}` }}>
+        <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
             <KeyRound size={12} color={C.accent} />
             <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
               Control plane
@@ -240,19 +283,18 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
               — not in the request path; these protect the assets above rather than carrying data through them
             </span>
           </div>
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap gap-3">
             {layout.branches.map(({ asset, protects }) => (
-              <div key={asset.id} className="flex flex-col items-center gap-1">
-                <NodeCard asset={asset} selected={asset.id === selectedKey} onSelect={onSelectNode} isBranch />
-                {protects.length > 0 && (
-                  <>
-                    <ArrowDown size={12} color={C.border} />
-                    <div className="text-[10px] text-center max-w-[168px]" style={{ color: C.muted }}>
-                      {protects.map((p) => p.code).join(" · ")}
-                    </div>
-                  </>
-                )}
-              </div>
+              <NodeCard
+                key={asset.id}
+                asset={asset}
+                footer={protects.length > 0 ? `protects ${protects.map((p) => p.code).join(" · ")}` : null}
+                selected={asset.id === selectedKey}
+                onSelect={onSelectNode}
+                isBranch
+                width={WIDE_NODE_CARD_WIDTH}
+                height={WIDE_NODE_CARD_HEIGHT}
+              />
             ))}
           </div>
         </div>
@@ -453,7 +495,6 @@ function SystemPicker({ systems, systemId, onSelect }) {
           className="bg-transparent text-sm outline-none w-full min-w-0"
           style={{ color: C.ink }}
         />
-        {selected && !open && <ClassificationTag level={selected.classification} />}
         <ChevronDown size={14} color={C.muted} className="shrink-0" />
       </div>
 
@@ -495,8 +536,11 @@ export default function DataMap() {
   const [dataTypeId, setDataTypeId] = useState("all");
 
   const system = SYSTEMS.find((s) => s.id === systemId);
-  const systemDataTypes = useMemo(() => dataTypesForSystem(systemId), [systemId]);
-  const fullLayout = useMemo(() => getDataFlows(systemId), [systemId]);
+  const systemDataTypes = useMemo(() => (systemId ? dataTypesForSystem(systemId) : []), [systemId]);
+  const fullLayout = useMemo(
+    () => (systemId ? getDataFlows(systemId) : { stages: [], branches: [], dataPlane: [], egress: [], edges: [], controlPlaneEdges: [], ingressActors: [], egressActors: [] }),
+    [systemId]
+  );
 
   // Filtering to one data type is a real query over the edges, not a second
   // dataset: keep the assets that touch it and the flows that carry it. The
@@ -535,35 +579,29 @@ export default function DataMap() {
           icon={Network}
           title="Systems Data Flow"
           description="How data moves between a system's assets, from ingress to egress."
-          right={
-            <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
-              {SYSTEMS.length} systems · {getAllAssets().length} assets · {TOTAL_ACTOR_COUNT} actors · {TOTAL_FLOW_COUNT} data flows
-            </div>
-          }
+          right={<SystemPicker systems={SYSTEMS} systemId={systemId} onSelect={selectSystem} />}
         />
 
-        <div className="px-8 mb-5">
-          <SystemPicker systems={SYSTEMS} systemId={systemId} onSelect={selectSystem} />
-        </div>
-
-        {system && (
-          <>
-            <div className="px-8 pb-4">
-              <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-                <h2 className="text-xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>{system.name}</h2>
-                <div className="flex items-center gap-2 text-xs" style={{ color: C.muted }}>
-                  <ClassificationTag level={system.classification} />
-                  <span>{system.overallAssurance}% Cyber Assurance</span>
-                </div>
+        <div className="px-8 pb-4">
+          {system && (
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+              <h2 className="text-xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>{system.name}</h2>
+              <div className="flex items-center gap-2 text-xs" style={{ color: C.muted }}>
+                <ClassificationTag level={system.classification} />
+                <span>{system.overallAssurance}% Cyber Assurance</span>
               </div>
+            </div>
+          )}
 
-              <div className="flex items-center gap-2 flex-wrap mb-4">
-                <span className="text-[11px] mr-1" style={{ color: C.muted }}>Filter by data type:</span>
+          {system ? (
+            <>
+              <div className="flex items-center gap-2 mb-4 overflow-x-auto" style={{ scrollbarWidth: "thin" }}>
+                <span className="text-[11px] mr-1 shrink-0" style={{ color: C.muted }}>Filter by data type:</span>
                 {[{ id: "all", name: "All data" }, ...systemDataTypes].map((dt) => (
                   <button
                     key={dt.id}
                     onClick={() => setDataTypeId(dt.id)}
-                    className="px-2.5 py-1 rounded-lg text-[11px] font-medium"
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-medium shrink-0"
                     style={{
                       background: dataTypeId === dt.id ? C.accentBg : "transparent",
                       color: dataTypeId === dt.id ? C.accent : C.muted,
@@ -582,12 +620,18 @@ export default function DataMap() {
                 {dataTypeId !== "all" && ` carrying ${getAllDataTypes().find((d) => d.id === dataTypeId)?.name}`}
                 {layout.controlPlaneEdges.length > 0 && ` · ${layout.controlPlaneEdges.length} control-plane relationships`}
               </div>
+            </>
+          ) : (
+            <div className="rounded-2xl p-10 text-center text-sm" style={{ background: C.panel2, border: `1px dashed ${C.border}`, color: C.muted }}>
+              Search for a system above to see how data moves through it.
             </div>
+          )}
+        </div>
 
-            <div className="px-8 pb-6">
-              <WeakestLinkBanner system={system} />
-            </div>
-          </>
+        {system && (
+          <div className="px-8 pb-6">
+            <WeakestLinkBanner system={system} />
+          </div>
         )}
       </div>
 
