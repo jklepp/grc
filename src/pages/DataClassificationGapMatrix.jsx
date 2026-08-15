@@ -112,10 +112,11 @@ function statusMeta(status) {
   return { color: C.muted, bg: C.panel2, Icon: Circle, label: "N/A" };
 }
 function ticketMeta(status) {
-  if (status === "done") return { color: C.green, label: "Done" };
-  if (status === "in_progress") return { color: C.accent, label: "In progress" };
-  if (status === "blocked") return { color: C.red, label: "Blocked" };
-  return { color: C.muted, label: "Not started" };
+  if (status === "closed") return { color: C.green, label: "Closed" };
+  if (status === "verified") return { color: C.green, label: "Verified" };
+  if (status === "remediating") return { color: C.accent, label: "Remediating" };
+  if (status === "accepted") return { color: C.amber, label: "Accepted" };
+  return { color: C.red, label: "Open" };
 }
 function CoverageBar({ confidence, status }) {
   const color = statusMeta(status).color;
@@ -147,7 +148,7 @@ function RequirementRow({ mapping, isOpen, onToggle }) {
   );
 }
 function RemediationRow({ item }) {
-  const { color, label } = ticketMeta(item.ticketStatus);
+  const { color, label } = ticketMeta(item.status);
   return (
     <div className="py-3 px-4 rounded-lg mb-2" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
       <div className="flex items-start justify-between gap-3">
@@ -158,10 +159,10 @@ function RemediationRow({ item }) {
           </span>
         )}
       </div>
-      <div className="text-xs mt-1" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{item.control}</div>
+      <div className="text-xs mt-1" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{item.controlName}</div>
       <div className="flex items-center gap-4 mt-2.5 text-xs flex-wrap">
         <span className="flex items-center gap-1" style={{ color }}><Circle size={7} fill={color} color={color} /> {label}</span>
-        <span className="flex items-center gap-1" style={{ color: C.muted }}><User size={11} /> {item.owner}</span>
+        <span className="flex items-center gap-1" style={{ color: C.muted }}><User size={11} /> {item.ownerName}</span>
         <span className="flex items-center gap-1" style={{ color: item.overdue ? C.red : C.muted }}><Clock size={11} /> Due {item.due}</span>
         <span className="flex items-center gap-1" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}><Link2 size={11} /> {item.jira}</span>
       </div>
@@ -191,8 +192,8 @@ export default function DataClassificationGapMatrix() {
   // and their evidence records, not from a six-element status array whose
   // position had to line up with a separate array of control names.
   const systemsWithGaps = SYSTEMS.filter((s) => s.deficientControls.length > 0).length;
-  const totalOverdue = SYSTEMS.flatMap((s) => s.remediation).filter((r) => r.overdue).length;
-  const totalOpenItems = SYSTEMS.flatMap((s) => s.remediation).filter((r) => r.ticketStatus !== "done").length;
+  const totalOverdue = SYSTEMS.flatMap((s) => s.findings).filter((r) => r.overdue).length;
+  const totalOpenItems = SYSTEMS.flatMap((s) => s.findings).filter((r) => r.status !== "closed").length;
   const staleCount = SYSTEMS.reduce((a, s) => a + s.staleEvidenceCount, 0);
   const selectedBreakdown = selected ? systemCoverageBreakdown(selected.id) : null;
   const selectedRoll = selected ? systemAssetRollup(selected) : null;
@@ -212,7 +213,7 @@ export default function DataClassificationGapMatrix() {
         icon={ShieldCheck}
         title="Systems Register"
         tagline="Data Classification Policy v3.2 · Confidential & Restricted"
-        description="Systems handling data classified Confidential or Restricted under policy, evaluated against the six controls required for their tier. Status reflects live test results — this view does not modify Vanta or Jira."
+        description="Systems handling Confidential or Restricted data, evaluated against the controls required for their tier."
         right={
           <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
             <Lock size={12} /><span>Read-only</span><span style={{ color: C.border }}>|</span><RefreshCw size={12} /><span>Synced from Vanta · 8 min ago</span>
@@ -399,14 +400,14 @@ export default function DataClassificationGapMatrix() {
               </div>
 
               <div className="text-xs uppercase tracking-wide mb-3" style={{ color: C.muted }}>
-                Remediation Items {selected.remediation.length > 0 && `(${selected.remediation.length})`}
+                Remediation Items {selected.findings.length > 0 && `(${selected.findings.length})`}
               </div>
-              {selected.remediation.length === 0 ? (
+              {selected.findings.length === 0 ? (
                 <div className="text-sm p-4 rounded-lg" style={{ background: C.greenBg, color: C.green }}>
                   No open remediation items — this system is fully compliant.
                 </div>
               ) : (
-                selected.remediation.map((r, i) => <RemediationRow key={i} item={r} />)
+                selected.findings.map((r) => <RemediationRow key={r.id} item={r} />)
               )}
             </div>
           </div>

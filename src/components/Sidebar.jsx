@@ -1,7 +1,6 @@
 import React from "react";
 import {
-  Menu, Sun, Moon, LayoutDashboard, LayoutGrid, ShieldCheck, AlertTriangle,
-  FileText, Circle, Database, ClipboardCheck, Network, Boxes, SlidersHorizontal, ListChecks, CalendarClock, Shield, Share2,
+  Menu, Sun, Moon, LayoutDashboard, ShieldCheck, Circle, Database, Landmark, Share2,
 } from "lucide-react";
 
 // Sidebar chrome is intentionally fixed dark regardless of the app-wide light/dark
@@ -18,50 +17,20 @@ const SB = {
   green: "#5FB98A",
 };
 
-// Every item's `id` routes to an actual page in App.jsx's PAGES map. Grouped
-// to mirror the platform's flow: survey the data/asset estate, hold it to a
-// control framework, document how that's governed, then track what's left
-// as risk — rather than one flat list of unrelated-looking pages.
-const GROUPS = [
-  {
-    label: "Overview",
-    items: [
-      { id: "executive", label: "Executive Dashboard", icon: LayoutDashboard },
-      { id: "graph-explorer", label: "Graph Explorer", icon: Share2 },
-    ],
-  },
-  {
-    label: "Data & Assets",
-    items: [
-      { id: "data-footprint", label: "Data Footprint", icon: Database },
-      { id: "data-map", label: "Enterprise Data Map", icon: Network },
-      { id: "gap-matrix", label: "Systems Register", icon: ShieldCheck },
-      { id: "asset-register", label: "Asset Register", icon: Boxes },
-    ],
-  },
-  {
-    label: "Controls & Frameworks",
-    items: [
-      { id: "ccf", label: "Common Controls", icon: LayoutGrid },
-      { id: "control-profile", label: "Control Profile", icon: SlidersHorizontal },
-    ],
-  },
-  {
-    label: "Governance",
-    items: [
-      { id: "ssp", label: "System Security Plan", icon: ClipboardCheck },
-      { id: "policy-center", label: "Policy Center", icon: FileText },
-      { id: "procedure-library", label: "Procedure Library", icon: ListChecks },
-      { id: "security-principles", label: "Security Principles", icon: Shield },
-      { id: "activity-timeliness", label: "Activity Timeliness", icon: CalendarClock },
-    ],
-  },
-  {
-    label: "Risk",
-    items: [
-      { id: "risk-register", label: "Risk Register", icon: AlertTriangle },
-    ],
-  },
+// Every item's `id` routes to an actual page in App.jsx's PAGES map. Flat list —
+// category grouping is being removed as pages get consolidated (Overview merges
+// Executive Dashboard + Risk Register; Data Estate merges Data Footprint,
+// Systems Data Flow, Systems Register, and Asset Register; Assurance merges
+// Common Controls and Control Profile; Governance merges Policy Center,
+// Procedure Library, Security Principles, Governance Schedule, and System
+// Security Plan). More consolidations land later, at which point this list
+// shrinks further.
+const ITEMS = [
+  { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "data-estate", label: "Data Estate", icon: Database },
+  { id: "assurance", label: "Assurance", icon: ShieldCheck },
+  { id: "governance", label: "Governance", icon: Landmark },
+  { id: "graph-explorer", label: "Graph Explorer (Beta)", icon: Share2 },
 ];
 
 export default function Sidebar({ expanded, onToggle, active, onSelect, mode, onToggleTheme }) {
@@ -93,44 +62,33 @@ export default function Sidebar({ expanded, onToggle, active, onSelect, mode, on
         )}
       </div>
 
-      {/* Nav groups */}
-      <nav className="flex-1 px-2 space-y-4 overflow-y-auto">
-        {GROUPS.map((group) => (
-          <div key={group.label}>
-            {expanded && (
-              <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-widest" style={{ color: SB.muted }}>
-                {group.label}
-              </div>
-            )}
-            <div className="space-y-0.5">
-              {group.items.map((item) => {
-                const isActive = active === item.id;
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => !item.disabled && onSelect(item.id)}
-                    disabled={item.disabled}
-                    title={item.disabled ? `${item.label} — coming soon` : item.label}
-                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors"
-                    style={{
-                      background: isActive ? SB.accentBg : "transparent",
-                      opacity: item.disabled ? 0.4 : 1,
-                      cursor: item.disabled ? "default" : "pointer",
-                    }}
-                  >
-                    <Icon size={17} color={isActive ? SB.accent : SB.muted} className="shrink-0" />
-                    {expanded && (
-                      <span className="text-sm truncate" style={{ color: isActive ? SB.ink : SB.muted }}>
-                        {item.label}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+      {/* Nav items */}
+      <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto">
+        {ITEMS.map((item) => {
+          const isActive = active === item.id;
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.id}
+              onClick={() => !item.disabled && onSelect(item.id)}
+              disabled={item.disabled}
+              title={item.disabled ? `${item.label} — coming soon` : item.label}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors"
+              style={{
+                background: isActive ? SB.accentBg : "transparent",
+                opacity: item.disabled ? 0.4 : 1,
+                cursor: item.disabled ? "default" : "pointer",
+              }}
+            >
+              <Icon size={17} color={isActive ? SB.accent : SB.muted} className="shrink-0" />
+              {expanded && (
+                <span className="text-sm truncate" style={{ color: isActive ? SB.ink : SB.muted }}>
+                  {item.label}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </nav>
 
       {/* Theme toggle */}

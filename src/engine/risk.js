@@ -9,6 +9,7 @@
 // Identity & Access average that included the payroll connector.
 import { RISKS, RISK_BY_ID, SEVERITY_LEVELS, LIKELIHOOD_LEVELS, BOARD_MATERIAL_RISK_IDS } from "../graph/nodes/risks";
 import { KEY_CONTROL_BY_ID } from "../graph/nodes/keyControls";
+import { ORG_BY_ID } from "../graph/nodes/orgs";
 import { assetsForRisk, controlsForRisk, RISKS_WITHOUT_ASSETS, RISKS_WITHOUT_CONTROLS } from "../graph/edges/riskContributors";
 import { BASIS } from "../graph/nodes/taxonomy";
 import { ASSET_ROLLUP_BY_ID } from "./rollups";
@@ -141,8 +142,15 @@ export function riskTrend(risk) {
 
 export function riskRollup(riskId) {
   const risk = RISK_BY_ID[riskId];
+  const ownerOrg = ORG_BY_ID[risk.ownerId];
   return {
     ...risk,
+    // `owner` stays a plain display string — every page that renders a risk's
+    // owner was written against that shape before ownerId existed, and none of
+    // them needed the richer object to just show who's accountable. `ownerOrg`
+    // carries the real node for whatever wants it later (kind, parent team).
+    owner: ownerOrg?.name ?? risk.ownerId,
+    ownerOrg,
     inherentScore: score(risk.inherent.severity, risk.inherent.likelihood),
     residualScore: score(risk.residual.severity, risk.residual.likelihood),
     appetiteRatio: appetiteRatio(risk),

@@ -18,8 +18,15 @@
 //                        implementations, so a "SOC 2 CC6.1 is 92% confident"
 //                        claim is computed from the controls that actually
 //                        satisfy CC6.1 rather than typed next to it.
-//   remediation[]     -> kept here. An open remediation ticket is a fact about
-//                        the system, not a score derived from one.
+//   remediation[]     -> graph/nodes/findings.js. A remediation ticket is now
+//                        a Finding, a real node with its own owner/status/due
+//                        instead of an array embedded on the system it
+//                        happens to affect. engine/findings.js derives which
+//                        findings belong to a system from the finding's asset.
+//   roles[].assignment -> roles[].ownerId, a reference into nodes/orgs.js
+//                        instead of a free-text team name. engine/rollups.js
+//                        resolves it back to a display name so nothing
+//                        downstream had to change.
 //
 // hostingType is kept as a stored fact rather than re-parsed from the `env`
 // string on every call the way systemRegister.js's hostingType() did — the
@@ -80,20 +87,15 @@ export const SYSTEMS = [
       "Encryption: all data at rest protected by a dedicated KMS key; service credentials brokered through Secrets Manager",
     ],
     roles: [
-      { role: "System Owner", assignment: "ML Platform Team" },
-      { role: "Technical Administrator", assignment: "ML Platform Team (AWS)" },
-      { role: "Security Owner", assignment: "IT Security" },
-      { role: "Data Owner", assignment: "Product Leadership" },
+      { role: "System Owner", ownerId: "ml-platform-team" },
+      { role: "Technical Administrator", ownerId: "ml-platform-team", note: "AWS environment specifically." },
+      { role: "Security Owner", ownerId: "it-security" },
+      { role: "Data Owner", ownerId: "product-leadership" },
     ],
     syncSource: "vanta",
     lastSynced: "8 min ago",
     oktaEnforced: "compliant",
     mfaEnforced: "compliant",
-    remediation: [
-      { title: "Scope RAG service's IAM role to least-privilege (currently has broad read access across data stores)", controlId: "IAC-21", assetId: "AST-003-03", ticketStatus: "in_progress", owner: "ML Eng", due: "2026-08-25", overdue: false, jira: "SEC-2260" },
-      { title: "Deploy DLP scanning on the prod-customer-data ingestion path", controlId: "NET-17", assetId: "AST-003-05", ticketStatus: "not_started", owner: "S. Patel", due: "2026-09-05", overdue: false, jira: "SEC-2261" },
-      { title: "Define retention/disposal schedule for vector embeddings and the RAG document store", controlId: "DCH-18", assetId: "AST-003-04", ticketStatus: "not_started", owner: "ML Eng", due: "2026-09-15", overdue: false, jira: "SEC-2262" },
-    ],
   },
   {
     id: "SYS-042",
@@ -113,18 +115,15 @@ export const SYSTEMS = [
       "Outbound: audit log export into ACME's central monitoring",
     ],
     roles: [
-      { role: "System Owner", assignment: "HR Operations" },
-      { role: "Technical Administrator", assignment: "IT Security (SaaS administration)" },
-      { role: "Security Owner", assignment: "IT Security" },
-      { role: "Data Owner", assignment: "HR Operations" },
+      { role: "System Owner", ownerId: "hr-operations" },
+      { role: "Technical Administrator", ownerId: "it-security-saas-admin" },
+      { role: "Security Owner", ownerId: "it-security" },
+      { role: "Data Owner", ownerId: "hr-operations" },
     ],
     syncSource: "vanta",
     lastSynced: "8 min ago",
     oktaEnforced: "compliant",
     mfaEnforced: "compliant",
-    remediation: [
-      { title: "Quarterly access review overdue for manager role", controlId: "IAC-17", assetId: "AST-042-01", ticketStatus: "in_progress", owner: "R. Chen", due: "2026-07-25", overdue: false, jira: "SEC-2210" },
-    ],
   },
 ];
 

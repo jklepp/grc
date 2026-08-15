@@ -118,7 +118,7 @@ export default function ControlProfile() {
       <PageHeader
         icon={SlidersHorizontal}
         title="Control Profile"
-        description="The minimum control maturity and evidence quality required for a given data classification tier, and how much each assurance category counts toward an asset's overall score. Weight is the second lever: the floor sets what a category has to clear, the weight sets how much clearing it is worth. Where confidentiality exposure is catastrophic, the controls that stop data being read outweigh the ones that keep it running."
+        description="The minimum control maturity and evidence quality required per data classification tier, weighted by category."
       />
 
       <div className="px-8">
