@@ -34,6 +34,37 @@ export function PageHeader({ icon: Icon, title, tagline, description, right, chi
   );
 }
 
+// Shared in-page tab bar for consolidated pages (Overview, Data Estate, ...):
+// a segmented control rather than an underline, so the active tab reads as
+// "selected" at a glance — inverted ink/bg fill instead of a thin accent line.
+// `tabs` is [{ id, label, icon }]; `active` is the selected id.
+export function TabBar({ tabs, active, onChange }) {
+  return (
+    <div className="px-8 pt-8">
+      <div className="inline-flex items-center gap-1 p-1 rounded-xl" style={{ background: C.panel2 }}>
+        {tabs.map((t) => {
+          const isActive = active === t.id;
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              onClick={() => onChange(t.id)}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              style={{
+                background: isActive ? C.ink : "transparent",
+                color: isActive ? C.bg : C.muted,
+              }}
+            >
+              {Icon && <Icon size={15} />}
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // Shared subsection heading: modeled on the System Security Plan's document
 // sections — a muted icon, a serif title, and a border spanning the full
 // width of its container beneath it — used to introduce a content block

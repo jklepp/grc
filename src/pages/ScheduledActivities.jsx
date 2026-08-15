@@ -58,7 +58,7 @@ export default function ScheduledActivities({ onNavigate }) {
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
       <PageHeader
         icon={CalendarClock}
-        title="Activity Timeliness"
+        title="Governance Schedule"
         tagline="Control Timeliness"
         description={'Every control that runs on a fixed cadence, grouped by activity type since auditing user accounts and scanning for vulnerabilities are different jobs, not the same "review" checkbox. Status is computed from each item\'s real due date, not hand-typed.'}
       />

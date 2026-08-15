@@ -15,6 +15,7 @@ import { KEY_CONTROL_BY_ID, ASSET_SCOPED_CONTROLS } from "../graph/nodes/keyCont
 import { EVIDENCE } from "../graph/nodes/evidence";
 import { APPLICABILITY_EXCEPTIONS } from "../graph/edges/applicabilityRules";
 import { IMPLEMENTATION_OVERRIDES, NOT_IMPLEMENTED } from "../graph/edges/controlImplementations";
+import { FINDINGS } from "../graph/nodes/findings";
 import { resolveApplicability } from "./applicability";
 import { systemClassification } from "./classification";
 import { ASSET_ROLLUPS } from "./rollups";
@@ -69,6 +70,15 @@ NOT_IMPLEMENTED.forEach((n) => {
   check(
     resolveApplicability(n.assetId, n.controlId).required,
     `not-implemented declaration ${n.assetId}/${n.controlId}: this control is not required for this asset — a control that doesn't apply is "not applicable", not "not implemented"`
+  );
+});
+
+// A finding lives under an implementation, so the implementation has to exist
+// for something to be under.
+FINDINGS.forEach((f) => {
+  check(
+    resolveApplicability(f.assetId, f.controlId).required,
+    `finding ${f.id}: ${f.controlId} is not required for ${f.assetId}, so there is no implementation for this finding to live under`
   );
 });
 

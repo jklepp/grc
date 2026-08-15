@@ -29,7 +29,8 @@ import { ASSET_BY_ID } from "../graph/nodes/assets";
 import { BASIS, ASSURANCE_CATEGORIES } from "../graph/nodes/taxonomy";
 import { evidenceFor } from "../graph/nodes/evidence";
 import { assessmentFor, CATEGORY_ASSESSMENTS } from "../graph/edges/categoryAssessments";
-import { overrideFor, notImplementedFor, ownerFor } from "../graph/edges/controlImplementations";
+import { overrideFor, notImplementedFor, ownerIdsFor, ownerOverrideFor } from "../graph/edges/controlImplementations";
+import { ORG_BY_ID } from "../graph/nodes/orgs";
 import { resolveApplicability, requiredControlsForAsset } from "./applicability";
 import { blendAssurance, evidenceBaseConfidence, mean, display } from "./assurance";
 
@@ -201,8 +202,12 @@ export function buildImplementation(assetId, controlId) {
 
   const baseline = isProgram ? PROGRAM_BASELINE[control.category] : assessmentFor(assetId, control.category);
   const override = isProgram ? null : overrideFor(assetId, controlId);
+  const ownerOverride = isProgram ? null : ownerOverrideFor(assetId, controlId);
   const declaredMissing = isProgram ? null : notImplementedFor(assetId, controlId);
   const records = evidenceFor(assetId, controlId).map(scoreEvidence);
+
+  const ownerIds = ownerOverride?.ownerIds ?? ownerIdsFor(systemId, control.category);
+  const owners = ownerIds.map((id) => ORG_BY_ID[id]);
 
   const common = {
     assetId,
@@ -211,7 +216,10 @@ export function buildImplementation(assetId, controlId) {
     systemId,
     category: control.category,
     scope: control.scope,
-    owner: ownerFor(systemId, control.category),
+    owners,
+    ownerNames: owners.map((o) => o.name).join(" / "),
+    ownerOverride,
+    findingId: override?.findingId ?? null,
     applicability,
     evidence: records,
     baseline,

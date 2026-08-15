@@ -38,6 +38,15 @@
 export const EVIDENCE_RESULTS = ["pass", "partial", "fail"];
 export const INDEPENDENCE_LEVELS = ["automated", "internal", "external"];
 
+// Deliberately duplicated (not imported) from evidenceSources.js's identical
+// function: that file derives EVIDENCE_SOURCES FROM this file's RAW_EVIDENCE,
+// so importing it back here would be a cycle. It's one pure three-line
+// function, not a fact — nothing about what a source id IS lives in two
+// places, just the formula for computing one from a name.
+export function sourceIdFromName(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-+|-+$)/g, "");
+}
+
 // How long a collection stays at full strength before it starts decaying,
 // keyed by evidence type. A continuous telemetry feed is worthless the moment
 // it stops reporting; an auditor's examination is reasonably good for a year.
@@ -52,7 +61,7 @@ export const DEFAULT_VALIDITY_DAYS = {
   "Self-attestation": 180,
 };
 
-const RAW_EVIDENCE = [
+export const RAW_EVIDENCE = [
   // ---- Encryption at rest (CRY-05) -------------------------------------------
   {
     id: "EV-9101", source: "Vanta — AWS encryption-at-rest test", evidenceType: "Automated technical test",
@@ -117,6 +126,7 @@ const RAW_EVIDENCE = [
     controlId: "DCH-18", assetIds: ["AST-003-04"],
     collectedAt: "2026-06-18", coveragePct: 0, result: "fail", independence: "internal",
     exceptions: 2, population: 2, populationUnit: "derived data stores",
+    findingId: "SEC-2262",
     note: "No retention or disposal schedule defined for embeddings — the open item behind SEC-2262.",
   },
   {
@@ -283,6 +293,7 @@ const RAW_EVIDENCE = [
     controlId: "IAC-21", assetIds: ["AST-003-03"],
     collectedAt: "2026-08-14", coveragePct: 100, result: "fail", independence: "automated",
     exceptions: 1, population: 1, populationUnit: "service roles",
+    findingId: "SEC-2260",
     note: "The RAG service role holds broad read access across every data store in the boundary, well beyond its actual query pattern — the open finding behind SEC-2260.",
   },
   {
@@ -325,10 +336,11 @@ const RAW_EVIDENCE = [
     collectedAt: "2026-05-15", coveragePct: 100, result: "pass", independence: "external",
   },
   {
-    id: "EV-7013", source: "Quarterly access recertification campaign", evidenceType: "Document",
+    id: "EV-7013", source: "Quarterly access recertification campaign — internal follow-up", evidenceType: "Document",
     controlId: "IAC-17", assetIds: ["AST-042-01"],
     collectedAt: "2026-04-30", coveragePct: 60, result: "partial", independence: "internal",
     exceptions: 31, population: 84, populationUnit: "manager-role holders",
+    findingId: "SEC-2210",
     note: "Manager-role recertification is past its due date — the open item behind SEC-2210.",
   },
   {
@@ -337,7 +349,7 @@ const RAW_EVIDENCE = [
     collectedAt: "2026-06-30", coveragePct: 100, result: "pass", independence: "external",
   },
   {
-    id: "EV-9164", source: "Quarterly privileged access review", evidenceType: "Document",
+    id: "EV-9164", source: "Quarterly privileged access review — internal follow-up", evidenceType: "Document",
     controlId: "IAC-17", assetIds: ["AST-003-03", "AST-003-04"],
     collectedAt: "2026-06-30", coveragePct: 50, result: "partial", independence: "internal",
     exceptions: 9, population: 18, populationUnit: "service-role grants",
@@ -407,6 +419,7 @@ const RAW_EVIDENCE = [
     controlId: "NET-17", assetIds: ["AST-003-05"],
     collectedAt: "2026-07-10", coveragePct: 0, result: "fail", independence: "internal",
     exceptions: 4, population: 4, populationUnit: "ingestion paths",
+    findingId: "SEC-2261",
     note: "No DLP scanning deployed on the ingestion path into prod-customer-data — the open item behind SEC-2261.",
   },
   {
@@ -512,6 +525,7 @@ const RAW_EVIDENCE = [
 export const EVIDENCE = RAW_EVIDENCE.map((e) => ({
   ...e,
   validForDays: e.validForDays ?? DEFAULT_VALIDITY_DAYS[e.evidenceType],
+  sourceId: sourceIdFromName(e.source),
 }));
 
 export const EVIDENCE_BY_ID = Object.fromEntries(EVIDENCE.map((e) => [e.id, e]));

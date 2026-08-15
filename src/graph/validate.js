@@ -27,8 +27,11 @@ import { ASSET_DATA_TYPES, DATA_ROLE_META, dataTypesForAsset } from "./edges/ass
 import { DATA_FLOWS, FLOW_KINDS } from "./edges/dataFlows";
 import { CATEGORY_ASSESSMENTS } from "./edges/categoryAssessments";
 import { APPLICABILITY_RULES, APPLICABILITY_EXCEPTIONS } from "./edges/applicabilityRules";
-import { IMPLEMENTATION_OVERRIDES, NOT_IMPLEMENTED, OWNERSHIP } from "./edges/controlImplementations";
+import { IMPLEMENTATION_OVERRIDES, OWNER_OVERRIDES, NOT_IMPLEMENTED, OWNERSHIP } from "./edges/controlImplementations";
 import { RISK_ASSETS, RISK_CONTROLS, RISKS_WITHOUT_ASSETS, RISKS_WITHOUT_CONTROLS, CONTRIBUTOR_ROLES } from "./edges/riskContributors";
+import { ORGS, ORG_BY_ID, ORG_KINDS } from "./nodes/orgs";
+import { FINDINGS, FINDING_STATUSES } from "./nodes/findings";
+import { EVIDENCE_SOURCE_CONFLICTS } from "./nodes/evidenceSources";
 
 const problems = [];
 
@@ -49,10 +52,7 @@ SYSTEMS.forEach((s) => {
   (INHERITED_DOMAINS[s.hostingType] || []).forEach((d) =>
     check(DOMAINS.includes(d), `system ${s.id}: inherited domain "${d}" is not an SCF domain`)
   );
-  s.remediation.forEach((r) => {
-    check(!r.controlId || Object.hasOwn(KEY_CONTROL_BY_ID, r.controlId), `system ${s.id} remediation "${r.jira}": controlId "${r.controlId}" is not a key control`);
-    check(!r.assetId || Object.hasOwn(ASSET_BY_ID, r.assetId), `system ${s.id} remediation "${r.jira}": assetId "${r.assetId}" is not an asset`);
-  });
+  s.roles.forEach((r) => check(Object.hasOwn(ORG_BY_ID, r.ownerId), `system ${s.id} role "${r.role}": ownerId "${r.ownerId}" is not an org`));
 });
 
 ASSETS.forEach((a) => {
@@ -112,6 +112,7 @@ RISKS.forEach((r) => {
   check(SEVERITY_LEVELS.includes(r.residual.severity), `risk ${r.id}: residual severity "${r.residual.severity}" is not a severity level`);
   check(LIKELIHOOD_LEVELS.includes(r.inherent.likelihood), `risk ${r.id}: inherent likelihood "${r.inherent.likelihood}" is not a likelihood level`);
   check(LIKELIHOOD_LEVELS.includes(r.residual.likelihood), `risk ${r.id}: residual likelihood "${r.residual.likelihood}" is not a likelihood level`);
+  check(Object.hasOwn(ORG_BY_ID, r.ownerId), `risk ${r.id}: ownerId "${r.ownerId}" is not an org`);
 });
 
 BOARD_MATERIAL_RISK_IDS.forEach((id) =>
@@ -205,6 +206,13 @@ IMPLEMENTATION_OVERRIDES.forEach((o) => {
   check(Object.hasOwn(KEY_CONTROL_BY_ID, o.controlId), `implementation override: controlId "${o.controlId}" is not a key control`);
   check(MATURITY_STAGES.includes(o.maturityStage), `implementation override ${o.assetId}/${o.controlId}: maturityStage "${o.maturityStage}" is not a maturity stage`);
   check(Boolean(o.note?.trim()), `implementation override ${o.assetId}/${o.controlId}: needs a note explaining why it differs from the category baseline`);
+  if (o.findingId) {
+    const finding = FINDINGS.find((f) => f.id === o.findingId);
+    check(Boolean(finding), `implementation override ${o.assetId}/${o.controlId}: findingId "${o.findingId}" is not a finding`);
+    if (finding) {
+      check(finding.assetId === o.assetId && finding.controlId === o.controlId, `implementation override ${o.assetId}/${o.controlId}: findingId "${o.findingId}" points at a finding filed against ${finding.assetId}/${finding.controlId} instead`);
+    }
+  }
 });
 
 NOT_IMPLEMENTED.forEach((n) => {
@@ -215,7 +223,47 @@ NOT_IMPLEMENTED.forEach((n) => {
 
 Object.entries(OWNERSHIP).forEach(([scope, byCategory]) => {
   check(scope === "program" || Object.hasOwn(SYSTEM_BY_ID, scope), `ownership: "${scope}" is neither a system id nor "program"`);
-  ASSURANCE_CATEGORIES.forEach((c) => check(Boolean(byCategory[c]), `ownership[${scope}]: no owner for "${c}"`));
+  ASSURANCE_CATEGORIES.forEach((c) => {
+    const ids = byCategory[c];
+    check(Array.isArray(ids) && ids.length > 0, `ownership[${scope}]: no owner for "${c}"`);
+    (ids || []).forEach((id) => check(Object.hasOwn(ORG_BY_ID, id), `ownership[${scope}][${c}]: ownerId "${id}" is not an org`));
+  });
+});
+
+OWNER_OVERRIDES.forEach((o) => {
+  check(Object.hasOwn(ASSET_BY_ID, o.assetId), `owner override: assetId "${o.assetId}" is not an asset`);
+  check(Object.hasOwn(KEY_CONTROL_BY_ID, o.controlId), `owner override: controlId "${o.controlId}" is not a key control`);
+  check(Array.isArray(o.ownerIds) && o.ownerIds.length > 0, `owner override ${o.assetId}/${o.controlId}: needs at least one ownerId`);
+  (o.ownerIds || []).forEach((id) => check(Object.hasOwn(ORG_BY_ID, id), `owner override ${o.assetId}/${o.controlId}: ownerId "${id}" is not an org`));
+  check(Boolean(o.note?.trim()), `owner override ${o.assetId}/${o.controlId}: needs a note explaining why it differs from the system+category default`);
+});
+
+ORGS.forEach((o) => {
+  check(Object.values(ORG_KINDS).includes(o.kind), `org ${o.id}: kind "${o.kind}" is not a known org kind`);
+  check(!o.parentId || Object.hasOwn(ORG_BY_ID, o.parentId), `org ${o.id}: parentId "${o.parentId}" is not an org`);
+});
+check(new Set(ORGS.map((o) => o.id)).size === ORGS.length, `orgs: duplicate id in ORGS`);
+
+FINDINGS.forEach((f) => {
+  check(Object.hasOwn(ASSET_BY_ID, f.assetId), `finding ${f.id}: assetId "${f.assetId}" is not an asset`);
+  check(Object.hasOwn(KEY_CONTROL_BY_ID, f.controlId), `finding ${f.id}: controlId "${f.controlId}" is not a key control`);
+  check(Object.hasOwn(ORG_BY_ID, f.ownerId), `finding ${f.id}: ownerId "${f.ownerId}" is not an org`);
+  check(FINDING_STATUSES.includes(f.status), `finding ${f.id}: status "${f.status}" is not one of ${FINDING_STATUSES.join(", ")}`);
+  check(!Number.isNaN(new Date(f.due).getTime()), `finding ${f.id}: due "${f.due}" is not a parseable date`);
+  check(Boolean(f.title?.trim()), `finding ${f.id}: needs a title`);
+});
+check(new Set(FINDINGS.map((f) => f.id)).size === FINDINGS.length, `findings: duplicate id in FINDINGS`);
+
+check(EVIDENCE_SOURCE_CONFLICTS.length === 0, `evidence sources: ${EVIDENCE_SOURCE_CONFLICTS.join("; ")}`);
+
+EVIDENCE.forEach((e) => {
+  if (!e.findingId) return;
+  const finding = FINDINGS.find((f) => f.id === e.findingId);
+  check(Boolean(finding), `evidence ${e.id}: findingId "${e.findingId}" is not a finding`);
+  if (finding) {
+    check(finding.controlId === e.controlId, `evidence ${e.id}: findingId "${e.findingId}" is filed against control ${finding.controlId}, but this record is for ${e.controlId}`);
+    check(e.assetIds.includes(finding.assetId), `evidence ${e.id}: findingId "${e.findingId}" is filed against asset ${finding.assetId}, which this record doesn't name`);
+  }
 });
 
 RISK_ASSETS.forEach((e, i) => {

@@ -30,10 +30,12 @@
 // intended reading: what separates a strong implementation from a weak one is
 // what you can show about it.
 //
-// This file holds the three things that genuinely are per-implementation facts
+// This file holds the four things that genuinely are per-implementation facts
 // a person owns:
 //
-//   OWNERSHIP              who runs this control on this system
+//   OWNERSHIP              who runs this control on this system, by default
+//   OWNER_OVERRIDES         where a specific implementation's owner differs
+//                          from that default, with why
 //   IMPLEMENTATION_OVERRIDES  where the recorded maturity differs from the
 //                          asset's category baseline, with the reason
 //   NOT_IMPLEMENTED        where a required control has no implementation at
@@ -46,32 +48,52 @@
 // Who operates a control, by the category it belongs to and the system it runs
 // in. Ownership genuinely varies by team and platform rather than by individual
 // resource, so recording it per asset would be fifteen copies of the same fact.
+// Values are arrays of nodes/orgs.js ids — most categories have one owning
+// team, but a few are genuinely jointly owned (e.g. Data Protection on SYS-003
+// spans both Data Platform and IT Security), and a joint fact should be two
+// edges, not one string with a slash in it.
 export const OWNERSHIP = {
   "SYS-003": {
-    "Data Protection": "Data Platform / IT Security",
-    Configuration: "ML Platform Team",
-    Detection: "IT Security — SOC function",
-    "Identity & Access": "ML Platform Team / IT Security",
-    Governance: "GRC",
-    Resilience: "Infrastructure",
+    "Data Protection": ["data-platform", "it-security"],
+    Configuration: ["ml-platform-team"],
+    Detection: ["it-security-soc"],
+    "Identity & Access": ["ml-platform-team", "it-security"],
+    Governance: ["grc"],
+    Resilience: ["infrastructure"],
   },
   "SYS-042": {
-    "Data Protection": "IT Security (SaaS administration)",
-    Configuration: "IT Security (SaaS administration)",
-    Detection: "IT Security — SOC function",
-    "Identity & Access": "HR Operations / IT Security",
-    Governance: "GRC",
-    Resilience: "IT Security (SaaS administration)",
+    "Data Protection": ["it-security-saas-admin"],
+    Configuration: ["it-security-saas-admin"],
+    Detection: ["it-security-soc"],
+    "Identity & Access": ["hr-operations", "it-security"],
+    Governance: ["grc"],
+    Resilience: ["it-security-saas-admin"],
   },
   program: {
-    "Data Protection": "Data Platform / IT Security",
-    Configuration: "IT",
-    Detection: "IT Security — SOC function",
-    "Identity & Access": "IT Security",
-    Governance: "GRC",
-    Resilience: "Infrastructure",
+    "Data Protection": ["data-platform", "it-security"],
+    Configuration: ["it"],
+    Detection: ["it-security-soc"],
+    "Identity & Access": ["it-security"],
+    Governance: ["grc"],
+    Resilience: ["infrastructure"],
   },
 };
+
+// Where a specific implementation's owner differs from the system+category
+// default above. The default exists because ownership genuinely tracks team
+// and platform rather than individual resource — but not always: within a
+// single system and category, one asset can be operated by a different team
+// than the rest. The KMS key's administration is PIM-gated and run directly by
+// Cloud Security, even though Data Protection on SYS-003 otherwise defaults to
+// Data Platform + IT Security. That's a real split in who-runs-this, not a
+// split in maturity or evidence, so it belongs here rather than forcing the
+// whole category's default to fork or the fact to be lost.
+export const OWNER_OVERRIDES = [
+  {
+    assetId: "AST-003-07", controlId: "CRY-09", ownerIds: ["cloud-security"],
+    note: "Key administration is MFA-gated through PIM and run directly by Cloud Security, not the Data Platform/IT Security pair that owns Data Protection defaults elsewhere on this system.",
+  },
+];
 
 // Where the recorded maturity of a specific implementation differs from the
 // asset's category baseline. Each carries the reason it differs — an override
@@ -87,15 +109,15 @@ export const IMPLEMENTATION_OVERRIDES = [
     note: "Index-level separation is real and enforced by the engine; the caller-supplied filter on vector search is the part that isn't.",
   },
   {
-    assetId: "AST-003-03", controlId: "IAC-21", maturityStage: "Policy",
+    assetId: "AST-003-03", controlId: "IAC-21", maturityStage: "Policy", findingId: "SEC-2260",
     note: "A least-privilege standard exists on paper, but the service role was provisioned with broad read access across every store in the boundary and has not been scoped since. SEC-2260.",
   },
   {
-    assetId: "AST-003-05", controlId: "NET-17", maturityStage: "Policy",
+    assetId: "AST-003-05", controlId: "NET-17", maturityStage: "Policy", findingId: "SEC-2261",
     note: "DLP is required by the Data Classification & Handling Policy but nothing is deployed on the ingestion path. SEC-2261.",
   },
   {
-    assetId: "AST-003-04", controlId: "DCH-18", maturityStage: "Policy",
+    assetId: "AST-003-04", controlId: "DCH-18", maturityStage: "Policy", findingId: "SEC-2262",
     note: "No retention or disposal schedule exists for embeddings — the policy applies, the schedule was never written. SEC-2262.",
   },
   {
@@ -107,7 +129,7 @@ export const IMPLEMENTATION_OVERRIDES = [
     note: "The integration credential is a static secret with no expiry. Rotation is a documented manual step that has no recorded execution.",
   },
   {
-    assetId: "AST-042-01", controlId: "IAC-17", maturityStage: "Procedure",
+    assetId: "AST-042-01", controlId: "IAC-17", maturityStage: "Procedure", findingId: "SEC-2210",
     note: "The recertification campaign runs, but the manager-role slice is past due rather than complete. SEC-2210.",
   },
   {
@@ -156,16 +178,24 @@ export const NOT_IMPLEMENTED = [
 ];
 
 const OVERRIDE_BY_PAIR = Object.fromEntries(IMPLEMENTATION_OVERRIDES.map((o) => [`${o.assetId}::${o.controlId}`, o]));
+const OWNER_OVERRIDE_BY_PAIR = Object.fromEntries(OWNER_OVERRIDES.map((o) => [`${o.assetId}::${o.controlId}`, o]));
 const NOT_IMPLEMENTED_BY_PAIR = Object.fromEntries(NOT_IMPLEMENTED.map((n) => [`${n.assetId}::${n.controlId}`, n]));
 
 export function overrideFor(assetId, controlId) {
   return OVERRIDE_BY_PAIR[`${assetId}::${controlId}`] || null;
 }
 
+export function ownerOverrideFor(assetId, controlId) {
+  return OWNER_OVERRIDE_BY_PAIR[`${assetId}::${controlId}`] || null;
+}
+
 export function notImplementedFor(assetId, controlId) {
   return NOT_IMPLEMENTED_BY_PAIR[`${assetId}::${controlId}`] || null;
 }
 
-export function ownerFor(systemId, category) {
+// Returns org ids, not resolved orgs — engine/implementation.js does the
+// resolution, keeping this file (and its tests) free of a dependency on
+// display concerns.
+export function ownerIdsFor(systemId, category) {
   return OWNERSHIP[systemId]?.[category] || OWNERSHIP.program[category];
 }

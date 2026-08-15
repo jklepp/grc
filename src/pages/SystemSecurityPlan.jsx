@@ -53,10 +53,11 @@ function assetName(system, assetId) {
   return system.assets.find((a) => a.id === assetId)?.name ?? assetId;
 }
 function ticketMeta(status) {
-  if (status === "done") return { color: C.green, label: "Done" };
-  if (status === "in_progress") return { color: C.accent, label: "In Progress" };
-  if (status === "blocked") return { color: C.red, label: "Blocked" };
-  return { color: C.muted, label: "Not Started" };
+  if (status === "closed") return { color: C.green, label: "Closed" };
+  if (status === "verified") return { color: C.green, label: "Verified" };
+  if (status === "remediating") return { color: C.accent, label: "Remediating" };
+  if (status === "accepted") return { color: C.amber, label: "Accepted" };
+  return { color: C.red, label: "Open" };
 }
 
 // Unique policies referenced by a system's control matrix, with how many of its
@@ -160,13 +161,13 @@ function ImplementationSection({ meta, rows, expanded, onToggle, onSelectRow }) 
 }
 
 function POAMRow({ item }) {
-  const meta = ticketMeta(item.ticketStatus);
+  const meta = ticketMeta(item.status);
   return (
     <div className="rounded-lg p-4 mb-2" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold" style={{ color: C.ink }}>{item.title}</div>
-          <div className="text-xs mt-0.5" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>Affected control: {item.control}</div>
+          <div className="text-xs mt-0.5" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>Affected control: {item.controlName}</div>
         </div>
         {item.overdue && (
           <span className="shrink-0 flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ color: C.red, background: C.redBg }}>
@@ -176,7 +177,7 @@ function POAMRow({ item }) {
       </div>
       <div className="flex items-center gap-4 mt-2.5 text-xs flex-wrap">
         <span className="flex items-center gap-1" style={{ color: meta.color }}><Circle size={7} fill={meta.color} color={meta.color} /> {meta.label}</span>
-        <span className="flex items-center gap-1" style={{ color: C.muted }}><User size={11} /> {item.owner}</span>
+        <span className="flex items-center gap-1" style={{ color: C.muted }}><User size={11} /> {item.ownerName}</span>
         <span className="flex items-center gap-1" style={{ color: item.overdue ? C.red : C.muted }}><Clock size={11} /> Target {item.due}</span>
         <span className="flex items-center gap-1" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}><Link2 size={11} /> {item.jira}</span>
       </div>
@@ -369,12 +370,12 @@ export default function SystemSecurityPlan() {
         <p className="text-xs mb-3" style={{ color: C.muted }}>
           Every control not yet fully implemented, with the planned remediation, the resource responsible, and a target date — pulled from ACME's live remediation tracker, not a static appendix.
         </p>
-        {system.remediation.length === 0 ? (
+        {system.findings.length === 0 ? (
           <div className="text-sm p-4 rounded-lg" style={{ background: C.greenBg, color: C.green }}>
             No open items — every tracked control on this system is fully implemented.
           </div>
         ) : (
-          system.remediation.map((item, i) => <POAMRow key={i} item={item} />)
+          system.findings.map((item) => <POAMRow key={item.id} item={item} />)
         )}
       </DocSection>
 

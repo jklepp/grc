@@ -29,6 +29,8 @@
 // answer rather than a restatement of the formula.
 import { ASSETS, ASSET_BY_ID, assetsForSystem, BOUNDARY_INGRESS_KINDS } from "../graph/nodes/assets";
 import { SYSTEMS, SYSTEM_BY_ID } from "../graph/nodes/systems";
+import { ORG_BY_ID } from "../graph/nodes/orgs";
+import { findingsForSystem } from "./findings";
 import { ASSURANCE_CATEGORIES, BASIS } from "../graph/nodes/taxonomy";
 import { DATA_FLOWS, flowsTo } from "../graph/edges/dataFlows";
 import { assessmentFor } from "../graph/edges/categoryAssessments";
@@ -182,6 +184,10 @@ export function systemRollup(systemId) {
 
   return {
     ...system,
+    // `assignment` is a display string resolved from the stored `ownerId`, so
+    // pages built against the old free-text roles[] didn't need to change.
+    roles: system.roles.map((r) => ({ ...r, assignment: ORG_BY_ID[r.ownerId]?.name ?? r.ownerId })),
+    findings: findingsForSystem(systemId),
     classification: systemClassification(systemId),
     assets,
     assetCount: assets.length,
