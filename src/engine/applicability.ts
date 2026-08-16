@@ -17,6 +17,7 @@
 // Protection, never which controls that means.
 import type { Graph } from "../graph/types";
 import type { Asset } from "../graph/nodes/assets";
+import type { Control } from "../graph/nodes/controls";
 import type { KeyControl } from "../graph/nodes/keyControls";
 import type {
   ApplicabilityRule, ApplicabilityException, ApplicabilityCondition,
@@ -220,6 +221,52 @@ export function createApplicability(graph: Graph, classification: Classification
     return (programBySystem[systemId] ?? []).map((id) => graph.keyControlById[id]);
   }
 
+  // ---- What applies to a system at all -----------------------------------------
+  // Moved here from compliance.ts, because "which controls apply" is this
+  // module's question and compliance is about how they are reported.
+  function controlsForStandards(standards: string[]): Control[] {
+    return graph.inScopeControls.filter((c) => c.frameworks.some((f) => standards.includes(f.standard))) as Control[];
+  }
+
+  // The denominator for a system's assessment coverage, and the row set of its
+  // control matrix.
+  //
+  // WHY THIS IS A UNION, AND NOT JUST THE FRAMEWORK SET
+  // ----------------------------------------------------
+  // Two notions of applicability already existed and quietly disagreed. The
+  // framework one asks "does a standard we certify against name this control";
+  // the rule one asks "does this control's premise hold for something in this
+  // boundary." Taking only the first drops real obligations: CLD-06
+  // (multi-tenant isolation) maps to ISO 27001, ISO 27018 and PCI DSS but not
+  // SOC 2, so for the SOC-2-only Workday boundary the framework reading says it
+  // does not apply — while an applicability rule requires it on every SaaS
+  // tenant and EV-7010 is a real tenant-isolation attestation filed against two
+  // Workday assets.
+  //
+  // Under the framework reading alone that evidence would be scored nowhere and
+  // reported nowhere: ACME would hold proof about a control the app claims is
+  // out of scope. A control is applicable if EITHER reading says so, and the
+  // standards a system certifies against then decide which report it appears
+  // in, not whether it is assessed.
+  function applicableControlsForSystem(systemId: SystemId): Control[] {
+    const system = graph.systemById[systemId];
+    const byStandard = new Set(controlsForStandards(system.standards).map((c) => c.id));
+
+    (graph.assetsBySystem[systemId] ?? []).forEach((asset) => {
+      (requiredByAsset[asset.id] ?? []).forEach((id) => byStandard.add(id));
+    });
+    (programBySystem[systemId] ?? []).forEach((id) => byStandard.add(id));
+
+    // Filtered back through inScopeControls so a rule cannot drag in a control
+    // that cites no framework clause at all — that one is out of scope
+    // everywhere, and validate.ts already refuses to let a scope name it.
+    return graph.inScopeControls.filter((c) => byStandard.has(c.id)) as Control[];
+  }
+
+  // Built once. Every coverage figure and every control matrix walks this.
+  const applicableBySystem: Record<string, Control[]> = {};
+  graph.systems.forEach((s) => (applicableBySystem[s.id] = applicableControlsForSystem(s.id)));
+
   return {
     resolveApplicability,
     requiredControlsForAsset,
@@ -228,6 +275,8 @@ export function createApplicability(graph: Graph, classification: Classification
     allExceptions,
     resolveProgramApplicability,
     programControlsForSystem,
+    controlsForStandards,
+    applicableControlsForSystem: (systemId: SystemId) => applicableBySystem[systemId] ?? [],
     PROGRAM_CONTROL_IDS: programControlIds,
   };
 }

@@ -1,16 +1,26 @@
 # PRISMA level overrides — where an assessor's rating differs from the derived one.
 #
 # See src/graph/edges/prismaOverrides.ts. The derivation reads what the facts
-# record; an assessor also sees whether the evidence package behind those facts
-# was adequate, which no fact here expresses.
+# record; an assessor also sees whether what the facts record actually covers
+# what the control requires, which no fact here expresses.
 #
-# EMPTY, AND DELIBERATELY SO — for now. An override whose rating equals the
-# derived rating is dead text and fails the build, so a row cannot be authored
-# honestly until the derivation it disagrees with exists to be checked against.
-# The five level rules land in engine/levels.ts; overrides are authored after,
-# against real derived ratings, rather than guessed at here and reverse-fitted.
-#
-# This mirrors program-applicability-exceptions.yaml, which is empty for the same
-# kind of reason: an empty list that states why it is empty is a position, and a
-# speculative row would be a fabrication.
-[]
+# Sparse on purpose. Every rating that can be derived is derived, so a row here
+# is a claim that the model reached the wrong answer — which should be rare, and
+# has to be argued for in the note. An override whose rating equals the derived
+# rating is dead text and fails the build.
+
+- systemId: "SYS-003"
+  controlId: "IAC-21"
+  level: "Managed"
+  rating: 0
+  note: >
+    The derivation credits this control at Somewhat Compliant because the quarterly
+    privileged-access recertification runs against the SOP that owns Identification &
+    Authentication, and reaching a control through its domain is normally worth
+    something. It is not worth anything here. That campaign recertifies human
+    privileged grants; IAC-21 on this platform is about service-role scope, and the
+    RAG retrieval role that SEC-2260 was raised against has never appeared in a
+    recertification population. Nothing on the calendar looks at this control.
+  assessedBy: "External validator — FY26 assessment"
+  assessedAt: "2026-07-30"
+  findingId: "SEC-2260"

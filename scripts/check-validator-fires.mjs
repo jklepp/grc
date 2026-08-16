@@ -268,6 +268,60 @@ try {
       const m = f.implementationMechanisms.find((x) => x.responsibility === "vendor");
       delete m.provider;
     }, /no provider is named/],
+
+    // ---- Scope parity, both directions -------------------------------------
+    // The pair of checks that make hand-listing the assessment scope safe.
+    ["a scoped control with no facts behind it", (f) => {
+      // CFG-01 is a real in-scope control nobody has assessed, so adding it to
+      // the scope claims an assessment that never happened.
+      const scope = f.assessmentScopes.find((s) => s.systemId === "SYS-003");
+      const unbacked = f.controls.find(
+        (c) => c.frameworks.length > 0
+          && !scope.controlIds.includes(c.id)
+          && !f.evidence.some((e) => e.controlId === c.id)
+      );
+      scope.controlIds.push(unbacked.id);
+    }, /an assessed control with nothing behind it is an empty claim/],
+    ["a control with facts that nobody scoped", (f) => {
+      const scope = f.assessmentScopes.find((s) => s.systemId === "SYS-003");
+      scope.controlIds = scope.controlIds.filter((id) => id !== "CRY-05");
+    }, /is not in its declared assessment scope/],
+
+    // ---- Overrides ----------------------------------------------------------
+    ["a PRISMA override that agrees with the derivation", (f) => {
+      // CRY-05 on SYS-003 derives Policy 100; overriding it to 100 changes
+      // nothing and only looks like a judgment was made.
+      f.prismaOverrides.push({
+        systemId: "SYS-003", controlId: "CRY-05", level: "Policy", rating: 100,
+        note: "invented for this test", assessedBy: "test", assessedAt: "2026-01-01",
+      });
+    }, /an override that changes nothing is a note, not a judgment/],
+    ["a PRISMA override against a control nobody assessed", (f) => {
+      const scope = f.assessmentScopes.find((s) => s.systemId === "SYS-003");
+      const unassessed = f.controls.find(
+        (c) => c.frameworks.length > 0 && !scope.controlIds.includes(c.id)
+      );
+      f.prismaOverrides.push({
+        systemId: "SYS-003", controlId: unassessed.id, level: "Managed", rating: 25,
+        note: "invented for this test", assessedBy: "test", assessedAt: "2026-01-01",
+      });
+    }, /there is no derived rating to override/],
+
+    // ---- Risk cover ----------------------------------------------------------
+    // riskControls may only cite key controls, and every key control is in some
+    // scope, so this can't be provoked by adding an edge — it has to be
+    // provoked by dropping a control OUT of the assessment, which is the real
+    // way it would happen. Its supporting facts go with it, or the scope-parity
+    // check fires first and the case proves nothing.
+    ["a risk held down by a control nobody assesses", (f) => {
+      const controlId = f.riskControls.find((rc) => f.keyControls.some((k) => k.id === rc.controlId)).controlId;
+      f.assessmentScopes.forEach((s) => { s.controlIds = s.controlIds.filter((id) => id !== controlId); });
+      f.evidence = f.evidence.filter((e) => e.controlId !== controlId);
+      f.implementationMechanisms = f.implementationMechanisms.filter((m) => m.controlId !== controlId);
+      f.implementationOverrides = f.implementationOverrides.filter((o) => o.controlId !== controlId);
+      f.notImplemented = f.notImplemented.filter((n) => n.controlId !== controlId);
+      f.findings = f.findings.filter((x) => x.controlId !== controlId);
+    }, /which no system assesses/],
   ];
 
   console.log("\nDerivational checks (validateDerivations, via createEngine)");

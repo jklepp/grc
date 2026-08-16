@@ -29,6 +29,7 @@ import { createClassification } from "./classification";
 import { createApplicability } from "./applicability";
 import { createFindings } from "./findings";
 import { createEvidence } from "./evidence";
+import { createAssessment } from "./assessment";
 import { createImplementation } from "./implementation";
 import { createRollups } from "./rollups";
 import { createRisk } from "./risk";
@@ -52,6 +53,10 @@ export function createEngine(graph: Graph, options: EngineOptions = {}) {
   const applicability = createApplicability(graph, classification);
   const findings = createFindings(graph, ctx);
   const evidence = createEvidence(graph, ctx);
+  // The PRISMA layer. Built here so validateDerivations can prove it out, but
+  // not yet exported from engine/index.ts and not yet read by any rollup —
+  // flipping the consumers is a separate change from proving the derivation.
+  const assessment = createAssessment(graph, applicability, evidence, findings, ctx);
   const implementation = createImplementation(graph, applicability, evidence, ctx);
   const rollups = createRollups(graph, classification, applicability, implementation, findings);
   const risk = createRisk(graph, rollups, implementation, applicability);
@@ -63,7 +68,7 @@ export function createEngine(graph: Graph, options: EngineOptions = {}) {
 
   const engine = {
     graph, ctx,
-    classification, applicability, findings, evidence, implementation,
+    classification, applicability, findings, evidence, assessment, implementation,
     rollups, risk, compliance, profile, selectors,
   };
 

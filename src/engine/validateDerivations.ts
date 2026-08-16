@@ -17,7 +17,7 @@ import { CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES } from "../graph/nodes/taxon
 import type { Engine } from "./create";
 
 export function validateDerivations(engine: Engine): void {
-  const { graph, classification, applicability, rollups } = engine;
+  const { graph, classification, applicability, assessment, rollups } = engine;
   const problems: string[] = [];
   const check = (condition: boolean, message: string) => {
     if (!condition) problems.push(message);
@@ -172,6 +172,112 @@ export function validateDerivations(engine: Engine): void {
         `program implementation ${i.id}: did not resolve to a number`
       );
     });
+  });
+
+  // ---- The PRISMA assessment scope, checked against the facts ------------------
+  // This is the check that makes hand-listing the scope safe. The declared list
+  // and the set of controls the facts can actually support have to be the same
+  // set, and a discrepancy in either direction means something different:
+  //
+  //   declared, unsupported  an empty claim. The coverage figure counts a
+  //                          control nobody assessed, which inflates the
+  //                          denominator's numerator — the exact dishonesty
+  //                          declaring a scope was supposed to prevent.
+  //   supported, undeclared  either scope creep nobody signed off, or evidence
+  //                          filed against the wrong system.
+  //
+  // "Supported" means any fact that could feed a level above Procedure: the two
+  // documentation levels derive for every control in the library, so they can
+  // never distinguish an assessed control from an unassessed one.
+  graph.systems.forEach((system) => {
+    const scope = graph.assessmentScopeBySystem[system.id];
+    if (!scope) return; // graph/validate.ts already failed the build for this.
+
+    const assetIds = new Set((graph.assetsBySystem[system.id] ?? []).map((a) => a.id));
+    const supported = new Set<string>();
+    graph.evidence.forEach((e) => {
+      if (e.assetIds.length === 0 || e.assetIds.some((a) => assetIds.has(a))) supported.add(e.controlId);
+    });
+    graph.implementationMechanisms.forEach((m) => { if (assetIds.has(m.assetId)) supported.add(m.controlId); });
+    graph.implementationOverrides.forEach((o) => { if (assetIds.has(o.assetId)) supported.add(o.controlId); });
+    graph.notImplemented.forEach((n) => { if (assetIds.has(n.assetId)) supported.add(n.controlId); });
+    graph.findings.forEach((f) => { if (assetIds.has(f.assetId)) supported.add(f.controlId); });
+
+    const declared = new Set<string>(scope.controlIds);
+    const applicable = new Set(applicability.applicableControlsForSystem(system.id).map((c) => c.id));
+
+    declared.forEach((id) => {
+      check(
+        supported.has(id),
+        `assessment scope for ${system.id} lists ${id}, but no evidence, mechanism, override, not-implemented declaration or finding on this system supports it — an assessed control with nothing behind it is an empty claim`
+      );
+      check(
+        applicable.has(id),
+        `assessment scope for ${system.id} lists ${id}, which is not applicable to that system — no standard it certifies against names it and no rule requires it there`
+      );
+    });
+
+    supported.forEach((id) => {
+      if (!applicable.has(id)) return; // reported by the evidence check above.
+      check(
+        declared.has(id),
+        `${id} has implementation facts on ${system.id} but is not in its declared assessment scope — either the scope is out of date, or those facts are filed against the wrong system`
+      );
+    });
+  });
+
+  // ---- Every assessment resolves, and never to a misleading zero ---------------
+  graph.systems.forEach((system) => {
+    const all = assessment.assessmentsForSystem(system.id);
+    const scored = all.filter((a) => a.assessed);
+
+    all.forEach((a) => {
+      if (a.assessed) {
+        check(
+          Number.isFinite(a.rawScore),
+          `assessment ${a.id}: is in scope but did not resolve to a number`
+        );
+      } else {
+        check(
+          a.rawScore === null,
+          `assessment ${a.id}: is not assessed but carries a score of ${a.rawScore} — an unassessed control must be null, never zero, or the gap reads as a failure`
+        );
+      }
+    });
+
+    // A system scoring nothing would report 0% coverage, which reads as a
+    // catastrophic finding when it actually means the scope never loaded.
+    check(scored.length > 0, `system ${system.id}: no control is assessed at all — coverage would report zero, which is a missing scope rather than a posture finding`);
+    check(
+      all.length === scored.length + all.filter((a) => !a.assessed).length,
+      `system ${system.id}: coverage does not partition — applicable ${all.length} is not assessed ${scored.length} plus unassessed ${all.length - scored.length}`
+    );
+  });
+
+  // ---- Assessor overrides -----------------------------------------------------
+  // Same contract as an applicability exception: an override that agrees with
+  // the derivation is dead text that looks like a considered judgment.
+  graph.prismaOverrides.forEach((o) => {
+    const a = assessment.assessmentFor(o.systemId, o.controlId);
+    check(
+      a !== null && a.assessed,
+      `PRISMA override ${o.systemId}/${o.controlId}: that control is not assessed on that system, so there is no derived rating to override`
+    );
+    if (a === null) return;
+    check(
+      a.levels[o.level].derived !== o.rating,
+      `PRISMA override ${o.systemId}/${o.controlId} at ${o.level}: overrides to ${o.rating}, which is what the derivation already concluded — an override that changes nothing is a note, not a judgment`
+    );
+  });
+
+  // A control a risk depends on that nobody assesses anywhere means the risk's
+  // residual position rests on a control with no score behind it.
+  graph.riskControls.forEach((rc) => {
+    const assessedSomewhere = graph.systems.some((s) => assessment.assessmentFor(s.id, rc.controlId)?.assessed);
+    check(
+      assessedSomewhere,
+      `risk ${rc.riskId} is held down by ${rc.controlId}, which no system assesses — the risk's residual position would rest on nothing`
+    );
   });
 
   if (problems.length > 0) {
