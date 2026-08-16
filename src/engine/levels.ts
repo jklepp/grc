@@ -374,3 +374,27 @@ export function capInherited(rating: LevelRating, cap: ComplianceRating): LevelR
     rationale: `${rating.rationale} Held at ${COMPLIANCE_LABELS[cap]}: ACME cannot verify a provider-run control beyond the grade of the report.`,
   };
 }
+
+// Held down when the control (or the policy/procedure behind it) hasn't been
+// operating long enough to support the rating the evidence alone would imply.
+//
+// Deliberately UNLIKE capInherited: `derived` is left untouched. capInherited's
+// cap is itself a fact about what a report can prove, so folding it into
+// `derived` is honest. This cap is not a fact about what happened — it is a
+// judgment about how long a track record has to run before it counts, and the
+// evidence-only conclusion stays real underneath it. That is what lets a page
+// show "100% verified" and "held at Partially Compliant pending operating
+// history" as two different, both-true statements instead of one blurred
+// number — see engine/assessment.ts.
+export function capImmature(
+  rating: LevelRating, cap: ComplianceRating, operatingDays: number, requiredDays: number
+): LevelRating {
+  if (operatingDays >= requiredDays) return rating; // track record established
+  if (rating.derived <= cap) return rating; // evidence alone doesn't clear the cap anyway
+  return {
+    ...rating,
+    rating: cap,
+    contribution: rating.weight * cap,
+    rationale: `${rating.rationale} Held at ${COMPLIANCE_LABELS[cap]} pending operating history: ${operatingDays} of the required ${requiredDays} days elapsed.`,
+  };
+}

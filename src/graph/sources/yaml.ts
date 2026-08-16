@@ -140,6 +140,7 @@ export const YAML_FACTS: GraphFacts = {
   implementationOverrides: read("implementation-overrides"),
   notImplemented: read("not-implemented"),
   implementationMechanisms: read("implementation-mechanisms"),
+  operatingHistory: read("operating-history"),
   programApplicabilityRules: read("program-applicability"),
   programApplicabilityExceptions: read("program-applicability-exceptions"),
   riskAssets: read("risk-assets"),

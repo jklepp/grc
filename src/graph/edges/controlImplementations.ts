@@ -84,6 +84,21 @@ export interface ImplementationMechanism {
   provider?: string;
 }
 
+// ---- When a control's current implementation went live -----------------------
+// A separate fact from `mechanism` above on purpose: HOW a control is
+// implemented and SINCE WHEN it has been operating are different questions,
+// and this one is answered rarely — most (asset, control) pairs carry no
+// record here, and engine/assessment.ts treats that absence as "operating
+// history untracked", not as "just implemented". Where it IS authored, it
+// anchors the HITRUST-style 90-day operating-history gate: evidence can prove
+// a control works today without proving it has worked long enough to earn the
+// top rungs of the maturity ladder, and those are different claims.
+export interface ControlOperatingHistory {
+  assetId: AssetId;
+  controlId: ControlId;
+  implementedAt: string;
+}
+
 // ---- Program controls, per system ---------------------------------------------
 // Seven key controls are marked scope: "program" because asking each asset
 // whether ACME runs a risk-assessment process would be theatre. But they were

@@ -1,0 +1,24 @@
+# When a control's current implementation went live — the anchor for the
+# HITRUST-style operating-history gate (see ControlOperatingHistory in
+# src/graph/edges/controlImplementations.ts). Authored sparsely, on purpose:
+# a pair with no record here is untracked, not treated as newly implemented,
+# so the vast majority of the assessed estate is unaffected by this file.
+#
+# Unlike most fact files, this one has no generating TypeScript source — it is
+# a new concept, authored directly.
+
+- assetId: "AST-042-01"
+  controlId: "IAC-10"
+  # Recently enforced: Okta MFA rollout confirmed by EV-7015 (100% coverage,
+  # passing), but only 20 days into HITRUST's 90-day operating-history window
+  # for Implemented/Measured/Managed — the worked example this gate exists for.
+  implementedAt: "2026-07-27"
+- assetId: "AST-042-02"
+  controlId: "IAC-10"
+  implementedAt: "2026-07-27"
+- assetId: "AST-003-01"
+  controlId: "IAC-21"
+  # Long-established: AWS IAM Access Analyzer has governed this control for
+  # well over a year. Included so the gate can be shown NOT firing once the
+  # operating-history window has closed, not just firing when it hasn't.
+  implementedAt: "2025-01-15"

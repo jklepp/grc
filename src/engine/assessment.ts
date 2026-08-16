@@ -40,10 +40,13 @@ import {
   BASIS, PRISMA_LEVELS, categoryForDomain,
   type AssuranceCategory, type Basis, type ComplianceRating, type PrismaLevel,
 } from "../graph/nodes/taxonomy";
-import { INHERITED_LEVEL_CAP, assuranceBand, display, meetsEvidence, prismaScore } from "./assurance";
+import {
+  INHERITED_LEVEL_CAP, OPERATING_HISTORY_THRESHOLD_DAYS, IMMATURE_LEVEL_CAP,
+  assuranceBand, display, meetsEvidence, prismaScore,
+} from "./assurance";
 import { DAY_MS, VERIFYING_EVIDENCE_FLOOR, governingRecord, type EvidenceApi, type ScoredEvidence } from "./evidence";
 import {
-  INSTANCE_CREDIT, capInherited, rateImplemented, rateInheritedImplemented, rateInheritedManaged,
+  INSTANCE_CREDIT, capInherited, capImmature, rateImplemented, rateInheritedImplemented, rateInheritedManaged,
   rateInheritedMeasured, rateManaged, rateMeasured,ratePolicy, rateProcedure,
   type LevelRating,
 } from "./levels";
@@ -62,6 +65,16 @@ export const INSTANCE_STATUS_META = {
 
 export type InstanceStatus = keyof typeof INSTANCE_STATUS_META;
 
+// established: at least the operational (90-day) threshold has elapsed since
+// implementedAt. building: a date is on record but the window hasn't closed.
+// A pair with no operating-history record at all carries `null` here, which
+// engine/assessment.ts treats as untracked rather than as freshly implemented
+// — the default that leaves the rest of the assessed estate unaffected.
+export const OPERATING_HISTORY_STATUS_META = {
+  established: { label: "Operating History Established", color: "green" },
+  building: { label: "Building Operating History", color: "amber" },
+};
+
 // One asset's answer to one control. Carries a STATUS and a CREDIT, never a
 // score — the moment this holds a number of its own, assets are being scored
 // again through the back door.
@@ -79,6 +92,15 @@ export interface ControlInstance {
   notImplemented: NotImplemented | null;
   // The one sentence this asset can say about this control.
   statement: string;
+  // Operating history — see ControlOperatingHistory (graph/edges/controlImplementations.ts)
+  // and OPERATING_HISTORY_THRESHOLD_DAYS (engine/assurance.ts). Null when
+  // untracked. Distinct from `status`/`credit` above on purpose: this is a
+  // track-record question, not a verification question, and the two can
+  // disagree — see capImmature() in engine/levels.ts.
+  implementedAt: string | null;
+  operatingDays: number | null;
+  maturityEligibleAt: string | null;
+  operatingHistoryStatus: keyof typeof OPERATING_HISTORY_STATUS_META | null;
 }
 
 export interface ControlAssessment {
@@ -137,6 +159,19 @@ export function createAssessment(
   const withOverdue = (activities: readonly ScheduledActivityRecord[]) =>
     activities.map((activity) => ({ activity, overdue: activityOverdue(activity) }));
 
+  // ---- Operating history, resolved against ctx.now ----------------------------
+  // Same idiom as activityOverdue/certificationExpired above: the graph carries
+  // only the go-live date, "how many days has that been" is re-answered here so
+  // it moves with ctx.now instead of the date the graph was built.
+  function operatingDaysSince(dateStr: string): number {
+    return Math.floor((ctx.now.getTime() - Date.parse(dateStr)) / DAY_MS);
+  }
+  function maturityEligibleDate(implementedAt: string, days: number): string {
+    const d = new Date(implementedAt);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
+
   // The activities that reassess a vendor, identified by the domain of the
   // controls they cite. Computed once — it is the same answer for every
   // inherited control on every system.
@@ -156,7 +191,19 @@ export function createAssessment(
     const mechanism = graph.mechanismByPair[`${assetId}::${controlId}`] ?? null;
     const declaredMissing = graph.notImplementedByPair[`${assetId}::${controlId}`] ?? null;
 
-    const base = { assetId, asset, systemId, controlId, applicability: resolution, evidence: records, governing, mechanism, notImplemented: declaredMissing };
+    const history = graph.operatingHistoryByPair[`${assetId}::${controlId}`] ?? null;
+    const operatingDays = history ? operatingDaysSince(history.implementedAt) : null;
+    const maturityEligibleAt = history
+      ? maturityEligibleDate(history.implementedAt, OPERATING_HISTORY_THRESHOLD_DAYS.Implemented)
+      : null;
+    const operatingHistoryStatus = history === null
+      ? null
+      : (operatingDays as number) >= OPERATING_HISTORY_THRESHOLD_DAYS.Implemented ? "established" as const : "building" as const;
+
+    const base = {
+      assetId, asset, systemId, controlId, applicability: resolution, evidence: records, governing, mechanism, notImplemented: declaredMissing,
+      implementedAt: history?.implementedAt ?? null, operatingDays, maturityEligibleAt, operatingHistoryStatus,
+    };
 
     if (!resolution.required) {
       return {
@@ -260,16 +307,38 @@ export function createAssessment(
     // provider operates the control, and are not capped for inheritance: a
     // vendor running something does not relieve ACME of requiring it in writing.
     const citing = graph.policiesByControl[controlId] ?? [];
-    const policyLevel = ratePolicy({
+    const domainPolicies = graph.policiesByDomain[domain] ?? [];
+    let policyLevel = ratePolicy({
       controlId, citing, stale: citing.filter(policyOverdue),
-      domainPolicies: graph.policiesByDomain[domain] ?? [], domain,
+      domainPolicies, domain,
     });
-    const procedureLevel = rateProcedure({
-      controlId,
-      citingSteps: graph.procedureStepsByControl[controlId] ?? [],
-      owningProcedure: graph.procedureByDomain[domain] ?? null,
-      domain,
+    const citingSteps = graph.procedureStepsByControl[controlId] ?? [];
+    const owningProcedure = graph.procedureByDomain[domain] ?? null;
+    let procedureLevel = rateProcedure({
+      controlId, citingSteps, owningProcedure, domain,
     });
+
+    // Policy/Procedure's 60-day operating-history window, governed by the
+    // policy behind each — the same PolicyRecord.created already used for
+    // review-cadence staleness, read here for a different question: not "is it
+    // current" but "has it been in effect long enough to count." A procedure
+    // borrows its owning policy's date rather than needing one of its own — one
+    // founding-date concept, not two.
+    const citingPolicies = citing.length > 0 ? citing : domainPolicies;
+    const policyAges = citingPolicies.map((p) => operatingDaysSince(p.created));
+    if (policyAges.length > 0) {
+      policyLevel = capImmature(policyLevel, IMMATURE_LEVEL_CAP, Math.min(...policyAges), OPERATING_HISTORY_THRESHOLD_DAYS.Policy);
+    }
+    const procedurePolicyIds = citingSteps.length > 0
+      ? citingSteps.map((s) => s.procedure.policyId)
+      : owningProcedure ? [owningProcedure.policyId] : [];
+    const procedureAges = procedurePolicyIds
+      .map((pid) => graph.policyById[pid]?.created)
+      .filter((d): d is string => Boolean(d))
+      .map(operatingDaysSince);
+    if (procedureAges.length > 0) {
+      procedureLevel = capImmature(procedureLevel, IMMATURE_LEVEL_CAP, Math.min(...procedureAges), OPERATING_HISTORY_THRESHOLD_DAYS.Procedure);
+    }
 
     const instances = inScope
       ? populationFor(systemId, controlId).map((assetId) => buildInstance(systemId, assetId, controlId))
@@ -362,7 +431,6 @@ export function createAssessment(
         .filter((f) => f.controlId === controlId && f.status !== "closed" && Date.parse(f.due) < ctx.now.getTime())
         .map((f) => ({ id: f.id, due: f.due }));
 
-      const owningProcedure = graph.procedureByDomain[domain];
       managedLevel = rateManaged({
         controlId,
         citingActivities: withOverdue(graph.activitiesByControl[controlId] ?? []),
@@ -371,6 +439,23 @@ export function createAssessment(
         measuredRating: measuredLevel.derived,
         domain,
       });
+
+      // Implemented/Measured/Managed's 90-day operating-history window,
+      // governed by the youngest (least-mature) instance that carries a real
+      // go-live date — most instances carry none and are ignored, which is
+      // what keeps this a no-op across the untracked majority of the estate.
+      // Measured and Managed share Implemented's population on purpose: you
+      // cannot have measured a control's operation, or managed it on a
+      // cadence, over a track record that doesn't exist yet.
+      const dated = counted
+        .map((i) => i.operatingDays)
+        .filter((d): d is number => d !== null);
+      if (dated.length > 0) {
+        const youngest = Math.min(...dated);
+        implementedLevel = capImmature(implementedLevel, IMMATURE_LEVEL_CAP, youngest, OPERATING_HISTORY_THRESHOLD_DAYS.Implemented);
+        measuredLevel = capImmature(measuredLevel, IMMATURE_LEVEL_CAP, youngest, OPERATING_HISTORY_THRESHOLD_DAYS.Measured);
+        managedLevel = capImmature(managedLevel, IMMATURE_LEVEL_CAP, youngest, OPERATING_HISTORY_THRESHOLD_DAYS.Managed);
+      }
     }
 
     let levels: Record<PrismaLevel, LevelRating> = {

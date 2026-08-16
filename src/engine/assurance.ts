@@ -165,6 +165,30 @@ export function display(value: number | null | undefined): number | null {
   return value == null ? null : Math.round(value);
 }
 
+// ---- Operating history (HITRUST-style maturity gate) --------------------------
+// A control can be perfectly configured and still lack the track record HITRUST
+// expects before crediting the top rungs of the maturity ladder: Managed asks
+// whether someone has acted on it over time, Measured asks whether its
+// operation has been observed long enough to say anything about it. Neither
+// question has an answer on day one, however good day one's evidence is. The
+// two documentation rungs get a shorter window for the same reason — a policy
+// or procedure that only just started applying hasn't been "in effect" yet.
+//
+// These are HITRUST's own PRISMA windows, not an ACME judgment.
+export const OPERATING_HISTORY_THRESHOLD_DAYS: Record<PrismaLevel, number> = {
+  Policy: 60,
+  Procedure: 60,
+  Implemented: 90,
+  Measured: 90,
+  Managed: 90,
+};
+
+// The rating held when the operating-history window hasn't closed yet.
+// Verified-but-unproven-over-time is a real, partial claim — the same tier a
+// stale or under-covered result already lands at elsewhere in this engine —
+// not a failure and not full credit.
+export const IMMATURE_LEVEL_CAP: ComplianceRating = 50;
+
 // ---- Bands ------------------------------------------------------------------------
 // Named so any page citing "the target" points at the same real threshold — the
 // score an asset needs to clear the Strong band, not a separately-chosen round

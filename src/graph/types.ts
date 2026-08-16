@@ -34,7 +34,7 @@ import type { DataFlow } from "./edges/dataFlows";
 import type { ActorAccess } from "./edges/actorAccess";
 import type { ApplicabilityRule, ApplicabilityException } from "./edges/applicabilityRules";
 import type {
-  OwnerOverride, ImplementationOverride, NotImplemented, ImplementationMechanism,
+  OwnerOverride, ImplementationOverride, NotImplemented, ImplementationMechanism, ControlOperatingHistory,
   ProgramApplicabilityRule, ProgramApplicabilityException,
 } from "./edges/controlImplementations";
 import type { PolicyRecord, ProcedureRecord } from "./nodes/programArtifacts";
@@ -96,6 +96,7 @@ export interface GraphFacts {
   implementationOverrides: ImplementationOverride[];
   notImplemented: NotImplemented[];
   implementationMechanisms: ImplementationMechanism[];
+  operatingHistory: ControlOperatingHistory[];
   programApplicabilityRules: ProgramApplicabilityRule[];
   programApplicabilityExceptions: ProgramApplicabilityException[];
   riskAssets: RiskAsset[];
@@ -186,6 +187,7 @@ export interface Graph {
   readonly implementationOverrides: readonly ImplementationOverride[];
   readonly notImplemented: readonly NotImplemented[];
   readonly implementationMechanisms: readonly ImplementationMechanism[];
+  readonly operatingHistory: readonly ControlOperatingHistory[];
   readonly programApplicabilityRules: readonly ProgramApplicabilityRule[];
   readonly programApplicabilityExceptions: readonly ProgramApplicabilityException[];
   readonly policies: readonly PolicyRecord[];
@@ -210,6 +212,7 @@ export interface Graph {
   readonly riskById: Readonly<Record<RiskId, Risk>>;
   readonly orgById: Readonly<Record<OrgId, Org>>;
   readonly actorById: Readonly<Record<ActorId, Actor>>;
+  readonly policyById: Readonly<Record<string, PolicyRecord>>;
 
   readonly assetsBySystem: Readonly<Record<SystemId, readonly Asset[]>>;
   readonly dataTypesByAsset: Readonly<Record<AssetId, readonly AssetDataType[]>>;
@@ -236,6 +239,7 @@ export interface Graph {
   readonly overrideByPair: Readonly<Record<string, ImplementationOverride>>;
   readonly notImplementedByPair: Readonly<Record<string, NotImplemented>>;
   readonly mechanismByPair: Readonly<Record<string, ImplementationMechanism>>;
+  readonly operatingHistoryByPair: Readonly<Record<string, ControlOperatingHistory>>;
   readonly programExceptionByPair: Readonly<Record<string, ProgramApplicabilityException>>;
 
   // What the maturity ceiling reads. A control with no policy citing it has no

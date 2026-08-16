@@ -248,6 +248,7 @@ export function assembleGraph(facts: GraphFacts): Graph {
     implementationOverrides: facts.implementationOverrides,
     notImplemented: facts.notImplemented,
     implementationMechanisms: facts.implementationMechanisms,
+    operatingHistory: facts.operatingHistory,
     programApplicabilityRules: facts.programApplicabilityRules,
     programApplicabilityExceptions: facts.programApplicabilityExceptions,
     policies: facts.policies,
@@ -272,6 +273,7 @@ export function assembleGraph(facts: GraphFacts): Graph {
     riskById: byId(facts.risks) as Record<RiskId, (typeof facts.risks)[number]>,
     orgById: byId(facts.orgs),
     actorById: byId(facts.actors),
+    policyById: byId(facts.policies),
 
     // Traversal indexes
     assetsBySystem: groupBy(facts.assets, (a) => a.systemId),
@@ -290,6 +292,7 @@ export function assembleGraph(facts: GraphFacts): Graph {
     overrideByPair: keyBy(facts.implementationOverrides, (o) => pair(o.assetId, o.controlId)),
     notImplementedByPair: keyBy(facts.notImplemented, (n) => pair(n.assetId, n.controlId)),
     mechanismByPair: keyBy(facts.implementationMechanisms, (m) => pair(m.assetId, m.controlId)),
+    operatingHistoryByPair: keyBy(facts.operatingHistory, (h) => pair(h.assetId, h.controlId)),
     programExceptionByPair: keyBy(facts.programApplicabilityExceptions, (e) => pair(e.systemId, e.controlId)),
 
     policiesByControl,

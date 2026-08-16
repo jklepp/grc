@@ -516,6 +516,11 @@ export function validateGraph(graph: Graph): void {
     check(has(graph.assetById, m.assetId), `implementationMechanisms[${i}]: assetId "${m.assetId}" is not an asset`);
     check(has(graph.keyControlById, m.controlId), `implementationMechanisms[${i}]: controlId "${m.controlId}" is not a key control`);
   });
+  graph.operatingHistory.forEach((h, i) => {
+    check(has(graph.assetById, h.assetId), `operatingHistory[${i}]: assetId "${h.assetId}" is not an asset`);
+    check(has(graph.keyControlById, h.controlId), `operatingHistory[${i}]: controlId "${h.controlId}" is not a key control`);
+    check(!Number.isNaN(Date.parse(h.implementedAt)), `operatingHistory[${i}]: implementedAt "${h.implementedAt}" is not a valid date`);
+  });
 
   if (problems.length > 0) {
     throw new Error(
