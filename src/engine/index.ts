@@ -129,7 +129,8 @@ export const EVIDENCE_SOURCE_BY_ID = graph.evidenceSourceById;
 // ---- Pure scoring + vocabulary -------------------------------------------------
 // Neither depends on a graph, so both are plain re-exports.
 export * from "./assurance";
-export { IMPLEMENTATION_STATUS_META, effectivenessFactor, composeEvidenceConfidence } from "./implementation";
+export { IMPLEMENTATION_STATUS_META } from "./implementation";
+export { effectivenessFactor, composeEvidenceConfidence } from "./evidence";
 export { COVERAGE_STATUS_META, COVERAGE_STATES } from "./compliance";
 export { FINDING_STATUS_META, FINDING_STATUSES } from "./findings";
 export {
@@ -148,6 +149,7 @@ export { DATA_ROLE_META } from "../graph/edges/assetDataTypes";
 // Types pages reference
 export type { AssetRollup, SystemRollup } from "./rollups";
 export type { RiskRollup } from "./risk";
-export type { Implementation, ScoredEvidence } from "./implementation";
+export type { Implementation } from "./implementation";
+export type { ScoredEvidence } from "./evidence";
 export type { ControlCoverage } from "./compliance";
 export type { EngineFinding } from "./findings";

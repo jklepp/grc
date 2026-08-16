@@ -28,6 +28,7 @@ import { type EngineContext, defaultContext } from "./context";
 import { createClassification } from "./classification";
 import { createApplicability } from "./applicability";
 import { createFindings } from "./findings";
+import { createEvidence } from "./evidence";
 import { createImplementation } from "./implementation";
 import { createRollups } from "./rollups";
 import { createRisk } from "./risk";
@@ -50,7 +51,8 @@ export function createEngine(graph: Graph, options: EngineOptions = {}) {
   const classification = createClassification(graph);
   const applicability = createApplicability(graph, classification);
   const findings = createFindings(graph, ctx);
-  const implementation = createImplementation(graph, applicability, ctx);
+  const evidence = createEvidence(graph, ctx);
+  const implementation = createImplementation(graph, applicability, evidence, ctx);
   const rollups = createRollups(graph, classification, applicability, implementation, findings);
   const risk = createRisk(graph, rollups, implementation, applicability);
   const compliance = createCompliance(graph, implementation, applicability, rollups);
@@ -61,7 +63,7 @@ export function createEngine(graph: Graph, options: EngineOptions = {}) {
 
   const engine = {
     graph, ctx,
-    classification, applicability, findings, implementation,
+    classification, applicability, findings, evidence, implementation,
     rollups, risk, compliance, profile, selectors,
   };
 
