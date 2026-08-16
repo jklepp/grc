@@ -125,6 +125,7 @@ export const ORGS = graph.orgs;
 export const ORG_BY_ID = graph.orgById;
 export const EVIDENCE_SOURCES = graph.evidenceSources;
 export const EVIDENCE_SOURCE_BY_ID = graph.evidenceSourceById;
+export const IN_SCOPE_CONTROLS = graph.inScopeControls;
 
 // ---- Pure scoring + vocabulary -------------------------------------------------
 // Neither depends on a graph, so both are plain re-exports.

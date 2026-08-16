@@ -1,15 +1,17 @@
 import React, { useState } from "react";
 import {
   LayoutDashboard, ShieldCheck, ArrowRight, AlertTriangle, DollarSign, ClipboardCheck,
-  Download, Sparkles, ArrowUpRight, ArrowDownRight, Database, ShieldAlert, PieChart, HardDrive,
-  ChevronDown, ChevronUp,
+  Download, ArrowUpRight, ArrowDownRight, Database, ShieldAlert, PieChart, HardDrive,
+  ChevronDown, ChevronUp, Layers, Boxes,
 } from "lucide-react";
 import { C } from "../theme";
 import { PageHeader } from "../components/Headings";
 import { DATA_SOURCES, TOTAL_RECORDS, TOTAL_DATA_TB, formatRecords, formatTB } from "../data/dataFootprint";
 import {
   getAllRisks, ABOVE_APPETITE_COUNT, MATERIAL_RISKS, MATERIAL_RISK_EXPOSURE, QUANTIFIED_EXPOSURE,
-  getAllAssets, getCategoryAverages, getEnterprise, ENTERPRISE_COVERAGE, ASSURANCE_TARGET, ADEQUATE_THRESHOLD,
+  getAllAssets, getAllSystems, getAllDataTypes, getAllEvidence, ALL_FINDINGS, IN_SCOPE_CONTROLS,
+  getCategoryAverages, getEnterprise, ENTERPRISE_COVERAGE, ASSURANCE_TARGET, ADEQUATE_THRESHOLD,
+  assuranceBand, profileSummary, modelHealth, FINDING_STATUS_META,
 } from "../engine";
 
 const RISKS = getAllRisks();
@@ -27,6 +29,7 @@ const CATEGORY_PORTFOLIO_AVERAGES = getCategoryAverages();
 // enterprise assurance figure and this is a read of it.
 const ENTERPRISE = getEnterprise();
 const PORTFOLIO_ASSURANCE_PCT = ENTERPRISE.assurance;
+const ASSURANCE_GAP = PORTFOLIO_ASSURANCE_PCT - ASSURANCE_TARGET;
 
 // How much of the applicable control estate the number above is speaking for.
 //
@@ -93,6 +96,59 @@ const RESTRICTED_ASSET_COUNT = ASSET_SUMMARIES.filter((a) => a.classification ==
 const DECISIONS_REQUIRED = [...RISKS].filter((r) => r.escalated).sort((a, b) => b.exposure - a.exposure);
 const DECISIONS_EXPOSURE = DECISIONS_REQUIRED.reduce((a, r) => a + r.exposure, 0);
 
+// ---- New headline data (see plan: everything below is a page-level join over
+// existing engine exports, not a new derivation) ---------------------------
+
+// Each system judged against ITS OWN tier target, not the flat enterprise
+// ASSURANCE_TARGET — a Public boundary and a Restricted one don't clear the
+// same bar, and profileSummary() already knows which applies.
+const SYSTEMS = getAllSystems();
+const SYSTEM_PROFILES = SYSTEMS.map((system) => ({ system, summary: profileSummary(system.id) }));
+const SYSTEMS_BELOW_TARGET = SYSTEM_PROFILES.filter(({ summary }) => summary && !summary.clears);
+
+// Evidence Confidence / Evidence Health: the model's own two-state freshness
+// split (each record's `stale` flag, judged against ITS OWN validForDays) —
+// not an invented fixed-day bucket scheme the model doesn't otherwise use.
+// Computed once and shown twice (the KPI and the donut) so they can't disagree.
+const ALL_EVIDENCE = getAllEvidence();
+const EVIDENCE_CURRENT = ALL_EVIDENCE.filter((e) => !e.stale);
+const EVIDENCE_CURRENT_PCT = ALL_EVIDENCE.length === 0 ? 0 : Math.round((EVIDENCE_CURRENT.length / ALL_EVIDENCE.length) * 100);
+const EVIDENCE_BAND = assuranceBand(EVIDENCE_CURRENT_PCT);
+
+// Findings ranked overdue-first, each carrying whether it's tied to a
+// board-material risk — both real facts (`overdue` and `riskIds` already come
+// off the finding), not an invented severity field.
+const MATERIAL_RISK_IDS = new Set(MATERIAL_RISKS.map((r) => r.id));
+const PRIORITIZED_FINDINGS = [...ALL_FINDINGS]
+  .map((f) => ({ ...f, material: f.riskIds.some((id) => MATERIAL_RISK_IDS.has(id)) }))
+  .sort((a, b) => {
+    if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
+    return new Date(a.due) - new Date(b.due);
+  });
+
+function findingPriority(f) {
+  if (f.overdue) return { label: "Overdue", color: C.red, bg: C.redBg };
+  if (f.material) return { label: "Material Risk", color: C.red, bg: C.redBg };
+  const meta = FINDING_STATUS_META[f.status] ?? { label: f.status, color: "muted" };
+  return { label: meta.label, color: C[meta.color] ?? C.muted, bg: C[`${meta.color}Bg`] ?? C.panel2 };
+}
+
+// Enterprise-wide mean per PRISMA level, across every scored assessment —
+// already computed by modelHealth() as its "which rung is the programme
+// missing" gap detector. Reused here rather than re-averaged, so this page and
+// modelHealth() can't report two different Policy/Procedure/.../Managed splits.
+const PRISMA_LEVEL_AVERAGES = modelHealth().levelWeakness;
+
+function prismaLevelColor(mean) {
+  if (mean == null) return C.na;
+  if (mean >= 90) return C.green;
+  if (mean >= 60) return C.accent;
+  if (mean >= 25) return C.amber;
+  return C.red;
+}
+
+const DATA_TYPES_COUNT = getAllDataTypes().length;
+
 function severityColor(sev) {
   if (sev === "Severe") return C.red;
   if (sev === "Major") return C.amber;
@@ -107,10 +163,14 @@ function handleExport() {
     generatedAt: new Date().toISOString(),
     enterpriseAssurance: PORTFOLIO_ASSURANCE_PCT,
     assuranceTarget: ASSURANCE_TARGET,
+    systemsBelowTarget: SYSTEMS_BELOW_TARGET.length,
+    systemCount: SYSTEMS.length,
+    evidenceConfidencePct: EVIDENCE_CURRENT_PCT,
     materialRisks: MATERIAL_RISKS.map((r) => ({ id: r.id, scenario: r.boardLabel, severity: r.residual.severity, exposure: r.exposure, owner: r.owner })),
     materialRiskExposure: MATERIAL_RISK_EXPOSURE,
     totalExposure: QUANTIFIED_EXPOSURE,
     risksAboveAppetite: ABOVE_APPETITE_COUNT,
+    openFindings: PRIORITIZED_FINDINGS.length,
     decisionsRequired: DECISIONS_REQUIRED.map((r) => ({ id: r.id, scenario: r.scenario, owner: r.owner, exposure: r.exposure })),
   };
   const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
@@ -132,8 +192,10 @@ function Pill({ text, color, bg }) {
 
 // Hand-rolled SVG ring, same "no chart library" convention the rest of this
 // app already uses (see the old Sparkline this replaced) rather than pulling
-// in the unused recharts dependency for one shape.
-function AssuranceRing({ pct, color, size = 112 }) {
+// in the unused recharts dependency for one shape. trackColor/textColor are
+// overridable so the same ring can sit on the dark hero tile below as well as
+// the plain panel background in Assurance Overview.
+function AssuranceRing({ pct, color, size = 112, trackColor, textColor }) {
   const stroke = 12;
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
@@ -141,7 +203,7 @@ function AssuranceRing({ pct, color, size = 112 }) {
   return (
     <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
       <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={C.panel2} strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={trackColor ?? C.panel2} strokeWidth={stroke} />
         <circle
           cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
           strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round"
@@ -149,28 +211,99 @@ function AssuranceRing({ pct, color, size = 112 }) {
         />
       </svg>
       <div style={{ position: "absolute", inset: 0 }} className="flex items-center justify-center">
-        <span className="text-2xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{pct}%</span>
+        <span className="text-2xl font-semibold" style={{ color: textColor ?? C.ink, fontFamily: "'Source Serif 4', serif" }}>{pct}%</span>
       </div>
     </div>
   );
 }
 
-// `hero` gives the headline KPI (Enterprise Assurance) the same accent
-// gradient treatment the old Composite Score card had, so it still reads as
-// the one number everything else on the page rolls up to — the other three
-// KPI cards stay on the plain panel background.
-function KpiCard({ icon: Icon, iconColor, iconBg, value, label, hero, children }) {
+// A multi-segment version of the ring above, for the two headline donuts
+// (Assessment Coverage, Evidence Health) that need to show a split rather than
+// one value against its remainder.
+function Donut({ segments, size = 104, centerValue, centerLabel }) {
+  const stroke = 13;
+  const r = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * r;
+  let drawn = 0;
+  return (
+    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={C.panel2} strokeWidth={stroke} />
+        {segments.filter((s) => s.pct > 0).map((s, i) => {
+          const len = circumference * (s.pct / 100);
+          const dashoffset = -drawn;
+          drawn += len;
+          return (
+            <circle
+              key={i} cx={size / 2} cy={size / 2} r={r} fill="none" stroke={s.color} strokeWidth={stroke}
+              strokeDasharray={`${len} ${circumference - len}`} strokeDashoffset={dashoffset}
+            />
+          );
+        })}
+      </svg>
+      <div style={{ position: "absolute", inset: 0 }} className="flex flex-col items-center justify-center">
+        <span className="text-xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{centerValue}</span>
+        {centerLabel && <span className="text-[10px] mt-0.5" style={{ color: C.muted }}>{centerLabel}</span>}
+      </div>
+    </div>
+  );
+}
+
+function SummaryTile({ icon: Icon, iconColor, iconBg, label, value, children }) {
+  return (
+    <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-11 h-11 rounded-full flex items-center justify-center shrink-0" style={{ background: iconBg }}>
+          <Icon size={20} color={iconColor} />
+        </div>
+        <div className="text-sm font-medium leading-tight" style={{ color: C.muted }}>{label}</div>
+      </div>
+      <div className="text-3xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{value}</div>
+      {children}
+    </div>
+  );
+}
+
+// Enterprise Assurance is the one figure everything else on the page rolls up
+// to, so it gets the dark gradient treatment and the ring visual (rather than
+// the flat SummaryTile the other three KPIs use) and spans two grid columns
+// instead of one — the same accent gradient the old Composite Score hero card
+// used, brought back specifically for this tile.
+function HeroAssuranceTile({ pct, target, gap }) {
   return (
     <div
-      className="rounded-xl p-6 flex flex-col items-center text-center"
-      style={hero ? { background: `linear-gradient(135deg, ${C.accent} 0%, #4B3F99 100%)` } : { background: C.panel, border: `1px solid ${C.border}` }}
+      className="col-span-2 rounded-xl p-6 flex items-center gap-6"
+      style={{ background: `linear-gradient(135deg, ${C.accent} 0%, #4B3F99 100%)` }}
     >
-      <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ background: hero ? "rgba(255,255,255,0.18)" : iconBg }}>
-        <Icon size={22} color={hero ? "#fff" : iconColor} />
+      <AssuranceRing pct={pct} color="#FFFFFF" trackColor="rgba(255,255,255,0.25)" textColor="#FFFFFF" size={104} />
+      <div>
+        <div className="text-xs uppercase tracking-wide font-semibold" style={{ color: "rgba(255,255,255,0.85)" }}>Enterprise Assurance</div>
+        <div className="text-sm mt-2" style={{ color: "rgba(255,255,255,0.75)" }}>Target {target}</div>
+        <div className="text-base font-semibold mt-1" style={{ color: "#FFFFFF" }}>
+          {gap >= 0 ? `+${gap}` : gap} vs target
+        </div>
       </div>
-      <div className="text-4xl font-semibold" style={{ color: hero ? "#fff" : C.ink, fontFamily: "'Source Serif 4', serif" }}>{value}</div>
-      <div className="text-[11px] uppercase tracking-wide mt-2 font-medium" style={{ color: hero ? "rgba(255,255,255,0.85)" : C.muted }}>{label}</div>
-      {children}
+    </div>
+  );
+}
+
+// A left-to-right bar, same shape as the "Exposure by System" / "Control
+// Assurance by Category" bars elsewhere on this page, with a tick marking
+// where the system's own tier target sits — so a system's score reads at a
+// glance against its bar rather than as two bare numbers.
+function ScoreBar({ score, target, clears }) {
+  const color = clears ? C.green : C.red;
+  const pct = Math.max(0, Math.min(100, score ?? 0));
+  const targetPct = target == null ? null : Math.max(0, Math.min(100, target));
+  return (
+    <div className="flex items-center gap-2.5">
+      <div className="relative flex-1 h-2.5 rounded-full overflow-hidden" style={{ background: C.panel2 }}>
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
+        {targetPct != null && (
+          <div className="absolute top-0 bottom-0" style={{ left: `${targetPct}%`, width: 2, background: C.ink, opacity: 0.6 }} />
+        )}
+      </div>
+      <div className="w-16 shrink-0 text-right text-sm font-semibold" style={{ color: C.ink }}>{score} / {target ?? "—"}</div>
     </div>
   );
 }
@@ -210,45 +343,210 @@ export default function ExecutiveDashboard({ onNavigate }) {
         }
       />
 
-      {/* KPI row */}
-      <div className="px-8 grid grid-cols-4 gap-5">
-        <KpiCard hero icon={ShieldCheck} value={`${PORTFOLIO_ASSURANCE_PCT}%`} label="Enterprise Assurance">
-          <div className="text-xs mt-1.5 font-medium" style={{ color: "rgba(255,255,255,0.95)" }}>
-            {ASSURANCE_DELTA >= 0 ? "▲" : "▼"} {Math.abs(ASSURANCE_DELTA)} pts vs last quarter
+      {/* KPI strip — Enterprise Assurance is the hero everything else rolls up
+          to, so it gets a double-wide dark tile; the other three stay flat. */}
+      <div className="px-8 grid grid-cols-5 gap-5">
+        <HeroAssuranceTile pct={PORTFOLIO_ASSURANCE_PCT} target={ASSURANCE_TARGET} gap={ASSURANCE_GAP} />
+
+        <SummaryTile
+          icon={AlertTriangle} iconColor={C.red} iconBg={C.redBg}
+          label="Systems Below Target"
+          value={<>{SYSTEMS_BELOW_TARGET.length}<span className="text-lg font-normal" style={{ color: C.muted }}> / {SYSTEMS.length}</span></>}
+        >
+          <div className="text-[11px] mt-2" style={{ color: C.muted }}>
+            {SYSTEMS_BELOW_TARGET.length === 0 ? "Every system clears its tier target" : "of tracked systems"}
           </div>
-          <div className="text-[11px] mt-0.5" style={{ color: "rgba(255,255,255,0.7)" }}>Target: {ASSURANCE_TARGET}</div>
-        </KpiCard>
+        </SummaryTile>
 
-        <KpiCard icon={AlertTriangle} iconColor={C.red} iconBg={C.redBg} value={MATERIAL_RISKS.length} label="Material Risks">
-          <div className="text-xs mt-1.5 font-medium" style={{ color: C.red }}>{formatUSD(MATERIAL_RISK_EXPOSURE)} modeled exposure</div>
-          <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>Residual Severe, above appetite</div>
-        </KpiCard>
+        <SummaryTile
+          icon={DollarSign} iconColor={C.amber} iconBg={C.amberBg}
+          label="Material Risks Above Appetite"
+          value={MATERIAL_RISKS.length}
+        >
+          <div className="text-xs mt-2 font-medium" style={{ color: C.red }}>{formatUSD(MATERIAL_RISK_EXPOSURE)} exposure</div>
+        </SummaryTile>
 
-        <KpiCard icon={DollarSign} iconColor={C.accent} iconBg={C.accentBg} value={formatUSD(QUANTIFIED_EXPOSURE)} label="Total Exposure">
-          <div className="text-xs mt-1.5" style={{ color: C.muted }}>Across all {RISKS.length} tracked risks</div>
-          <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{Math.round((100 * MATERIAL_RISK_EXPOSURE) / QUANTIFIED_EXPOSURE)}% from material risks</div>
-        </KpiCard>
-
-        <KpiCard icon={ClipboardCheck} iconColor={C.green} iconBg={C.greenBg} value={DECISIONS_REQUIRED.length} label="Decisions Required">
-          <div className="text-xs mt-1.5 font-medium" style={{ color: C.ink }}>Escalated risks pending review</div>
-          <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{formatUSD(DECISIONS_EXPOSURE)} combined exposure</div>
-        </KpiCard>
+        <SummaryTile
+          icon={ClipboardCheck} iconColor={C.green} iconBg={C.greenBg}
+          label="Evidence Confidence"
+          value={`${EVIDENCE_CURRENT_PCT}%`}
+        >
+          <div className="text-xs mt-2 font-medium" style={{ color: C[EVIDENCE_BAND.color] ?? C.ink }}>{EVIDENCE_BAND.label}</div>
+        </SummaryTile>
       </div>
 
-      {/* Insight banner */}
-      <div className="px-8 pt-5">
-        <div className="rounded-xl p-4 flex items-start gap-2.5 text-sm" style={{ background: C.accentBg, border: `1px solid ${C.accent}4D`, color: C.ink }}>
-          <Sparkles size={16} color={C.accent} className="shrink-0 mt-0.5" />
-          <span>
-            Enterprise Assurance {ASSURANCE_DELTA >= 0 ? "improved" : "declined"} {Math.abs(ASSURANCE_DELTA)} points this
-            quarter, led by {STRONGEST_CATEGORY.label} at {STRONGEST_CATEGORY.pct}%. {MATERIAL_RISKS.length} risks remain
-            material — <span className="font-medium">{MATERIAL_RISKS[0].boardLabel}</span> is the largest at{" "}
-            {formatUSD(MATERIAL_RISKS[0].exposure)} — and {DECISIONS_REQUIRED.length} are escalated for a leadership decision.
-          </span>
+      {/* System Exposure + What Needs Attention */}
+      <div className="px-8 pt-5 grid grid-cols-5 gap-5">
+        <div className="col-span-3 rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+          <div className="text-sm font-semibold mb-1" style={{ color: C.ink }}>System Exposure</div>
+          <div className="text-[11px] mb-3" style={{ color: C.muted }}>Each system's assurance against the target its own data classification sets. The tick marks the target.</div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-[10px] uppercase tracking-wide" style={{ color: C.muted }}>
+                <th className="text-left font-medium pb-2">System</th>
+                <th className="text-left font-medium pb-2 pl-3">Score</th>
+                <th className="text-right font-medium pb-2 pl-3">Gap</th>
+                <th className="text-right font-medium pb-2 pl-3">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {SYSTEM_PROFILES.map(({ system, summary }) => {
+                const target = summary?.target ?? null;
+                const gap = target == null ? null : (system.overallAssurance ?? 0) - target;
+                const clears = !!summary?.clears;
+                return (
+                  <tr key={system.id} style={{ borderTop: `1px solid ${C.border}` }}>
+                    <td className="py-3 pr-2 whitespace-nowrap" style={{ color: C.ink, fontWeight: 500 }}>{system.name}</td>
+                    <td className="py-3 pl-3" style={{ minWidth: 180 }}>
+                      <ScoreBar score={system.overallAssurance} target={target} clears={clears} />
+                    </td>
+                    <td className="py-3 text-right pl-3 font-medium" style={{ color: gap == null ? C.muted : gap >= 0 ? C.green : C.red }}>
+                      {gap == null ? "—" : gap >= 0 ? `+${gap}` : gap}
+                    </td>
+                    <td className="py-3 text-right pl-3">
+                      <Pill text={clears ? "On Target" : "Needs Attention"} color={clears ? C.green : C.red} bg={clears ? C.greenBg : C.redBg} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="col-span-2 rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+          <div className="text-sm font-semibold mb-1" style={{ color: C.ink }}>What Needs Attention</div>
+          <div className="text-[11px] mb-3" style={{ color: C.muted }}>Open findings, overdue and material-risk-linked first.</div>
+          {PRIORITIZED_FINDINGS.length === 0 ? (
+            <div className="text-xs" style={{ color: C.muted }}>No open findings right now.</div>
+          ) : (
+            <div className="space-y-2.5">
+              {PRIORITIZED_FINDINGS.map((f) => {
+                const priority = findingPriority(f);
+                return (
+                  <div key={f.id} className="flex items-start gap-2.5 rounded-lg p-3" style={{ background: C.panel2 }}>
+                    <AlertTriangle size={14} color={priority.color} className="shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium leading-snug" style={{ color: C.ink }}>{f.title}</div>
+                      <div className="text-xs mt-0.5" style={{ color: C.muted }}>{f.systemId} · {f.ownerName} · due {f.due}</div>
+                    </div>
+                    <Pill text={priority.label} color={priority.color} bg={priority.bg} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Material Enterprise Risks + Decisions Required */}
+      {/* Assessment Coverage + Control Maturity + Evidence Health */}
+      <div className="px-8 pt-5 grid grid-cols-3 gap-5">
+        <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+          <div className="text-sm font-semibold mb-4" style={{ color: C.ink }}>Assessment Coverage</div>
+          <div className="flex items-center gap-5">
+            <Donut segments={[{ pct: ASSESSMENT_COVERAGE_PCT, color: C.accent }]} centerValue={`${ASSESSMENT_COVERAGE_PCT}%`} />
+            <div className="text-xs" style={{ color: C.muted }}>
+              <div className="text-base" style={{ color: C.ink, fontWeight: 600 }}>{ASSESSED_COUNT} / {APPLICABLE_COUNT}</div>
+              Assessed Controls
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm font-semibold" style={{ color: C.ink }}>Control Maturity</div>
+            <span className="text-[10px]" style={{ color: C.muted }}>Enterprise Average</span>
+          </div>
+          <div className="space-y-3">
+            {PRISMA_LEVEL_AVERAGES.map((l) => (
+              <div key={l.level}>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span style={{ color: C.ink }}>{l.level}</span>
+                  <span style={{ color: C.muted, fontWeight: 600 }}>{l.mean == null ? "—" : `${l.mean}%`}</span>
+                </div>
+                <div className="h-2 rounded-full overflow-hidden" style={{ background: C.panel2 }}>
+                  <div className="h-full rounded-full" style={{ width: `${l.mean ?? 0}%`, background: prismaLevelColor(l.mean) }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+          <div className="text-sm font-semibold mb-4" style={{ color: C.ink }}>Evidence Health</div>
+          <div className="flex items-center gap-5">
+            <Donut
+              segments={[{ pct: EVIDENCE_CURRENT_PCT, color: C.green }, { pct: 100 - EVIDENCE_CURRENT_PCT, color: C.red }]}
+              centerValue={`${EVIDENCE_CURRENT_PCT}%`}
+            />
+            <div className="text-xs space-y-1.5" style={{ color: C.muted }}>
+              <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full shrink-0" style={{ background: C.green }} /> Current ({EVIDENCE_CURRENT.length})</div>
+              <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full shrink-0" style={{ background: C.red }} /> Stale ({ALL_EVIDENCE.length - EVIDENCE_CURRENT.length})</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Enterprise Visibility */}
+      <div className="px-8 pt-5">
+        <div className="rounded-xl p-2" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+          <div className="grid grid-cols-5">
+            <GlanceStat icon={Layers} value={ENTERPRISE.systemCount} label="Systems" />
+            <GlanceStat icon={Boxes} value={ENTERPRISE.assetCount} label="Assets" />
+            <GlanceStat icon={Database} value={DATA_TYPES_COUNT} label="Sensitive Data Types" />
+            <GlanceStat icon={ShieldCheck} value={IN_SCOPE_CONTROLS.length} label="Controls" />
+            <GlanceStat icon={ClipboardCheck} value={`${ENTERPRISE.controlBackedPct}%`} label="Evidence Coverage" />
+          </div>
+        </div>
+      </div>
+
+      {/* Footer CTAs */}
+      <div className="px-8 pt-5 flex items-center gap-3">
+        <button
+          onClick={() => onNavigate && onNavigate("data-estate")}
+          className="flex items-center gap-1.5 text-xs font-medium px-4 py-2.5 rounded-lg"
+          style={{ border: `1px solid ${C.border}`, color: C.ink }}
+        >
+          <Database size={13} /> Explore Data Estate
+        </button>
+        <button
+          onClick={() => onNavigate && onNavigate("assurance")}
+          className="flex items-center gap-1.5 text-xs font-medium px-4 py-2.5 rounded-lg"
+          style={{ border: `1px solid ${C.border}`, color: C.ink }}
+        >
+          <ShieldCheck size={13} /> View Assurance
+        </button>
+        <button
+          onClick={() => onNavigate && onNavigate("risk-register")}
+          className="flex items-center gap-1.5 text-xs font-medium px-4 py-2.5 rounded-lg"
+          style={{ border: `1px solid ${C.border}`, color: C.ink }}
+        >
+          <AlertTriangle size={13} /> View Risk
+        </button>
+      </div>
+
+      {/* Supporting detail toggle */}
+      <div className="px-8 pt-6">
+        <button
+          onClick={() => setShowDetail((v) => !v)}
+          className="w-full flex items-center gap-3"
+        >
+          <span style={{ flex: 1, height: 1, background: C.border }} />
+          <span
+            className="flex items-center gap-1.5 px-2 text-xs font-semibold uppercase tracking-wide"
+            style={{ color: C.muted }}
+          >
+            {showDetail ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            {showDetail ? "Hide" : "Show"} supporting detail
+          </span>
+          <span style={{ flex: 1, height: 1, background: C.border }} />
+        </button>
+      </div>
+
+      {showDetail && (
+      <>
+      {/* Material Enterprise Risks + Decisions Required — the risk-register-level
+          detail behind the headline Material Risks KPI and What Needs Attention
+          list above. */}
       <div className="px-8 pt-5 grid grid-cols-5 gap-5">
         <div className="col-span-3 rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
           <div className="flex items-center justify-between mb-1">
@@ -337,26 +635,6 @@ export default function ExecutiveDashboard({ onNavigate }) {
         </div>
       </div>
 
-      {/* Supporting detail toggle */}
-      <div className="px-8 pt-6">
-        <button
-          onClick={() => setShowDetail((v) => !v)}
-          className="w-full flex items-center gap-3"
-        >
-          <span style={{ flex: 1, height: 1, background: C.border }} />
-          <span
-            className="flex items-center gap-1.5 px-2 text-xs font-semibold uppercase tracking-wide"
-            style={{ color: C.muted }}
-          >
-            {showDetail ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-            {showDetail ? "Hide" : "Show"} supporting detail
-          </span>
-          <span style={{ flex: 1, height: 1, background: C.border }} />
-        </button>
-      </div>
-
-      {showDetail && (
-      <>
       {/* What Changed + Assurance Overview */}
       <div className="px-8 pt-5 grid grid-cols-2 gap-5">
         <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
