@@ -116,6 +116,64 @@ export function validateDerivations(engine: Engine): void {
     );
   });
 
+  // ---- The maturity ceiling's foundation ---------------------------------------
+  // A key control no policy cites has no documented basis at all. That is the one
+  // case the ceiling does NOT quietly cap: a capped score is a posture finding
+  // and belongs in the UI, but a control ACME requires and has never written a
+  // policy for is a hole in the library, and a hole is a build failure.
+  graph.keyControls.forEach((c) => {
+    const policies = graph.policiesByControl[c.id] ?? [];
+    check(
+      policies.length > 0,
+      `key control ${c.id} (${c.friendlyName}): no policy in the library cites this control, so nothing documents why ACME requires it. Add it to a policy's controlIds or stop tracking it as a key control.`
+    );
+  });
+
+  // Every program-scoped control must apply to at least one system, or it is
+  // inert in exactly the way the asset-scoped check above catches one level down.
+  graph.programScopedControls.forEach((c) => {
+    const applies = graph.systems.some((s) => applicability.resolveProgramApplicability(s.id, c.id).required);
+    check(
+      applies,
+      `program control ${c.id}: no system requires it — either its rule in program-applicability.yaml is too narrow, or it should not be a key control`
+    );
+  });
+
+  // A program control with no rule at all would silently apply nowhere, which
+  // reads identically to "deliberately scoped out" and is how the program layer
+  // went missing from the hero score in the first place.
+  graph.programScopedControls.forEach((c) => {
+    check(
+      (graph.rulesByProgramControl[c.id] ?? []).length > 0,
+      `program control ${c.id}: no program applicability rule declares which systems it covers, so it would score nowhere`
+    );
+  });
+
+  // A mechanism record against a pair that isn't required describes how ACME
+  // satisfies something it doesn't have to.
+  graph.implementationMechanisms.forEach((m) => {
+    check(
+      applicability.resolveApplicability(m.assetId, m.controlId).required,
+      `implementation mechanism ${m.assetId}/${m.controlId}: this control is not required for this asset, so there is no implementation for the mechanism to describe`
+    );
+    // Naming the operator is the whole point of the vendor/shared distinction.
+    check(
+      m.responsibility === undefined || m.responsibility === "internal" || Boolean(m.provider),
+      `implementation mechanism ${m.assetId}/${m.controlId}: responsibility is "${m.responsibility}" but no provider is named — an inherited control has to say who operates it`
+    );
+  });
+
+  // Every program implementation should resolve to a real number, same as the
+  // asset rollups above.
+  rollups.systemRollups.forEach((s) => {
+    s.programImplementations.forEach((i) => {
+      check(
+        Number.isFinite(i.rawScore),
+        `program implementation ${i.id}: did not resolve to a number`
+      );
+    });
+  });
+
   if (problems.length > 0) {
     throw new Error(
       `Derivation integrity check failed (${problems.length} problem${problems.length === 1 ? "" : "s"}):\n  - ${problems.join("\n  - ")}`

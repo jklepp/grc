@@ -894,3 +894,20 @@
   populationUnit: "production models"
   note: "Models in production are inventoried with owners, but there is no pre-release security or
     bias review gate — the gap RISK-011 tracks."
+# Vendor-operated controls. These score on the same ladder as ACME-run ones — what
+# separates them is what the provider can actually produce, which the evidence type
+# already expresses. AWS exposes queryable configuration; Workday hands over an annual
+# examination. No vendor ranking is asserted anywhere; the difference falls out.
+- id: "EV-6001"
+  source: "AWS SOC 2 Type II — infrastructure hardening"
+  evidenceType: "Auditor examination"
+  controlId: "CFG-02"
+  assetIds:
+    - "AST-003-07"
+  collectedAt: "2026-02-14"
+  coveragePct: 100
+  result: "pass"
+  independence: "external"
+  note: "Covers the hardening of the KMS service fleet itself, which is the half of this
+    control ACME does not operate. ACME's configurable surface here is key policy, assessed
+    under CRY-09."

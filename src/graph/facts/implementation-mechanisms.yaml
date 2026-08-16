@@ -1,0 +1,94 @@
+# HOW a control is actually satisfied on an asset, and who runs it.
+#
+# The mechanism is the field that genuinely did not exist anywhere in the model before:
+# you could see that a bucket was encrypted, at what maturity, and who owned it, but not
+# by what means. "SSE-KMS under the SYS-003 CMK" was nowhere.
+#
+# RESPONSIBILITY, AND WHY IT ISN'T AN EXCEPTION
+# ---------------------------------------------
+# A control ACME requires but doesn't operate is not "not applicable" — somebody else
+# operates it. Expressing that as an applicability exception (which is what CFG-02 on the
+# KMS key used to be) tells an auditor asking "how is this satisfied?" that it isn't
+# required, which is false: it is required, and AWS satisfies it. Vendor implementations
+# score on the same ladder as internal ones, from the vendor's own evidence, so a
+# provider with queryable configuration APIs lands above one that hands over a PDF once a
+# year without anyone having to rank vendors by hand.
+#
+# Authored sparsely on purpose. An implementation with no record here is internal with an
+# unstated mechanism — the honest default for a pair nobody has written one for yet, and
+# a far better one than inventing 176 mechanism strings nobody assessed.
+
+# ---- SYS-003: ACME operates these directly -------------------------------------------
+
+- assetId: "AST-003-05"
+  controlId: "CRY-05"
+  mechanism: "S3 default encryption set to SSE-KMS against the dedicated SYS-003 customer
+    managed key, enforced by bucket policy that denies unencrypted PUT."
+
+- assetId: "AST-003-06"
+  controlId: "CRY-05"
+  mechanism: "RDS storage encryption enabled at instance creation against the SYS-003 CMK;
+    cannot be disabled after provisioning without a snapshot restore."
+
+- assetId: "AST-003-04"
+  controlId: "CRY-05"
+  mechanism: "Vector store encryption at rest against the SYS-003 CMK, applied at the
+    collection level when the index is provisioned."
+
+- assetId: "AST-003-01"
+  controlId: "NET-03"
+  mechanism: "API Gateway sits behind the WAF as the sole ingress; the VPC denies inbound
+    traffic that has not transited it, so the boundary is enforced by routing rather than
+    by configuration on each downstream service."
+
+- assetId: "AST-003-16"
+  controlId: "IAC-21"
+  mechanism: "Workload identities issued per service with task-scoped IAM roles; no
+    standing human principal holds write access to the production account outside a PIM
+    elevation."
+
+- assetId: "AST-003-18"
+  controlId: "MON-02"
+  mechanism: "CloudTrail and application audit streams forwarded to the SIEM, with per-
+    source ingestion health checked against the expected asset list rather than assumed
+    from the collector being up."
+
+# ---- SYS-003: AWS operates these under shared responsibility --------------------------
+
+- assetId: "AST-003-07"
+  controlId: "CFG-02"
+  mechanism: "AWS operates and certifies the underlying hardening of the KMS service.
+    ACME configures key policy and rotation but has no operating system, service, or
+    baseline surface to harden — the baseline itself belongs to the provider."
+  responsibility: "vendor"
+  provider: "AWS"
+
+- assetId: "AST-003-07"
+  controlId: "CRY-09"
+  mechanism: "Key material is generated and held in the AWS KMS HSM fleet and never
+    leaves it; ACME sets rotation policy and separates key administration from key use,
+    which is the half of this control ACME actually operates."
+  responsibility: "shared"
+  provider: "AWS"
+
+# ---- SYS-042: Workday operates the platform; ACME configures its tenant ----------------
+
+- assetId: "AST-042-01"
+  controlId: "CRY-05"
+  mechanism: "Workday encrypts tenant data at rest as a platform property. ACME cannot
+    configure, verify, or disable it, and relies on the vendor's annual examination."
+  responsibility: "vendor"
+  provider: "Workday"
+
+- assetId: "AST-042-03"
+  controlId: "IAC-10"
+  mechanism: "Integration service account credentials are held in ACME's secret store and
+    rotated on ACME's schedule, even though the account itself lives in the vendor tenant
+    — the authenticator is ours to manage regardless of where the identity resides."
+
+- assetId: "AST-042-02"
+  controlId: "CRY-03"
+  mechanism: "TLS 1.2+ enforced by Workday on the tenant API endpoint; ACME pins the
+    minimum version its connectors will negotiate but does not control the server side."
+  responsibility: "shared"
+  provider: "Workday"

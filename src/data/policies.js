@@ -57,7 +57,39 @@ export const POLICY_CATEGORIES = [
   "Emerging Tech",
 ];
 
-export const POLICIES = [
+// Review dates, kept apart from the policy bodies so the annual-review cycle can be
+// updated without touching prose. POL-01 commits ACME to reviewing every policy at least
+// once a year, and GOV-03 is the control that requires it — before these dates existed
+// there was nothing anywhere in the app recording when a policy was last looked at, so
+// the commitment was unfalsifiable.
+//
+// engine/implementation.ts reads these: a policy overdue for review still supports the
+// Policy rung of the maturity ladder (it exists, and it was true once) but cannot support
+// a claim above it, on the same reasoning that makes stale evidence weaker proof rather
+// than no proof.
+const POLICY_REVIEW_DATES = {
+  "infosec-governance": { created: "2023-01-17", lastReviewed: "2026-01-22" },
+  "acceptable-use-asset": { created: "2023-02-06", lastReviewed: "2026-02-11" },
+  "access-control": { created: "2023-01-24", lastReviewed: "2026-03-03" },
+  "data-classification": { created: "2023-01-31", lastReviewed: "2026-04-14" },
+  "data-privacy": { created: "2023-03-13", lastReviewed: "2026-03-30" },
+  "mobile-byod": { created: "2023-04-11", lastReviewed: "2025-05-19" },
+  "network-remote-access": { created: "2023-02-21", lastReviewed: "2026-02-24" },
+  "cloud-security": { created: "2023-03-06", lastReviewed: "2026-05-05" },
+  "change-configuration": { created: "2023-02-14", lastReviewed: "2026-01-13" },
+  "vulnerability-patch": { created: "2023-03-28", lastReviewed: "2026-04-07" },
+  "secure-development": { created: "2023-05-09", lastReviewed: "2026-06-02" },
+  "third-party-risk": { created: "2023-04-25", lastReviewed: "2026-02-17" },
+  "business-continuity": { created: "2023-06-13", lastReviewed: "2025-06-24" },
+  "incident-response": { created: "2023-02-28", lastReviewed: "2026-05-26" },
+  "security-monitoring": { created: "2023-05-23", lastReviewed: "2026-03-17" },
+  "physical-security": { created: "2023-07-11", lastReviewed: "2025-07-15" },
+  "hr-security": { created: "2023-06-27", lastReviewed: "2026-01-27" },
+  "security-awareness": { created: "2023-08-08", lastReviewed: "2026-06-16" },
+  "ai-acceptable-use": { created: "2025-02-04", lastReviewed: "2026-06-30" },
+};
+
+const POLICY_DEFS = [
   {
     id: "infosec-governance",
     code: "POL-01",
@@ -743,3 +775,16 @@ export const POLICIES = [
     relatedPolicyIds: ["data-classification", "third-party-risk", "secure-development"],
   },
 ];
+
+// A policy with no review dates would silently support every maturity claim made against
+// its controls, which is the failure mode this whole mechanism exists to close — so a
+// missing entry fails the build rather than defaulting to "current".
+export const POLICIES = POLICY_DEFS.map((p) => {
+  const dates = POLICY_REVIEW_DATES[p.id];
+  if (!dates) {
+    throw new Error(
+      `policies.js: ${p.code} (${p.id}) has no entry in POLICY_REVIEW_DATES — every policy needs a created and lastReviewed date, because GOV-03 is measured from them.`
+    );
+  }
+  return { ...p, ...dates };
+});

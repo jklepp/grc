@@ -171,6 +171,29 @@ export function assembleGraph(facts: GraphFacts): Graph {
     e.assetIds.forEach((assetId) => (evidenceByPair[pair(assetId, e.controlId)] ||= []).push(e));
   });
 
+  // ---- What the maturity ceiling stands on -----------------------------------
+  // Both inverted from links that were already authored and already validated —
+  // a policy's controlIds and an SOP step's `controls`. Neither had a reader
+  // outside the two pages that render them, which is why "is there a policy
+  // requiring this control" was unanswerable by anything that computed a score.
+  const policiesByControl: Record<string, (typeof facts.policies)[number][]> = {};
+  facts.policies.forEach((p) => {
+    p.controlIds.forEach((id) => (policiesByControl[id] ||= []).push(p));
+  });
+
+  // Step granularity, not SOP granularity. A SOP owning a domain is a
+  // coverage claim about the area; a step citing a control is the claim that
+  // somebody is told what to do about that specific control, which is what the
+  // Procedure rung actually asserts.
+  const procedureStepsByControl: Record<string, { procedure: (typeof facts.procedures)[number]; stepTitle: string }[]> = {};
+  facts.procedures.forEach((proc) => {
+    proc.steps.forEach((step) => {
+      (step.controls ?? []).forEach((id) => {
+        (procedureStepsByControl[id] ||= []).push({ procedure: proc, stepTitle: step.title });
+      });
+    });
+  });
+
   return {
     facts,
 
@@ -198,6 +221,11 @@ export function assembleGraph(facts: GraphFacts): Graph {
     ownerOverrides: facts.ownerOverrides,
     implementationOverrides: facts.implementationOverrides,
     notImplemented: facts.notImplemented,
+    implementationMechanisms: facts.implementationMechanisms,
+    programApplicabilityRules: facts.programApplicabilityRules,
+    programApplicabilityExceptions: facts.programApplicabilityExceptions,
+    policies: facts.policies,
+    procedures: facts.procedures,
     riskAssets: facts.riskAssets,
     riskControls: facts.riskControls,
     risksWithoutAssets: facts.risksWithoutAssets,
@@ -232,6 +260,12 @@ export function assembleGraph(facts: GraphFacts): Graph {
     exceptionByPair: keyBy(facts.applicabilityExceptions, (e) => pair(e.assetId, e.controlId)),
     overrideByPair: keyBy(facts.implementationOverrides, (o) => pair(o.assetId, o.controlId)),
     notImplementedByPair: keyBy(facts.notImplemented, (n) => pair(n.assetId, n.controlId)),
+    mechanismByPair: keyBy(facts.implementationMechanisms, (m) => pair(m.assetId, m.controlId)),
+    programExceptionByPair: keyBy(facts.programApplicabilityExceptions, (e) => pair(e.systemId, e.controlId)),
+
+    policiesByControl,
+    procedureStepsByControl,
+    rulesByProgramControl: groupBy(facts.programApplicabilityRules, (r) => r.controlId),
 
     // Risk contribution
     assetsByRisk: groupBy(facts.riskAssets, (r) => r.riskId),

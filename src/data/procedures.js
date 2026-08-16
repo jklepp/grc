@@ -559,16 +559,15 @@ const PROCEDURE_DEFS = [
 // check that already existed.
 export const PROCEDURES = PROCEDURE_DEFS.map((p) => {
   const controlIds = CCF_VISIBLE_CONTROLS.filter((c) => p.domains.includes(c.domain)).map((c) => c.id);
-  const controlIdSet = new Set(controlIds);
   const citedIds = new Set();
 
+  // The "a step may only cite its own SOP's controls" check moved to
+  // graph/validate.ts when SOPs became facts. It ran here as a module-load side
+  // effect, which meant it fired on page import rather than graph construction,
+  // and could never be exercised against a deliberately broken fact set —
+  // scripts/check-validator-fires.mjs now does exactly that.
   p.steps.forEach((s) => {
-    (s.controls || []).forEach((id) => {
-      if (!controlIdSet.has(id)) {
-        throw new Error(`procedures.js: ${p.code} step "${s.title}" cites control ${id}, which isn't one of ${p.code}'s own derived controlIds — check the id or the step's SOP assignment.`);
-      }
-      citedIds.add(id);
-    });
+    (s.controls || []).forEach((id) => citedIds.add(id));
   });
 
   return {
@@ -586,9 +585,5 @@ if (missingCategory.length > 0) {
   throw new Error(`procedures.js is missing a procedure for: ${missingCategory.join(", ")}`);
 }
 
-const domainCounts = {};
-PROCEDURE_DEFS.forEach((p) => p.domains.forEach((d) => (domainCounts[d] = (domainCounts[d] || 0) + 1)));
-const duplicateDomains = Object.keys(domainCounts).filter((d) => domainCounts[d] > 1);
-if (duplicateDomains.length > 0) {
-  throw new Error(`procedures.js assigns the same SCF domain to more than one SOP: ${duplicateDomains.join(", ")}`);
-}
+// The domain-partition check also moved to graph/validate.ts, for the same
+// reason. See the note above the step loop.

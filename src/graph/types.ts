@@ -34,7 +34,11 @@ import type { DataFlow } from "./edges/dataFlows";
 import type { ActorAccess } from "./edges/actorAccess";
 import type { ApplicabilityRule, ApplicabilityException } from "./edges/applicabilityRules";
 import type { CategoryAssessment } from "./edges/categoryAssessments";
-import type { OwnerOverride, ImplementationOverride, NotImplemented } from "./edges/controlImplementations";
+import type {
+  OwnerOverride, ImplementationOverride, NotImplemented, ImplementationMechanism,
+  ProgramApplicabilityRule, ProgramApplicabilityException,
+} from "./edges/controlImplementations";
+import type { PolicyRecord, ProcedureRecord } from "./nodes/programArtifacts";
 import type { RiskAsset, RiskControl } from "./edges/riskContributors";
 import type { AssuranceCategory, ClassificationTier, MaturityStage, EvidenceType } from "./nodes/taxonomy";
 import type {
@@ -60,6 +64,12 @@ export interface GraphFacts {
   findings: Finding[];
   actors: Actor[];
 
+  // The company-wide artifacts the maturity ladder's bottom two rungs stand on.
+  // Authored in src/data (they carry employee-facing prose the engine has no
+  // use for); the source adapter pulls the fields that matter into here.
+  policies: PolicyRecord[];
+  procedures: ProcedureRecord[];
+
   // The profile DEFINITION, not the resolved table. CONTROL_PROFILES used to be
   // built at module scope from four consts sitting beside it, which made "what
   // bar does Restricted data have to clear" a source-code question rather than a
@@ -83,6 +93,9 @@ export interface GraphFacts {
   ownerOverrides: OwnerOverride[];
   implementationOverrides: ImplementationOverride[];
   notImplemented: NotImplemented[];
+  implementationMechanisms: ImplementationMechanism[];
+  programApplicabilityRules: ProgramApplicabilityRule[];
+  programApplicabilityExceptions: ProgramApplicabilityException[];
   riskAssets: RiskAsset[];
   riskControls: RiskControl[];
 
@@ -155,6 +168,11 @@ export interface Graph {
   readonly ownerOverrides: readonly OwnerOverride[];
   readonly implementationOverrides: readonly ImplementationOverride[];
   readonly notImplemented: readonly NotImplemented[];
+  readonly implementationMechanisms: readonly ImplementationMechanism[];
+  readonly programApplicabilityRules: readonly ProgramApplicabilityRule[];
+  readonly programApplicabilityExceptions: readonly ProgramApplicabilityException[];
+  readonly policies: readonly PolicyRecord[];
+  readonly procedures: readonly ProcedureRecord[];
   readonly riskAssets: readonly RiskAsset[];
   readonly riskControls: readonly RiskControl[];
   readonly risksWithoutAssets: Readonly<Record<RiskId, string>>;
@@ -197,6 +215,17 @@ export interface Graph {
   readonly exceptionByPair: Readonly<Record<string, ApplicabilityException>>;
   readonly overrideByPair: Readonly<Record<string, ImplementationOverride>>;
   readonly notImplementedByPair: Readonly<Record<string, NotImplemented>>;
+  readonly mechanismByPair: Readonly<Record<string, ImplementationMechanism>>;
+  readonly programExceptionByPair: Readonly<Record<string, ProgramApplicabilityException>>;
+
+  // What the maturity ceiling reads. A control with no policy citing it has no
+  // documented basis at all — engine/validateDerivations.ts fails the build on
+  // that, because it's a hole in the policy library rather than a posture
+  // finding. A control with a policy but no SOP step can't support a claim above
+  // "Policy", which is a posture finding and gets capped rather than thrown.
+  readonly policiesByControl: Readonly<Record<ControlId, readonly PolicyRecord[]>>;
+  readonly procedureStepsByControl: Readonly<Record<ControlId, readonly { procedure: ProcedureRecord; stepTitle: string }[]>>;
+  readonly rulesByProgramControl: Readonly<Record<ControlId, readonly ProgramApplicabilityRule[]>>;
 
   readonly assetsByRisk: Readonly<Record<RiskId, readonly RiskAsset[]>>;
   readonly controlsByRisk: Readonly<Record<RiskId, readonly RiskControl[]>>;

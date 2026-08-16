@@ -22,7 +22,10 @@
 // being copied into our YAML.
 import { parse } from "yaml";
 import { CONTROLS } from "../nodes/controls";
+import { POLICIES } from "../../data/policies";
+import { PROCEDURES } from "../../data/procedures";
 import type { GraphFacts } from "../types";
+import type { PolicyRecord, ProcedureRecord } from "../nodes/programArtifacts";
 
 // Eager + raw so the YAML is inlined at build time. The alternative — fetching
 // and parsing at runtime — would make loadGraph async, and an async graph would
@@ -67,6 +70,35 @@ export const YAML_FACTS: GraphFacts = {
   orgs: read("orgs"),
   findings: read("findings"),
   actors: read("actors"),
+
+  // Not YAML, and deliberately so. The policy library and SOP library carry
+  // paragraphs of employee-facing prose that no scoring path reads; migrating
+  // several thousand lines of it to reach two date fields and a control list
+  // would be motion without benefit. What matters for the seam is that
+  // GraphFacts is still the only contract — a future Postgres source supplies
+  // these the same way, and nothing downstream of loadGraph can tell where any
+  // of it came from.
+  // Projected field-by-field rather than passed through. The authored records
+  // carry things the graph has no business holding — prose, role tables, and on
+  // SOP steps an `evidence.reconcile.check` CLOSURE the execution engine uses to
+  // validate what an operator typed. A fact set has to be plain data: it gets
+  // structuredClone'd by scripts/check-validator-fires.mjs to build deliberately
+  // broken variants, and a function in it makes that impossible.
+  policies: POLICIES.map(
+    (p): PolicyRecord => ({
+      id: p.id, code: p.code, title: p.title,
+      controlIds: [...p.controlIds], created: p.created, lastReviewed: p.lastReviewed,
+    })
+  ),
+  procedures: PROCEDURES.map(
+    (p): ProcedureRecord => ({
+      id: p.id, code: p.code, title: p.title, category: p.category,
+      domains: [...p.domains], policyId: p.policyId, owner: p.owner,
+      controlIds: [...p.controlIds],
+      steps: p.steps.map((s) => ({ title: s.title, controls: s.controls ? [...s.controls] : undefined })),
+    })
+  ),
+
   controlProfile: read("control-profile"),
 
   // Edges
@@ -80,6 +112,9 @@ export const YAML_FACTS: GraphFacts = {
   ownerOverrides: read("owner-overrides"),
   implementationOverrides: read("implementation-overrides"),
   notImplemented: read("not-implemented"),
+  implementationMechanisms: read("implementation-mechanisms"),
+  programApplicabilityRules: read("program-applicability"),
+  programApplicabilityExceptions: read("program-applicability-exceptions"),
   riskAssets: read("risk-assets"),
   riskControls: read("risk-controls"),
   risksWithoutAssets: riskGaps.withoutAssets,

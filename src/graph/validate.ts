@@ -57,6 +57,7 @@ export function validateGraph(graph: Graph): void {
   graph.systems.forEach((s) => {
     check(HOSTING_TYPES.includes(s.hostingType), `system ${s.id}: hostingType "${s.hostingType}" is not one of ${HOSTING_TYPES.join(", ")}`);
     check(Object.hasOwn(INHERITED_DOMAINS, s.hostingType), `system ${s.id}: no inherited-domain list for hosting type "${s.hostingType}"`);
+
     (INHERITED_DOMAINS[s.hostingType] || []).forEach((d) =>
       check(DOMAINS.includes(d), `system ${s.id}: inherited domain "${d}" is not an SCF domain`)
     );
@@ -334,6 +335,56 @@ export function validateGraph(graph: Graph): void {
   Object.keys(graph.risksWithoutControls).forEach((id) =>
     check((graph.controlsByRisk[id] ?? []).length === 0, `risksWithoutControls explains "${id}", but that risk now has control edges — remove the stale explanation`)
   );
+
+  // ---- Program artifacts --------------------------------------------------------
+  // These three checks used to run inside src/data/procedures.js as a module-load
+  // side effect, which meant they fired on import of a page rather than on
+  // construction of a graph — and could not be exercised against a deliberately
+  // broken fact set, because there was only ever one. They belong here now that
+  // policies and SOPs are facts like any other.
+  graph.procedures.forEach((p) => {
+    const owned = new Set(p.controlIds);
+    p.steps.forEach((step) => {
+      (step.controls ?? []).forEach((id) =>
+        check(
+          owned.has(id),
+          `procedure ${p.code} step "${step.title}" cites control ${id}, which isn't one of ${p.code}'s own derived controlIds — check the id or the step's SOP assignment`
+        )
+      );
+    });
+    check(
+      graph.policies.some((pol) => pol.id === p.policyId),
+      `procedure ${p.code}: policyId "${p.policyId}" doesn't match any policy in the library`
+    );
+  });
+
+  // Every SCF domain belongs to exactly one SOP. Two SOPs claiming a domain would
+  // double-count its controls in any coverage figure derived from procedures.
+  const domainOwners: Record<string, string[]> = {};
+  graph.procedures.forEach((p) => p.domains.forEach((d) => (domainOwners[d] ||= []).push(p.code)));
+  Object.entries(domainOwners).forEach(([domain, owners]) =>
+    check(owners.length === 1, `SCF domain "${domain}" is claimed by more than one SOP (${owners.join(", ")}) — the partition is what makes procedural coverage countable`)
+  );
+
+  // Review dates are what GOV-03 is measured from and what gates the maturity
+  // ladder's bottom rung, so a malformed one silently grants a ceiling it
+  // shouldn't.
+  graph.policies.forEach((p) => {
+    check(!Number.isNaN(Date.parse(p.created)), `policy ${p.code}: created "${p.created}" is not a parseable date`);
+    check(!Number.isNaN(Date.parse(p.lastReviewed)), `policy ${p.code}: lastReviewed "${p.lastReviewed}" is not a parseable date`);
+    check(
+      Date.parse(p.lastReviewed) >= Date.parse(p.created),
+      `policy ${p.code}: lastReviewed (${p.lastReviewed}) is before created (${p.created})`
+    );
+  });
+
+  graph.programApplicabilityRules.forEach((r, i) =>
+    check(has(graph.keyControlById, r.controlId), `programApplicabilityRules[${i}]: controlId "${r.controlId}" is not a key control`)
+  );
+  graph.implementationMechanisms.forEach((m, i) => {
+    check(has(graph.assetById, m.assetId), `implementationMechanisms[${i}]: assetId "${m.assetId}" is not an asset`);
+    check(has(graph.keyControlById, m.controlId), `implementationMechanisms[${i}]: controlId "${m.controlId}" is not a key control`);
+  });
 
   if (problems.length > 0) {
     throw new Error(

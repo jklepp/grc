@@ -6,15 +6,18 @@ import { CCF_VISIBLE_CONTROLS as VISIBLE_CONTROLS, CCF_DOMAINS as VISIBLE_DOMAIN
 import { CONSOLIDATED_CONTROLS } from "../data/consolidatedControls";
 import { STANDARD_ABBR } from "../data/policies";
 
-function overallColor(status) {
-  if (status === "matched") return C.green;
-  if (status === "unscored") return C.accent;
-  return C.na;
-}
-function overallLabel(status) {
-  if (status === "matched") return "Matched";
-  if (status === "unscored") return "Needs Review";
-  return "No Match";
+// The "Needs Review" badge and its filter used to live here, driven by
+// ccfControls.js's `overall` field — which was a hash of the control's id string,
+// not a review status anyone had set. See that file's header. What's left is the
+// only claim this crosswalk data actually supports: how many framework clauses a
+// control maps to.
+function ClauseCountTag({ control }) {
+  const total = control.frameworks.reduce((n, f) => n + f.clauses.length, 0);
+  return (
+    <span className="text-[11px] font-semibold px-2 py-0.5 rounded" style={{ background: `${C.accent}26`, color: C.accent }}>
+      {total} clause{total !== 1 ? "s" : ""} · {control.frameworks.length} framework{control.frameworks.length !== 1 ? "s" : ""}
+    </span>
+  );
 }
 
 function OwnerTag({ owner }) {
@@ -44,21 +47,11 @@ function FrameworkMappingLine({ f }) {
   );
 }
 
-function OverallBadge({ status }) {
-  const color = overallColor(status);
-  return (
-    <span className="text-[11px] font-semibold px-2 py-0.5 rounded" style={{ background: `${color}26`, color }}>
-      {overallLabel(status)}
-    </span>
-  );
-}
-
 const LIST_HEIGHT = 640;
 
 export default function CommonControlFramework() {
   const [query, setQuery] = useState("");
   const [domainFilter, setDomainFilter] = useState("All");
-  const [healthFilter, setHealthFilter] = useState("All");
   const [selected, setSelected] = useState(null);
   const [openFramework, setOpenFramework] = useState(null);
 
@@ -66,10 +59,9 @@ export default function CommonControlFramework() {
     return VISIBLE_CONTROLS.filter(
       (c) =>
         (domainFilter === "All" || c.domain === domainFilter) &&
-        (healthFilter === "All" || c.overall === healthFilter) &&
         (c.name?.toLowerCase().includes(query.toLowerCase()) || c.id?.toLowerCase().includes(query.toLowerCase()))
     );
-  }, [query, domainFilter, healthFilter]);
+  }, [query, domainFilter]);
 
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -133,15 +125,6 @@ export default function CommonControlFramework() {
               <Search size={14} color={C.muted} />
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search controls or SCF #" className="bg-transparent text-sm outline-none w-full" style={{ color: C.ink }} />
             </div>
-            <div className="relative">
-              <select value={healthFilter} onChange={(e) => setHealthFilter(e.target.value)}
-                className="text-xs pl-3 pr-7 py-2 rounded-lg font-medium appearance-none" style={{ background: C.panel, color: C.ink, border: `1px solid ${C.border}` }}>
-                <option value="All">All controls</option>
-                <option value="matched">Matched</option>
-                <option value="unscored">Needs review</option>
-              </select>
-              <ChevronDown size={12} color={C.muted} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
             <span className="text-xs px-3 py-2 rounded-full" style={{ background: C.panel2, color: C.muted }}>
               Showing {filtered.length.toLocaleString()} of {VISIBLE_CONTROLS.length.toLocaleString()}
             </span>
@@ -173,7 +156,7 @@ export default function CommonControlFramework() {
                   <div className="py-2 pl-3 min-w-0" style={{ borderLeft: `1px solid ${C.border}` }}>
                     {ctrl.frameworks.map((f, fi) => <FrameworkMappingLine key={fi} f={f} />)}
                   </div>
-                  <div className="flex items-center pl-3" style={{ borderLeft: `1px solid ${C.border}` }}><OverallBadge status={ctrl.overall} /></div>
+                  <div className="flex items-center pl-3" style={{ borderLeft: `1px solid ${C.border}` }}><ClauseCountTag control={ctrl} /></div>
                 </div>
               ))}
             </div>
@@ -194,7 +177,7 @@ export default function CommonControlFramework() {
                 <button onClick={() => setSelected(null)}><X size={18} color={C.muted} /></button>
               </div>
               <div className="flex items-center gap-2 mt-3 flex-wrap">
-                <OverallBadge status={selected.overall} />
+                <ClauseCountTag control={selected} />
               </div>
               <div className="mt-3"><OwnerTag owner={selected.owner} /></div>
             </div>
@@ -238,7 +221,6 @@ export default function CommonControlFramework() {
                 <div className="px-3">
                   {selected.frameworks.map((f, i) => {
                     const isOpen = openFramework === i;
-                    const isMatched = selected.overall === "matched";
                     return (
                       <div key={i} style={{ borderBottom: i < selected.frameworks.length - 1 ? `1px solid ${C.border}` : "none" }}>
                         <button onClick={() => setOpenFramework(isOpen ? null : i)} className="w-full flex items-center gap-3 py-2.5 text-left">
@@ -251,7 +233,7 @@ export default function CommonControlFramework() {
                             {f.clauses.map((code, ci) => (
                               <div key={ci} className="flex items-center justify-between rounded p-2" style={{ background: C.bg }}>
                                 <span className="text-xs" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{code}</span>
-                                <span className="text-[10px]" style={{ color: C.muted }}>{isMatched ? "Assessed" : "Not yet assessed"}</span>
+                                <span className="text-[10px]" style={{ color: C.muted }}>Mapped</span>
                               </div>
                             ))}
                           </div>

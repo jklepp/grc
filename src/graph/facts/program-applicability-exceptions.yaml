@@ -1,0 +1,9 @@
+# Program controls a rule matched for a system but that shouldn't apply there anyway —
+# the system-level twin of applicability-exceptions.yaml.
+#
+# Empty, and that is the expected state. The conditions in program-applicability.yaml are
+# written to be right rather than broad-then-excused: AAT-01 is scoped by the AI asset
+# kinds actually present, so the Workday boundary is excluded by the rule itself instead
+# of matching and then needing an excuse. An entry here means a rule matched a system it
+# genuinely shouldn't have, which is usually a signal to fix the rule instead.
+[]

@@ -84,6 +84,31 @@ try {
       f.risksWithoutAssets[linked] = "stale explanation";
     }, /remove the stale explanation/],
     ["actor access to a non-existent actor", (f) => { f.actorAccess[0].actorId = "ACT-NOPE"; }, /is not an actor/],
+
+    // ---- Program artifacts. These three checks used to live in procedures.js as
+    // a module-load side effect and could not be fault-injected at all, because
+    // there was one fact set and importing it either worked or crashed the app.
+    ["SOP step citing a control its own SOP doesn't own", (f) => {
+      const sop = f.procedures.find((p) => p.steps.some((s) => s.controls?.length));
+      const step = sop.steps.find((s) => s.controls?.length);
+      const foreign = f.controls.find((c) => !sop.controlIds.includes(c.id));
+      step.controls = [foreign.id];
+    }, /isn't one of .* own derived controlIds/],
+    ["two SOPs claiming the same SCF domain", (f) => {
+      f.procedures[1].domains = [...f.procedures[1].domains, f.procedures[0].domains[0]];
+    }, /claimed by more than one SOP/],
+    ["policy reviewed before it existed", (f) => {
+      f.policies[0].lastReviewed = "2019-01-01";
+    }, /is before created/],
+    ["policy with an unparseable review date", (f) => {
+      f.policies[0].lastReviewed = "last Thursday";
+    }, /not a parseable date/],
+    ["program applicability rule on a control that doesn't exist", (f) => {
+      f.programApplicabilityRules[0].controlId = "NOPE-99";
+    }, /is not a key control/],
+    ["mechanism against a non-existent asset", (f) => {
+      f.implementationMechanisms[0].assetId = "AST-NOPE";
+    }, /is not an asset/],
   ];
 
   console.log("\nStructural checks (validateGraph, via loadGraph)");
@@ -119,6 +144,37 @@ try {
     ["classification no longer reproducing the curated answer", (f) => {
       f.expectedClassification[f.systems[0].id] = "Public";
     }, /classification derives to/],
+
+    // ---- The maturity ceiling's foundation. A key control no policy cites has
+    // nothing documenting why ACME requires it — the one case the ceiling does
+    // NOT quietly cap, because it's a hole in the library rather than a posture
+    // finding.
+    ["key control no policy cites", (f) => {
+      const tracked = f.keyControls[0].id;
+      f.policies.forEach((p) => { p.controlIds = p.controlIds.filter((id) => id !== tracked); });
+    }, /no policy in the library cites this control/],
+    ["program control with no applicability rule", (f) => {
+      const program = f.keyControls.find((c) => c.scope === "program");
+      f.programApplicabilityRules = f.programApplicabilityRules.filter((r) => r.controlId !== program.id);
+    }, /no program applicability rule declares which systems it covers/],
+    ["program control whose rule matches no system", (f) => {
+      const rule = f.programApplicabilityRules.find((r) => Object.keys(r.appliesWhen).length === 0);
+      rule.appliesWhen = { hostingTypes: ["mainframe"] };
+    }, /no system requires it/],
+    ["mechanism describing a control that isn't required there", (f) => {
+      // CLD-06 (multi-tenant isolation) is not required on the tool gateway, so
+      // a mechanism claiming to describe how it's satisfied there describes
+      // nothing. This exact pair is how the check first caught a real mistake:
+      // two of the mechanisms authored alongside it were written against pairs
+      // applicability doesn't require, and the validator refused them.
+      f.implementationMechanisms.push({
+        assetId: "AST-003-13", controlId: "CLD-06", mechanism: "invented for this test",
+      });
+    }, /there is no implementation for the mechanism to describe/],
+    ["vendor responsibility with no provider named", (f) => {
+      const m = f.implementationMechanisms.find((x) => x.responsibility === "vendor");
+      delete m.provider;
+    }, /no provider is named/],
   ];
 
   console.log("\nDerivational checks (validateDerivations, via createEngine)");

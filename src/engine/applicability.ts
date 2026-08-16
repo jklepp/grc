@@ -21,9 +21,10 @@ import type { KeyControl } from "../graph/nodes/keyControls";
 import type {
   ApplicabilityRule, ApplicabilityException, ApplicabilityCondition,
 } from "../graph/edges/applicabilityRules";
+import type { ProgramApplicabilityRule } from "../graph/edges/controlImplementations";
 import { tierRank } from "../graph/nodes/taxonomy";
 import type { ClassificationApi } from "./classification";
-import type { AssetId, ControlId } from "../graph/ids";
+import type { AssetId, ControlId, SystemId } from "../graph/ids";
 
 interface ApplicabilityContext {
   kind: string;
@@ -144,12 +145,89 @@ export function createApplicability(graph: Graph, classification: Classification
 
   const programControlIds: ControlId[] = graph.programScopedControls.map((c) => c.id);
 
+  // ---- Program controls, one level up ------------------------------------------
+  // The same machinery, asking about a system instead of an asset. It exists
+  // because "all systems inherit the program controls" turned out to be false on
+  // inspection: four of the seven hold everywhere, three depend on what a system
+  // contains, and blanket-inheriting AAT-01 would assert AI governance coverage
+  // for the Workday boundary, which holds no AI asset.
+  //
+  // Deriving it rather than ticking a box means the answer is re-checked on every
+  // build and carries its reason with it — the same property that makes asset
+  // applicability auditable.
+  interface SystemContext {
+    hostingType: string;
+    dataKinds: string[];
+    assetKinds: string[];
+    hasExternalActors: boolean;
+  }
+
+  function systemContext(systemId: SystemId): SystemContext {
+    const assets = graph.assetsBySystem[systemId] ?? [];
+    const assetIds = new Set(assets.map((a) => a.id));
+    return {
+      hostingType: graph.systemById[systemId].hostingType,
+      // Every data kind present anywhere in the boundary, which is what a
+      // system-level obligation like PRI-05 actually attaches to.
+      dataKinds: [...new Set(assets.flatMap((a) => classification.dataKindsForAsset(a.id)))],
+      assetKinds: [...new Set(assets.map((a) => a.kind as string))],
+      hasExternalActors: graph.actorAccess.some((a) => assetIds.has(a.assetId)),
+    };
+  }
+
+  function programRuleMatches(rule: ProgramApplicabilityRule, context: SystemContext): boolean {
+    const { hostingTypes, dataKinds, assetKinds, hasExternalActors } = rule.appliesWhen;
+    if (hostingTypes && !hostingTypes.includes(context.hostingType)) return false;
+    if (dataKinds && !dataKinds.some((k) => context.dataKinds.includes(k))) return false;
+    if (assetKinds && !assetKinds.some((k) => context.assetKinds.includes(k))) return false;
+    if (hasExternalActors !== undefined && hasExternalActors !== context.hasExternalActors) return false;
+    return true;
+  }
+
+  function resolveProgramApplicability(systemId: SystemId, controlId: ControlId) {
+    const context = systemContext(systemId);
+    const matched = (graph.rulesByProgramControl[controlId] ?? []).filter((r) => programRuleMatches(r, context));
+    const exception = graph.programExceptionByPair[`${systemId}::${controlId}`] ?? null;
+
+    if (matched.length === 0) {
+      return {
+        systemId, controlId, required: false, exception: null, reasons: [],
+        notRequiredBecause: `No program applicability rule for ${controlId} matches ${systemId} — this control's premise does not hold in that boundary.`,
+      };
+    }
+    if (exception) {
+      return {
+        systemId, controlId, required: false, exception,
+        reasons: matched.map((r) => ({ rationale: r.rationale, source: "Program applicability" })),
+        notRequiredBecause: exception.reason,
+      };
+    }
+    return {
+      systemId, controlId, required: true, exception: null,
+      reasons: matched.map((r) => ({ rationale: r.rationale, source: "Program applicability" })),
+      notRequiredBecause: null,
+    };
+  }
+
+  const programBySystem: Record<string, ControlId[]> = {};
+  graph.systems.forEach((s) => {
+    programBySystem[s.id] = graph.programScopedControls
+      .filter((c) => resolveProgramApplicability(s.id, c.id).required)
+      .map((c) => c.id);
+  });
+
+  function programControlsForSystem(systemId: SystemId): KeyControl[] {
+    return (programBySystem[systemId] ?? []).map((id) => graph.keyControlById[id]);
+  }
+
   return {
     resolveApplicability,
     requiredControlsForAsset,
     requiredControlsForAssetInCategory,
     assetsRequiringControl,
     allExceptions,
+    resolveProgramApplicability,
+    programControlsForSystem,
     PROGRAM_CONTROL_IDS: programControlIds,
   };
 }

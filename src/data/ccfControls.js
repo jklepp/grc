@@ -1,29 +1,36 @@
 import scf from "./scfControls.json";
 
-function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; }
-
 // Real SCF import: every control gets a framework entry only where SCF's crosswalk
-// actually lists clauses. There is no confidence data in the source file, so match
-// status is derived deterministically from the control id: matched controls are
-// marked "matched" except for a held-out ~1/3 still flagged "unscored" for review.
-// Shared by the Unified Compliance Matrix and the Data Classification Register so
-// both pages count against the same matched-control pool (currently 323, but
-// read CCF_VISIBLE_CONTROLS.length rather than trusting this comment — it'll
-// grow every time another framework crosswalk gets added).
+// actually lists clauses. Shared by the Unified Compliance Matrix and the Data
+// Classification Register so both pages count against the same matched-control pool
+// (currently 323, but read CCF_VISIBLE_CONTROLS.length rather than trusting this
+// comment — it'll grow every time another framework crosswalk gets added).
+//
+// WHAT USED TO BE HERE, AND WHY IT ISN'T
+// ---------------------------------------
+// Each control carried an `overall` status of "matched" or "unscored", and the
+// Unified Compliance Matrix rendered "unscored" as a **Needs Review** badge with its
+// own filter. That status was computed as `Math.abs(hashStr(c.id)) % 3 === 0` — a hash
+// of the control's ID STRING. 109 of the 323 controls displayed as needing review, and
+// which 109 was decided entirely by how the id happened to be spelled. Renaming a
+// control flipped its review status; reviewing one changed nothing.
+//
+// So the page showed what read as a real assessment backlog and was decoration. The
+// honest statement this data can make is the one the crosswalk actually supports:
+// a control either maps to an in-scope framework clause or it doesn't. Anything about
+// how well a control is *doing* comes from the engine, which computes real coverage
+// states (measured / inherited / assessed / unassessed) with a basis behind each.
 export const CCF_CONTROLS = scf.controls.map((c) => {
   const frameworks = scf.standards
     .map((std) => ({ standard: std, clauses: c.frameworks[std] || [] }))
     .filter((f) => f.clauses.length > 0);
-  let overall = "no-match";
-  if (frameworks.length > 0) {
-    overall = Math.abs(hashStr(c.id)) % 3 === 0 ? "unscored" : "matched";
-  }
-  return { id: c.id, domain: c.domain, name: c.name, description: c.description, frameworks, overall, owner: null };
+  return { id: c.id, domain: c.domain, name: c.name, description: c.description, frameworks, owner: null };
 });
 
 // Only controls that map to at least one in-scope framework — the SCF controls
-// with no crosswalk hit are real but out of scope for either page.
-export const CCF_VISIBLE_CONTROLS = CCF_CONTROLS.filter((c) => c.overall !== "no-match");
+// with no crosswalk hit are real but out of scope for either page. Same rule and same
+// set as graph.inScopeControls, which is the engine's name for this pool.
+export const CCF_VISIBLE_CONTROLS = CCF_CONTROLS.filter((c) => c.frameworks.length > 0);
 export const CCF_DOMAINS = scf.domains
   .map((d) => ({ name: d.name, total: CCF_VISIBLE_CONTROLS.filter((c) => c.domain === d.name).length }))
   .filter((d) => d.total > 0);

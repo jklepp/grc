@@ -197,7 +197,23 @@ export function createRollups(
     // audit log export. A flat mean would let a healthy peripheral asset offset a
     // weak critical one, which is exactly the reading a system score must not
     // support.
-    const rawAssurance = weightedMean(assets.map((a) => ({ value: a.rawAssurance as number, weight: a.criticality })));
+    //
+    // PROGRAM CONTROLS JOIN THE SAME POOL. They used to be scored and then
+    // consumed by nothing, so ACME's incident-handling and risk-assessment
+    // posture reached the hero number not at all. They score from the bottom like
+    // everything else — one implementation per system a rule confirmed, weighted
+    // at the mean criticality of that system's assets so each counts as one
+    // typical asset in the boundary. That weight is a stated judgment, not a
+    // derivation: count-weighting seven program controls against nineteen assets
+    // would have made the program layer ~4% of a system, and weighting them
+    // higher would let governance paperwork outvote the estate it governs.
+    const programImplementations = implementation.programImplementationsForSystem(systemId);
+    const meanAssetCriticality = mean(assets.map((a) => a.criticality)) ?? 0;
+
+    const rawAssurance = weightedMean([
+      ...assets.map((a) => ({ value: a.rawAssurance as number, weight: a.criticality })),
+      ...programImplementations.map((i) => ({ value: i.rawScore, weight: meanAssetCriticality })),
+    ]);
     const assurance = display(rawAssurance);
     const criticality = display(weightedMean(assets.map((a) => ({ value: a.criticality, weight: 1 }))));
 
@@ -218,6 +234,11 @@ export function createRollups(
       classification: classification.systemClassification(systemId),
       assets,
       assetCount: assets.length,
+      // The program layer for this boundary, kept nameable rather than folded
+      // invisibly into the average — "which company-wide controls apply here,
+      // and how are they doing" is a question the system page should answer.
+      programImplementations,
+      programControlCount: programImplementations.length,
       overallAssurance: assurance,
       rawAssurance,
       assuranceBand: assuranceBand(assurance),

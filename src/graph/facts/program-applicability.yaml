@@ -1,0 +1,60 @@
+# Which program-scoped controls apply to which system, and why.
+#
+# The seven scope: "program" key controls used to reach no rollup at all — they were
+# composed and scored by engine/implementation.ts and then consumed by nothing that
+# produced a posture number. They now score from the bottom like every other
+# implementation: one record per (system, control) that a rule below confirms.
+#
+# The reason this is a rule set rather than blanket inheritance is that three of the
+# seven are conditional, and one of those would be wrong today. AAT-01 applied to every
+# system would assert AI governance coverage for the Workday boundary, which holds no AI
+# asset — a claim nobody made and nobody could evidence.
+#
+# An omitted condition is not a failed test, it simply isn't part of that rule's check,
+# so `appliesWhen: {}` reads as "every system" — the same convention edges/
+# applicabilityRules uses one level down.
+
+# ---- Universal: the premise holds for every system ----------------------------------
+
+- controlId: "AST-02"
+  appliesWhen: {}
+  rationale: "Inventories cover technology assets, applications, services and data. Every
+    system in the register contains assets, so there is no boundary this can fail to reach."
+
+- controlId: "RSK-04"
+  appliesWhen: {}
+  rationale: "Recurring risk assessment covers the organization's assets as a whole. No
+    system is exempt from being assessed, including ones ACME does not host itself."
+
+- controlId: "IRO-02"
+  appliesWhen: {}
+  rationale: "Preparation, detection, analysis, containment, eradication and recovery.
+    Any system can be the subject of an incident, so the handling process applies to all."
+
+- controlId: "DCH-02"
+  appliesWhen: {}
+  rationale: "Data and assets are categorized against statutory and contractual
+    requirements. Every system holds both, so classification reaches every boundary."
+
+# ---- Conditional: the premise depends on what the system holds -----------------------
+
+- controlId: "PRI-05"
+  appliesWhen:
+    dataKinds: ["pii", "employee"]
+  rationale: "Retention and disposal obligations attach to Personal Data specifically. A
+    system holding none has nothing to retain, dispose of, or anonymize — the control's
+    premise does not hold there rather than the control being excused."
+
+- controlId: "AAT-01"
+  appliesWhen:
+    assetKinds: ["model-gateway", "vector-db", "tool-gateway", "policy-service"]
+  rationale: "Governance of AI and autonomous technology risk applies where such
+    technology is actually in the boundary. Asserting it over a system with no model
+    serving, retrieval, or agent tooling would claim coverage of a risk that isn't present."
+
+- controlId: "TPM-04"
+  appliesWhen:
+    hasExternalActors: true
+  rationale: "Mitigating third-party access risk requires third-party access to exist. A
+    boundary no external actor reaches into or out of has no third-party surface for this
+    to govern."
