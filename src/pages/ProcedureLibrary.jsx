@@ -868,7 +868,9 @@ export default function ProcedureLibrary({ onNavigate }) {
                   })
                 ) : (
                   selected.steps.map((s, i) => {
-                    const isRequired = s.controls && s.controls.length > 0;
+                    // Steps arrive sorted required-first, so the divider is a
+                    // position test against requiredCount rather than a property
+                    // of the step itself.
                     const showDivider = i === requiredCount && requiredCount > 0 && requiredCount < selected.steps.length;
                     return (
                       <React.Fragment key={i}>

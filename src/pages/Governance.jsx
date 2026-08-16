@@ -44,7 +44,7 @@ export default function Governance({ onNavigate, initialTab }) {
       setTab(internalTab);
       return;
     }
-    onNavigate && onNavigate(target);
+    onNavigate?.(target);
   }
 
   return (

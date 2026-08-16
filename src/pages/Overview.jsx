@@ -23,7 +23,7 @@ export default function Overview({ onNavigate }) {
       setTab("risk-register");
       return;
     }
-    onNavigate && onNavigate(target);
+    onNavigate?.(target);
   }
 
   return (
