@@ -194,6 +194,7 @@ export function assembleGraph(facts: GraphFacts): Graph {
     applicabilityRules: facts.applicabilityRules,
     applicabilityExceptions: facts.applicabilityExceptions,
     categoryAssessments: facts.categoryAssessments,
+    ownership: facts.ownership,
     ownerOverrides: facts.ownerOverrides,
     implementationOverrides: facts.implementationOverrides,
     notImplemented: facts.notImplemented,

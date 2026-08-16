@@ -39,7 +39,7 @@ import type { RiskAsset, RiskControl } from "./edges/riskContributors";
 import type { AssuranceCategory, ClassificationTier, MaturityStage, EvidenceType } from "./nodes/taxonomy";
 import type {
   AssetId, SystemId, ControlId, OrgId, RiskId, DataTypeId, EvidenceId,
-  EvidenceSourceId, ActorId,
+  EvidenceSourceId, ActorId, SystemScope,
 } from "./ids";
 
 // ---- What a source supplies --------------------------------------------------
@@ -74,6 +74,12 @@ export interface GraphFacts {
   applicabilityRules: ApplicabilityRule[];
   applicabilityExceptions: ApplicabilityException[];
   categoryAssessments: CategoryAssessment[];
+  // Who owns each assurance category, per system, with "program" as the
+  // enterprise-wide default a system falls back to. Authored data, so it lives
+  // with the facts rather than being imported straight into the engine — which
+  // is what it was doing, and the last place a fact reached past the graph.
+  ownership: Record<SystemScope, Record<AssuranceCategory, OrgId[]>>;
+
   ownerOverrides: OwnerOverride[];
   implementationOverrides: ImplementationOverride[];
   notImplemented: NotImplemented[];
@@ -145,6 +151,7 @@ export interface Graph {
   readonly applicabilityRules: readonly ApplicabilityRule[];
   readonly applicabilityExceptions: readonly ApplicabilityException[];
   readonly categoryAssessments: readonly CategoryAssessment[];
+  readonly ownership: Readonly<Record<SystemScope, Record<AssuranceCategory, OrgId[]>>>;
   readonly ownerOverrides: readonly OwnerOverride[];
   readonly implementationOverrides: readonly ImplementationOverride[];
   readonly notImplemented: readonly NotImplemented[];

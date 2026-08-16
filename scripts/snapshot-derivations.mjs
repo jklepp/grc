@@ -34,10 +34,18 @@ try {
 
   const snapshot = {};
 
+  // The `engine` export is the instance handle, not a derivation: it carries
+  // ctx.now (a fresh timestamp every run) and the whole graph hanging off it,
+  // so including it guarantees a false diff on every comparison and drowns a
+  // real one. Everything it exposes that IS a derivation is already reached
+  // through the named exports below.
+  const NOT_A_DERIVATION = new Set(["engine"]);
+
   // Every non-function export the engine's public API exposes, plus the zero-arg
   // accessors selectors.ts wraps the enterprise rollups in (getEnterprise,
   // getCategoryAverages). Functions taking ids are exercised separately below.
   for (const key of Object.keys(engine).sort()) {
+    if (NOT_A_DERIVATION.has(key)) continue;
     const value = engine[key];
     try {
       if (typeof value === "function") {

@@ -1,0 +1,343 @@
+// Structural integrity. Takes a Graph, throws on the first bad fact set.
+//
+// The point of a graph is that a fact lives in one place and everything else
+// points at it. That only holds if a pointer that doesn't resolve is loud.
+// Without this, a typo'd asset id in a data flow silently produces an edge to
+// nowhere and a map that quietly omits a hop; a control id that doesn't exist
+// silently produces a control with no framework mappings and a compliance page
+// that undercounts. Both are worse than a crash, because both look fine.
+//
+// Structural checks only — anything needing a derived value lives in
+// engine/validateDerivations.ts, since deriving it requires the engine and the
+// graph must stay free of scoring.
+//
+// PORTED FROM validate.js: this used to run as an import side effect and assert
+// against the ACME modules directly, which meant it could only ever check one
+// dataset — the one it imported. Taking a Graph is what lets a YAML directory
+// or a Postgres query be held to the identical standard, and it is why
+// loadGraph() can promise that anything it returns has been checked.
+//
+// Note what is imported below and what isn't. The VOCABULARIES come in as
+// modules (ASSET_KINDS, FLOW_KINDS, ORG_KINDS...) because they are schema —
+// they describe what a fact is permitted to say, and every dataset shares them.
+// Not one FACT is imported; those all arrive on the graph.
+import {
+  CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES, MATURITY_STAGES, EVIDENCE_TYPES,
+} from "./nodes/taxonomy";
+import { HOSTING_TYPES, INHERITED_DOMAINS } from "./nodes/systems";
+import { ASSET_KINDS } from "./nodes/assets";
+import { DOMAINS } from "./nodes/controls";
+import { EVIDENCE_RESULTS, INDEPENDENCE_LEVELS } from "./nodes/evidence";
+import { SEVERITY_LEVELS, LIKELIHOOD_LEVELS } from "./nodes/risks";
+import { DATA_ROLE_META } from "./edges/assetDataTypes";
+import { FLOW_KINDS } from "./edges/dataFlows";
+import { CONTRIBUTOR_ROLES } from "./edges/riskContributors";
+import { ORG_KINDS } from "./nodes/orgs";
+import { FINDING_STATUSES } from "./nodes/findings";
+import { ACTOR_KINDS } from "./nodes/actors";
+import { ACTOR_DIRECTIONS } from "./edges/actorAccess";
+import type { Graph } from "./types";
+
+export function validateGraph(graph: Graph): void {
+  const problems: string[] = [];
+  const check = (condition: boolean, message: string) => {
+    if (!condition) problems.push(message);
+  };
+
+  const has = (index: Record<string, unknown>, key: string) => Object.hasOwn(index, key);
+
+  // ---- Nodes -----------------------------------------------------------------
+  const idsSeen = new Set<string>();
+  [...graph.systems, ...graph.assets, ...graph.dataTypes, ...graph.evidence, ...graph.risks, ...graph.dataFlows]
+    .forEach((n) => {
+      check(!idsSeen.has(n.id), `duplicate node id "${n.id}" — ids must be unique across the whole graph`);
+      idsSeen.add(n.id);
+    });
+
+  graph.systems.forEach((s) => {
+    check(HOSTING_TYPES.includes(s.hostingType), `system ${s.id}: hostingType "${s.hostingType}" is not one of ${HOSTING_TYPES.join(", ")}`);
+    check(Object.hasOwn(INHERITED_DOMAINS, s.hostingType), `system ${s.id}: no inherited-domain list for hosting type "${s.hostingType}"`);
+    (INHERITED_DOMAINS[s.hostingType] || []).forEach((d) =>
+      check(DOMAINS.includes(d), `system ${s.id}: inherited domain "${d}" is not an SCF domain`)
+    );
+    s.roles.forEach((r) =>
+      check(has(graph.orgById, r.ownerId), `system ${s.id} role "${r.role}": ownerId "${r.ownerId}" is not an org`)
+    );
+  });
+
+  graph.assets.forEach((a) => {
+    check(has(graph.systemById, a.systemId), `asset ${a.id}: systemId "${a.systemId}" is not a system`);
+    check(ASSET_KINDS.includes(a.kind), `asset ${a.id}: kind "${a.kind}" is not one of ASSET_KINDS — an unknown kind matches no applicability rule, which would silently exempt this asset from every control`);
+    check((graph.dataTypesByAsset[a.id] ?? []).length > 0, `asset ${a.id}: has no data-type edges, so its classification cannot be derived`);
+  });
+
+  graph.dataTypes.forEach((d) => {
+    check(CLASSIFICATION_TIERS.includes(d.sensitivity), `data type ${d.id}: sensitivity "${d.sensitivity}" is not a classification tier`);
+  });
+
+  graph.keyControls.forEach((c) => {
+    check(has(graph.controlById, c.id), `key control ${c.id}: not present in the control catalogue`);
+    check(ASSURANCE_CATEGORIES.includes(c.category), `key control ${c.id}: resolves to category "${c.category}", which is not an assurance category`);
+    check(c.frameworks.length > 0, `key control ${c.id}: has no framework clauses, so it is out of scope for every standard ACME certifies against and cannot be a key control`);
+    check(["asset", "program"].includes(c.scope), `key control ${c.id}: scope "${c.scope}" must be "asset" or "program"`);
+  });
+
+  graph.evidence.forEach((e) => {
+    check(has(graph.controlById, e.controlId), `evidence ${e.id}: controlId "${e.controlId}" is not a real control`);
+    check(has(graph.keyControlById, e.controlId), `evidence ${e.id}: controlId "${e.controlId}" is not a key control — only key controls carry per-implementation evidence`);
+    check(EVIDENCE_TYPES.includes(e.evidenceType), `evidence ${e.id}: evidenceType "${e.evidenceType}" is not a known evidence type`);
+    check(EVIDENCE_RESULTS.includes(e.result), `evidence ${e.id}: result "${e.result}" must be one of ${EVIDENCE_RESULTS.join(", ")}`);
+    check(INDEPENDENCE_LEVELS.includes(e.independence), `evidence ${e.id}: independence "${e.independence}" is not a known level`);
+    check(e.coveragePct >= 0 && e.coveragePct <= 100, `evidence ${e.id}: coveragePct ${e.coveragePct} is outside 0-100`);
+
+    // Prevalence is optional, but half of it is worse than none: a population
+    // with no exception count (or the reverse) would silently score as if no
+    // counts were reported at all, which hides the fact that someone meant to
+    // record one.
+    const hasPop = e.population !== undefined;
+    const hasExc = e.exceptions !== undefined;
+    check(hasPop === hasExc, `evidence ${e.id}: population and exceptions must be given together — one without the other reads as no prevalence data at all`);
+    if (hasPop && hasExc) {
+      const population = e.population as number;
+      const exceptions = e.exceptions as number;
+      check(Number.isInteger(population) && population > 0, `evidence ${e.id}: population must be a positive integer`);
+      check(Number.isInteger(exceptions) && exceptions >= 0, `evidence ${e.id}: exceptions must be a non-negative integer`);
+      check(exceptions <= population, `evidence ${e.id}: ${exceptions} exceptions in a population of ${population} — more failures than members`);
+      check(Boolean(e.populationUnit?.trim()), `evidence ${e.id}: needs a populationUnit so "${exceptions} of ${population}" says what is being counted`);
+      // A passing collection that found exceptions is contradicting itself.
+      check(!(e.result === "pass" && exceptions > 0), `evidence ${e.id}: result is "pass" but ${exceptions} exceptions were recorded — a collection that found breaches did not pass`);
+      check(!(e.result !== "pass" && exceptions === 0), `evidence ${e.id}: result is "${e.result}" but zero exceptions were recorded — a failing collection has to name what failed`);
+    }
+    check(Number.isFinite(e.validForDays) && e.validForDays > 0, `evidence ${e.id}: validForDays must be a positive number`);
+    check(!Number.isNaN(new Date(e.collectedAt).getTime()), `evidence ${e.id}: collectedAt "${e.collectedAt}" is not a parseable date`);
+    e.assetIds.forEach((id) => check(has(graph.assetById, id), `evidence ${e.id}: assetId "${id}" is not an asset`));
+
+    const keyControl = graph.keyControlById[e.controlId];
+    if (keyControl?.scope === "program") {
+      check(e.assetIds.length === 0, `evidence ${e.id}: ${e.controlId} is program-scoped, so this record must not name assets`);
+    } else if (keyControl) {
+      check(e.assetIds.length > 0, `evidence ${e.id}: ${e.controlId} is asset-scoped, so this record must name the assets it was collected across`);
+    }
+
+    if (e.findingId) {
+      const finding = graph.findings.find((f) => f.id === e.findingId);
+      check(Boolean(finding), `evidence ${e.id}: findingId "${e.findingId}" is not a finding`);
+      if (finding) {
+        check(finding.controlId === e.controlId, `evidence ${e.id}: findingId "${e.findingId}" is filed against control ${finding.controlId}, but this record is for ${e.controlId}`);
+        check(e.assetIds.includes(finding.assetId), `evidence ${e.id}: findingId "${e.findingId}" is filed against asset ${finding.assetId}, which this record doesn't name`);
+      }
+    }
+  });
+
+  // Two observations citing the same source name but disagreeing about what kind
+  // of source it is: either two different tools sharing a name, or a typo.
+  check(graph.sourceConflicts.length === 0, `evidence sources: ${graph.sourceConflicts.join("; ")}`);
+
+  graph.risks.forEach((r) => {
+    check(SEVERITY_LEVELS.includes(r.inherent.severity), `risk ${r.id}: inherent severity "${r.inherent.severity}" is not a severity level`);
+    check(SEVERITY_LEVELS.includes(r.residual.severity), `risk ${r.id}: residual severity "${r.residual.severity}" is not a severity level`);
+    check(LIKELIHOOD_LEVELS.includes(r.inherent.likelihood), `risk ${r.id}: inherent likelihood "${r.inherent.likelihood}" is not a likelihood level`);
+    check(LIKELIHOOD_LEVELS.includes(r.residual.likelihood), `risk ${r.id}: residual likelihood "${r.residual.likelihood}" is not a likelihood level`);
+    check(has(graph.orgById, r.ownerId), `risk ${r.id}: ownerId "${r.ownerId}" is not an org`);
+  });
+
+  graph.facts.boardMaterialRiskIds.forEach((id) =>
+    check(has(graph.riskById, id), `boardMaterialRiskIds references "${id}", which is not in the risk register`)
+  );
+
+  // A tier whose weights quietly summed to 95 instead of 100 would rescale every
+  // asset at that tier without anything looking wrong, so this is checked rather
+  // than trusted.
+  CLASSIFICATION_TIERS.forEach((tier) => {
+    const weights = graph.categoryWeights[tier];
+    check(Boolean(weights), `controlProfile: no category weights defined for tier "${tier}"`);
+    if (!weights) return;
+    ASSURANCE_CATEGORIES.forEach((c) =>
+      check(Number.isFinite(weights[c]) && weights[c] > 0, `controlProfile: tier "${tier}" has no positive weight for "${c}" — a zero weight would silently exclude a category from the score`)
+    );
+    Object.keys(weights).forEach((c) =>
+      check(ASSURANCE_CATEGORIES.includes(c as (typeof ASSURANCE_CATEGORIES)[number]), `controlProfile: tier "${tier}" weights an unknown category "${c}"`)
+    );
+    const total = ASSURANCE_CATEGORIES.reduce((a, c) => a + (weights[c] ?? 0), 0);
+    check(total === 100, `controlProfile: tier "${tier}" weights sum to ${total}, not 100`);
+  });
+
+  // The tier baseline has to name a real maturity stage and evidence type for
+  // every tier, or an asset at that tier is measured against nothing.
+  CLASSIFICATION_TIERS.forEach((tier) => {
+    const base = graph.facts.controlProfile.tierBaseline[tier];
+    check(Boolean(base), `controlProfile: no tier baseline for "${tier}"`);
+    if (!base) return;
+    check(MATURITY_STAGES.includes(base.maturity), `controlProfile: tier "${tier}" baseline maturity "${base.maturity}" is not a maturity stage`);
+    check(EVIDENCE_TYPES.includes(base.evidence), `controlProfile: tier "${tier}" baseline evidence "${base.evidence}" is not an evidence type`);
+  });
+
+  // ---- Edges -------------------------------------------------------------------
+  graph.assetDataTypes.forEach((e, i) => {
+    check(has(graph.assetById, e.assetId), `assetDataTypes[${i}]: assetId "${e.assetId}" is not an asset`);
+    check(has(graph.dataTypeById, e.dataTypeId), `assetDataTypes[${i}]: dataTypeId "${e.dataTypeId}" is not a data type`);
+    check(Object.hasOwn(DATA_ROLE_META, e.role), `assetDataTypes[${i}]: role "${e.role}" is not a known data role`);
+  });
+
+  graph.dataFlows.forEach((f) => {
+    check(has(graph.assetById, f.from), `data flow ${f.id}: from "${f.from}" is not an asset`);
+    check(has(graph.assetById, f.to), `data flow ${f.id}: to "${f.to}" is not an asset`);
+    check(f.from !== f.to, `data flow ${f.id}: connects an asset to itself`);
+    check(Object.values(FLOW_KINDS).includes(f.kind), `data flow ${f.id}: kind "${f.kind}" is not a known flow kind`);
+    check(f.dataTypeIds.length > 0, `data flow ${f.id}: carries no data types — an edge with nothing on it is not a relationship`);
+    f.dataTypeIds.forEach((id) => check(has(graph.dataTypeById, id), `data flow ${f.id}: dataTypeId "${id}" is not a data type`));
+
+    const from = graph.assetById[f.from];
+    const to = graph.assetById[f.to];
+    if (from && to) {
+      check(from.systemId === to.systemId, `data flow ${f.id}: crosses from ${from.systemId} to ${to.systemId} — cross-system flows change what each boundary is responsible for and need to be modelled deliberately, not appear by accident`);
+    }
+  });
+
+  graph.categoryAssessments.forEach((a) => {
+    check(has(graph.assetById, a.assetId), `category assessment: assetId "${a.assetId}" is not an asset`);
+    check(ASSURANCE_CATEGORIES.includes(a.category), `category assessment ${a.assetId}: category "${a.category}" is not an assurance category`);
+    check(MATURITY_STAGES.includes(a.maturityStage), `category assessment ${a.assetId}/${a.category}: maturityStage "${a.maturityStage}" is not a maturity stage`);
+    check(EVIDENCE_TYPES.includes(a.evidenceType), `category assessment ${a.assetId}/${a.category}: evidenceType "${a.evidenceType}" is not an evidence type`);
+    check(a.effectivenessPct >= 0 && a.effectivenessPct <= 100, `category assessment ${a.assetId}/${a.category}: effectivenessPct outside 0-100`);
+  });
+
+  // Every asset needs an assessment in every category, or its rollup would have a
+  // hole that reads as a zero.
+  graph.assets.forEach((a) => {
+    ASSURANCE_CATEGORIES.forEach((c) => {
+      check(
+        Object.hasOwn(graph.assessmentByPair, `${a.id}::${c}`),
+        `asset ${a.id}: no category assessment for "${c}" — every asset needs all six, since the assessed baseline is what non-key controls fall back to`
+      );
+    });
+  });
+
+  graph.applicabilityRules.forEach((r, i) => {
+    check(has(graph.keyControlById, r.controlId), `applicability rule[${i}]: controlId "${r.controlId}" is not a key control`);
+    check(graph.keyControlById[r.controlId]?.scope === "asset", `applicability rule[${i}]: ${r.controlId} is program-scoped — program controls apply by definition and must not carry asset rules`);
+    const { assetKinds, minClassification, hostingTypes } = r.requiredWhen;
+    (assetKinds || []).forEach((k) => check(ASSET_KINDS.includes(k), `applicability rule[${i}] (${r.controlId}): assetKind "${k}" is not a known asset kind`));
+    (hostingTypes || []).forEach((h) => check(HOSTING_TYPES.includes(h), `applicability rule[${i}] (${r.controlId}): hostingType "${h}" is not known`));
+    check(!minClassification || CLASSIFICATION_TIERS.includes(minClassification), `applicability rule[${i}] (${r.controlId}): minClassification "${minClassification}" is not a tier`);
+  });
+
+  // Every asset-scoped key control needs at least one rule, or it silently
+  // applies nowhere.
+  graph.assetScopedControls.forEach((c) => {
+    check(
+      (graph.rulesByControl[c.id] ?? []).length > 0,
+      `key control ${c.id} is asset-scoped but has no applicability rule, so it would apply to nothing`
+    );
+  });
+
+  graph.applicabilityExceptions.forEach((e) => {
+    check(has(graph.assetById, e.assetId), `applicability exception: assetId "${e.assetId}" is not an asset`);
+    check(has(graph.keyControlById, e.controlId), `applicability exception: controlId "${e.controlId}" is not a key control`);
+    check(Boolean(e.reason?.trim()), `applicability exception ${e.assetId}/${e.controlId}: needs a reason — "not applicable" without one is indistinguishable from "nobody looked"`);
+  });
+
+  graph.implementationOverrides.forEach((o) => {
+    check(has(graph.assetById, o.assetId), `implementation override: assetId "${o.assetId}" is not an asset`);
+    check(has(graph.keyControlById, o.controlId), `implementation override: controlId "${o.controlId}" is not a key control`);
+    check(MATURITY_STAGES.includes(o.maturityStage), `implementation override ${o.assetId}/${o.controlId}: maturityStage "${o.maturityStage}" is not a maturity stage`);
+    check(Boolean(o.note?.trim()), `implementation override ${o.assetId}/${o.controlId}: needs a note explaining why it differs from the category baseline`);
+    if (o.findingId) {
+      const finding = graph.findings.find((f) => f.id === o.findingId);
+      check(Boolean(finding), `implementation override ${o.assetId}/${o.controlId}: findingId "${o.findingId}" is not a finding`);
+      if (finding) {
+        check(
+          finding.assetId === o.assetId && finding.controlId === o.controlId,
+          `implementation override ${o.assetId}/${o.controlId}: findingId "${o.findingId}" points at a finding filed against ${finding.assetId}/${finding.controlId} instead`
+        );
+      }
+    }
+  });
+
+  graph.notImplemented.forEach((n) => {
+    check(has(graph.assetById, n.assetId), `not-implemented declaration: assetId "${n.assetId}" is not an asset`);
+    check(has(graph.keyControlById, n.controlId), `not-implemented declaration: controlId "${n.controlId}" is not a key control`);
+    check(Boolean(n.reason?.trim()), `not-implemented declaration ${n.assetId}/${n.controlId}: needs a reason`);
+  });
+
+  Object.entries(graph.ownership).forEach(([scope, byCategory]) => {
+    check(scope === "program" || has(graph.systemById, scope), `ownership: "${scope}" is neither a system id nor "program"`);
+    ASSURANCE_CATEGORIES.forEach((c) => {
+      const ids = byCategory[c];
+      check(Array.isArray(ids) && ids.length > 0, `ownership[${scope}]: no owner for "${c}"`);
+      (ids || []).forEach((id) => check(has(graph.orgById, id), `ownership[${scope}][${c}]: ownerId "${id}" is not an org`));
+    });
+  });
+
+  graph.ownerOverrides.forEach((o) => {
+    check(has(graph.assetById, o.assetId), `owner override: assetId "${o.assetId}" is not an asset`);
+    check(has(graph.keyControlById, o.controlId), `owner override: controlId "${o.controlId}" is not a key control`);
+    check(Array.isArray(o.ownerIds) && o.ownerIds.length > 0, `owner override ${o.assetId}/${o.controlId}: needs at least one ownerId`);
+    (o.ownerIds || []).forEach((id) => check(has(graph.orgById, id), `owner override ${o.assetId}/${o.controlId}: ownerId "${id}" is not an org`));
+    check(Boolean(o.note?.trim()), `owner override ${o.assetId}/${o.controlId}: needs a note explaining why it differs from the system+category default`);
+  });
+
+  graph.orgs.forEach((o) => {
+    check(Object.values(ORG_KINDS).includes(o.kind), `org ${o.id}: kind "${o.kind}" is not a known org kind`);
+    check(!o.parentId || has(graph.orgById, o.parentId), `org ${o.id}: parentId "${o.parentId}" is not an org`);
+  });
+  check(new Set(graph.orgs.map((o) => o.id)).size === graph.orgs.length, `orgs: duplicate id`);
+
+  graph.findings.forEach((f) => {
+    check(has(graph.assetById, f.assetId), `finding ${f.id}: assetId "${f.assetId}" is not an asset`);
+    check(has(graph.keyControlById, f.controlId), `finding ${f.id}: controlId "${f.controlId}" is not a key control`);
+    check(has(graph.orgById, f.ownerId), `finding ${f.id}: ownerId "${f.ownerId}" is not an org`);
+    check(FINDING_STATUSES.includes(f.status), `finding ${f.id}: status "${f.status}" is not one of ${FINDING_STATUSES.join(", ")}`);
+    check(!Number.isNaN(new Date(f.due).getTime()), `finding ${f.id}: due "${f.due}" is not a parseable date`);
+    check(Boolean(f.title?.trim()), `finding ${f.id}: needs a title`);
+  });
+  check(new Set(graph.findings.map((f) => f.id)).size === graph.findings.length, `findings: duplicate id`);
+
+  graph.actors.forEach((a) => {
+    check(Object.values(ACTOR_KINDS).includes(a.kind), `actor ${a.id}: kind "${a.kind}" is not a known actor kind`);
+    check(Boolean(a.description?.trim()), `actor ${a.id}: needs a description`);
+  });
+  check(new Set(graph.actors.map((a) => a.id)).size === graph.actors.length, `actors: duplicate id`);
+
+  graph.actorAccess.forEach((a) => {
+    check(has(graph.actorById, a.actorId), `actor access ${a.id}: actorId "${a.actorId}" is not an actor`);
+    check(has(graph.assetById, a.assetId), `actor access ${a.id}: assetId "${a.assetId}" is not an asset`);
+    check(Object.values(ACTOR_DIRECTIONS).includes(a.direction), `actor access ${a.id}: direction "${a.direction}" is not a known direction`);
+  });
+  check(new Set(graph.actorAccess.map((a) => a.id)).size === graph.actorAccess.length, `actor access: duplicate id`);
+
+  graph.riskAssets.forEach((e, i) => {
+    check(has(graph.riskById, e.riskId), `riskAssets[${i}]: riskId "${e.riskId}" is not a risk`);
+    check(has(graph.assetById, e.assetId), `riskAssets[${i}]: assetId "${e.assetId}" is not an asset`);
+    check(Object.values(CONTRIBUTOR_ROLES).includes(e.role), `riskAssets[${i}]: role "${e.role}" is not a contributor role`);
+  });
+
+  graph.riskControls.forEach((e, i) => {
+    check(has(graph.riskById, e.riskId), `riskControls[${i}]: riskId "${e.riskId}" is not a risk`);
+    check(has(graph.keyControlById, e.controlId), `riskControls[${i}]: controlId "${e.controlId}" is not a key control`);
+  });
+
+  // A risk with no edges has to say why. Silence here would leave a risk floating
+  // exactly the way linkedControl used to, just without the string.
+  graph.risks.forEach((r) => {
+    const hasAssets = (graph.assetsByRisk[r.id] ?? []).length > 0;
+    const hasControls = (graph.controlsByRisk[r.id] ?? []).length > 0;
+    check(hasAssets || Object.hasOwn(graph.risksWithoutAssets, r.id), `risk ${r.id}: has no contributing assets and no entry in risksWithoutAssets explaining why`);
+    check(hasControls || Object.hasOwn(graph.risksWithoutControls, r.id), `risk ${r.id}: has no linked controls and no entry in risksWithoutControls explaining why`);
+  });
+
+  // Explanations for edges that do exist are stale documentation pretending to be
+  // a gap note.
+  Object.keys(graph.risksWithoutAssets).forEach((id) =>
+    check((graph.assetsByRisk[id] ?? []).length === 0, `risksWithoutAssets explains "${id}", but that risk now has asset edges — remove the stale explanation`)
+  );
+  Object.keys(graph.risksWithoutControls).forEach((id) =>
+    check((graph.controlsByRisk[id] ?? []).length === 0, `risksWithoutControls explains "${id}", but that risk now has control edges — remove the stale explanation`)
+  );
+
+  if (problems.length > 0) {
+    throw new Error(
+      `Graph integrity check failed (${problems.length} problem${problems.length === 1 ? "" : "s"}):\n  - ${problems.join("\n  - ")}`
+    );
+  }
+}

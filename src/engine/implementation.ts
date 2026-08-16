@@ -30,7 +30,7 @@
 import type { Graph } from "../graph/types";
 import { BASIS, ASSURANCE_CATEGORIES, type AssuranceCategory, type MaturityStage, type EvidenceType } from "../graph/nodes/taxonomy";
 import type { Evidence } from "../graph/nodes/evidence";
-import { ownerIdsFor } from "../graph/edges/controlImplementations";
+import type { SystemScope } from "../graph/ids";
 import type { ApplicabilityApi } from "./applicability";
 import type { EngineContext } from "./context";
 import { blendAssurance, evidenceBaseConfidence, mean, display } from "./assurance";
@@ -241,6 +241,11 @@ export function createImplementation(graph: Graph, applicabilityApi: Applicabili
     const ownerOverride = isProgram ? null : graph.ownerOverrides.find((o) => o.assetId === assetId && o.controlId === controlId) ?? null;
     const declaredMissing = isProgram ? null : graph.notImplementedByPair[`${assetId}::${controlId}`] ?? null;
     const records = evidenceFor(assetId, controlId).map(scoreEvidence);
+
+    // A system's own owner for this category, falling back to the program-wide
+    // default when the system doesn't name one.
+    const ownerIdsFor = (scope: SystemScope, category: AssuranceCategory) =>
+      graph.ownership[scope]?.[category] ?? graph.ownership.program[category];
 
     const ownerIds = ownerOverride?.ownerIds ?? ownerIdsFor(systemId, control.category);
     const owners = ownerIds.map((id) => graph.orgById[id]);
