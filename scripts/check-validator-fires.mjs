@@ -18,17 +18,17 @@ let failed = 0;
 try {
   const { loadGraph } = await server.ssrLoadModule("/src/graph/load.ts");
   const { createEngine } = await server.ssrLoadModule("/src/engine/create.ts");
-  const { ACME_FACTS } = await server.ssrLoadModule("/src/graph/sources/acme.ts");
+  const { YAML_FACTS } = await server.ssrLoadModule("/src/graph/sources/yaml.ts");
 
   // Deep-ish clone so each case starts from clean facts. Structured clone would
   // choke on nothing here — these are plain data — and it keeps a corruption in
   // one case from leaking into the next.
-  const fresh = () => structuredClone(ACME_FACTS);
+  const fresh = () => structuredClone(YAML_FACTS);
 
   // The baseline has to load cleanly, or every "it threw" below is meaningless.
   try {
-    loadGraph(ACME_FACTS);
-    console.log("  ok    baseline ACME graph loads clean");
+    loadGraph(YAML_FACTS);
+    console.log("  ok    baseline graph loads clean");
     passed++;
   } catch (err) {
     console.log(`  FAIL  baseline ACME graph should load clean but threw: ${err.message.slice(0, 300)}`);

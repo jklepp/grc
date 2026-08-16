@@ -60,8 +60,13 @@ try {
   }
 
   // Per-entity derivations, keyed by id so a rename shows up as a diff too.
-  const graph = await server.ssrLoadModule("/src/graph/nodes/assets.ts");
-  const systems = await server.ssrLoadModule("/src/graph/nodes/systems.ts");
+  //
+  // The id lists come off the engine's own graph rather than from the graph
+  // modules. Those modules used to export the fact arrays; now they hold only
+  // types and vocabularies, and the facts live in src/graph/facts/*.yaml — so
+  // asking the engine what it loaded is both the only way and the right way:
+  // it snapshots what the app actually rendered from, not a parallel list.
+  const { graph } = engine.engine;
 
   const call = (fn, arg) => {
     try {
@@ -72,10 +77,10 @@ try {
   };
 
   snapshot["__assetRollups"] = Object.fromEntries(
-    graph.ASSETS.map((a) => [a.id, engine.assetRollup ? call(engine.assetRollup, a.id) : null]).sort()
+    graph.assets.map((a) => [a.id, engine.getAsset ? call(engine.getAsset, a.id) : null]).sort()
   );
   snapshot["__systemRollups"] = Object.fromEntries(
-    systems.SYSTEMS.map((s) => [s.id, engine.systemRollup ? call(engine.systemRollup, s.id) : null]).sort()
+    graph.systems.map((s) => [s.id, engine.getSystem ? call(engine.getSystem, s.id) : null]).sort()
   );
 
   writeFileSync(outPath, JSON.stringify(snapshot, null, 2));

@@ -35,7 +35,7 @@
 // `category` and `domain` are NOT typed here. They're read from the control's
 // own SCF definition, so a key control can't claim a category its domain
 // doesn't actually map to.
-import { CONTROL_BY_ID, type Control, type ControlFramework } from "./controls";
+import type { ControlFramework } from "./controls";
 import type { AssuranceCategory, ImplementationType } from "./taxonomy";
 import type { ControlId } from "../ids";
 
@@ -49,52 +49,6 @@ interface KeyControlDef {
   legacyTracked?: boolean;
 }
 
-const KEY_CONTROL_DEFS: KeyControlDef[] = [
-  // ---- Data Protection -------------------------------------------------------
-  { id: "CRY-05", friendlyName: "Encryption at Rest", scope: "asset", legacyTracked: true },
-  { id: "CRY-03", friendlyName: "Encryption in Transit", scope: "asset", legacyTracked: true },
-  { id: "CRY-09", friendlyName: "Cryptographic Key Management", scope: "asset" },
-  { id: "DCH-18", friendlyName: "Retention & Disposal", scope: "asset", legacyTracked: true },
-  { id: "DCH-02", friendlyName: "Data & Asset Classification", scope: "program" },
-  { id: "PRI-05", friendlyName: "Personal Data Retention & Disposal", scope: "program" },
-
-  // ---- Configuration ---------------------------------------------------------
-  { id: "CFG-02", friendlyName: "Secure Baseline Configuration", scope: "asset" },
-  { id: "CFG-03", friendlyName: "Least Functionality", scope: "asset" },
-  { id: "CHG-02", friendlyName: "Configuration Change Control", scope: "asset" },
-  { id: "CLD-06", friendlyName: "Multi-Tenant Isolation", scope: "asset" },
-  { id: "AST-02", friendlyName: "Asset Inventory", scope: "program" },
-
-  // ---- Detection -------------------------------------------------------------
-  { id: "MON-02", friendlyName: "Access Logging & Review", scope: "asset", legacyTracked: true },
-  { id: "MON-03", friendlyName: "Event Log Content", scope: "asset" },
-  { id: "MON-08", friendlyName: "Protection of Event Logs", scope: "asset" },
-  { id: "VPM-05", friendlyName: "Software & Firmware Patching", scope: "asset" },
-  { id: "IRO-02", friendlyName: "Incident Handling", scope: "program" },
-
-  // ---- Identity & Access -----------------------------------------------------
-  { id: "IAC-21", friendlyName: "Least-Privilege Access", scope: "asset", legacyTracked: true },
-  { id: "IAC-17", friendlyName: "Periodic Access Review", scope: "asset" },
-  { id: "IAC-10", friendlyName: "Authenticator Management", scope: "asset" },
-  { id: "IAC-20", friendlyName: "Access Enforcement", scope: "asset" },
-  { id: "NET-03", friendlyName: "Boundary Protection", scope: "asset" },
-  { id: "NET-17", friendlyName: "DLP Monitoring", scope: "asset", legacyTracked: true },
-
-  // ---- Governance ------------------------------------------------------------
-  // Every Governance key control is program-scoped, and that is the honest
-  // answer rather than an omission: running a risk assessment or governing the
-  // AI lifecycle is something ACME does once, not something each S3 bucket does
-  // separately. The consequence is real and worth stating — no asset's
-  // Governance category is ever control-backed, so every asset carries an
-  // "assessed" basis there. Model Health surfaces that rather than hiding it.
-  { id: "RSK-04", friendlyName: "Risk Assessment", scope: "program" },
-  { id: "TPM-04", friendlyName: "Third-Party Services", scope: "program" },
-  { id: "AAT-01", friendlyName: "AI & Autonomous Technology Governance", scope: "program" },
-
-  // ---- Resilience ------------------------------------------------------------
-  { id: "BCD-11", friendlyName: "Data Backups", scope: "asset" },
-  { id: "CAP-01", friendlyName: "Capacity & Performance Management", scope: "asset" },
-];
 
 export interface KeyControl extends KeyControlDef {
   domain: string;
@@ -104,35 +58,4 @@ export interface KeyControl extends KeyControlDef {
   frameworks: ControlFramework[];
   implementationType: ImplementationType;
   toolHint: string | null;
-}
-
-export const KEY_CONTROLS: KeyControl[] = KEY_CONTROL_DEFS.map((def) => {
-  const control: Control | undefined = CONTROL_BY_ID[def.id];
-  if (!control) {
-    throw new Error(`keyControls.ts: "${def.id}" is not a control in scfControls.json — a key control must reference a real SCF id`);
-  }
-  return {
-    ...def,
-    domain: control.domain,
-    category: control.category,
-    name: control.name,
-    description: control.description,
-    frameworks: control.frameworks,
-    implementationType: control.implementationType,
-    toolHint: control.toolHint,
-  };
-});
-
-export const KEY_CONTROL_BY_ID: Record<ControlId, KeyControl> = Object.fromEntries(KEY_CONTROLS.map((c) => [c.id, c]));
-export const KEY_CONTROL_IDS: ControlId[] = KEY_CONTROLS.map((c) => c.id);
-
-export const ASSET_SCOPED_CONTROLS: KeyControl[] = KEY_CONTROLS.filter((c) => c.scope === CONTROL_SCOPES.ASSET);
-export const PROGRAM_SCOPED_CONTROLS: KeyControl[] = KEY_CONTROLS.filter((c) => c.scope === CONTROL_SCOPES.PROGRAM);
-
-export function isKeyControl(controlId: ControlId): boolean {
-  return Object.hasOwn(KEY_CONTROL_BY_ID, controlId);
-}
-
-export function keyControlsForCategory(category: string): KeyControl[] {
-  return KEY_CONTROLS.filter((c) => c.category === category);
 }
