@@ -194,6 +194,33 @@ export function assembleGraph(facts: GraphFacts): Graph {
     });
   });
 
+  // The other half of the same question, at domain granularity. A control with
+  // no citing policy or step is not automatically ungoverned — the library may
+  // claim its whole area — and these two inversions are what let the Policy and
+  // Procedure levels tell those cases apart instead of collapsing them.
+  //
+  // procedureByDomain is a single record, not a list: validate.ts proves exactly
+  // one SOP claims each domain, so a list would imply an ambiguity the data does
+  // not have. A duplicate claim fails the build rather than silently picking one.
+  const policiesByDomain: Record<string, (typeof facts.policies)[number][]> = {};
+  facts.policies.forEach((p) => {
+    p.domains.forEach((d) => (policiesByDomain[d] ||= []).push(p));
+  });
+
+  const procedureByDomain: Record<string, (typeof facts.procedures)[number]> = {};
+  facts.procedures.forEach((proc) => {
+    proc.domains.forEach((d) => (procedureByDomain[d] = proc));
+  });
+
+  // ---- What the PRISMA assessment stands on ----------------------------------
+  // A pair is scored when its system's declared scope names the control. Held as
+  // a Set rather than rebuilt per lookup because every one of the ~500
+  // system-control pairs asks this question at least once.
+  const assessedPairs = new Set<string>();
+  facts.assessmentScopes.forEach((scope) => {
+    scope.controlIds.forEach((id) => assessedPairs.add(pair(scope.systemId, id)));
+  });
+
   return {
     facts,
 
@@ -226,6 +253,10 @@ export function assembleGraph(facts: GraphFacts): Graph {
     programApplicabilityExceptions: facts.programApplicabilityExceptions,
     policies: facts.policies,
     procedures: facts.procedures,
+    prismaOverrides: facts.prismaOverrides,
+    scheduledActivities: facts.scheduledActivities,
+    assessmentScopes: facts.assessmentScopes,
+    providerCertifications: facts.providerCertifications,
     riskAssets: facts.riskAssets,
     riskControls: facts.riskControls,
     risksWithoutAssets: facts.risksWithoutAssets,
@@ -265,7 +296,23 @@ export function assembleGraph(facts: GraphFacts): Graph {
 
     policiesByControl,
     procedureStepsByControl,
+    policiesByDomain,
+    procedureByDomain,
     rulesByProgramControl: groupBy(facts.programApplicabilityRules, (r) => r.controlId),
+
+    // PRISMA assessment indexes
+    assessmentScopeBySystem: keyBy(facts.assessmentScopes, (s) => s.systemId),
+    assessedPairs,
+    certificationsByProvider: groupBy(facts.providerCertifications, (c) => c.provider),
+    prismaOverrideByKey: keyBy(facts.prismaOverrides, (o) => `${o.systemId}::${o.controlId}::${o.level}`),
+    activitiesByControl: (() => {
+      const byControl: Record<string, (typeof facts.scheduledActivities)[number][]> = {};
+      facts.scheduledActivities.forEach((a) => {
+        a.controlIds.forEach((id) => (byControl[id] ||= []).push(a));
+      });
+      return byControl;
+    })(),
+    activitiesByProcedure: groupBy(facts.scheduledActivities, (a) => a.procedureId),
 
     // Risk contribution
     assetsByRisk: groupBy(facts.riskAssets, (r) => r.riskId),

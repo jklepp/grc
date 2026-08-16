@@ -1,0 +1,16 @@
+# PRISMA level overrides — where an assessor's rating differs from the derived one.
+#
+# See src/graph/edges/prismaOverrides.ts. The derivation reads what the facts
+# record; an assessor also sees whether the evidence package behind those facts
+# was adequate, which no fact here expresses.
+#
+# EMPTY, AND DELIBERATELY SO — for now. An override whose rating equals the
+# derived rating is dead text and fails the build, so a row cannot be authored
+# honestly until the derivation it disagrees with exists to be checked against.
+# The five level rules land in engine/levels.ts; overrides are authored after,
+# against real derived ratings, rather than guessed at here and reverse-fitted.
+#
+# This mirrors program-applicability-exceptions.yaml, which is empty for the same
+# kind of reason: an empty list that states why it is empty is a position, and a
+# speculative row would be a fabrication.
+[]

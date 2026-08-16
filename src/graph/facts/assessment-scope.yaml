@@ -1,0 +1,87 @@
+# Assessment scope — what each engagement actually assessed, per system.
+#
+# See src/graph/nodes/assessmentScope.ts for why this is declared rather than
+# derived. The short version: the control list here is checked against the facts
+# in BOTH directions by engine/validateDerivations.ts, so a control listed with
+# nothing behind it and a control with facts that nobody listed are each a build
+# failure. What cannot be derived — who assessed it, over what period, and why
+# these statements — is the reason the file exists at all.
+#
+# The counts these produce, against the controls applicable to each system:
+#   SYS-003   27 assessed + 17 inherited of 271 applicable   (16%)
+#   SYS-042   20 assessed + 42 inherited of 232 applicable   (27%)
+# The remainder is reported as unassessed. It is not scored as zero.
+
+- systemId: "SYS-003"
+  engagement: "FY26 validated control assessment — Production AI Platform"
+  assessor: "IT Security, with independent external validation"
+  periodStart: "2026-01-01"
+  periodEnd: "2026-08-31"
+  samplingRationale: >
+    Twenty-seven requirement statements selected as the material controls for their
+    assurance category — the set the control-selection review judged load-bearing for
+    a Restricted-tier AI platform holding customer content. Asset-scoped statements
+    are tested against every asset in the boundary the applicability rules require
+    them on; program-scoped statements are tested once for the boundary, because
+    asking nineteen assets whether ACME runs a risk-assessment process tests nothing.
+  controlIds:
+    - "AAT-01"
+    - "AST-02"
+    - "BCD-11"
+    - "CAP-01"
+    - "CFG-02"
+    - "CFG-03"
+    - "CHG-02"
+    - "CLD-06"
+    - "CRY-03"
+    - "CRY-05"
+    - "CRY-09"
+    - "DCH-02"
+    - "DCH-18"
+    - "IAC-10"
+    - "IAC-17"
+    - "IAC-20"
+    - "IAC-21"
+    - "IRO-02"
+    - "MON-02"
+    - "MON-03"
+    - "MON-08"
+    - "NET-03"
+    - "NET-17"
+    - "PRI-05"
+    - "RSK-04"
+    - "TPM-04"
+    - "VPM-05"
+
+- systemId: "SYS-042"
+  engagement: "FY26 validated control assessment — Workday"
+  assessor: "IT Security, with independent external validation"
+  periodStart: "2026-01-01"
+  periodEnd: "2026-08-31"
+  samplingRationale: >
+    The same statement set as the platform assessment, less the seven whose premise
+    does not hold in a vendor-operated SaaS tenant ACME does not run — CAP-01, CFG-02,
+    CFG-03, CHG-02, CRY-09, IAC-20 and VPM-05 all describe configuration ACME would
+    have to perform itself. Those domains are inherited from the provider's own report
+    instead, and are scored that way rather than dropped.
+  controlIds:
+    - "AAT-01"
+    - "AST-02"
+    - "BCD-11"
+    - "CLD-06"
+    - "CRY-03"
+    - "CRY-05"
+    - "DCH-02"
+    - "DCH-18"
+    - "IAC-10"
+    - "IAC-17"
+    - "IAC-21"
+    - "IRO-02"
+    - "MON-02"
+    - "MON-03"
+    - "MON-08"
+    - "NET-03"
+    - "NET-17"
+    - "PRI-05"
+    - "RSK-04"
+    - "TPM-04"

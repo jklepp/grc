@@ -23,10 +23,13 @@
 // Not one FACT is imported; those all arrive on the graph.
 import {
   CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES, MATURITY_STAGES, EVIDENCE_TYPES,
+  PRISMA_LEVELS, COMPLIANCE_RATINGS, isComplianceRating,
 } from "./nodes/taxonomy";
 import { HOSTING_TYPES, INHERITED_DOMAINS } from "./nodes/systems";
 import { ASSET_KINDS } from "./nodes/assets";
-import { DOMAINS } from "./nodes/controls";
+import { DOMAINS, FRAMEWORKS } from "./nodes/controls";
+import { CERTIFICATION_REPORT_TYPES } from "./nodes/providerCertifications";
+import { ACTIVITY_FREQUENCIES, PERIODS_PER_YEAR } from "./nodes/scheduledActivities";
 import { EVIDENCE_RESULTS, INDEPENDENCE_LEVELS } from "./nodes/evidence";
 import { SEVERITY_LEVELS, LIKELIHOOD_LEVELS } from "./nodes/risks";
 import { DATA_ROLE_META } from "./edges/assetDataTypes";
@@ -376,6 +379,142 @@ export function validateGraph(graph: Graph): void {
       Date.parse(p.lastReviewed) >= Date.parse(p.created),
       `policy ${p.code}: lastReviewed (${p.lastReviewed}) is before created (${p.created})`
     );
+  });
+
+  // A policy's `domains` is the other half of its `controlIds`, and the PRISMA
+  // Policy level reads both: a control no policy names is still governed if the
+  // library claims its area. That distinction only means something if the areas
+  // are exhaustive, so an SCF domain no policy claims is a hole in the library
+  // rather than a low score on one control.
+  graph.policies.forEach((p) =>
+    p.domains.forEach((d) => check(DOMAINS.includes(d), `policy ${p.code}: domain "${d}" is not an SCF domain`))
+  );
+  DOMAINS.forEach((d) =>
+    check(
+      (graph.policiesByDomain[d] ?? []).length > 0,
+      `SCF domain "${d}" is claimed by no policy — every domain needs a policy governing it, or controls in it have no documented basis at all`
+    )
+  );
+
+  graph.procedures.forEach((p) => {
+    check(p.reviewCadence.trim().length > 0, `procedure ${p.code}: needs a review cadence — an SOP nobody revisits supports a weaker claim than one that is maintained, and the Procedure level reads this`);
+    check(EVIDENCE_TYPES.includes(p.evidenceType), `procedure ${p.code}: evidenceType "${p.evidenceType}" is not one of ${EVIDENCE_TYPES.join(", ")}`);
+  });
+
+  // ---- Scheduled activities -------------------------------------------------
+  // The Managed level stands entirely on these, so a citation pointing at
+  // nothing silently reads as "this control is not managed" rather than as the
+  // typo it is.
+  graph.scheduledActivities.forEach((a) => {
+    check(ACTIVITY_FREQUENCIES.includes(a.frequency), `scheduled activity "${a.id}": frequency "${a.frequency}" is not one of ${ACTIVITY_FREQUENCIES.join(", ")}`);
+    a.controlIds.forEach((id) =>
+      check(has(graph.controlById, id), `scheduled activity "${a.id}": cites control "${id}", which is not a real control`)
+    );
+    check(
+      graph.procedures.some((p) => p.id === a.procedureId),
+      `scheduled activity "${a.id}": procedureId "${a.procedureId}" doesn't match any procedure`
+    );
+    check(a.instances.length > 0, `scheduled activity "${a.id}": has no instances — a cadence with no calendar behind it is a claim, not a schedule`);
+    const expected = PERIODS_PER_YEAR[a.frequency];
+    check(
+      expected === undefined || a.instances.length === expected,
+      `scheduled activity "${a.id}": is ${a.frequency} but has ${a.instances.length} instances, expected ${expected}`
+    );
+    a.instances.forEach((inst) => {
+      check(!Number.isNaN(Date.parse(inst.dueDate)), `scheduled activity "${a.id}" period ${inst.period}: dueDate "${inst.dueDate}" is not a parseable date`);
+      check(
+        expected === undefined || (inst.period >= 1 && inst.period <= expected),
+        `scheduled activity "${a.id}": period ${inst.period} is outside 1..${expected} for a ${a.frequency} cadence`
+      );
+    });
+  });
+
+  // ---- Assessment scope -----------------------------------------------------
+  // The declared scope is checked against the facts in both directions by
+  // engine/validateDerivations.ts. What is checkable here is that it is
+  // well-formed and that it covers every system: a system with no scope would
+  // score against nothing and report a coverage of zero, which reads as a
+  // catastrophic finding when it is actually a missing file.
+  const scopedSystems: Record<string, number> = {};
+  graph.assessmentScopes.forEach((s, i) => {
+    check(has(graph.systemById, s.systemId), `assessmentScopes[${i}]: systemId "${s.systemId}" is not a system`);
+    scopedSystems[s.systemId] = (scopedSystems[s.systemId] ?? 0) + 1;
+
+    check(s.engagement.trim().length > 0, `assessment scope for ${s.systemId}: needs an engagement name`);
+    check(s.assessor.trim().length > 0, `assessment scope for ${s.systemId}: needs an assessor — a coverage figure nobody signed is not an assessment`);
+    check(s.samplingRationale.trim().length > 0, `assessment scope for ${s.systemId}: needs a sampling rationale — why these statements and not others is the part most likely to be argued with`);
+    check(!Number.isNaN(Date.parse(s.periodStart)), `assessment scope for ${s.systemId}: periodStart "${s.periodStart}" is not a parseable date`);
+    check(!Number.isNaN(Date.parse(s.periodEnd)), `assessment scope for ${s.systemId}: periodEnd "${s.periodEnd}" is not a parseable date`);
+    check(Date.parse(s.periodEnd) >= Date.parse(s.periodStart), `assessment scope for ${s.systemId}: periodEnd (${s.periodEnd}) is before periodStart (${s.periodStart})`);
+
+    const seen = new Set<string>();
+    s.controlIds.forEach((id) => {
+      check(has(graph.controlById, id), `assessment scope for ${s.systemId}: control "${id}" is not a real control`);
+      check(
+        graph.inScopeControls.some((c) => c.id === id),
+        `assessment scope for ${s.systemId}: control "${id}" cites no framework clause, so it is out of scope for every standard ACME certifies against and cannot be assessed`
+      );
+      check(!seen.has(id), `assessment scope for ${s.systemId}: duplicate control "${id}" — it would be counted twice in the coverage denominator`);
+      seen.add(id);
+    });
+  });
+  graph.systems.forEach((s) =>
+    check(scopedSystems[s.id] === 1, `system ${s.id}: has ${scopedSystems[s.id] ?? 0} assessment scopes, expected exactly 1`)
+  );
+
+  // ---- Provider certifications ----------------------------------------------
+  graph.providerCertifications.forEach((c) => {
+    check(
+      graph.systems.some((s) => s.provider === c.provider),
+      `certification ${c.id}: provider "${c.provider}" does not match any system's provider`
+    );
+    check(FRAMEWORKS.includes(c.standard), `certification ${c.id}: standard "${c.standard}" is not one of ${FRAMEWORKS.join(", ")}`);
+    check(CERTIFICATION_REPORT_TYPES.includes(c.reportType), `certification ${c.id}: reportType "${c.reportType}" is not one of ${CERTIFICATION_REPORT_TYPES.join(", ")}`);
+    check(EVIDENCE_TYPES.includes(c.evidenceType), `certification ${c.id}: evidenceType "${c.evidenceType}" is not one of ${EVIDENCE_TYPES.join(", ")}`);
+    check(!Number.isNaN(Date.parse(c.issuedAt)), `certification ${c.id}: issuedAt "${c.issuedAt}" is not a parseable date`);
+    check(c.validForDays > 0, `certification ${c.id}: validForDays must be positive`);
+    check(c.reference.trim().length > 0, `certification ${c.id}: needs a reference naming the actual report`);
+    c.domains.forEach((d) => check(DOMAINS.includes(d), `certification ${c.id}: domain "${d}" is not an SCF domain`));
+  });
+
+  // The check this file exists for. INHERITED_DOMAINS lets a system decline to
+  // assess a whole domain on the grounds that its provider handles it; that is
+  // only an assurance position if there is a report behind it. Without this,
+  // adding a domain to INHERITED_DOMAINS silently converts unassessed controls
+  // into scored ones backed by nothing.
+  graph.systems.forEach((s) => {
+    const covered = new Set((graph.certificationsByProvider[s.provider] ?? []).flatMap((c) => c.domains));
+    (INHERITED_DOMAINS[s.hostingType] || []).forEach((d) =>
+      check(
+        covered.has(d),
+        `system ${s.id} inherits "${d}" from ${s.provider}, but no certification held by ${s.provider} covers that domain — inheritance without a report is an unbacked claim`
+      )
+    );
+  });
+
+  // ---- PRISMA overrides ------------------------------------------------------
+  const overrideKeys: Record<string, number> = {};
+  graph.prismaOverrides.forEach((o, i) => {
+    check(has(graph.systemById, o.systemId), `prismaOverrides[${i}]: systemId "${o.systemId}" is not a system`);
+    check(has(graph.controlById, o.controlId), `prismaOverrides[${i}]: controlId "${o.controlId}" is not a real control`);
+    check(PRISMA_LEVELS.includes(o.level), `prismaOverrides[${i}]: level "${o.level}" is not a PRISMA level (${PRISMA_LEVELS.join(", ")})`);
+    check(isComplianceRating(o.rating), `prismaOverrides[${i}]: rating ${o.rating} is not a compliance rating (${COMPLIANCE_RATINGS.join(", ")})`);
+    check(o.note.trim().length > 0, `prismaOverrides[${i}]: needs a note — an override with no argument behind it is just a different number`);
+    check(o.assessedBy.trim().length > 0, `prismaOverrides[${i}]: needs an assessedBy`);
+    check(!Number.isNaN(Date.parse(o.assessedAt)), `prismaOverrides[${i}]: assessedAt "${o.assessedAt}" is not a parseable date`);
+
+    if (o.findingId !== undefined) {
+      const finding = graph.findings.find((f) => f.id === o.findingId);
+      check(finding !== undefined, `prismaOverrides[${i}]: findingId "${o.findingId}" is not a finding`);
+      check(
+        finding === undefined || finding.controlId === o.controlId,
+        `prismaOverrides[${i}]: cites finding ${o.findingId}, which is filed against ${finding?.controlId} rather than ${o.controlId}`
+      );
+    }
+
+    const key = `${o.systemId}::${o.controlId}::${o.level}`;
+    overrideKeys[key] = (overrideKeys[key] ?? 0) + 1;
+    check(overrideKeys[key] === 1, `prismaOverrides: more than one override for ${o.systemId}/${o.controlId} at level ${o.level} — which one wins would be an accident of file order`);
   });
 
   graph.programApplicabilityRules.forEach((r, i) =>

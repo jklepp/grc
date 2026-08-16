@@ -24,8 +24,11 @@ import { parse } from "yaml";
 import { CONTROLS } from "../nodes/controls";
 import { POLICIES } from "../../data/policies";
 import { PROCEDURES } from "../../data/procedures";
+import { SCHEDULED_ACTIVITIES } from "../../data/scheduledActivities";
 import type { GraphFacts } from "../types";
 import type { PolicyRecord, ProcedureRecord } from "../nodes/programArtifacts";
+import type { ActivityFrequency, ScheduledActivityInstance, ScheduledActivityRecord } from "../nodes/scheduledActivities";
+import type { EvidenceType } from "../nodes/taxonomy";
 
 // Eager + raw so the YAML is inlined at build time. The alternative — fetching
 // and parsing at runtime — would make loadGraph async, and an async graph would
@@ -87,15 +90,40 @@ export const YAML_FACTS: GraphFacts = {
   policies: POLICIES.map(
     (p): PolicyRecord => ({
       id: p.id, code: p.code, title: p.title,
-      controlIds: [...p.controlIds], created: p.created, lastReviewed: p.lastReviewed,
+      controlIds: [...p.controlIds], domains: [...p.domains],
+      created: p.created, lastReviewed: p.lastReviewed,
     })
   ),
   procedures: PROCEDURES.map(
     (p): ProcedureRecord => ({
       id: p.id, code: p.code, title: p.title, category: p.category,
       domains: [...p.domains], policyId: p.policyId, owner: p.owner,
+      // Same cast rationale as the YAML above: src/data is untyped JS, so these
+      // arrive as `string` and validateGraph is what establishes they are in
+      // vocabulary. Narrow casts rather than a blanket one on the record, so a
+      // field that stops existing is still a compile error.
+      reviewCadence: p.reviewCadence, evidenceType: p.evidenceType as EvidenceType,
       controlIds: [...p.controlIds],
       steps: p.steps.map((s) => ({ title: s.title, controls: s.controls ? [...s.controls] : undefined })),
+    })
+  ),
+
+  // Projected the same way and for the same reason: the authored records carry
+  // page-facing prose, derived framework badges, and a status computed against a
+  // module-level `new Date()`. Status in particular must NOT come across — the
+  // engine re-derives it against ctx.now, so the same facts scored on a different
+  // day give a different and correct answer instead of one baked in at build time.
+  scheduledActivities: SCHEDULED_ACTIVITIES.map(
+    (a): ScheduledActivityRecord => ({
+      id: a.id, title: a.title, frequency: a.frequency as ActivityFrequency,
+      controlIds: [...a.controls], procedureId: a.procedureId,
+      instances: a.instances.map((i): ScheduledActivityInstance => {
+        // Destructured rather than read by property so the projection names
+        // exactly what crosses, and `status` — derived in src/data against a
+        // module-level clock — provably does not.
+        const { period, dueDate, completedAt, inProgress } = i as ScheduledActivityInstance;
+        return { period, dueDate, completedAt, inProgress };
+      }),
     })
   ),
 
@@ -120,7 +148,11 @@ export const YAML_FACTS: GraphFacts = {
   risksWithoutAssets: riskGaps.withoutAssets,
   risksWithoutControls: riskGaps.withoutControls,
 
+  prismaOverrides: read("prisma-overrides"),
+
   // Curated expectations
   expectedClassification: read("expected-classification"),
   boardMaterialRiskIds: read("board-material-risks"),
+  assessmentScopes: read("assessment-scope"),
+  providerCertifications: read("provider-certifications"),
 };

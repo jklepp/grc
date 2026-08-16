@@ -109,6 +109,99 @@ try {
     ["mechanism against a non-existent asset", (f) => {
       f.implementationMechanisms[0].assetId = "AST-NOPE";
     }, /is not an asset/],
+
+    // ---- PRISMA assessment scope -------------------------------------------
+    ["assessment scope naming a control that isn't in scope for any standard", (f) => {
+      // A control citing no framework clause is out of scope everywhere, so
+      // assessing it would put a statement in the denominator that no standard
+      // asks for.
+      const unmapped = f.controls.find((c) => c.frameworks.length === 0);
+      f.assessmentScopes[0].controlIds.push(unmapped.id);
+    }, /cites no framework clause/],
+    ["assessment scope with a duplicate control", (f) => {
+      const s = f.assessmentScopes[0];
+      s.controlIds.push(s.controlIds[0]);
+    }, /duplicate control/],
+    ["assessment scope naming a control that doesn't exist", (f) => {
+      f.assessmentScopes[0].controlIds.push("NOPE-99");
+    }, /is not a real control/],
+    ["a system with no assessment scope", (f) => {
+      f.assessmentScopes = f.assessmentScopes.slice(1);
+    }, /has 0 assessment scopes/],
+    ["assessment scope with no assessor", (f) => {
+      f.assessmentScopes[0].assessor = "   ";
+    }, /needs an assessor/],
+    ["assessment period running backwards", (f) => {
+      f.assessmentScopes[0].periodEnd = "2025-01-01";
+    }, /is before periodStart/],
+
+    // ---- Provider certifications -------------------------------------------
+    ["certification covering a domain that isn't an SCF domain", (f) => {
+      f.providerCertifications[0].domains[0] = "Wizardry";
+    }, /is not an SCF domain/],
+    ["certification for a provider no system uses", (f) => {
+      f.providerCertifications[0].provider = "Hooli";
+    }, /does not match any system's provider/],
+    ["an inherited domain no certification covers", (f) => {
+      // Drop Maintenance from every report; both systems inherit it.
+      f.providerCertifications.forEach((c) => {
+        c.domains = c.domains.filter((d) => d !== "Maintenance");
+      });
+    }, /inheritance without a report is an unbacked claim/],
+    ["certification with a report type nobody issues", (f) => {
+      f.providerCertifications[0].reportType = "vibes";
+    }, /is not one of type-2/],
+
+    // ---- PRISMA overrides ---------------------------------------------------
+    // prisma-overrides.yaml is empty by design until the derivation exists to
+    // disagree with, so these build their own row rather than corrupting one.
+    ["PRISMA override at a level that doesn't exist", (f) => {
+      f.prismaOverrides.push({
+        systemId: f.systems[0].id, controlId: f.keyControls[0].id, level: "Vibes",
+        rating: 25, note: "invented for this test", assessedBy: "test", assessedAt: "2026-01-01",
+      });
+    }, /is not a PRISMA level/],
+    ["PRISMA override with an off-scale rating", (f) => {
+      f.prismaOverrides.push({
+        systemId: f.systems[0].id, controlId: f.keyControls[0].id, level: "Managed",
+        rating: 63, note: "invented for this test", assessedBy: "test", assessedAt: "2026-01-01",
+      });
+    }, /is not a compliance rating/],
+    ["two PRISMA overrides for the same level", (f) => {
+      const row = {
+        systemId: f.systems[0].id, controlId: f.keyControls[0].id, level: "Managed",
+        rating: 25, note: "invented for this test", assessedBy: "test", assessedAt: "2026-01-01",
+      };
+      f.prismaOverrides.push(row, { ...row });
+    }, /more than one override/],
+    ["PRISMA override citing a finding filed against a different control", (f) => {
+      const finding = f.findings[0];
+      const other = f.keyControls.find((c) => c.id !== finding.controlId);
+      f.prismaOverrides.push({
+        systemId: f.systems[0].id, controlId: other.id, level: "Managed", rating: 25,
+        note: "invented for this test", assessedBy: "test", assessedAt: "2026-01-01",
+        findingId: finding.id,
+      });
+    }, /is filed against/],
+
+    // ---- Scheduled activities ----------------------------------------------
+    ["scheduled activity citing a control that doesn't exist", (f) => {
+      f.scheduledActivities[0].controlIds = ["NOPE-99"];
+    }, /is not a real control/],
+    ["scheduled activity pointing at no SOP", (f) => {
+      f.scheduledActivities[0].procedureId = "sop-nope";
+    }, /doesn't match any procedure/],
+    ["scheduled activity with the wrong number of periods", (f) => {
+      f.scheduledActivities[0].instances = f.scheduledActivities[0].instances.slice(0, 1);
+    }, /instances, expected/],
+
+    // ---- Program artifacts the PRISMA levels newly depend on ---------------
+    ["SOP with no review cadence", (f) => {
+      f.procedures[0].reviewCadence = "  ";
+    }, /needs a review cadence/],
+    ["an SCF domain no policy claims", (f) => {
+      f.policies[0].domains = [];
+    }, /is claimed by no policy/],
   ];
 
   console.log("\nStructural checks (validateGraph, via loadGraph)");

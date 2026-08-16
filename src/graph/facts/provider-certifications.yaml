@@ -1,0 +1,51 @@
+# Provider certifications — what ACME's inherited controls actually stand on.
+#
+# INHERITED_DOMAINS in src/graph/nodes/systems.ts says a cloud system inherits
+# two SCF domains from its provider and a SaaS system eight. That claim now
+# scores, so it needs a report behind it: engine/validateDerivations.ts fails the
+# build if a system inherits a domain no certification held by its provider
+# covers.
+#
+# `evidenceType` is the grade of proof the report itself constitutes, on the same
+# seven-value scale every other piece of evidence in this graph uses. An auditor's
+# examination sits below the "API configuration observation" floor the engine
+# treats as verification, which is what holds an inherited control below a
+# self-verified one. That is not a penalty for using a vendor — it is the
+# strongest thing ACME can honestly say about a control it cannot re-run.
+
+- id: "CERT-AWS-SOC2-2026"
+  provider: "AWS"
+  standard: "SOC 2"
+  reportType: "type-2"
+  evidenceType: "Auditor examination"
+  issuedAt: "2026-02-14"
+  validForDays: 365
+  domains:
+    - "Physical & Environmental Security"
+    - "Maintenance"
+  reference: >
+    AWS SOC 2 Type II covering the period 2025-04-01 to 2026-01-31, retrieved from
+    AWS Artifact. Reviewed for the data-center physical access and hardware
+    maintenance controls SYS-003 inherits; the complementary user entity controls
+    it lists are the ones ACME assesses itself elsewhere in this scope.
+
+- id: "CERT-WORKDAY-SOC2-2026"
+  provider: "Workday"
+  standard: "SOC 2"
+  reportType: "type-2"
+  evidenceType: "Auditor examination"
+  issuedAt: "2026-03-02"
+  validForDays: 365
+  domains:
+    - "Physical & Environmental Security"
+    - "Maintenance"
+    - "Capacity & Performance Planning"
+    - "Endpoint Security"
+    - "Configuration Management"
+    - "Vulnerability & Patch Management"
+    - "Secure Engineering & Architecture"
+    - "Technology Development & Acquisition"
+  reference: >
+    Workday SOC 2 Type II FY26, obtained under NDA through the vendor trust site.
+    Covers the platform ACME does not operate: the tenant infrastructure, its
+    configuration baseline, patching, and the development process behind it.

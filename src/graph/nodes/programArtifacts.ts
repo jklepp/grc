@@ -30,6 +30,7 @@
 // adapter pulls them into GraphFacts instead. What's typed here is only what the
 // engine actually reads; the pages keep consuming the richer originals.
 import type { ControlId } from "../ids";
+import type { EvidenceType } from "./taxonomy";
 
 // ---- Policy ------------------------------------------------------------------
 export interface PolicyRecord {
@@ -40,6 +41,14 @@ export interface PolicyRecord {
   // Policy Center's framework-clause derivation, so this is a link that was
   // being maintained anyway — it just had no reader in the engine.
   controlIds: ControlId[];
+  // The SCF domains this policy governs. Hand-authored alongside controlIds,
+  // and across the library the two say different things: controlIds is a list
+  // of statements this policy names, domains is the area it claims. The 19
+  // policies' domains partition all 33 SCF domains with no overlap, so every
+  // control has a policy covering its AREA even where none names the control
+  // itself — which is the difference between "ACME has no policy on this" and
+  // "ACME's policy on this doesn't enumerate it."
+  domains: string[];
   // Added so GOV-03 ("Periodic Review & Update") has something to measure. A
   // policy nobody has revisited in three years is weaker support than one
   // reviewed last quarter, for the same reason stale evidence is weaker proof.
@@ -69,6 +78,14 @@ export interface ProcedureRecord {
   domains: string[];
   policyId: string;
   owner: string;
+  // Both already authored on all 16 SOPs and, until now, unreachable from the
+  // graph. reviewCadence is what separates a living procedure from a filed one:
+  // an SOP with an owner and a stated cadence supports a stronger claim than an
+  // identical document with neither. evidenceType is the grade of proof the SOP
+  // itself expects its steps to produce, which is the floor a sampled
+  // implementation is judged against.
+  reviewCadence: string;
+  evidenceType: EvidenceType;
   // Derived from the SCF crosswalk by domain, never hand-typed.
   controlIds: ControlId[];
   steps: ProcedureStepRecord[];

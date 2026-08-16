@@ -39,6 +39,10 @@ import type {
   ProgramApplicabilityRule, ProgramApplicabilityException,
 } from "./edges/controlImplementations";
 import type { PolicyRecord, ProcedureRecord } from "./nodes/programArtifacts";
+import type { AssessmentScope } from "./nodes/assessmentScope";
+import type { ProviderCertification } from "./nodes/providerCertifications";
+import type { ScheduledActivityRecord } from "./nodes/scheduledActivities";
+import type { PrismaLevelOverride } from "./edges/prismaOverrides";
 import type { RiskAsset, RiskControl } from "./edges/riskContributors";
 import type { AssuranceCategory, ClassificationTier, MaturityStage, EvidenceType } from "./nodes/taxonomy";
 import type {
@@ -99,6 +103,13 @@ export interface GraphFacts {
   riskAssets: RiskAsset[];
   riskControls: RiskControl[];
 
+  // Where an assessor's PRISMA level rating differs from the derived one.
+  prismaOverrides: PrismaLevelOverride[];
+
+  // The recurring activities the Managed level reads. Authored in src/data
+  // alongside the policy and SOP libraries, for the same reason.
+  scheduledActivities: ScheduledActivityRecord[];
+
   // Why a risk names no contributing asset or no holding control. A stated
   // reason rather than an empty list, so "nothing carries this yet" reads as a
   // deliberate position instead of an edge someone forgot to author.
@@ -112,6 +123,15 @@ export interface GraphFacts {
   // they travel with the facts, but engine/validate.ts is their only reader.
   expectedClassification: Record<SystemId, ClassificationTier>;
   boardMaterialRiskIds: RiskId[];
+
+  // What each engagement assessed, per system. Curated in the same sense: the
+  // control list is proved against the facts in both directions, and the
+  // engagement metadata around it is the part no derivation can recover.
+  assessmentScopes: AssessmentScope[];
+
+  // What the inherited domains actually stand on. Not curated-to-be-checked
+  // like the two above — these are primary facts about reports ACME holds.
+  providerCertifications: ProviderCertification[];
 }
 
 // ---- Control profile ---------------------------------------------------------
@@ -173,6 +193,10 @@ export interface Graph {
   readonly programApplicabilityExceptions: readonly ProgramApplicabilityException[];
   readonly policies: readonly PolicyRecord[];
   readonly procedures: readonly ProcedureRecord[];
+  readonly prismaOverrides: readonly PrismaLevelOverride[];
+  readonly scheduledActivities: readonly ScheduledActivityRecord[];
+  readonly assessmentScopes: readonly AssessmentScope[];
+  readonly providerCertifications: readonly ProviderCertification[];
   readonly riskAssets: readonly RiskAsset[];
   readonly riskControls: readonly RiskControl[];
   readonly risksWithoutAssets: Readonly<Record<RiskId, string>>;
@@ -226,6 +250,29 @@ export interface Graph {
   readonly policiesByControl: Readonly<Record<ControlId, readonly PolicyRecord[]>>;
   readonly procedureStepsByControl: Readonly<Record<ControlId, readonly { procedure: ProcedureRecord; stepTitle: string }[]>>;
   readonly rulesByProgramControl: Readonly<Record<ControlId, readonly ProgramApplicabilityRule[]>>;
+
+  // The inverse of the policy and SOP `domains` arrays. Both are validated to
+  // partition the SCF domains with no overlap, so inverting them is total and
+  // unambiguous — procedureByDomain is a single record rather than a list
+  // precisely because validate.ts proves exactly one SOP claims each domain.
+  //
+  // These are what let the Policy and Procedure levels tell "no policy names
+  // this control" apart from "no policy covers this area at all." Without them
+  // the two collapse into one rating and a genuinely ungoverned domain reads
+  // the same as a governed one that didn't enumerate a statement.
+  readonly policiesByDomain: Readonly<Record<string, readonly PolicyRecord[]>>;
+  readonly procedureByDomain: Readonly<Record<string, ProcedureRecord>>;
+
+  // ---- PRISMA assessment ----
+  readonly assessmentScopeBySystem: Readonly<Record<SystemId, AssessmentScope>>;
+  // `${systemId}::${controlId}` — the membership test the engine branches on to
+  // decide whether a control is scored or reported as unassessed.
+  readonly assessedPairs: ReadonlySet<string>;
+  readonly certificationsByProvider: Readonly<Record<string, readonly ProviderCertification[]>>;
+  // `${systemId}::${controlId}::${level}`, at most one per key.
+  readonly prismaOverrideByKey: Readonly<Record<string, PrismaLevelOverride>>;
+  readonly activitiesByControl: Readonly<Record<ControlId, readonly ScheduledActivityRecord[]>>;
+  readonly activitiesByProcedure: Readonly<Record<string, readonly ScheduledActivityRecord[]>>;
 
   readonly assetsByRisk: Readonly<Record<RiskId, readonly RiskAsset[]>>;
   readonly controlsByRisk: Readonly<Record<RiskId, readonly RiskControl[]>>;
