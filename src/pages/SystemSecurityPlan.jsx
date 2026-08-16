@@ -6,7 +6,21 @@ import {
 import { C } from "../theme";
 import { PageHeader, SectionHeading } from "../components/Headings";
 import { ClassificationTag, DataTypeChip, StandardChip } from "../components/SystemBadges";
-import { getAllSystems, systemControlMatrix, dataTypesForSystem, IMPLEMENTATION_TYPES } from "../engine";
+import {
+  getAllSystems, systemControlMatrix, dataTypesForSystem, IMPLEMENTATION_TYPES,
+  PRISMA_LEVELS, COMPLIANCE_LABELS, INSTANCE_STATUS_META,
+} from "../engine";
+
+// The compliance scale, coloured. Deliberately not assuranceBand's thresholds:
+// this is a five-point ordinal rating, not a 0-100 score, and mapping it
+// through a score band would imply a precision the rating does not carry.
+function ratingColor(rating) {
+  if (rating === 100) return C.green;
+  if (rating === 75) return C.accent;
+  if (rating === 50) return C.amber;
+  if (rating === 25) return C.amber;
+  return C.red;
+}
 
 const SYSTEMS = getAllSystems();
 import { POLICIES } from "../data/policies";
@@ -25,20 +39,25 @@ const RESTRICTED_SYSTEMS = SYSTEMS.filter((s) => s.classification === "Restricte
 // and dealt them into buckets until the totals matched a ratio. Deterministic,
 // clearly commented — and the status on any individual row was invented.
 //
-// "Assessed" is the honest majority answer: no individual implementation, but
-// the control's domain rolls up to an assurance category this system's assets
-// have been assessed against. A weaker claim than Satisfied, shown as its own
-// state rather than dressed up as one.
+// "Assessed" used to be the majority answer here — no individual
+// implementation, but the control's domain rolled up to an assurance category
+// this system's assets had been judged against. That fallback is gone, and with
+// it the state. Under the PRISMA model a control is either inside the declared
+// assessment scope, inherited from the provider, or outside the scope entirely.
+//
+// The majority answer is now "Not in Scope", and it is a much larger number
+// than "Assessed" ever was. That is not a regression: the old label put a score
+// on 271 controls when 44 had been looked at, and the honest version of that
+// sentence is uncomfortable by design.
 const STATUS_META = {
   inherited: { label: "Inherited", color: C.green, bg: C.greenBg, Icon: Cloud },
   satisfied: { label: "Satisfied", color: C.accent, bg: C.accentBg, Icon: CheckCircle2 },
-  assessed: { label: "Assessed", color: C.muted, bg: C.panel2, Icon: ScrollText },
   partial: { label: "Partial", color: C.amber, bg: C.amberBg, Icon: MinusCircle },
   deficient: { label: "Deficient", color: C.red, bg: C.redBg, Icon: Circle },
   "not-implemented": { label: "Not Implemented", color: C.red, bg: C.redBg, Icon: Circle },
-  unassessed: { label: "Unassessed", color: C.muted, bg: C.panel2, Icon: Circle },
+  unassessed: { label: "Not in Scope", color: C.muted, bg: C.panel2, Icon: ScrollText },
 };
-const STATUS_ORDER = ["inherited", "satisfied", "assessed", "partial", "deficient", "not-implemented", "unassessed"];
+const STATUS_ORDER = ["inherited", "satisfied", "partial", "deficient", "not-implemented", "unassessed"];
 
 // Primary organizing structure for the matrix — how a control actually gets
 // satisfied, not just which domain it's filed under. Order matters: it's the
@@ -447,26 +466,73 @@ export default function SystemSecurityPlan() {
                 <div className="text-sm leading-relaxed" style={{ color: C.ink }}>{selectedRow.explanation}</div>
               </div>
 
-              {/* A key control shows its real implementations, one per asset,
-                  with the evidence behind each. This is what replaced the single
-                  tracked-evidence block: the same control genuinely has a
-                  different answer on each asset it runs on. */}
-              {selectedRow.implementations.length > 0 && (
-                <div className="rounded-lg p-4 mb-6" style={{ background: C.accentBg, border: `1px solid ${C.accent}4D` }}>
-                  <div className="text-[10px] uppercase tracking-wide mb-2 font-semibold" style={{ color: C.accent }}>
-                    Implementations — {selectedRow.keyControl?.friendlyName ?? selectedRow.control.name}
+              {/* The five PRISMA levels this control was rated at, and what
+                  each one stood on. This is the whole derivation, in the order
+                  it was argued. */}
+              {selectedRow.assessment?.assessed && (
+                <div className="rounded-lg p-4 mb-6" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.accent }}>
+                      Maturity Assessment
+                    </div>
+                    <span className="text-[10px] ml-auto" style={{ color: C.muted }}>
+                      {selectedRow.assessment.inherited ? "Inherited from provider" : "Assessed by ACME"}
+                    </span>
                   </div>
                   <div className="space-y-2">
-                    {selectedRow.implementations.map((impl) => (
-                      <div key={`${impl.assetId}-${impl.controlId}`} className="rounded p-2" style={{ background: C.panel }}>
+                    {PRISMA_LEVELS.map((level) => {
+                      const L = selectedRow.assessment.levels[level];
+                      return (
+                        <div key={level} className="rounded p-2" style={{ background: C.panel }}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold w-24 shrink-0" style={{ color: C.ink }}>{level}</span>
+                            <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: C.border }}>
+                              <div className="h-full rounded-full" style={{ width: `${L.rating}%`, background: ratingColor(L.rating) }} />
+                            </div>
+                            <span className="text-[10px] w-28 shrink-0 text-right" style={{ color: C.muted }}>
+                              {COMPLIANCE_LABELS[L.rating]}
+                            </span>
+                            <span className="text-xs font-semibold tabular-nums w-14 shrink-0 text-right" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>
+                              {L.rating} ×{L.weight}
+                            </span>
+                          </div>
+                          <div className="text-[11px] mt-1 leading-snug" style={{ color: C.muted }}>
+                            {L.rating !== L.derived && <span className="font-semibold" style={{ color: C.amber }}>Overridden from {L.derived}. </span>}
+                            {L.rationale}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {selectedRow.assessment.ladderInversions.length > 0 && (
+                    <div className="text-[11px] mt-2" style={{ color: C.amber }}>
+                      Rated above the level beneath it: {selectedRow.assessment.ladderInversions.join(", ")}.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* The sampling population behind the Implemented level — one row
+                  per asset the control applies to in this boundary. An asset
+                  carries a status here, never a score of its own. */}
+              {selectedRow.instances.length > 0 && (
+                <div className="rounded-lg p-4 mb-6" style={{ background: C.accentBg, border: `1px solid ${C.accent}4D` }}>
+                  <div className="text-[10px] uppercase tracking-wide mb-2 font-semibold" style={{ color: C.accent }}>
+                    Sampled assets — {selectedRow.keyControl?.friendlyName ?? selectedRow.control.name}
+                  </div>
+                  <div className="space-y-2">
+                    {selectedRow.instances.map((inst) => (
+                      <div key={`${inst.assetId}-${inst.controlId}`} className="rounded p-2" style={{ background: C.panel }}>
                         <div className="flex items-center gap-2">
                           <span className="text-xs flex-1 min-w-0 truncate" style={{ color: C.ink }}>
-                            {impl.assetId ? assetName(system, impl.assetId) : "Program-wide"}
+                            {assetName(system, inst.assetId)}
                           </span>
-                          <span className="text-[10px]" style={{ color: C.muted }}>{impl.maturityStage ?? "—"}</span>
-                          <span className="text-xs font-semibold tabular-nums" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{impl.score}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0" style={{ background: C.panel2, color: C.muted }}>
+                            {INSTANCE_STATUS_META[inst.status]?.label ?? inst.status}
+                          </span>
                         </div>
-                        {impl.evidence.map((e) => (
+                        <div className="text-[11px] mt-1 leading-snug" style={{ color: C.muted }}>{inst.statement}</div>
+                        {inst.evidence.map((e) => (
                           <div key={e.id} className="flex items-center gap-2 mt-1 text-[11px]" style={{ color: C.muted }}>
                             <Link2 size={10} />
                             <span className="min-w-0 truncate">

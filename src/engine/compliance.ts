@@ -16,26 +16,28 @@
 //                       totals matched. It was deterministic and clearly
 //                       labelled, but the status on any given row was invented.
 //
-// Here every control resolves to one of four states, each of which means
-// something specific:
+// Here every control resolves to one of these states, each meaning something
+// specific:
 //
 //   inherited  the provider's certification covers this domain under the
 //              shared-responsibility split (graph/nodes/systems.ts)
-//   measured   a key control with real implementations on this system's assets
-//   assessed   no key control, but the domain rolls up to an assurance category
-//              this system's assets have been assessed against
-//   unassessed nothing covers it
+//   satisfied  assessed, and every sampled instance holds it
+//   partial    assessed, and some do
+//   deficient  assessed, and most do not
+//   not-implemented  assessed, and it is absent
+//   unassessed applicable, and outside the declared assessment scope
 //
-// Nothing is fabricated, and the matrix stays fully populated — the honest
-// answer for most controls is "assessed at category level," which is a weaker
-// claim than measured but a real one.
+// The matrix no longer stays fully populated with scores, and that is the
+// change. It used to fall back to "assessed at category level" for every
+// control nobody tracked, which kept every row carrying a number — but the
+// number came from a category judgment typed once per asset, not from anything
+// about the control. Now a control nobody assessed says so, and the coverage
+// figure beside the score says how many of those there are.
 import type { Graph } from "../graph/types";
-import { inheritsDomain } from "../graph/nodes/systems";
 import type { Control } from "../graph/nodes/controls";
 import { BASIS } from "../graph/nodes/taxonomy";
-import type { ImplementationApi, Implementation } from "./implementation";
+import type { AssessmentApi, ControlAssessment } from "./assessment";
 import type { ApplicabilityApi } from "./applicability";
-import type { RollupsApi } from "./rollups";
 import { mean, assuranceBand, display } from "./assurance";
 import type { SystemId, ControlId } from "../graph/ids";
 
@@ -47,38 +49,32 @@ export const COVERAGE_STATUS_META = {
   deficient: { label: "Deficient", color: "red", basis: BASIS.MEASURED },
   "not-implemented": { label: "Not implemented", color: "red", basis: BASIS.MEASURED },
   inherited: { label: "Inherited", color: "accent", basis: BASIS.INHERITED },
-  assessed: { label: "Assessed at category level", color: "muted", basis: BASIS.ASSESSED },
-  unassessed: { label: "Unassessed", color: "muted", basis: BASIS.UNASSESSED },
+  // "Assessed at category level" is gone with the category assessments it named.
+  // A control outside the declared scope is unassessed, and saying so is the
+  // point — the old label let an unexamined control read as an examined one.
+  unassessed: { label: "Not in assessment scope", color: "muted", basis: BASIS.UNASSESSED },
 };
 
-// Worst status across a control's implementations on one system's assets. A
-// control that is effective on five assets and deficient on a sixth is not
-// "mostly satisfied" — the sixth is the finding.
-const STATUS_RANK: Record<string, number> = {
-  "not-implemented": 0, deficient: 1, partial: 2, unevidenced: 3, effective: 4,
+// Worst status first, for the pages that rank rows by how bad they are. A
+// control that holds on five assets and fails on a sixth is not "mostly
+// satisfied" — the sixth is the finding.
+//
+// aggregateImplementationStatus() used to live here and derive a status by
+// walking a control's per-asset implementations. It is gone: the status is now
+// read off the assessment's Implemented level, which is one named rating rather
+// than a second aggregation that could disagree with the score beside it.
+export const STATUS_RANK: Record<string, number> = {
+  "not-implemented": 0, deficient: 1, partial: 2, unassessed: 3, inherited: 4, satisfied: 5,
 };
-
-function aggregateImplementationStatus(implementations: Implementation[]): string | null {
-  if (implementations.length === 0) return null;
-  const worst = implementations.reduce((w, i) => (STATUS_RANK[i.status] < STATUS_RANK[w.status] ? i : w));
-  const map: Record<string, string> = {
-    effective: "satisfied", partial: "partial", deficient: "deficient",
-    "not-implemented": "not-implemented", unevidenced: "assessed",
-  };
-  return map[worst.status] ?? "assessed";
-}
 
 export function createCompliance(
   graph: Graph,
-  implementation: ImplementationApi,
-  applicability: ApplicabilityApi,
-  rollups: RollupsApi
+  assessment: AssessmentApi,
+  applicability: ApplicabilityApi
 ) {
-  // Which in-scope controls apply to a system given the standards it's
-  // certifying against.
-  function controlsForStandards(standards: string[]): Control[] {
-    return graph.inScopeControls.filter((c) => c.frameworks.some((f) => standards.includes(f.standard))) as Control[];
-  }
+  // Moved to engine/applicability.ts — "which controls apply" is that module's
+  // question. Re-exported here because the framework pages ask it by standard.
+  const controlsForStandards = applicability.controlsForStandards;
 
   function controlsSatisfyingClause(standard: string, clause: string): Control[] {
     return (graph.controlsByClause[`${standard}::${clause}`] ?? []) as Control[];
@@ -100,72 +96,68 @@ export function createCompliance(
     return graph.assetsBySystem[systemId] ?? [];
   }
 
-  // One row of a system's control matrix.
+  // Where one assessment lands on the coverage vocabulary.
+  //
+  // Driven by the Implemented level alone, because that is the level that says
+  // whether the control is actually in place — the other four describe how well
+  // it is documented, measured and managed, which is the score's job to weigh,
+  // not this status's. Deriving it from one named rating also means a row's
+  // status and its score can never tell different stories.
+  //
+  // "assessed" is gone from the produced set. It used to mean "not tracked
+  // individually, but its category was judged," and that fallback died with the
+  // category assessments. A control nobody assessed is now unassessed, which is
+  // the same fact stated honestly.
+  function coverageStatus(a: ControlAssessment): string {
+    if (!a.assessed) return "unassessed";
+    if (a.inherited) return "inherited";
+    const implemented = a.levels.Implemented.rating;
+    if (implemented === 100) return "satisfied";
+    if (implemented >= 50) return "partial";
+    if (implemented >= 25) return "deficient";
+    return "not-implemented";
+  }
+
+  // One row of a system's control matrix — a projection of the assessment, not
+  // a second derivation of it.
   function controlCoverageForSystem(systemId: SystemId, controlId: ControlId) {
-    const system = graph.systemById[systemId];
     const control = graph.controlById[controlId];
-    const rollup = rollups.systemRollupById[systemId];
+    const a = assessment.assessmentFor(systemId, controlId);
 
-    if (inheritsDomain(system.hostingType, control.domain)) {
+    if (a === null) {
       return {
-        controlId, control, systemId, status: "inherited", basis: BASIS.INHERITED,
-        score: null as number | null, implementations: [] as Implementation[],
-        explanation: `${system.provider} carries this domain under the ${system.hostingType === "saas" ? "SaaS" : "cloud"} shared-responsibility split.`,
-        keyControl: undefined as Implementation["control"] | undefined,
-      };
-    }
-
-    if (isKeyControl(controlId)) {
-      const keyControl = graph.keyControlById[controlId];
-
-      if (keyControl.scope === "program") {
-        const impl = implementation.programImplementation(controlId)!;
-        return {
-          controlId, control, systemId, keyControl,
-          status: aggregateImplementationStatus([impl]) ?? "unassessed",
-          basis: impl.basis, score: impl.score, implementations: [impl],
-          explanation: "Operated once for the whole program rather than per resource.",
-        };
-      }
-
-      const assets = applicability.assetsRequiringControl(controlId).filter((a) => a.systemId === systemId);
-      const implementations = assets.map((a) => implementation.buildImplementation(a.id, controlId));
-      if (implementations.length > 0) {
-        return {
-          controlId, control, systemId, keyControl,
-          status: aggregateImplementationStatus(implementations)!,
-          basis: implementations.some((i) => i.basis === BASIS.MEASURED) ? BASIS.MEASURED : BASIS.ASSESSED,
-          score: display(mean(implementations.map((i) => i.rawScore as number))),
-          implementations,
-          explanation: `Implemented on ${implementations.length} asset${implementations.length === 1 ? "" : "s"} in this boundary.`,
-        };
-      }
-    }
-
-    // Not key-tracked. It still rolls up to an assurance category this system's
-    // assets have been assessed against, so the honest status is "assessed",
-    // carrying that category's real score.
-    const categoryScore = rollup?.categoryScores?.[control.category];
-    if (categoryScore != null) {
-      return {
-        controlId, control, systemId, status: "assessed", basis: BASIS.ASSESSED,
-        score: categoryScore, implementations: [] as Implementation[],
-        explanation: `Not individually tracked. Covered by this system's ${control.category} assessment.`,
+        controlId, control, systemId, status: "unassessed", basis: BASIS.UNASSESSED,
+        score: null as number | null, assessment: null as ControlAssessment | null,
+        instances: [] as ControlAssessment["instances"],
+        explanation: `${controlId} does not apply to this system.`,
+        keyControl: graph.keyControlById[controlId],
       };
     }
 
     return {
-      controlId, control, systemId, status: "unassessed", basis: BASIS.UNASSESSED,
-      score: null as number | null, implementations: [] as Implementation[],
-      explanation: "No implementation, inheritance, or category assessment covers this control.",
+      controlId, control, systemId,
+      status: coverageStatus(a),
+      basis: a.basis,
+      score: a.score,
+      assessment: a,
+      instances: a.instances,
+      explanation: a.assessed
+        ? `${a.levels.Implemented.rationale}`
+        : `Applicable to this system and outside the declared assessment scope — reported as unassessed rather than scored.`,
+      keyControl: graph.keyControlById[controlId],
     };
   }
 
-  // The full matrix for one system — every control its standards actually
-  // require, sorted by domain then id, same ordering the SSP page used.
+  // The full matrix for one system — every control that applies to it, sorted
+  // by domain then id, the same ordering the SSP page used.
+  //
+  // The row set widened here. It used to be controlsForStandards(); it is now
+  // everything applicability says applies, which additionally picks up controls
+  // a rule requires on an asset even where the system's standards do not name
+  // them. See applicability.applicableControlsForSystem for why.
   function systemControlMatrix(systemId: SystemId) {
-    const system = graph.systemById[systemId];
-    return controlsForStandards(system.standards)
+    return applicability
+      .applicableControlsForSystem(systemId)
       .map((c) => controlCoverageForSystem(systemId, c.id))
       .sort((a, b) =>
         a.control.domain === b.control.domain
@@ -177,26 +169,28 @@ export function createCompliance(
   function systemCoverageBreakdown(systemId: SystemId) {
     const rows = systemControlMatrix(systemId);
     const count = (...statuses: string[]) => rows.filter((r) => statuses.includes(r.status)).length;
+    const scored = rows.filter((r) => r.score != null).length;
     return {
       required: rows.length,
       inherited: count("inherited"),
       satisfied: count("satisfied"),
       partial: count("partial"),
       deficient: count("deficient", "not-implemented"),
-      assessed: count("assessed"),
       unassessed: count("unassessed"),
-      // Two different questions, deliberately reported as two numbers.
+      scored,
+      // Two different questions, and the second is the one that should be
+      // uncomfortable.
       //
-      // coveredPct — does this control have an accepted basis and no known
-      // failure? A category-assessed control counts: it is governed by a
-      // documented procedure and a real assessment. Calling it uncovered would
-      // be as wrong as calling it satisfied.
+      // coveredPct — of the controls actually assessed, how many are holding?
+      // Its denominator is the assessed set, so it never quietly counts an
+      // unexamined control as covered.
       //
-      // measuredPct — how much of that rests on control-level evidence rather
-      // than a category judgment? This is the honesty check on the first number,
-      // and it is the one that should be uncomfortable.
-      coveredPct: Math.round(((count("inherited") + count("satisfied") + count("assessed")) / rows.length) * 100),
-      measuredPct: Math.round((count("satisfied", "partial", "deficient", "not-implemented") / rows.length) * 100),
+      // assessedPct — how much of what applies was examined at all? This is the
+      // honesty check on the first number. It is low, and it is supposed to be:
+      // a real engagement covers a chosen set of requirement statements, and
+      // saying so is the difference between a gap map and a claim.
+      coveredPct: scored === 0 ? 0 : Math.round(((count("inherited") + count("satisfied")) / scored) * 100),
+      assessedPct: rows.length === 0 ? 0 : Math.round((scored / rows.length) * 100),
     };
   }
 
@@ -225,6 +219,10 @@ export function createCompliance(
       weakest: worst,
       satisfiedCount: rows.filter((r) => r.status === "satisfied" || r.status === "inherited").length,
       totalCount: rows.length,
+      // The score above covers only the rows that were actually assessed, and
+      // never blends an unassessed control in as a zero. Reported so a reader
+      // can see how much of the clause the number is speaking for.
+      scoredCount: scored.length,
     };
   }
 
@@ -238,6 +236,11 @@ export function createCompliance(
     const controlRows = systems.flatMap((s) =>
       controlsForStandards([standard]).map((c) => controlCoverageForSystem(s.id, c.id))
     );
+    // Reported over the ASSESSED subset only, with the count stated. The
+    // alternative — treating the ~230 unassessed controls per system as zeros —
+    // would put a number on work nobody did, which is the one thing the scope
+    // model exists to prevent. A posture over 44 rows honestly labelled beats a
+    // posture over 271 rows that is mostly fiction.
     const scored = controlRows.filter((r) => r.score != null);
     const score = display(mean(scored.map((r) => r.score as number)));
 
@@ -247,12 +250,16 @@ export function createCompliance(
       systems,
       clauseCount: clauses.length,
       controlCount: controlRows.length,
+      scoredCount: scored.length,
+      assessedPct: controlRows.length === 0 ? 0 : Math.round((scored.length / controlRows.length) * 100),
       score,
       band: assuranceBand(score),
-      satisfiedPct: Math.round(
-        (controlRows.filter((r) => r.status === "satisfied" || r.status === "inherited").length / controlRows.length) * 100
+      satisfiedPct: scored.length === 0 ? 0 : Math.round(
+        (controlRows.filter((r) => r.status === "satisfied" || r.status === "inherited").length / scored.length) * 100
       ),
-      measuredPct: Math.round((controlRows.filter((r) => r.basis === BASIS.MEASURED).length / controlRows.length) * 100),
+      measuredPct: scored.length === 0 ? 0 : Math.round(
+        (controlRows.filter((r) => r.basis === BASIS.MEASURED).length / scored.length) * 100
+      ),
       deficient: controlRows.filter((r) => r.status === "deficient" || r.status === "not-implemented"),
     };
   }
@@ -283,7 +290,7 @@ export function createCompliance(
       .filter((c) => isKeyControl(c.id))
       .forEach((control) => {
         const coverage = controlCoverageForSystem(systemId, control.id);
-        if (coverage.status === "assessed" || coverage.status === "unassessed") return;
+        if (coverage.status === "unassessed") return;
         const clauses = control.frameworks.find((f) => f.standard === standard)?.clauses ?? [];
         // The shortest clause id is the parent requirement; the rest are its
         // points-of-focus sub-items, which would bury the row in near-duplicates.
@@ -291,11 +298,17 @@ export function createCompliance(
         if (!primary || seen.has(`${primary}::${control.id}`)) return;
         seen.add(`${primary}::${control.id}`);
 
-        const weakest = coverage.implementations.reduce(
-          (w: Implementation | null, i) => (w === null || (i.score as number) < (w.score as number) ? i : w),
+        // The instance that made the control what it is. Ranked by status
+        // rather than by score, because an instance no longer has one — the
+        // whole point of the change is that the asset is a sample, not a
+        // scoring subject.
+        const rank: Record<string, number> = {
+          "not-implemented": 0, undetermined: 1, partial: 2, implemented: 3, "not-applicable": 4,
+        };
+        const weakest = coverage.instances.reduce(
+          (w: (typeof coverage.instances)[number] | null, i) => (w === null || rank[i.status] < rank[w.status] ? i : w),
           null
         );
-        const weakAsset = weakest?.assetId ? assetsForSystem(systemId).find((a) => a.id === weakest.assetId) : null;
 
         rows.push({
           req: primary,
@@ -307,12 +320,7 @@ export function createCompliance(
               ? "full"
               : coverage.status === "partial" ? "partial" : "gap",
           basis: coverage.basis,
-          reasoning:
-            coverage.status === "inherited"
-              ? coverage.explanation
-              : weakest
-                ? `${weakest.note ?? coverage.explanation} Weakest implementation: ${weakest.score} on ${weakAsset?.name ?? "the program"}${weakest.evidence[0] ? `, per ${weakest.evidence[0].source} (${weakest.evidence[0].result.toUpperCase()}, ${weakest.evidence[0].coveragePct}% coverage, ${weakest.evidence[0].ageDays} days ago).` : "."}`
-                : coverage.explanation,
+          reasoning: weakest ? `${coverage.explanation} Weakest instance: ${weakest.statement}` : coverage.explanation,
         });
       });
 
@@ -324,7 +332,8 @@ export function createCompliance(
 
   // Enterprise-wide control coverage.
   const allRows = graph.systems.flatMap((s) => systemControlMatrix(s.id));
-  const COVERED_STATUSES = ["satisfied", "inherited", "assessed"];
+  const allScored = allRows.filter((r) => r.score != null);
+  const COVERED_STATUSES = ["satisfied", "inherited"];
 
   return {
     controlsForStandards,
@@ -342,10 +351,17 @@ export function createCompliance(
     IN_SCOPE_FRAMEWORKS: inScopeFrameworks,
     FRAMEWORK_POSTURE: inScopeFrameworks.map(frameworkPosture),
     ENTERPRISE_COVERAGE: {
-      required: allRows.length,
-      covered: allRows.filter((r) => COVERED_STATUSES.includes(r.status)).length,
-      coveredPct: Math.round((allRows.filter((r) => COVERED_STATUSES.includes(r.status)).length / allRows.length) * 100),
-      measuredPct: Math.round((allRows.filter((r) => r.basis === BASIS.MEASURED).length / allRows.length) * 100),
+      applicable: allRows.length,
+      assessed: allScored.length,
+      covered: allScored.filter((r) => COVERED_STATUSES.includes(r.status)).length,
+      // Denominated on what was assessed, not on what applies. The two used to
+      // be the same number because every control fell back to a category score;
+      // now they are different questions and both are reported, because a
+      // "covered" figure that silently counts unexamined controls is the exact
+      // overclaim this model was rebuilt to stop making.
+      coveredPct: allScored.length === 0 ? 0 : Math.round((allScored.filter((r) => COVERED_STATUSES.includes(r.status)).length / allScored.length) * 100),
+      assessedPct: allRows.length === 0 ? 0 : Math.round((allScored.length / allRows.length) * 100),
+      measuredPct: allScored.length === 0 ? 0 : Math.round((allScored.filter((r) => r.basis === BASIS.MEASURED).length / allScored.length) * 100),
       deficient: allRows.filter((r) => r.status === "deficient" || r.status === "not-implemented").length,
     },
     // Which assets a program-scoped control effectively covers — everything,
@@ -355,7 +371,9 @@ export function createCompliance(
       applicability.PROGRAM_CONTROL_IDS.map((id) => ({
         controlId: id,
         control: graph.keyControlById[id],
-        implementation: implementation.programImplementation(id),
+        assessments: graph.systems
+          .map((s) => assessment.assessmentFor(s.id, id))
+          .filter((a): a is ControlAssessment => a !== null && a.assessed),
         reach: graph.assets.length,
       })),
   };

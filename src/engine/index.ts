@@ -131,6 +131,7 @@ export const EVIDENCE_SOURCE_BY_ID = graph.evidenceSourceById;
 export * from "./assurance";
 export { IMPLEMENTATION_STATUS_META } from "./implementation";
 export { effectivenessFactor, composeEvidenceConfidence } from "./evidence";
+export { INSTANCE_STATUS_META } from "./assessment";
 export { COVERAGE_STATUS_META, COVERAGE_STATES } from "./compliance";
 export { FINDING_STATUS_META, FINDING_STATUSES } from "./findings";
 export {
@@ -143,6 +144,7 @@ export { ORG_KINDS } from "../graph/nodes/orgs";
 export {
   BASIS, BASIS_META, ASSURANCE_CATEGORIES, CLASSIFICATION_TIERS,
   MATURITY_STAGES, EVIDENCE_TYPES, IMPLEMENTATION_TYPES,
+  PRISMA_LEVELS, COMPLIANCE_RATINGS, COMPLIANCE_LABELS,
 } from "../graph/nodes/taxonomy";
 export { DATA_ROLE_META } from "../graph/edges/assetDataTypes";
 
@@ -151,5 +153,7 @@ export type { AssetRollup, SystemRollup } from "./rollups";
 export type { RiskRollup } from "./risk";
 export type { Implementation } from "./implementation";
 export type { ScoredEvidence } from "./evidence";
+export type { ControlAssessment, ControlInstance } from "./assessment";
+export type { LevelRating } from "./levels";
 export type { ControlCoverage } from "./compliance";
 export type { EngineFinding } from "./findings";

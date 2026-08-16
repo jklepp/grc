@@ -36,7 +36,6 @@ import { POLICY_REVIEW_INTERVAL_DAYS, type PolicyRecord } from "../graph/nodes/p
 import { RESPONSIBILITIES, type Responsibility } from "../graph/edges/controlImplementations";
 import type { SystemScope } from "../graph/ids";
 import type { ApplicabilityApi } from "./applicability";
-import type { EngineContext } from "./context";
 import { blendAssurance, evidenceBaseConfidence, meetsEvidence, mean, display } from "./assurance";
 import {
   VERIFYING_EVIDENCE_FLOOR, composeEvidenceConfidence, effectivenessFactor, governingRecord,
@@ -95,8 +94,7 @@ export const IMPLEMENTATION_STATUS_META = {
 export function createImplementation(
   graph: Graph,
   applicabilityApi: ApplicabilityApi,
-  evidenceApi: EvidenceApi,
-  ctx: EngineContext
+  evidenceApi: EvidenceApi
 ) {
   const { ageInDays, freshnessFactor, scoreEvidence, evidenceFor, policyOverdue } = evidenceApi;
 
