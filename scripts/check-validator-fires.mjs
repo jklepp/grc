@@ -64,7 +64,12 @@ try {
       const e = f.evidence.find((x) => x.population !== undefined && x.exceptions > 0);
       if (e) e.result = "pass";
     }, /did not pass/],
-    ["missing category assessment", (f) => { f.categoryAssessments.shift(); }, /no category assessment for/],
+    // "missing category assessment" lived here. The 156 per-asset category
+    // assessments it guarded are gone, and so is the fallback they fed — a
+    // control nobody assessed is reported as unassessed rather than inheriting
+    // its category's number. The equivalent guard now is the assessment-scope
+    // parity pair in the derivational suite below.
+
     ["applicability rule on a program control", (f) => {
       const program = f.keyControls.find((c) => c.scope === "program");
       if (program) f.applicabilityRules[0].controlId = program.id;

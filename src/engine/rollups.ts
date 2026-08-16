@@ -43,7 +43,6 @@ import {
 import { ACTOR_DIRECTIONS } from "../graph/edges/actorAccess";
 import type { ClassificationApi } from "./classification";
 import type { ApplicabilityApi } from "./applicability";
-import type { ImplementationApi } from "./implementation";
 import type { AssessmentApi, ControlAssessment } from "./assessment";
 import type { FindingsApi } from "./findings";
 import {
@@ -88,7 +87,6 @@ export function createRollups(
   classification: ClassificationApi,
   applicability: ApplicabilityApi,
   assessment: AssessmentApi,
-  implementation: ImplementationApi,
   findings: FindingsApi
 ) {
   // ---- An asset, as a diagnostic ------------------------------------------------
@@ -270,7 +268,16 @@ export function createRollups(
     const scoredAssessments = assessments.filter((a) => a.assessed);
     const coverage = coverageOf(assessments);
 
-    const programImplementations = implementation.programImplementationsForSystem(systemId);
+    // The company-wide controls that apply to this boundary, kept nameable
+    // rather than folded invisibly into the average — "which program controls
+    // land here, and how are they doing" is a question a system page should
+    // answer. They are ordinary assessments now: a program-scoped control is
+    // tested once for the boundary instead of sampled across its assets, which
+    // is what `scope` on a key control means since it stopped being the scoring
+    // axis.
+    const programAssessments = scoredAssessments.filter(
+      (a) => graph.keyControlById[a.controlId]?.scope === "program"
+    );
     const totalRequired = assets.reduce((a, x) => a + x.requiredControlCount, 0);
     const totalEvidenced = assets.reduce((a, x) => a + x.evidencedControlCount, 0);
 
@@ -290,8 +297,8 @@ export function createRollups(
       // The program layer for this boundary, kept nameable rather than folded
       // invisibly into the average — "which company-wide controls apply here,
       // and how are they doing" is a question the system page should answer.
-      programImplementations,
-      programControlCount: programImplementations.length,
+      programAssessments,
+      programControlCount: programAssessments.length,
       overallAssurance: assurance,
       rawAssurance,
       assuranceBand: assuranceBand(assurance),

@@ -22,7 +22,7 @@
 // they describe what a fact is permitted to say, and every dataset shares them.
 // Not one FACT is imported; those all arrive on the graph.
 import {
-  CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES, MATURITY_STAGES, EVIDENCE_TYPES,
+  CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES, EVIDENCE_TYPES,
   PRISMA_LEVELS, COMPLIANCE_RATINGS, isComplianceRating,
 } from "./nodes/taxonomy";
 import { HOSTING_TYPES, INHERITED_DOMAINS } from "./nodes/systems";
@@ -172,7 +172,7 @@ export function validateGraph(graph: Graph): void {
     const base = graph.facts.controlProfile.tierBaseline[tier];
     check(Boolean(base), `controlProfile: no tier baseline for "${tier}"`);
     if (!base) return;
-    check(MATURITY_STAGES.includes(base.maturity), `controlProfile: tier "${tier}" baseline maturity "${base.maturity}" is not a maturity stage`);
+    check(PRISMA_LEVELS.includes(base.maturity), `controlProfile: tier "${tier}" baseline maturity "${base.maturity}" is not a PRISMA level`);
     check(EVIDENCE_TYPES.includes(base.evidence), `controlProfile: tier "${tier}" baseline evidence "${base.evidence}" is not an evidence type`);
   });
 
@@ -198,24 +198,16 @@ export function validateGraph(graph: Graph): void {
     }
   });
 
-  graph.categoryAssessments.forEach((a) => {
-    check(has(graph.assetById, a.assetId), `category assessment: assetId "${a.assetId}" is not an asset`);
-    check(ASSURANCE_CATEGORIES.includes(a.category), `category assessment ${a.assetId}: category "${a.category}" is not an assurance category`);
-    check(MATURITY_STAGES.includes(a.maturityStage), `category assessment ${a.assetId}/${a.category}: maturityStage "${a.maturityStage}" is not a maturity stage`);
-    check(EVIDENCE_TYPES.includes(a.evidenceType), `category assessment ${a.assetId}/${a.category}: evidenceType "${a.evidenceType}" is not an evidence type`);
-    check(a.effectivenessPct >= 0 && a.effectivenessPct <= 100, `category assessment ${a.assetId}/${a.category}: effectivenessPct outside 0-100`);
-  });
-
-  // Every asset needs an assessment in every category, or its rollup would have a
-  // hole that reads as a zero.
-  graph.assets.forEach((a) => {
-    ASSURANCE_CATEGORIES.forEach((c) => {
-      check(
-        Object.hasOwn(graph.assessmentByPair, `${a.id}::${c}`),
-        `asset ${a.id}: no category assessment for "${c}" — every asset needs all six, since the assessed baseline is what non-key controls fall back to`
-      );
-    });
-  });
+  // The category-assessment checks lived here: every asset had to carry a
+  // maturity stage, an evidence type and an effectiveness percentage for all six
+  // assurance categories, 156 rows in total, because the assessed baseline was
+  // what every non-key control fell back to.
+  //
+  // Both the rows and the fallback are gone. A control is now rated once against
+  // a system across the five PRISMA levels, from facts that already existed —
+  // policy citations, SOP steps, evidence, the activity calendar — and a control
+  // nobody assessed is reported as unassessed instead of inheriting a number
+  // from a judgment typed against its category.
 
   graph.applicabilityRules.forEach((r, i) => {
     check(has(graph.keyControlById, r.controlId), `applicability rule[${i}]: controlId "${r.controlId}" is not a key control`);
@@ -244,7 +236,7 @@ export function validateGraph(graph: Graph): void {
   graph.implementationOverrides.forEach((o) => {
     check(has(graph.assetById, o.assetId), `implementation override: assetId "${o.assetId}" is not an asset`);
     check(has(graph.keyControlById, o.controlId), `implementation override: controlId "${o.controlId}" is not a key control`);
-    check(MATURITY_STAGES.includes(o.maturityStage), `implementation override ${o.assetId}/${o.controlId}: maturityStage "${o.maturityStage}" is not a maturity stage`);
+    check(PRISMA_LEVELS.includes(o.maturityStage), `implementation override ${o.assetId}/${o.controlId}: maturityStage "${o.maturityStage}" is not a PRISMA level`);
     check(Boolean(o.note?.trim()), `implementation override ${o.assetId}/${o.controlId}: needs a note explaining why it differs from the category baseline`);
     if (o.findingId) {
       const finding = graph.findings.find((f) => f.id === o.findingId);

@@ -30,7 +30,6 @@ import { createApplicability } from "./applicability";
 import { createFindings } from "./findings";
 import { createEvidence } from "./evidence";
 import { createAssessment } from "./assessment";
-import { createImplementation } from "./implementation";
 import { createRollups } from "./rollups";
 import { createRisk } from "./risk";
 import { createCompliance } from "./compliance";
@@ -57,18 +56,17 @@ export function createEngine(graph: Graph, options: EngineOptions = {}) {
   // not yet exported from engine/index.ts and not yet read by any rollup —
   // flipping the consumers is a separate change from proving the derivation.
   const assessment = createAssessment(graph, applicability, evidence, findings, ctx);
-  const implementation = createImplementation(graph, applicability, evidence);
-  const rollups = createRollups(graph, classification, applicability, assessment, implementation, findings);
+  const rollups = createRollups(graph, classification, applicability, assessment, findings);
   const risk = createRisk(graph, rollups, assessment);
   const compliance = createCompliance(graph, assessment, applicability);
   const profile = createProfile(graph, rollups);
   const selectors = createSelectors(
-    graph, classification, applicability, assessment, implementation, rollups, risk, compliance
+    graph, classification, applicability, assessment, evidence, rollups, risk, compliance
   );
 
   const engine = {
     graph, ctx,
-    classification, applicability, findings, evidence, assessment, implementation,
+    classification, applicability, findings, evidence, assessment,
     rollups, risk, compliance, profile, selectors,
   };
 

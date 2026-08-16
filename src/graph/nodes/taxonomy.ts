@@ -37,12 +37,15 @@ export function highestTier(tiers: string[]): string | null {
   return tiers.reduce((a, b) => (tierRank(b) > tierRank(a) ? b : a));
 }
 
-// ---- Maturity and evidence vocabularies ---------------------------------------
-// Both ordered weakest to strongest, so a comparison against a required minimum
-// is an index comparison rather than a lookup table.
-export const MATURITY_STAGES = ["Policy", "Procedure", "Implemented", "Monitored", "Managed"] as const;
-export type MaturityStage = (typeof MATURITY_STAGES)[number];
-
+// ---- Evidence vocabulary --------------------------------------------------------
+// Ordered weakest to strongest, so a comparison against a required minimum is an
+// index comparison rather than a lookup table.
+//
+// MATURITY_STAGES used to sit here alongside it: one value naming where a
+// control had reached. It is gone. A control is not AT a stage any more — it is
+// rated at all five PRISMA levels independently and its score is the weighted
+// sum, which is a different claim and needed a different vocabulary. See
+// PRISMA_LEVELS below.
 export const EVIDENCE_TYPES = [
   "Self-attestation",
   "Document",
@@ -62,12 +65,12 @@ export type EvidenceType = (typeof EVIDENCE_TYPES)[number];
 // being measured, which is a different question from whether it is being
 // watched.
 //
-// The important difference from MATURITY_STAGES is not the spelling: a maturity
-// STAGE was one value describing where a control had reached, so a control was
-// at Procedure or at Managed but never both. A PRISMA LEVEL is a dimension — a
-// control is rated separately at all five, and the score is a weighted sum
-// across them. That is why this is a new vocabulary rather than a rename, and
-// why the two coexist until the last consumer of the old one is gone.
+// The important difference from the old MATURITY_STAGES is not the spelling: a
+// maturity STAGE was one value describing where a control had reached, so a
+// control was at Procedure or at Managed but never both. A PRISMA LEVEL is a
+// dimension — a control is rated separately at all five, and the score is a
+// weighted sum across them. That is why this replaced the old vocabulary rather
+// than renaming it.
 //
 // Ordered weakest to strongest, so "at least Implemented" stays index arithmetic.
 export const PRISMA_LEVELS = ["Policy", "Procedure", "Implemented", "Measured", "Managed"] as const;

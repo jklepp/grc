@@ -33,7 +33,6 @@ import type { AssetDataType } from "./edges/assetDataTypes";
 import type { DataFlow } from "./edges/dataFlows";
 import type { ActorAccess } from "./edges/actorAccess";
 import type { ApplicabilityRule, ApplicabilityException } from "./edges/applicabilityRules";
-import type { CategoryAssessment } from "./edges/categoryAssessments";
 import type {
   OwnerOverride, ImplementationOverride, NotImplemented, ImplementationMechanism,
   ProgramApplicabilityRule, ProgramApplicabilityException,
@@ -44,7 +43,7 @@ import type { ProviderCertification } from "./nodes/providerCertifications";
 import type { ScheduledActivityRecord } from "./nodes/scheduledActivities";
 import type { PrismaLevelOverride } from "./edges/prismaOverrides";
 import type { RiskAsset, RiskControl } from "./edges/riskContributors";
-import type { AssuranceCategory, ClassificationTier, MaturityStage, EvidenceType } from "./nodes/taxonomy";
+import type { AssuranceCategory, ClassificationTier, PrismaLevel, EvidenceType } from "./nodes/taxonomy";
 import type {
   AssetId, SystemId, ControlId, OrgId, RiskId, DataTypeId, EvidenceId,
   EvidenceSourceId, ActorId, SystemScope,
@@ -87,7 +86,6 @@ export interface GraphFacts {
   actorAccess: ActorAccess[];
   applicabilityRules: ApplicabilityRule[];
   applicabilityExceptions: ApplicabilityException[];
-  categoryAssessments: CategoryAssessment[];
   // Who owns each assurance category, per system, with "program" as the
   // enterprise-wide default a system falls back to. Authored data, so it lives
   // with the facts rather than being imported straight into the engine — which
@@ -146,7 +144,7 @@ export interface ControlProfileDefinition {
   categoryWeights: Record<ClassificationTier, Record<AssuranceCategory, number>>;
 
   // The floor every asset at a tier must clear before any category bump.
-  tierBaseline: Record<ClassificationTier, { maturity: MaturityStage; evidence: EvidenceType }>;
+  tierBaseline: Record<ClassificationTier, { maturity: PrismaLevel; evidence: EvidenceType }>;
 
   // Categories held one notch stricter than baseline, and the tiers at which
   // that stricter bar applies.
@@ -183,7 +181,6 @@ export interface Graph {
   readonly actorAccess: readonly ActorAccess[];
   readonly applicabilityRules: readonly ApplicabilityRule[];
   readonly applicabilityExceptions: readonly ApplicabilityException[];
-  readonly categoryAssessments: readonly CategoryAssessment[];
   readonly ownership: Readonly<Record<SystemScope, Record<AssuranceCategory, OrgId[]>>>;
   readonly ownerOverrides: readonly OwnerOverride[];
   readonly implementationOverrides: readonly ImplementationOverride[];
@@ -235,7 +232,6 @@ export interface Graph {
   // Keyed `${assetId}::${controlId}`, or `program::${controlId}` for evidence
   // that covers a program-scoped control rather than any particular asset.
   readonly evidenceByPair: Readonly<Record<string, readonly Evidence[]>>;
-  readonly assessmentByPair: Readonly<Record<string, CategoryAssessment>>;
   readonly exceptionByPair: Readonly<Record<string, ApplicabilityException>>;
   readonly overrideByPair: Readonly<Record<string, ImplementationOverride>>;
   readonly notImplementedByPair: Readonly<Record<string, NotImplemented>>;
@@ -284,7 +280,6 @@ export interface Graph {
   readonly controlProfiles: Readonly<Record<ClassificationTier, Record<AssuranceCategory, ControlProfileEntry>>>;
   readonly categoryWeights: CategoryWeights;
 
-  readonly assessedAssetIds: readonly AssetId[];
   readonly assetScopedControls: readonly KeyControl[];
   readonly programScopedControls: readonly KeyControl[];
 

@@ -180,17 +180,6 @@ export function validateDerivations(engine: Engine): void {
     );
   });
 
-  // Every program implementation should resolve to a real number, same as the
-  // asset rollups above.
-  rollups.systemRollups.forEach((s) => {
-    s.programImplementations.forEach((i) => {
-      check(
-        Number.isFinite(i.rawScore),
-        `program implementation ${i.id}: did not resolve to a number`
-      );
-    });
-  });
-
   // ---- The PRISMA assessment scope, checked against the facts ------------------
   // This is the check that makes hand-listing the scope safe. The declared list
   // and the set of controls the facts can actually support have to be the same

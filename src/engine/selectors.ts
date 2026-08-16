@@ -11,10 +11,11 @@
 // one shouldn't have to be.
 import type { Graph } from "../graph/types";
 import { BASIS, BASIS_META, ASSURANCE_CATEGORIES, PRISMA_LEVELS, COMPLIANCE_LABELS } from "../graph/nodes/taxonomy";
+import { INSTANCE_STATUS_META } from "./assessment";
 import type { ClassificationApi } from "./classification";
 import type { ApplicabilityApi } from "./applicability";
 import type { AssessmentApi } from "./assessment";
-import type { ImplementationApi, Implementation } from "./implementation";
+import type { EvidenceApi } from "./evidence";
 import type { RollupsApi } from "./rollups";
 import type { RiskApi } from "./risk";
 import type { ComplianceApi } from "./compliance";
@@ -48,7 +49,7 @@ export function createSelectors(
   classification: ClassificationApi,
   applicability: ApplicabilityApi,
   assessment: AssessmentApi,
-  implementation: ImplementationApi,
+  evidenceApi: EvidenceApi,
   rollups: RollupsApi,
   risk: RiskApi,
   compliance: ComplianceApi
@@ -65,27 +66,27 @@ export function createSelectors(
   const getDataType = (id: DataTypeId) => graph.dataTypeById[id] ?? null;
   const getControl = (id: ControlId) => graph.keyControlById[id] ?? graph.controlById[id] ?? null;
   const getEvidence = (id: EvidenceId) =>
-    graph.evidenceById[id] ? implementation.scoreEvidence(graph.evidenceById[id]) : null;
+    graph.evidenceById[id] ? evidenceApi.scoreEvidence(graph.evidenceById[id]) : null;
 
   // ---- Relationship traversal ------------------------------------------------
-  function getImplementations(assetId: AssetId) {
-    return implementation.implementationsForAsset(assetId);
+  // These used to return per-(asset, control) implementations, each with its own
+  // score. They now return CONTROL INSTANCES — the same pairs, carrying a status
+  // and the evidence behind it but no number, because the number for a control
+  // exists once, at the system boundary.
+  function getInstancesForAsset(assetId: AssetId) {
+    return assessment.instancesForAsset(assetId);
   }
 
-  function getImplementation(assetId: AssetId | null, controlId: ControlId) {
-    return implementation.buildImplementation(assetId, controlId);
+  function getInstance(assetId: AssetId, controlId: ControlId) {
+    return assessment.instancesForAsset(assetId).find((i) => i.controlId === controlId) ?? null;
   }
 
-  // Every implementation of one control across the estate — the view that shows
-  // why a single global score for a control would be meaningless.
-  function getControlImplementations(controlId: ControlId): Implementation[] {
-    const control = graph.keyControlById[controlId];
-    if (!control) return [];
-    if (control.scope === "program") {
-      const impl = implementation.programImplementation(controlId);
-      return impl ? [impl] : [];
-    }
-    return applicability.assetsRequiringControl(controlId).map((a) => implementation.buildImplementation(a.id, controlId));
+  // How one control was assessed everywhere it applies — the view that shows why
+  // a single global score for a control would be meaningless.
+  function getControlAssessments(controlId: ControlId) {
+    return graph.systems
+      .map((s) => assessment.assessmentFor(s.id, controlId))
+      .filter((a): a is NonNullable<typeof a> => a !== null && a.applicable);
   }
 
   // Both halves of the auditor's question, for every key control against one
@@ -128,7 +129,7 @@ export function createSelectors(
             relation: "implemented on", type: "asset",
             nodes: control.scope === "asset" ? applicability.assetsRequiringControl(id).map((a) => getAsset(a.id)) : [],
           },
-          { relation: "evidenced by", type: "evidence", nodes: getControlImplementations(id).flatMap((i) => i.evidence) },
+          { relation: "evidenced by", type: "evidence", nodes: getControlAssessments(id).flatMap((a) => a.instances.flatMap((i) => i.evidence)) },
           { relation: "holds down", type: "risk", nodes: (graph.risksByControl[id] ?? []).map((e) => getRisk(e.riskId)) },
           {
             relation: "required by", type: "framework",
@@ -282,44 +283,28 @@ export function createSelectors(
       };
     }
 
-    if (nodeType === "implementation") {
+    // One asset's answer for one control. It explains a STATUS, not a score —
+    // the score for this control lives on the control-assessment node above,
+    // and this instance is one of the samples that produced its Implemented
+    // rating.
+    if (nodeType === "instance") {
       const [assetId, controlId] = id.split("::");
-      const impl = implementation.buildImplementation(assetId === "program" ? null : assetId, controlId);
-      if (!impl) return null;
+      const inst = getInstance(assetId as AssetId, controlId as ControlId);
+      if (!inst) return null;
       return {
-        label: `${impl.control.friendlyName} on ${assetId === "program" ? "the program" : graph.assetById[assetId]?.name}`,
-        value: impl.score,
-        basis: impl.basis,
-        formula: "40% maturity + 30% evidence confidence + 30% effectiveness. Effectiveness starts from the category baseline and is scaled by how prevalent the verified failures were, not merely by whether there were any.",
+        label: `${controlId} on ${graph.assetById[assetId]?.name ?? assetId}`,
+        value: INSTANCE_STATUS_META[inst.status]?.label ?? inst.status,
+        basis: inst.evidence.length > 0 ? BASIS.MEASURED : BASIS.UNASSESSED,
+        formula: `Contributes ${inst.credit} to the Implemented rating for ${controlId} on ${inst.systemId}. A control is verified here only when a current, passing collection at or above ${"API configuration observation"} grade covers the whole population — configured but unverified does not count.`,
         steps: [
           {
-            label: `Maturity — ${impl.maturityStage ?? "none"}`,
-            value: impl.maturityStage,
-            basis: impl.override ? BASIS.MEASURED : BASIS.ASSESSED,
-            detail: impl.override?.note ?? "Inherited from the asset's category assessment.",
+            label: inst.statement,
+            value: inst.credit,
+            basis: inst.evidence.length > 0 ? BASIS.MEASURED : BASIS.UNASSESSED,
+            detail: inst.mechanism?.mechanism ?? inst.notImplemented?.reason ?? null,
+            next: { type: "control-assessment", id: `${inst.systemId}::${controlId}` },
           },
-          {
-            label: `Effectiveness — ${impl.effectivenessPct}%`,
-            value: impl.effectivenessPct,
-            basis: impl.basis,
-            detail: impl.exceptionSummary
-              ? `Baseline ${Math.round(impl.baseline?.effectivenessPct as number)}% x ${(impl.effectivenessFactor as number).toFixed(2)}, from ${impl.exceptionSummary.exceptions} of ${impl.exceptionSummary.population} ${impl.exceptionSummary.unit} in breach (${((impl.exceptionSummary.rate as number) * 100).toFixed(2)}%) per ${impl.exceptionSummary.source}. An isolated exception costs little; a systemic one costs most of the control's credit.`
-              : impl.result
-                ? `Baseline ${Math.round(impl.baseline?.effectivenessPct as number)}% x ${(impl.effectivenessFactor as number).toFixed(2)} for an aggregate result of "${impl.result}". No exception counts were recorded, so the fixed factor for that result applies.`
-                : "No evidence — baseline carried through unchanged.",
-          },
-          // How the population was actually divided up between collections. The
-          // whole point of composing rather than taking the strongest: a narrow
-          // high-grade test and a broad lower-grade one each cover a share.
-          ...(impl.evidenceAllocation.length > 1
-            ? [{
-                label: `Evidence confidence — ${impl.evidenceConfidence}`,
-                value: impl.evidenceConfidence,
-                basis: BASIS.MEASURED,
-                detail: `${impl.evidenceAllocation.map((a) => `${Math.round(a.claimed * 100)}% at quality ${a.quality} (${a.source})`).join("; ")}${(impl.evidenceUncovered as number) > 0 ? `; ${Math.round((impl.evidenceUncovered as number) * 100)}% unevidenced` : ""}.`,
-              }]
-            : []),
-          ...impl.evidence.map((e) => ({
+          ...inst.evidence.map((e) => ({
             label: e.source,
             value: e.confidence,
             basis: BASIS.MEASURED,
@@ -373,7 +358,7 @@ export function createSelectors(
     const allInstances = assets.flatMap((a) => a.controls);
     const allAssessments = rollups.systemRollups.flatMap((s) => s.assessments);
     const scored = allAssessments.filter((a) => a.assessed);
-    const allEvidence = graph.evidence.map(implementation.scoreEvidence);
+    const allEvidence = graph.evidence.map(evidenceApi.scoreEvidence);
 
     const undetermined = allInstances.filter((i) => i.status === "undetermined");
     const notImplemented = allInstances.filter((i) => i.status === "not-implemented");
@@ -459,12 +444,12 @@ export function createSelectors(
     getAllRisks: () => risk.riskRollups,
     getAllDataTypes: () => graph.dataTypes,
     getAllKeyControls: () => graph.keyControls,
-    getAllEvidence: () => graph.evidence.map(implementation.scoreEvidence),
+    getAllEvidence: () => graph.evidence.map(evidenceApi.scoreEvidence),
     getEnterprise: () => rollups.enterprise,
     getCategoryAverages: () => rollups.categoryPortfolioAverages,
 
     // Traversal
-    getImplementations, getImplementation, getControlImplementations,
+    getInstancesForAsset, getInstance, getControlAssessments,
     getApplicability: (assetId: AssetId, controlId: ControlId) => applicability.resolveApplicability(assetId, controlId),
     getApplicabilityProfile,
     getDataFlows: (systemId: SystemId) => rollups.flowLayoutForSystem(systemId),
@@ -479,7 +464,7 @@ export function createSelectors(
     requiredControlsForAsset: applicability.requiredControlsForAsset,
     assetsRequiringControl: applicability.assetsRequiringControl,
     allExceptions: applicability.allExceptions,
-    evidenceFor: implementation.evidenceFor,
+    evidenceFor: evidenceApi.evidenceFor,
     risksForAssetRollup: risk.risksForAssetRollup,
     systemControlMatrix: compliance.systemControlMatrix,
     systemCoverageBreakdown: compliance.systemCoverageBreakdown,

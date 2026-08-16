@@ -23,7 +23,7 @@ import { DEFAULT_VALIDITY_DAYS, sourceIdFromName, type Evidence } from "./nodes/
 import type { EvidenceSource } from "./nodes/evidenceSources";
 import type { ControlProfileEntry } from "./nodes/controlProfiles";
 import {
-  CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES, MATURITY_STAGES, EVIDENCE_TYPES,
+  CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES, PRISMA_LEVELS, EVIDENCE_TYPES,
   type ClassificationTier, type AssuranceCategory,
 } from "./nodes/taxonomy";
 import type { AssetId, ControlId, RiskId, SystemId, DataTypeId, EvidenceSourceId } from "./ids";
@@ -130,7 +130,7 @@ function resolveControlProfiles(
       const stricter =
         definition.bumpedTiers.includes(tier) && definition.highSensitivityCategories.includes(category);
       resolved[tier][category] = {
-        maturity: stricter ? bump(MATURITY_STAGES, base.maturity) : base.maturity,
+        maturity: stricter ? bump(PRISMA_LEVELS, base.maturity) : base.maturity,
         evidence: stricter ? bump(EVIDENCE_TYPES, base.evidence) : base.evidence,
         weight: definition.categoryWeights[tier]?.[category] ?? 0,
       };
@@ -243,7 +243,6 @@ export function assembleGraph(facts: GraphFacts): Graph {
     actorAccess: facts.actorAccess,
     applicabilityRules: facts.applicabilityRules,
     applicabilityExceptions: facts.applicabilityExceptions,
-    categoryAssessments: facts.categoryAssessments,
     ownership: facts.ownership,
     ownerOverrides: facts.ownerOverrides,
     implementationOverrides: facts.implementationOverrides,
@@ -287,7 +286,6 @@ export function assembleGraph(facts: GraphFacts): Graph {
 
     // Pair indexes
     evidenceByPair,
-    assessmentByPair: keyBy(facts.categoryAssessments, (a) => pair(a.assetId, a.category)),
     exceptionByPair: keyBy(facts.applicabilityExceptions, (e) => pair(e.assetId, e.controlId)),
     overrideByPair: keyBy(facts.implementationOverrides, (o) => pair(o.assetId, o.controlId)),
     notImplementedByPair: keyBy(facts.notImplemented, (n) => pair(n.assetId, n.controlId)),
@@ -324,7 +322,6 @@ export function assembleGraph(facts: GraphFacts): Graph {
     controlProfiles: resolveControlProfiles(facts.controlProfile),
     categoryWeights: facts.controlProfile.categoryWeights,
 
-    assessedAssetIds: [...new Set(facts.categoryAssessments.map((a) => a.assetId))] as AssetId[],
     assetScopedControls: facts.keyControls.filter((c) => c.scope === "asset"),
     programScopedControls: facts.keyControls.filter((c) => c.scope === "program"),
 

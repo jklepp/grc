@@ -135,7 +135,6 @@ export const YAML_FACTS: GraphFacts = {
   actorAccess: read("actor-access"),
   applicabilityRules: read("applicability-rules"),
   applicabilityExceptions: read("applicability-exceptions"),
-  categoryAssessments: read("category-assessments"),
   ownership: read("ownership"),
   ownerOverrides: read("owner-overrides"),
   implementationOverrides: read("implementation-overrides"),

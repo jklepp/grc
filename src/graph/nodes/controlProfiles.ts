@@ -37,10 +37,10 @@
 //
 // Every row sums to 100 — asserted in graph/validate.ts, since a tier whose
 // weights quietly summed to 95 would rescale that tier's entire estate.
-import type { MaturityStage, EvidenceType } from "./taxonomy";
+import type { PrismaLevel, EvidenceType } from "./taxonomy";
 
 export interface ControlProfileEntry {
-  maturity: MaturityStage;
+  maturity: PrismaLevel;
   evidence: EvidenceType;
   weight: number;
 }

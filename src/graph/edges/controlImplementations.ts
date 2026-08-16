@@ -44,7 +44,7 @@
 //                          distinguishable
 //
 // engine/implementation.ts does the composing.
-import type { MaturityStage } from "../nodes/taxonomy";
+import type { PrismaLevel } from "../nodes/taxonomy";
 import type { AssetId, ControlId, OrgId, FindingId, SystemId } from "../ids";
 
 // ---- Who operates the control ------------------------------------------------
@@ -136,7 +136,7 @@ export interface OwnerOverride {
 export interface ImplementationOverride {
   assetId: AssetId;
   controlId: ControlId;
-  maturityStage: MaturityStage;
+  maturityStage: PrismaLevel;
   note: string;
   findingId?: FindingId;
 }

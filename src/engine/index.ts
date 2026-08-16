@@ -60,9 +60,9 @@ export const getEnterprise = selectors.getEnterprise;
 export const getCategoryAverages = selectors.getCategoryAverages;
 
 // Traversal
-export const getImplementations = selectors.getImplementations;
-export const getImplementation = selectors.getImplementation;
-export const getControlImplementations = selectors.getControlImplementations;
+export const getInstancesForAsset = selectors.getInstancesForAsset;
+export const getInstance = selectors.getInstance;
+export const getControlAssessments = selectors.getControlAssessments;
 export const getApplicability = selectors.getApplicability;
 export const getApplicabilityProfile = selectors.getApplicabilityProfile;
 export const getDataFlows = selectors.getDataFlows;
@@ -129,7 +129,6 @@ export const EVIDENCE_SOURCE_BY_ID = graph.evidenceSourceById;
 // ---- Pure scoring + vocabulary -------------------------------------------------
 // Neither depends on a graph, so both are plain re-exports.
 export * from "./assurance";
-export { IMPLEMENTATION_STATUS_META } from "./implementation";
 export { effectivenessFactor, composeEvidenceConfidence } from "./evidence";
 export { INSTANCE_STATUS_META } from "./assessment";
 export { COVERAGE_STATUS_META, COVERAGE_STATES } from "./compliance";
@@ -143,7 +142,7 @@ export { ACTOR_KINDS } from "../graph/nodes/actors";
 export { ORG_KINDS } from "../graph/nodes/orgs";
 export {
   BASIS, BASIS_META, ASSURANCE_CATEGORIES, CLASSIFICATION_TIERS,
-  MATURITY_STAGES, EVIDENCE_TYPES, IMPLEMENTATION_TYPES,
+  EVIDENCE_TYPES, IMPLEMENTATION_TYPES,
   PRISMA_LEVELS, COMPLIANCE_RATINGS, COMPLIANCE_LABELS,
 } from "../graph/nodes/taxonomy";
 export { DATA_ROLE_META } from "../graph/edges/assetDataTypes";
@@ -151,7 +150,6 @@ export { DATA_ROLE_META } from "../graph/edges/assetDataTypes";
 // Types pages reference
 export type { AssetRollup, SystemRollup } from "./rollups";
 export type { RiskRollup } from "./risk";
-export type { Implementation } from "./implementation";
 export type { ScoredEvidence } from "./evidence";
 export type { ControlAssessment, ControlInstance } from "./assessment";
 export type { LevelRating } from "./levels";

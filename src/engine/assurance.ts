@@ -12,14 +12,9 @@
 // 100" is a judgment about how to score it, and the graph should not carry
 // judgments.
 import {
-  MATURITY_STAGES, EVIDENCE_TYPES, PRISMA_LEVELS,
-  type MaturityStage, type EvidenceType, type PrismaLevel, type ComplianceRating,
+  EVIDENCE_TYPES, PRISMA_LEVELS,
+  type EvidenceType, type PrismaLevel, type ComplianceRating,
 } from "../graph/nodes/taxonomy";
-
-// ---- Control maturity (PRISMA-style) ------------------------------------------
-// How convincingly a control can be shown to exist, operate consistently, be
-// measured, and be actively managed — not just whether it's on or off.
-export const MATURITY_SCORE: Record<MaturityStage, number> = { Policy: 20, Procedure: 40, Implemented: 60, Monitored: 80, Managed: 100 };
 
 // ---- Evidence confidence ------------------------------------------------------
 // How much an assertion can be trusted, from "we say so" to "the system proves
@@ -37,16 +32,8 @@ export const EVIDENCE_CONFIDENCE: Record<EvidenceType, number> = {
   "Continuous telemetry": 100,
 };
 
-export function maturityScore(stage: MaturityStage | null | undefined): number {
-  return (stage && MATURITY_SCORE[stage]) ?? 0;
-}
-
 export function evidenceBaseConfidence(type: EvidenceType | null | undefined): number {
   return (type && EVIDENCE_CONFIDENCE[type]) ?? 0;
-}
-
-export function meetsMaturity(actual: MaturityStage, required: MaturityStage): boolean {
-  return MATURITY_STAGES.indexOf(actual) >= MATURITY_STAGES.indexOf(required);
 }
 
 export function meetsEvidence(actual: EvidenceType, required: EvidenceType): boolean {
@@ -141,12 +128,6 @@ export function criticalityBand(score: number): Band {
   return { label: "Low", color: "green" };
 }
 
-// ---- Control assurance -----------------------------------------------------------
-// One score blends maturity (is it built to last), evidence confidence (can we
-// prove it), and effectiveness (is it actually working) — maturity weighted
-// highest since a control that isn't Managed can't sustain the other two.
-const ASSURANCE_WEIGHTS = { maturity: 0.4, evidence: 0.3, effectiveness: 0.3 };
-
 // PRECISION, AND WHY THESE DON'T ROUND
 // -------------------------------------
 // Rounding at every level of a five-deep rollup destroys the signal it's
@@ -160,14 +141,6 @@ const ASSURANCE_WEIGHTS = { maturity: 0.4, evidence: 0.3, effectiveness: 0.3 };
 // Rounding happens once, at the point a number is stored for display, and each
 // rollup keeps the unrounded value alongside it for the next level up to
 // consume.
-export function blendAssurance({ maturityStage, evidenceConfidence, effectivenessPct }: { maturityStage: MaturityStage | null | undefined; evidenceConfidence: number; effectivenessPct: number }): number {
-  return (
-    ASSURANCE_WEIGHTS.maturity * maturityScore(maturityStage) +
-    ASSURANCE_WEIGHTS.evidence * evidenceConfidence +
-    ASSURANCE_WEIGHTS.effectiveness * effectivenessPct
-  );
-}
-
 export function mean(values: number[]): number | null {
   if (values.length === 0) return null;
   return values.reduce((a, b) => a + b, 0) / values.length;
