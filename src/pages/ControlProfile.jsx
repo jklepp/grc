@@ -2,9 +2,9 @@ import React, { useState } from "react";
 import { SlidersHorizontal, Check, Minus, X as XIcon, ClipboardList, Boxes } from "lucide-react";
 import { C, CLASS_META, CLASS_ORDER } from "../theme";
 import { PageHeader, SectionHeading } from "../components/Headings";
-import { CONTROL_PROFILES, ASSURANCE_CATEGORIES, getAllAssets, evaluateAssetAgainstProfile, tierTargetScore } from "../engine";
+import { CONTROL_PROFILES, ASSURANCE_CATEGORIES, getAllSystems, evaluateSystemAgainstProfile, tierTargetScore } from "../engine";
 
-const ASSETS = getAllAssets();
+const SYSTEMS = getAllSystems();
 
 function colorFor(key) {
   return { color: C[key], bg: C[`${key}Bg`] };
@@ -67,28 +67,38 @@ function StatusPill({ status }) {
   );
 }
 
-function AssetComplianceRow({ asset }) {
-  const evaluation = evaluateAssetAgainstProfile(asset.id);
-  // Categories whose tracked controls are actually failing. The pre-graph
-  // evaluation compared a self-assessment against a bar and could clear it
-  // while an evidenced control underneath was deficient; now that shortfall
-  // caps the category at Partial at best, and names what caused it.
+// A SYSTEM against its tier's bar, not an asset.
+//
+// This row used to be one asset, comparing its category self-assessment against
+// the tier's required maturity and evidence. Both halves of that comparison are
+// gone: an asset carries no score, and the self-assessment it was compared
+// against was retired. The system is the thing that is assessed now, and it is
+// judged against the tier its most sensitive data earns.
+function SystemComplianceRow({ system }) {
+  const evaluation = evaluateSystemAgainstProfile(system.id);
+  if (!evaluation) return null;
   const failing = ASSURANCE_CATEGORIES.flatMap((c) => evaluation[c].failingControls);
+  const target = tierTargetScore(system.classification);
   return (
     <div className="rounded-lg p-3" style={{ background: C.panel2 }}>
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="min-w-0">
-          <div className="text-sm font-medium truncate" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{asset.name}</div>
-          <div className="text-xs" style={{ color: C.muted }}>{asset.system.name} · {asset.type}</div>
+          <div className="text-sm font-medium truncate" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{system.name}</div>
+          <div className="text-xs" style={{ color: C.muted }}>
+            {system.hostingType} · {system.coverage.assessed} of {system.coverage.applicable} controls assessed ({system.coverage.assessedPct}%)
+          </div>
         </div>
         <div className="text-xs shrink-0 tabular-nums" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
-          {asset.overallAssurance} / {tierTargetScore(asset.classification)}
+          {system.overallAssurance} / {target}
         </div>
       </div>
-      <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))" }}>
+      <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}>
         {ASSURANCE_CATEGORIES.map((category) => (
           <div key={category} className="flex items-center justify-between gap-2 text-xs">
-            <span className="min-w-0 truncate" style={{ color: C.muted }}>{category}</span>
+            <span className="min-w-0 truncate" style={{ color: C.muted }}>
+              {category}
+              <span className="ml-1" style={{ color: C.border }}>→ {evaluation[category].requiredLevel}</span>
+            </span>
             <span className="flex items-center gap-1.5 shrink-0">
               <span className="tabular-nums" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{evaluation[category].weight}%</span>
               <StatusPill status={evaluation[category].status} />
@@ -98,7 +108,8 @@ function AssetComplianceRow({ asset }) {
       </div>
       {failing.length > 0 && (
         <div className="text-[11px] mt-2 pt-2 leading-relaxed" style={{ borderTop: `1px solid ${C.border}`, color: C.muted }}>
-          Held below profile by {failing.map((f) => f.control.friendlyName).join(", ")}.
+          Held below profile by {[...new Set(failing.map((f) => f.controlId))].slice(0, 8).join(", ")}
+          {failing.length > 8 ? ` and ${failing.length - 8} more.` : "."}
         </div>
       )}
     </div>
@@ -108,17 +119,17 @@ function AssetComplianceRow({ asset }) {
 export default function ControlProfile() {
   const [tier, setTier] = useState(CLASS_ORDER[CLASS_ORDER.length - 1]);
   const profile = CONTROL_PROFILES[tier];
-  // Classification is now derived from the data an asset actually holds, so an
-  // asset appears here under the tier its own data earns rather than the one
-  // its parent system was labelled with.
-  const assetsAtTier = ASSETS.filter((a) => a.classification === tier);
+  // Classification is derived bottom-up from the data a system's assets hold,
+  // so a system appears under the tier its own contents earn rather than one
+  // somebody typed on it.
+  const systemsAtTier = SYSTEMS.filter((s) => s.classification === tier);
 
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
       <PageHeader
         icon={SlidersHorizontal}
         title="Control Profile"
-        description="The minimum control maturity and evidence quality required per data classification tier, weighted by category."
+        description="The PRISMA maturity level every control must reach per data classification tier, weighted by category, and how each system measures against the tier its own data earns."
       />
 
       <div className="px-8">
@@ -139,16 +150,16 @@ export default function ControlProfile() {
       </div>
 
       <div className="px-8 py-6 pb-12">
-        <SectionHeading icon={Boxes} right={<div className="text-xs" style={{ color: C.muted }}>{assetsAtTier.length} assets</div>}>
-          Assets at {tier}
+        <SectionHeading icon={Boxes} right={<div className="text-xs" style={{ color: C.muted }}>{systemsAtTier.length} systems</div>}>
+          Systems at {tier}
         </SectionHeading>
-        {assetsAtTier.length === 0 ? (
+        {systemsAtTier.length === 0 ? (
           <div className="text-sm rounded-xl p-6 text-center" style={{ color: C.muted, background: C.panel, border: `1px solid ${C.border}` }}>
-            No assets currently classified {tier}.
+            No systems currently classified {tier}.
           </div>
         ) : (
           <div className="space-y-2">
-            {assetsAtTier.map((asset) => <AssetComplianceRow key={asset.id} asset={asset} />)}
+            {systemsAtTier.map((system) => <SystemComplianceRow key={system.id} system={system} />)}
           </div>
         )}
       </div>

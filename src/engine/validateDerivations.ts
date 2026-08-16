@@ -94,15 +94,32 @@ export function validateDerivations(engine: Engine): void {
     });
   });
 
-  // A rollup that produced no number anywhere would render as a blank rather than
-  // a gap, which is the failure mode this whole model exists to remove.
+  // An asset no longer has an assurance score or category scores to check —
+  // it is a diagnostic now, not a scoring subject. What still has to resolve is
+  // everything derived from the asset's OWN facts, because criticality remains
+  // load-bearing as the enterprise-hop weight and classification still decides
+  // which controls apply.
   rollups.assetRollups.forEach((a) => {
-    check(Number.isFinite(a.overallAssurance), `asset ${a.id}: overall assurance did not resolve to a number`);
     check(Number.isFinite(a.criticality), `asset ${a.id}: criticality did not resolve to a number`);
     check(Boolean(a.classification), `asset ${a.id}: classification did not derive — check its data-type edges`);
-    ASSURANCE_CATEGORIES.forEach((c) =>
-      check(Number.isFinite(a.categoryScores[c]), `asset ${a.id}: category "${c}" did not resolve to a number`)
-    );
+    // Every control that is BOTH required here and inside this system's
+    // assessment scope has to produce an instance. If it does not, the
+    // Implemented level's denominator is silently short and the control scores
+    // higher than the estate justifies.
+    //
+    // Scoped is the necessary qualifier. A control the rules require on this
+    // asset but that nobody assessed correctly has no instance — that is the
+    // applicable-but-unassessed state the whole model is built to express, and
+    // an earlier version of this check flagged it as an error, which would have
+    // forced every applicable control into scope and destroyed the distinction.
+    const instanced = new Set(a.controls.map((i) => i.controlId));
+    applicability.requiredControlsForAsset(a.id).forEach((c) => {
+      if (!graph.assessedPairs.has(`${a.systemId}::${c.id}`)) return;
+      check(
+        instanced.has(c.id),
+        `asset ${a.id}: ${c.id} is required here and is in ${a.systemId}'s assessment scope, but no instance sampled this asset — the control's Implemented rating would be computed over a short population`
+      );
+    });
   });
 
   // Every asset-scoped key control should apply somewhere. One that applies

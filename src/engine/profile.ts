@@ -1,28 +1,32 @@
-// The required control profile per classification tier, and how an asset
+// The required control profile per classification tier, and how a system
 // measures against it.
 //
-// The tier ladder itself now lives in the graph (facts.controlProfile, resolved
-// by assembleGraph) rather than beside this file, because "what bar must
-// Restricted data clear" is a statement about a company's policy, not about how
-// scoring works. Two things this module still owns:
+// The tier ladder itself lives in the graph (facts.controlProfile, resolved by
+// assembleGraph) rather than beside this file, because "what bar must Restricted
+// data clear" is a statement about a company's policy, not about how scoring
+// works.
 //
-//   The tier being evaluated is DERIVED from the data an asset holds
-//   (engine/classification.ts) rather than inherited from its parent system, so
-//   an asset is judged against the bar its own data earns.
+// THE SUBJECT MOVED FROM ASSET TO SYSTEM
+// ---------------------------------------
+// This used to judge one asset against the tier its own data earned, comparing
+// the tier's required maturity and evidence against the asset's category
+// assessment. Both halves of that comparison are gone: assets no longer carry a
+// score, and the per-asset category assessment they were compared against was
+// retired with them.
 //
-//   The actual posture being compared is the category ROLLUP, which blends
-//   measured implementations with the assessed baseline, rather than the raw
-//   category assessment. So an asset whose evidenced controls are failing no
-//   longer clears its profile on the strength of a self-assessment that says
-//   otherwise.
+// What replaced it reads better anyway. A system is judged against the tier its
+// most sensitive data earns, and the comparison is against what the PRISMA
+// levels actually found — so "does this boundary clear its bar" is answered by
+// the same ratings that produced its score, rather than by a self-assessment
+// sitting beside them that could disagree.
 import type { Graph } from "../graph/types";
-import { ASSURANCE_CATEGORIES, type ClassificationTier, type AssuranceCategory } from "../graph/nodes/taxonomy";
 import {
-  blendAssurance, maturityScore, evidenceBaseConfidence, meetsMaturity, meetsEvidence,
-  weightedMean, display,
-} from "./assurance";
+  ASSURANCE_CATEGORIES, PRISMA_LEVELS,
+  type ClassificationTier, type AssuranceCategory, type PrismaLevel,
+} from "../graph/nodes/taxonomy";
+import { PRISMA_LEVEL_WEIGHTS, meetsLevel, display } from "./assurance";
 import type { RollupsApi } from "./rollups";
-import type { AssetId } from "../graph/ids";
+import type { SystemId } from "../graph/ids";
 
 export function createProfile(graph: Graph, rollups: RollupsApi) {
   const profiles = graph.controlProfiles;
@@ -35,109 +39,127 @@ export function createProfile(graph: Graph, rollups: RollupsApi) {
     return categoryWeightsFor(tier)[category as AssuranceCategory] ?? 0;
   }
 
-  // The assurance score an asset would need to fully clear its tier's profile:
-  // every category's required maturity and evidence run through the same formula
-  // assets are judged by, at 100% effectiveness (the ceiling, since "required"
-  // describes the bar itself, not an observed asset).
+  // The score reached when every PRISMA level up to and including the tier's
+  // required maturity is Fully Compliant, and every level above it is
+  // Non-Compliant.
   //
-  // Weighted by the same tier weights the asset itself is scored with — a target
-  // computed on a flat mean while the actual is computed on a weighted one would
-  // be comparing two different things.
+  // This is a genuinely different derivation from the old one, and a better
+  // ladder. It used to run the tier's required maturity and evidence through
+  // blendAssurance at 100% effectiveness, which mixed three axes to produce a
+  // target the actual score was never computed the same way from. Now the target
+  // and the actual are the same arithmetic over the same five weights, so the
+  // comparison means something:
+  //
+  //   Public       Policy  clears           -> 15
+  //   Internal     + Procedure              -> 35
+  //   Confidential + Implemented            -> 75
+  //   Restricted   + Measured and Managed   -> 100
+  //
+  // tierBaseline.maturity is reinterpreted rather than re-authored. The five
+  // stage names and the five level names are the same words, so control-profile
+  // .yaml needed no change — only a different reading of what it was always
+  // saying.
   function tierTargetScore(tier: string): number | null {
     const profile = profiles[tier as ClassificationTier];
+    if (!profile) return null;
+    // The strictest bar any category sets at this tier, since the profile can
+    // bump high-sensitivity categories one notch above the baseline.
+    const required = ASSURANCE_CATEGORIES.map((c) => profile[c].maturity).reduce((a, b) =>
+      meetsLevel(b as PrismaLevel, a as PrismaLevel) ? b : a
+    );
     return display(
-      weightedMean(
-        ASSURANCE_CATEGORIES.map((category) => ({
-          value: blendAssurance({
-            maturityStage: profile[category].maturity,
-            evidenceConfidence: evidenceBaseConfidence(profile[category].evidence),
-            effectivenessPct: 100,
-          }),
-          weight: categoryWeight(tier, category),
-        }))
+      PRISMA_LEVELS.filter((level) => meetsLevel(required as PrismaLevel, level)).reduce(
+        (sum, level) => sum + PRISMA_LEVEL_WEIGHTS[level] * 100,
+        0
       )
     );
   }
 
-  // Per-category met / partial / gap for one asset against its tier's minimums.
-  // "met" needs both maturity and evidence to clear the bar; "partial" is one of
-  // the two; anything else is a genuine gap.
-  function evaluateAssetAgainstProfile(assetId: AssetId) {
-    const asset = rollups.assetRollupById[assetId];
-    if (!asset) return null;
-    const profile = profiles[asset.classification as ClassificationTier];
+  // Per-category met / partial / gap for one system against its tier's minimum.
+  //
+  // "met" means every level up to the required one is Fully Compliant across the
+  // category; "partial" means the required level is reached on average but not
+  // everywhere; anything else is a gap. Judged from the level ratings rather
+  // than from the category score, so a category cannot clear its bar on the
+  // strength of a strong Policy rating while the rung that was actually required
+  // is failing.
+  function evaluateSystemAgainstProfile(systemId: SystemId) {
+    const system = rollups.systemRollupById[systemId];
+    if (!system) return null;
+    const tier = (system.classification ?? "Internal") as ClassificationTier;
+    const profile = profiles[tier];
+
     const result = {} as Record<string, {
       status: string;
       required: (typeof profile)[keyof typeof profile];
       weight: number;
       contribution: number;
-      actual: { maturityStage: string; evidenceType: string; effectivenessPct: number };
       score: number | null;
       basis: string;
-      requiredMaturityScore: number;
-      requiredEvidenceScore: number;
-      measuredShortfall: boolean;
+      coverage: (typeof system.categories)[AssuranceCategory]["coverage"];
+      levelAverages: Record<PrismaLevel, number | null>;
+      requiredLevel: PrismaLevel;
       failingControls: unknown[];
     }>;
 
     ASSURANCE_CATEGORIES.forEach((category) => {
       const required = profile[category];
-      const assessment = graph.assessmentByPair[`${assetId}::${category}`]!;
-      const rollup = asset.categories[category];
+      const rollup = system.categories[category];
+      const requiredLevel = required.maturity as PrismaLevel;
 
-      const maturityMet = meetsMaturity(assessment.maturityStage, required.maturity);
-      const evidenceMet = meetsEvidence(assessment.evidenceType, required.evidence);
+      // Every level at or below the bar has to be Fully Compliant for the
+      // category to have met it.
+      const rungs = PRISMA_LEVELS.filter((level) => meetsLevel(requiredLevel, level));
+      const scored = rollup.assessments;
 
-      // A category whose tracked controls are failing doesn't clear its profile
-      // on the strength of the self-assessment alone. This is the check the old
-      // model had no way to make, because it had nothing but the self-assessment.
-      const measuredShortfall = rollup.implementations.some(
-        (i) => i.status === "deficient" || i.status === "not-implemented"
+      const allFull = scored.length > 0 && rungs.every((level) =>
+        scored.every((a) => a.levels[level].rating === 100)
+      );
+      const mostlyThere = scored.length > 0 && rungs.every((level) =>
+        (rollup.levelAverages[level] ?? 0) >= 75
       );
 
-      const status = measuredShortfall
-        ? maturityMet && evidenceMet ? "partial" : "gap"
-        : maturityMet && evidenceMet ? "met" : maturityMet || evidenceMet ? "partial" : "gap";
+      const failingControls = scored.filter((a) =>
+        rungs.some((level) => a.levels[level].rating <= 25)
+      );
+
+      const status = scored.length === 0 ? "gap" : allFull ? "met" : mostlyThere ? "partial" : "gap";
 
       result[category] = {
         status,
         required,
         weight: required.weight,
-        // How much this category's shortfall actually costs the asset's score —
+        // How much this category's shortfall actually costs the system's score —
         // the number a flat mean could not express.
-        contribution: Math.round((((rollup.raw as number) * required.weight) / 100) * 10) / 10,
-        actual: {
-          maturityStage: assessment.maturityStage,
-          evidenceType: assessment.evidenceType,
-          effectivenessPct: assessment.effectivenessPct,
-        },
+        contribution: rollup.raw === null ? 0 : Math.round(((rollup.raw * required.weight) / 100) * 10) / 10,
         score: rollup.score,
         basis: rollup.basis,
-        requiredMaturityScore: maturityScore(required.maturity),
-        requiredEvidenceScore: evidenceBaseConfidence(required.evidence),
-        measuredShortfall,
-        failingControls: rollup.implementations.filter(
-          (i) => i.status === "deficient" || i.status === "not-implemented"
-        ),
+        coverage: rollup.coverage,
+        levelAverages: rollup.levelAverages,
+        requiredLevel,
+        failingControls,
       };
     });
 
     return result;
   }
 
-  function profileSummary(assetId: AssetId) {
-    const evaluation = evaluateAssetAgainstProfile(assetId)!;
-    const asset = rollups.assetRollupById[assetId];
+  function profileSummary(systemId: SystemId) {
+    const evaluation = evaluateSystemAgainstProfile(systemId);
+    const system = rollups.systemRollupById[systemId];
+    if (!evaluation || !system) return null;
     const statuses = Object.values(evaluation).map((e) => e.status);
+    const target = tierTargetScore(system.classification as string);
     return {
       evaluation,
-      tier: asset.classification,
-      target: tierTargetScore(asset.classification as string),
-      actual: asset.overallAssurance,
+      tier: system.classification,
+      target,
+      actual: system.overallAssurance,
+      coverage: system.coverage,
       met: statuses.filter((s) => s === "met").length,
       partial: statuses.filter((s) => s === "partial").length,
       gap: statuses.filter((s) => s === "gap").length,
-      clears: (asset.overallAssurance ?? 0) >= (tierTargetScore(asset.classification as string) ?? 0),
+      clears: (system.overallAssurance ?? 0) >= (target ?? 0),
     };
   }
 
@@ -146,7 +168,7 @@ export function createProfile(graph: Graph, rollups: RollupsApi) {
     categoryWeightsFor,
     categoryWeight,
     tierTargetScore,
-    evaluateAssetAgainstProfile,
+    evaluateSystemAgainstProfile,
     profileSummary,
   };
 }

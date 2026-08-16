@@ -8,7 +8,7 @@ import { PageHeader } from "../components/Headings";
 import { ClassificationTag, DataTypeChip, StandardChip, SourceBadge } from "../components/SystemBadges";
 import {
   getAllSystems, systemCoverageBreakdown, systemStandardMappings, dataTypesForSystem,
-  criticalityBand, assuranceBand, riskBand, ASSURANCE_TARGET, ADEQUATE_THRESHOLD, tierTargetScore,
+  criticalityBand, assuranceBand, ASSURANCE_TARGET, ADEQUATE_THRESHOLD, tierTargetScore,
 } from "../engine";
 
 const SYSTEMS = getAllSystems();
@@ -35,12 +35,17 @@ const DATA_ELEMENT_ICON = {
 // new one and by far the largest: controls with no individual implementation,
 // covered by the system's category-level assessment. It's a weaker claim than
 // Satisfied, and showing it as its own state is the point.
+// "Assessed at Category" is gone with the category assessments behind it. What
+// replaces it is the number that fallback was concealing: how many applicable
+// controls nobody assessed at all. The old column made 227 unexamined controls
+// read as covered.
 const SUMMARY_COLUMNS = [
-  { key: "required", label: "Required Controls", color: () => C.ink },
+  { key: "required", label: "Applicable Controls", color: () => C.ink },
+  { key: "scored", label: "Assessed", color: () => C.ink },
   { key: "inherited", label: "Inherited from Provider", color: () => C.green },
-  { key: "satisfied", label: "Measured & Satisfied", color: () => C.accent },
-  { key: "assessed", label: "Assessed at Category", color: () => C.muted },
+  { key: "satisfied", label: "Satisfied", color: () => C.accent },
   { key: "deficient", label: "Deficient", color: () => C.red },
+  { key: "unassessed", label: "Not in Scope", color: () => C.muted },
 ];
 
 function ownerFor(system) {
@@ -70,8 +75,10 @@ function systemAssetRollup(system) {
   return {
     criticality: system.criticality,
     assurance: system.overallAssurance,
-    evidenceConfidence: system.evidenceConfidence,
-    residualScore: system.residualScore,
+    // Evidence confidence was a mean over per-asset scores and went with them.
+    // Assessment coverage is the more useful figure anyway: it says how much of
+    // the applicable estate the assurance number is actually speaking for.
+    coverage: system.coverage,
   };
 }
 
@@ -96,13 +103,19 @@ function DataTypeTile({ item }) {
   );
 }
 
-// Collapses riskBand()'s real 5-tier scale (Critical/High/Moderate/Low/Minimal)
-// into the 3 states this column shows, without inventing new thresholds.
-function systemRiskMeta(residualScore) {
-  const band = riskBand(residualScore);
-  if (band.label === "Critical") return { label: "High", color: band.color };
-  if (band.label === "Minimal") return { label: "Low", color: band.color };
-  return band;
+// This column used to collapse a per-system residual risk score into three
+// states. That score was the mean of its assets' residual risks, and it went
+// with the asset scoring it was built on — residual risk is now answered on the
+// Risk Register, from the controls mapped to each scenario, which is the more
+// defensible place for it.
+//
+// What belongs here instead, on a page whose entire subject is gaps, is how
+// much of the applicable estate was actually assessed. It is the figure the old
+// "Assessed at Category" fallback was hiding.
+function coverageMeta(coverage) {
+  if (coverage.assessedPct >= 75) return { label: "Broad", color: "green" };
+  if (coverage.assessedPct >= 40) return { label: "Partial", color: "amber" };
+  return { label: "Narrow", color: "red" };
 }
 
 function statusMeta(status) {
@@ -199,7 +212,7 @@ export default function DataClassificationGapMatrix() {
   const selectedRoll = selected ? systemAssetRollup(selected) : null;
   const selectedCoveragePct = selectedBreakdown ? selectedBreakdown.coveredPct : null;
   const selectedTarget = selected ? tierTargetScore(selected.classification) : null;
-  const selectedRisk = selectedRoll ? systemRiskMeta(selectedRoll.residualScore) : null;
+  const selectedCoverage = selectedRoll ? coverageMeta(selectedRoll.coverage) : null;
 
   function openSystem(s) {
     setSelected(s);
@@ -280,8 +293,8 @@ export default function DataClassificationGapMatrix() {
               const critColor = C[criticalityBand(roll.criticality).color];
               const assureColor = C[assuranceBand(roll.assurance).color];
               const target = tierTargetScore(s.classification);
-              const risk = systemRiskMeta(roll.residualScore);
-              const riskColor = C[risk.color];
+              const cov = coverageMeta(roll.coverage);
+              const covColor = C[cov.color];
               return (
                 <React.Fragment key={s.id}>
                   <button onClick={() => openSystem(s)} className="p-4 text-left hover:bg-white/[0.02] transition-colors" style={{ borderBottom: `1px solid ${C.border}` }}>
@@ -316,9 +329,14 @@ export default function DataClassificationGapMatrix() {
                   <div className="cursor-pointer flex items-center justify-center" style={{ borderBottom: `1px solid ${C.border}`, borderLeft: `1px solid ${C.border}` }} onClick={() => openSystem(s)}>
                     <span className="text-sm font-semibold" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{target}</span>
                   </div>
-                  <div className="cursor-pointer flex items-center justify-center gap-1.5" style={{ borderBottom: `1px solid ${C.border}`, borderLeft: `1px solid ${C.border}` }} onClick={() => openSystem(s)}>
-                    <Circle size={7} fill={riskColor} color={riskColor} />
-                    <span className="text-xs font-semibold" style={{ color: riskColor }}>{risk.label}</span>
+                  <div className="cursor-pointer flex flex-col items-center justify-center gap-1" style={{ borderBottom: `1px solid ${C.border}`, borderLeft: `1px solid ${C.border}` }} onClick={() => openSystem(s)}>
+                    <div className="flex items-center gap-1.5">
+                      <Circle size={7} fill={covColor} color={covColor} />
+                      <span className="text-xs font-semibold" style={{ color: covColor }}>{cov.label}</span>
+                    </div>
+                    <span className="text-[10px]" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
+                      {roll.coverage.assessed}/{roll.coverage.applicable}
+                    </span>
                   </div>
                 </React.Fragment>
               );
@@ -326,7 +344,12 @@ export default function DataClassificationGapMatrix() {
           </div>
         </div>
         <div className="text-xs mt-3" style={{ color: C.muted }}>
-          Criticality and Assurance are averaged across each system's own assets from the Asset Register. Target is the assurance score a system's classification tier requires at full effectiveness against its Required Control Profile. Risk is each system's average residual risk across those same assets. Click a row for the full CCF rollup and control detail.
+          Criticality is averaged across each system&apos;s own assets. Assurance is the system&apos;s own PRISMA
+          assessment — assurance categories weighted by its classification tier, each a flat mean of the
+          controls assessed in it. Target is the score a tier requires when every level up to its required
+          maturity is Fully Compliant. Coverage is how much of the applicable control set was assessed at
+          all; the remainder is reported as unassessed, never scored as zero. Click a row for the full
+          control rollup and detail.
         </div>
       </div>
 
@@ -376,13 +399,21 @@ export default function DataClassificationGapMatrix() {
                 <ScoreTile label="Criticality" value={selectedRoll.criticality} band={criticalityBand(selectedRoll.criticality)} />
                 <ScoreTile label="Required Assurance" value={selectedTarget} />
                 <ScoreTile label="Assurance" value={selectedRoll.assurance} band={assuranceBand(selectedRoll.assurance)} />
-                <ScoreTile label="Evidence Confidence" value={selectedRoll.evidenceConfidence} band={assuranceBand(selectedRoll.evidenceConfidence)} />
+                <ScoreTile
+                  label="Assessment Coverage"
+                  value={`${selectedRoll.coverage.assessedPct}%`}
+                  band={selectedRoll.coverage.assessedPct >= 75 ? { color: "green" } : selectedRoll.coverage.assessedPct >= 40 ? { color: "amber" } : { color: "red" }}
+                />
                 <ScoreTile
                   label="Compliance Coverage"
                   value={`${selectedCoveragePct}%`}
                   band={selectedCoveragePct >= ASSURANCE_TARGET ? { label: "Strong", color: "green" } : selectedCoveragePct >= ADEQUATE_THRESHOLD ? { label: "Adequate", color: "amber" } : { label: "Weak", color: "red" }}
                 />
-                <ScoreTile label="Residual Risk" value={selectedRisk.label} band={selectedRisk} />
+                <ScoreTile
+                  label="Not in Scope"
+                  value={selectedRoll.coverage.unassessed}
+                  band={selectedCoverage}
+                />
               </div>
 
               <div className="text-xs uppercase tracking-wide mb-2" style={{ color: C.muted }}>Framework Requirements</div>

@@ -59,11 +59,11 @@ export function createEngine(graph: Graph, options: EngineOptions = {}) {
   const assessment = createAssessment(graph, applicability, evidence, findings, ctx);
   const implementation = createImplementation(graph, applicability, evidence);
   const rollups = createRollups(graph, classification, applicability, assessment, implementation, findings);
-  const risk = createRisk(graph, rollups, implementation, applicability);
+  const risk = createRisk(graph, rollups, assessment);
   const compliance = createCompliance(graph, assessment, applicability);
   const profile = createProfile(graph, rollups);
   const selectors = createSelectors(
-    graph, classification, applicability, implementation, rollups, risk, compliance
+    graph, classification, applicability, assessment, implementation, rollups, risk, compliance
   );
 
   const engine = {

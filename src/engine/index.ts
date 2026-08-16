@@ -99,7 +99,7 @@ export const programControlReach = compliance.programControlReach;
 // Profile
 export const CONTROL_PROFILES = profile.CONTROL_PROFILES;
 export const tierTargetScore = profile.tierTargetScore;
-export const evaluateAssetAgainstProfile = profile.evaluateAssetAgainstProfile;
+export const evaluateSystemAgainstProfile = profile.evaluateSystemAgainstProfile;
 export const profileSummary = profile.profileSummary;
 
 // Risk

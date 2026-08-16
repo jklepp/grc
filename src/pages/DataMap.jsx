@@ -5,7 +5,7 @@ import { PageHeader } from "../components/Headings";
 import { ClassificationTag } from "../components/SystemBadges";
 import {
   getAllSystems, getAsset, getDataFlows, getAllDataTypes, dataTypesForSystem, dataForAsset,
-  ASSURANCE_CATEGORIES, assuranceBand, evaluateAssetAgainstProfile, IMPLEMENTATION_STATUS_META,
+  assuranceBand, INSTANCE_STATUS_META, PRISMA_LEVELS, ASSURANCE_TARGET,
   ACTOR_KINDS,
 } from "../engine";
 import { buildDataFlowDiagram, buildControlPlaneMatrix } from "../utils/flowDiagramLayout";
@@ -14,6 +14,9 @@ import FlowMatrixSVG, { FlowMatrixLegend } from "../components/FlowMatrixSVG";
 import { exportFlowDiagramPdf } from "../utils/exportFlowDiagramPdf";
 
 const SYSTEMS = getAllSystems();
+
+// Worst first — an asset's problems belong at the top of its own list.
+const INSTANCE_ORDER = ["not-implemented", "partial", "undetermined", "implemented", "not-applicable"];
 
 function colorFor(key) {
   return { color: C[key], bg: C[`${key}Bg`] };
@@ -41,20 +44,10 @@ function AssuranceChip({ label, value, band }) {
   );
 }
 
-function AssuranceCategoryBar({ label, rollup, weight }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: rollup.basis === "measured" ? C.green : C.na }} />
-      <div className="w-20 shrink-0 text-[11px] truncate" style={{ color: C.ink }}>{label}</div>
-      <div className="flex-1 rounded-full overflow-hidden" style={{ background: C.panel2, height: 2 + (weight / 25) * 5 }}>
-        <div className="h-full rounded-full" style={{ width: `${rollup.score}%`, background: C.accent }} />
-      </div>
-      <div className="w-6 text-[10px] text-right shrink-0" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{weight}%</div>
-      <div className="w-6 text-[11px] text-right font-medium shrink-0" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{rollup.score}</div>
-    </div>
-  );
-}
-
+// AssuranceCategoryBar and PROFILE_STATUS_META are gone with the per-asset
+// category rollups and per-asset profile evaluation they drew. Categories are
+// still scored and still evaluated against the tier profile — once per system,
+// on the Control Profile page.
 function AssuranceRiskCard({ title, risk }) {
   const { color, bg } = colorFor(risk.band.color);
   return (
@@ -65,12 +58,6 @@ function AssuranceRiskCard({ title, risk }) {
     </div>
   );
 }
-
-const PROFILE_STATUS_META = {
-  met: { label: "Met", color: C.green },
-  partial: { label: "Partial", color: C.amber },
-  gap: { label: "Gap", color: C.red },
-};
 
 // Depth is derived by walking inbound data edges, so a stage has no stored
 // name to print. Depth 0 is whatever nothing else in the boundary feeds
@@ -115,7 +102,10 @@ const WIDE_NODE_CARD_HEIGHT = 72;
 // — redundant with the rail, but it's what lets a whole row of cards read as
 // a strip of status color even when you're not close enough to read digits.
 function NodeCard({ asset, footer, selected, onSelect, isBranch, compact, width = NODE_CARD_WIDTH, height }) {
-  const { color } = colorFor(asset.assuranceBand.color);
+  // Criticality, not assurance. An asset has no assurance score — the controls
+  // that apply to it are scored once against its system — so the band a card
+  // can honestly carry is how much its compromise would cost.
+  const { color } = colorFor(asset.criticalityBand.color);
   const cardHeight = height !== undefined ? height : (compact ? undefined : NODE_CARD_HEIGHT);
   return (
     <button
@@ -129,7 +119,7 @@ function NodeCard({ asset, footer, selected, onSelect, isBranch, compact, width 
             <span className="text-[10px] font-bold" style={{ color: "#fff" }}>{asset.code}</span>
           </div>
           <div className="flex-1 flex items-center justify-center" style={{ background: color }}>
-            <span className="text-[10px] font-bold" style={{ color: "#fff" }}>{asset.overallAssurance}%</span>
+            <span className="text-[10px] font-bold" style={{ color: "#fff" }}>{asset.criticality}</span>
           </div>
         </div>
         <div className="p-2 flex-1 flex flex-col min-w-0 justify-center">
@@ -312,28 +302,38 @@ function joinAnd(items) {
   return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
 }
 
+// The weakest CONTROL in the boundary, not the weakest asset.
+//
+// This banner used to name whichever asset scored lowest. That was always a
+// vaguer statement than it looked — an asset is a container, and "the vector
+// database is weakest" does not tell anybody what to go and fix. Naming the
+// requirement that is failing does, and the instances beneath it name the
+// asset anyway.
 function WeakestLinkBanner({ system }) {
-  const weak = system.weakestAsset;
+  const weak = system.weakestControl;
   if (!weak) return null;
-  const evaluation = evaluateAssetAgainstProfile(weak.id);
-  const gapCats = ASSURANCE_CATEGORIES.filter((c) => evaluation[c].status === "gap");
-  const failing = gapCats.flatMap((c) => evaluation[c].failingControls);
-  const strong = weak.overallAssurance >= 90;
+  const strong = (weak.score ?? 0) >= ASSURANCE_TARGET;
 
-  const reason = failing.length > 0
-    ? `${joinAnd([...new Set(failing.map((f) => f.control.friendlyName))])} ${failing.length > 1 ? "are" : "is"} failing against evidence.`
-    : gapCats.length > 0
-      ? `${joinAnd(gapCats)} ${gapCats.length > 1 ? "fall" : "falls"} short of the ${weak.classification} control profile.`
-      : "Some categories only partially meet the required control profile.";
+  const failingHere = weak.instances.filter((i) => i.status === "not-implemented" || i.status === "partial");
+  const worstLevel = PRISMA_LEVELS
+    .map((level) => ({ level, rating: weak.levels[level].rating }))
+    .reduce((w, l) => (l.rating < w.rating ? l : w));
+
+  const reason = failingHere.length > 0
+    ? `${joinAnd([...new Set(failingHere.map((f) => f.asset.name))])} ${failingHere.length > 1 ? "are" : "is"} not holding it.`
+    : `Weakest at ${worstLevel.level}: ${weak.levels[worstLevel.level].rationale}`;
 
   return (
     <div className="rounded-lg px-4 py-3 flex items-center gap-3" style={{ background: strong ? C.panel2 : C.redBg, border: `1px solid ${strong ? C.border : C.red + "4D"}` }}>
       <AlertTriangle size={16} color={strong ? C.muted : C.red} className="shrink-0" />
       <div className="text-sm" style={{ color: C.ink }}>
         {strong ? (
-          <>Every asset in this system scores <span style={{ fontWeight: 600 }}>90% Cyber Assurance or better</span> — no weak link to flag right now.</>
+          <>Every assessed control in this boundary scores <span style={{ fontWeight: 600 }}>{ASSURANCE_TARGET} or better</span> — no weak link to flag right now.</>
         ) : (
-          <><span style={{ fontWeight: 600 }}>Weakest link: {weak.name}</span> <span style={{ color: C.muted }}>({weak.overallAssurance}%)</span> · {reason}</>
+          <>
+            <span style={{ fontWeight: 600 }}>Weakest control: {weak.controlId} — {weak.control.name}</span>{" "}
+            <span style={{ color: C.muted }}>({weak.score})</span> · {reason}
+          </>
         )}
       </div>
     </div>
@@ -342,8 +342,7 @@ function WeakestLinkBanner({ system }) {
 
 function SystemDetailPanel({ assetId, onClose }) {
   const asset = getAsset(assetId);
-  const { color } = colorFor(asset.assuranceBand.color);
-  const evaluation = evaluateAssetAgainstProfile(assetId);
+  const { color } = colorFor(asset.criticalityBand.color);
   const held = dataForAsset(assetId);
 
   return (
@@ -362,11 +361,16 @@ function SystemDetailPanel({ assetId, onClose }) {
         </button>
       </div>
 
+      {/* Criticality is the headline an asset can honestly carry. It has no
+          assurance score: the controls that apply to it are assessed once
+          against its system, and this asset is one of the samples behind that. */}
       <div className="px-5 py-4 flex items-center gap-4" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <div className="text-3xl font-bold" style={{ color, fontFamily: "'IBM Plex Mono', monospace" }}>{asset.overallAssurance}%</div>
+        <div className="text-3xl font-bold" style={{ color, fontFamily: "'IBM Plex Mono', monospace" }}>{asset.criticality}</div>
         <div>
-          <div className="text-sm font-semibold" style={{ color: C.ink }}>{asset.assuranceBand.label} Cyber Assurance</div>
-          <div className="text-[11px]" style={{ color: C.muted }}>{asset.evidencedControlCount} of {asset.requiredControlCount} tracked controls evidenced</div>
+          <div className="text-sm font-semibold" style={{ color: C.ink }}>{asset.criticalityBand.label} Criticality</div>
+          <div className="text-[11px]" style={{ color: C.muted }}>
+            {asset.implementedCount} of {asset.applicableControlCount} applicable controls verified here
+          </div>
         </div>
       </div>
 
@@ -389,58 +393,59 @@ function SystemDetailPanel({ assetId, onClose }) {
       </div>
 
       <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <div className="text-[10px] uppercase tracking-wide mb-3" style={{ color: C.muted }}>Cyber Assurance</div>
+        <div className="text-[10px] uppercase tracking-wide mb-3" style={{ color: C.muted }}>Consequence and coverage</div>
         <div className="grid grid-cols-2 gap-2 mb-4">
           <AssuranceChip label="Criticality" value={asset.criticality} band={asset.criticalityBand} />
-          <AssuranceChip label="Control Assurance" value={asset.overallAssurance} band={asset.assuranceBand} />
-          <AssuranceChip label="Evidence Confidence" value={asset.evidenceConfidence} band={asset.evidenceConfidenceBand} />
           <AssuranceChip
-            label="Control-Backed"
-            value={`${asset.controlBackedPct}%`}
-            band={asset.controlBackedPct >= 90 ? { label: "Strong", color: "green" } : asset.controlBackedPct >= 75 ? { label: "Adequate", color: "amber" } : { label: "Partial", color: "red" }}
+            label="Controls Verified"
+            value={`${asset.implementedCount}/${asset.applicableControlCount}`}
+            band={asset.applicableControlCount > 0 && asset.implementedCount / asset.applicableControlCount >= 0.9
+              ? { label: "Verified", color: "green" }
+              : asset.applicableControlCount > 0 && asset.implementedCount / asset.applicableControlCount >= 0.6
+                ? { label: "Mostly", color: "amber" }
+                : { label: "Sparse", color: "red" }}
           />
-        </div>
-        <div className="space-y-2 mb-4">
-          {ASSURANCE_CATEGORIES.map((c) => <AssuranceCategoryBar key={c} label={c} rollup={asset.categories[c]} weight={asset.categoryWeights[c]} />)}
+          <AssuranceChip
+            label="Evidence Coverage"
+            value={`${asset.evidenceCoveragePct}%`}
+            band={asset.evidenceCoveragePct >= 90 ? { label: "Strong", color: "green" } : asset.evidenceCoveragePct >= 60 ? { label: "Partial", color: "amber" } : { label: "Sparse", color: "red" }}
+          />
+          <AssuranceChip label="No evidence yet" value={asset.undeterminedCount} band={asset.undeterminedCount === 0 ? { label: "None", color: "green" } : { label: "Gap", color: "amber" }} />
         </div>
         <div className="flex gap-2">
           <AssuranceRiskCard title="Inherent Risk" risk={asset.inherentRisk} />
-          <AssuranceRiskCard title="Residual Risk" risk={asset.residualRisk} />
+        </div>
+        <div className="text-[11px] mt-3 leading-relaxed" style={{ color: C.muted }}>
+          Impact is intrinsic to this asset. Residual risk is answered on the Risk Register from
+          the controls mapped to each scenario, rather than from a score for this box.
         </div>
       </div>
 
-      {asset.deficientControls.length > 0 && (
-        <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
-          <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: C.muted }}>Failing controls</div>
-          <div className="space-y-1.5">
-            {asset.deficientControls.map((i) => (
-              <div key={i.controlId} className="rounded-lg px-2.5 py-2" style={{ background: C.panel2 }}>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] flex-1 min-w-0 truncate" style={{ color: C.ink }}>{i.control.friendlyName}</span>
-                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0" style={{ color: C.red, background: C.redBg }}>
-                    {IMPLEMENTATION_STATUS_META[i.status].label}
-                  </span>
-                </div>
-                {i.note && <div className="text-[10px] mt-1 leading-relaxed" style={{ color: C.muted }}>{i.note}</div>}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
+      {/* The drill-down. Every control that applies here and what it showed —
+          the same instances the system-level assessment sampled. */}
       <div className="px-5 py-4">
-        <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: C.muted }}>Required Control Profile ({asset.classification})</div>
+        <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: C.muted }}>Controls sampled here</div>
         <div className="space-y-1.5">
-          {ASSURANCE_CATEGORIES.map((c) => {
-            const meta = PROFILE_STATUS_META[evaluation[c].status];
-            return (
-              <div key={c} className="flex items-center gap-2 text-xs">
-                <span className="shrink-0" style={{ width: 7, height: 7, borderRadius: "50%", background: meta.color }} />
-                <span className="flex-1" style={{ color: C.ink }}>{c}</span>
-                <span style={{ color: meta.color }}>{meta.label}</span>
-              </div>
-            );
-          })}
+          {[...asset.controls]
+            .sort((a, b) => INSTANCE_ORDER.indexOf(a.status) - INSTANCE_ORDER.indexOf(b.status))
+            .map((i) => {
+              const meta = INSTANCE_STATUS_META[i.status];
+              const muted = meta.color === "muted";
+              return (
+                <div key={i.controlId} className="rounded-lg px-2.5 py-2" style={{ background: C.panel2 }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] flex-1 min-w-0 truncate" style={{ color: C.ink }}>{i.controlId}</span>
+                    <span
+                      className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0"
+                      style={{ color: muted ? C.muted : C[meta.color], background: muted ? "transparent" : C[`${meta.color}Bg`] }}
+                    >
+                      {meta.label}
+                    </span>
+                  </div>
+                  <div className="text-[10px] mt-1 leading-relaxed" style={{ color: C.muted }}>{i.statement}</div>
+                </div>
+              );
+            })}
         </div>
       </div>
     </div>

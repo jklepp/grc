@@ -41,21 +41,18 @@ import {
   type AssuranceCategory, type ClassificationTier, type PrismaLevel,
 } from "../graph/nodes/taxonomy";
 import { ACTOR_DIRECTIONS } from "../graph/edges/actorAccess";
-import type { CategoryAssessment } from "../graph/edges/categoryAssessments";
 import type { ClassificationApi } from "./classification";
 import type { ApplicabilityApi } from "./applicability";
 import type { ImplementationApi } from "./implementation";
 import type { AssessmentApi, ControlAssessment } from "./assessment";
 import type { FindingsApi } from "./findings";
 import {
-  blendAssurance, evidenceBaseConfidence, criticalityScore, criticalityBand, assuranceBand,
-  impactFromCriticality, residualLikelihood, riskScore, riskBand, mean, weightedMean, display,
+  criticalityScore, criticalityBand, assuranceBand,
+  impactFromCriticality, riskScore, riskBand, mean, weightedMean, display,
   CRITICALITY_FACTORS, ASSURANCE_TARGET,
 } from "./assurance";
 import type { AssetId, SystemId } from "../graph/ids";
 
-// The assessed remainder carries the same total weight as the measured set.
-const RESIDUAL_WEIGHT_RATIO = 1;
 
 // Reported beside every score, at every hop. Counts, never averaged.
 //
@@ -86,14 +83,6 @@ function coverageOf(assessments: readonly ControlAssessment[]): AssessmentCovera
   };
 }
 
-function baselineScore(assessment: CategoryAssessment): number {
-  return blendAssurance({
-    maturityStage: assessment.maturityStage,
-    evidenceConfidence: evidenceBaseConfidence(assessment.evidenceType),
-    effectivenessPct: assessment.effectivenessPct,
-  });
-}
-
 export function createRollups(
   graph: Graph,
   classification: ClassificationApi,
@@ -102,40 +91,31 @@ export function createRollups(
   implementation: ImplementationApi,
   findings: FindingsApi
 ) {
-  function categoryRollup(assetId: AssetId, category: AssuranceCategory) {
-    const assessment = graph.assessmentByPair[`${assetId}::${category}`]!;
-    const baseline = baselineScore(assessment);
-    const implementations = implementation.implementationsForAsset(assetId).filter((i) => i.category === category);
-
-    if (implementations.length === 0) {
-      return {
-        assetId, category, score: display(baseline), raw: baseline, basis: BASIS.ASSESSED,
-        implementations: [] as ReturnType<ImplementationApi["implementationsForAsset"]>,
-        baseline: display(baseline), rawBaseline: baseline, assessment,
-        measuredCount: 0, requiredCount: 0, evidencedCount: 0,
-      };
-    }
-
-    const residualWeight = implementations.length * RESIDUAL_WEIGHT_RATIO;
-    const raw = weightedMean([
-      ...implementations.map((i) => ({ value: i.rawScore as number, weight: 1 })),
-      { value: baseline, weight: residualWeight },
-    ]) as number;
-
-    const evidencedCount = implementations.filter((i) => i.basis === BASIS.MEASURED).length;
-
-    return {
-      assetId, category, score: display(raw), raw, baseline: display(baseline), rawBaseline: baseline,
-      assessment, implementations,
-      // A category is "measured" only if something in it actually is. All-assessed
-      // implementations in a category leave it assessed, which is the truth.
-      basis: evidencedCount > 0 ? BASIS.MEASURED : BASIS.ASSESSED,
-      measuredCount: evidencedCount,
-      requiredCount: implementations.length,
-      evidencedCount,
-    };
-  }
-
+  // ---- An asset, as a diagnostic ------------------------------------------------
+  // AN ASSET NO LONGER HAS A SCORE, AND THAT IS THE POINT.
+  //
+  // It used to carry overallAssurance, six category rollups, an evidence
+  // confidence and a residual risk, all of which fed the system above it. The
+  // premise was that scoring each asset and averaging upward describes a
+  // boundary's posture. It does not, and at any real scale nobody does it: the
+  // work of assessing twenty-six things individually is the reason the whole
+  // exercise gets skipped.
+  //
+  // What an asset carries instead is what it can honestly say. Criticality and
+  // classification, both derived from the asset's own facts and from nothing
+  // about controls — a statement about consequence, not about posture. And a
+  // list of every control that applies to it, each with the status it showed
+  // and the evidence behind that status.
+  //
+  // That list is the answer to the question this change was made for: "as part
+  // of the system's assurance, was this S3 bucket shown compliant against
+  // encryption at rest?" It is the same ControlInstance object the Implemented
+  // level sampled, reached from the other end, so the asset view and the control
+  // view cannot disagree — there is one object and two ways in.
+  //
+  // criticality survives as a WEIGHT at the enterprise hop. A weight is not a
+  // score: it says how much this boundary's number should count, not how well
+  // anything is doing.
   function assetRollup(assetId: AssetId) {
     const asset = graph.assetById[assetId];
     const system = graph.systemById[asset.systemId];
@@ -149,48 +129,18 @@ export function createRollups(
     );
     const criticality = criticalityScore(factors);
 
-    const categories = {} as Record<AssuranceCategory, ReturnType<typeof categoryRollup>>;
-    ASSURANCE_CATEGORIES.forEach((c) => (categories[c] = categoryRollup(assetId, c)));
-    const categoryScores = Object.fromEntries(
-      ASSURANCE_CATEGORIES.map((c) => [c, categories[c].score])
-    ) as Record<AssuranceCategory, number | null>;
-
-    // Weighted by the asset's own classification tier, from the required control
-    // profile (graph facts.controlProfile).
-    //
-    // This was a flat mean, on the argument that no category is inherently more
-    // important and asset-specific weighting belongs in the control profile. The
-    // argument was right; it just hadn't been carried out — the profile set a
-    // floor per category and had no say in how much each counted. A flat mean let
-    // one-sixth weighting absorb a thirty-point Identity & Access shortfall on
-    // the asset whose entire risk is confidentiality.
-    //
-    // Computed from the categories' unrounded values so a control's movement
-    // isn't lost at this hop.
-    const tier = classification.assetClassification(assetId) ?? "Internal";
-    const weights = graph.categoryWeights[tier as ClassificationTier] ?? graph.categoryWeights.Internal;
-    const rawAssurance = weightedMean(
-      ASSURANCE_CATEGORIES.map((c) => ({ value: categories[c].raw, weight: weights[c] }))
-    );
-    const assurance = display(rawAssurance);
-
-    const implementations = implementation.implementationsForAsset(assetId);
+    const controls = assessment.instancesForAsset(assetId);
     const required = applicability.requiredControlsForAsset(assetId);
-    const evidenced = implementations.filter((i) => i.basis === BASIS.MEASURED && i.status !== "not-implemented");
+    const counted = controls.filter((i) => i.status !== "not-applicable");
+    const evidenced = controls.filter((i) => i.evidence.length > 0);
 
-    // Deliberately NOT the category weighting above. This answers "how much of
-    // what we track here is actually backed by evidence," which is a coverage
-    // question, not a scoring one.
-    const controlBackedPct = required.length === 0 ? 0 : Math.round((evidenced.length / required.length) * 100);
-
-    const evidenceConfidence = display(
-      mean(implementations.filter((i) => i.evidenceConfidence != null).map((i) => i.evidenceConfidence as number))
-    );
+    // A COVERAGE figure, explicitly not a score. Same honesty role
+    // controlBackedPct played: "how much of what applies here has anybody
+    // actually looked at", asked without implying an answer about quality.
+    const evidenceCoveragePct = required.length === 0 ? 0 : Math.round((evidenced.length / required.length) * 100);
 
     const impact = impactFromCriticality(criticality);
-    const residualLikely = residualLikelihood(asset.inherentLikelihood, rawAssurance);
     const inherentScore = riskScore(asset.inherentLikelihood, impact);
-    const residualScore = riskScore(residualLikely, impact);
 
     return {
       ...asset,
@@ -199,22 +149,38 @@ export function createRollups(
       classificationDetail: classification.assetClassificationDetail(assetId),
       criticality,
       criticalityBand: criticalityBand(criticality),
-      categories,
-      categoryScores,
-      categoryWeights: weights,
-      overallAssurance: assurance,
-      rawAssurance,
-      assuranceBand: assuranceBand(assurance),
-      evidenceConfidence,
-      evidenceConfidenceBand: assuranceBand(evidenceConfidence),
-      controlBackedPct,
-      implementations,
+
+      // The diagnostic. One entry per control that applies to this asset,
+      // carrying a status and a sentence — never a number.
+      controls,
+      applicableControlCount: counted.length,
+      implementedCount: counted.filter((i) => i.status === "implemented").length,
+      partialCount: counted.filter((i) => i.status === "partial").length,
+      notImplementedCount: counted.filter((i) => i.status === "not-implemented").length,
+      undeterminedCount: counted.filter((i) => i.status === "undetermined").length,
       requiredControlCount: required.length,
       evidencedControlCount: evidenced.length,
-      deficientControls: implementations.filter((i) => i.status === "deficient" || i.status === "not-implemented"),
+      evidenceCoveragePct,
+      failingControls: counted.filter((i) => i.status === "not-implemented" || i.status === "partial"),
+      findings: findings.findingsForAsset(assetId),
+
+      // Which (system, control) assessments this asset is sampled in. The
+      // reverse of the drill-down, so the Graph Explorer can walk either way.
+      contributesTo: controls.map((i) => ({
+        assessmentId: `ASM-${i.systemId}-${i.controlId}`,
+        systemId: i.systemId,
+        controlId: i.controlId,
+        level: "Implemented" as const,
+        credit: i.credit,
+      })),
+
+      // Intrinsic, and unchanged. Impact is what happens if this asset is
+      // compromised; it does not move because controls improved. Residual risk
+      // is gone from here — it needed an asset score to compute, and it is
+      // answered properly at the risk level from the controls actually mapped
+      // to each scenario.
       impact,
       inherentRisk: { likelihood: asset.inherentLikelihood, impact, score: inherentScore, band: riskBand(inherentScore) },
-      residualRisk: { likelihood: residualLikely, impact, score: residualScore, band: riskBand(residualScore) },
     };
   }
 
@@ -347,13 +313,26 @@ export function createRollups(
       controlBackedPct: totalRequired === 0 ? 0 : Math.round((totalEvidenced / totalRequired) * 100),
       requiredControlCount: totalRequired,
       evidencedControlCount: totalEvidenced,
-      evidenceConfidence: display(mean(assets.map((a) => a.evidenceConfidence).filter((v): v is number => v != null))),
-      residualScore: Math.round((assets.reduce((a, x) => a + x.residualRisk.score, 0) / assets.length) * 10) / 10,
-      staleEvidenceCount: assets.reduce(
-        (a, x) => a + x.implementations.filter((i) => i.evidence.some((e) => e.stale)).length, 0
+      // Counted across the assessments' own sampled instances rather than
+      // across per-asset implementations, which no longer exist. Same question,
+      // asked of the thing that now holds the answer.
+      staleEvidenceCount: scoredAssessments.reduce(
+        (n, a) => n + a.instances.filter((i) => i.evidence.some((e) => e.stale)).length,
+        0
       ),
-      weakestAsset: assets.reduce((worst, a) => ((a.overallAssurance ?? 0) < (worst.overallAssurance ?? 0) ? a : worst), assets[0]),
-      deficientControls: assets.flatMap((a) => a.deficientControls),
+      // weakestAsset is gone. An asset has no score to be weakest by, and
+      // "which asset is worst" was always a vaguer question than the one a
+      // reader actually wants answered — weakestControl, above, names the
+      // requirement that is failing instead of the box it failed in. The
+      // instances beneath it name the asset anyway.
+      deficientControls: scoredAssessments.filter(
+        (a) => a.levels.Implemented.rating <= 25
+      ),
+      // Every sampled instance that is failing or unevidenced, across the
+      // boundary — what "which specific things are wrong here" now resolves to.
+      failingInstances: scoredAssessments.flatMap((a) =>
+        a.instances.filter((i) => i.status === "not-implemented" || i.status === "partial")
+      ),
     };
   }
 
@@ -564,10 +543,10 @@ export function createRollups(
   }
 
   return {
-    categoryRollup,
     assetRollup,
     assetRollups,
     assetRollupById,
+    categoryRollupForSystem,
     systemRollup,
     systemRollups,
     systemRollupById,

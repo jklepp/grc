@@ -8,9 +8,9 @@ import { C } from "../theme";
 import { PageHeader, SectionHeading } from "../components/Headings";
 import { PROCEDURES } from "../data/procedures";
 import { POLICIES, getFrameworkClauses, MAPPED_STANDARDS, STANDARD_ABBR } from "../data/policies";
-import { getAllAssets, EVIDENCE_CONFIDENCE } from "../engine";
+import { getAllSystems, EVIDENCE_CONFIDENCE } from "../engine";
 
-const ASSET_SUMMARIES = getAllAssets();
+const SYSTEMS = getAllSystems();
 
 // There's no real auth/user system yet, so the execution workflow below
 // simulates a single signed-in operator running their own SOP — same "JK"
@@ -658,9 +658,17 @@ export default function ProcedureLibrary({ onNavigate }) {
   // procedure-wide, rather than step, level).
   const requiredCount = selected.steps.filter((s) => s.controls && s.controls.length > 0).length;
 
-  const scoredAssets = [...ASSET_SUMMARIES]
-    .filter((a) => a.categoryScores[selected.category] != null)
-    .sort((a, b) => b.categoryScores[selected.category] - a.categoryScores[selected.category]);
+  // What this SOP actually operationalizes, and how well. An asset no longer
+  // carries a category score to rank by — and ranking assets was always the
+  // weaker panel for a procedure page anyway. The controls this SOP is the
+  // owning procedure for, with the Procedure-level rating each one earned
+  // across both systems, makes the link between writing a step and moving a
+  // number visible for the first time.
+  const scoredControls = SYSTEMS.flatMap((s) =>
+    s.scoredAssessments.filter((a) => a.category === selected.category)
+  )
+    .filter((a) => selected.controlIds.includes(a.controlId))
+    .sort((a, b) => a.levels.Procedure.rating - b.levels.Procedure.rating || a.rawScore - b.rawScore);
 
   const selectedExecutions = executionsMap[selected.id] || [];
   const activeExecution = selectedExecutions.find((e) => e.status === "in_progress") || null;
@@ -896,25 +904,43 @@ export default function ProcedureLibrary({ onNavigate }) {
               <SectionHeading icon={Layers}>Control mapping</SectionHeading>
               <div className="mb-6"><ControlMapping controlIds={selected.controlIds} uncitedControlIds={selected.uncitedControlIds} /></div>
 
-              <SectionHeading icon={Boxes}>Assets scored against this category</SectionHeading>
-              <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
-                {scoredAssets.map((a, i) => (
-                  <button
-                    key={a.id}
-                    onClick={() => onNavigate && onNavigate("asset-register")}
-                    className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left"
-                    style={{ borderTop: i > 0 ? `1px solid ${C.border}` : "none", background: i % 2 ? "transparent" : C.panel2 }}
-                  >
-                    <div className="min-w-0">
-                      <div className="text-xs font-medium truncate" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{a.name}</div>
-                      <div className="text-[11px]" style={{ color: C.muted }}>{a.system.name}</div>
-                    </div>
-                    <span className="text-xs font-semibold shrink-0" style={{ color: assuranceColor(a.categoryScores[selected.category]) }}>
-                      {a.categoryScores[selected.category]}
-                    </span>
-                  </button>
-                ))}
+              <SectionHeading icon={Boxes} hint="weakest procedure rating first">
+                What this SOP is scoring
+              </SectionHeading>
+              <div className="text-[11px] mb-2 leading-relaxed" style={{ color: C.muted }}>
+                Every assessed control this SOP owns, with the Procedure-level rating it earned.
+                A step citing a control by name rates it Fully Compliant; owning the control&apos;s
+                domain without a step for it rates Partially. This is where writing a step
+                changes a number.
               </div>
+              {scoredControls.length === 0 ? (
+                <div className="rounded-lg px-3 py-3 text-xs" style={{ border: `1px solid ${C.border}`, color: C.muted }}>
+                  No control this SOP owns is inside either system&apos;s assessment scope yet.
+                </div>
+              ) : (
+                <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
+                  {scoredControls.map((a, i) => (
+                    <div
+                      key={`${a.systemId}-${a.controlId}`}
+                      className="flex items-center justify-between gap-2 px-3 py-2"
+                      style={{ borderTop: i > 0 ? `1px solid ${C.border}` : "none", background: i % 2 ? "transparent" : C.panel2 }}
+                    >
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium truncate" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>
+                          {a.controlId} — {a.control.name}
+                        </div>
+                        <div className="text-[11px]" style={{ color: C.muted }}>{a.systemId} · {a.levels.Procedure.rationale}</div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div className="text-xs font-semibold" style={{ color: assuranceColor(a.levels.Procedure.rating) }}>
+                          {a.levels.Procedure.rating}
+                        </div>
+                        <div className="text-[10px]" style={{ color: C.muted }}>control {a.score}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </div>

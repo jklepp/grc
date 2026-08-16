@@ -3,7 +3,7 @@ import { X, Boxes } from "lucide-react";
 import { C } from "../theme";
 import { PageHeader, SectionHeading } from "../components/Headings";
 import { ClassificationTag } from "../components/SystemBadges";
-import { getAllAssets, ASSURANCE_CATEGORIES, IMPLEMENTATION_STATUS_META, BASIS_META } from "../engine";
+import { getAllAssets, INSTANCE_STATUS_META } from "../engine";
 
 const ASSETS = getAllAssets();
 
@@ -40,67 +40,71 @@ function AssetCard({ asset, selected, onSelect }) {
       </div>
       <div className="grid grid-cols-3 gap-2 mt-3">
         <MetricChip label="Criticality" value={asset.criticality} band={asset.criticalityBand} />
-        <MetricChip label="Assurance" value={asset.overallAssurance} band={asset.assuranceBand} />
-        <MetricChip label="Residual Risk" value={asset.residualRisk.score} band={asset.residualRisk.band} />
+        {/* Not a score. How many of the controls that apply here were actually
+            verified on this asset — the sampling result, not a judgment about
+            the asset itself. */}
+        <MetricChip
+          label="Verified"
+          value={`${asset.implementedCount}/${asset.applicableControlCount}`}
+          band={verificationBand(asset)}
+        />
+        <MetricChip label="Inherent Risk" value={asset.inherentRisk.score} band={asset.inherentRisk.band} />
       </div>
     </button>
   );
 }
 
-// The dot marks whether this category's score rests on evidenced control
-// implementations or only on the category-level assessment. Same number either
-// way; very different strength of claim, which used to be invisible.
-function CategoryBar({ label, rollup, weight }) {
-  const measured = rollup.basis === "measured";
-  return (
-    <div className="flex items-center gap-2" title={BASIS_META[rollup.basis]?.detail}>
-      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: measured ? C.green : C.na }} />
-      <div className="w-24 shrink-0 text-xs truncate" style={{ color: C.ink }}>{label}</div>
-      {/* Bar height tracks the category's weight in this asset's tier profile,
-          so a heavily-weighted shortfall is visibly heavier than a light one
-          rather than every category drawing the same bar. */}
-      <div className="flex-1 rounded-full overflow-hidden" style={{ background: C.panel2, height: 2 + (weight / 25) * 6 }}>
-        <div className="h-full rounded-full" style={{ width: `${rollup.score}%`, background: C.accent }} />
-      </div>
-      <div className="w-7 text-[10px] text-right shrink-0" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{weight}%</div>
-      <div className="w-7 text-xs text-right font-medium shrink-0" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{rollup.score}</div>
-    </div>
-  );
+// A verification ratio is a coverage figure, not a score, so it gets a band
+// only to colour it — deliberately not assuranceBand, whose thresholds mean
+// something about posture rather than about how much was looked at.
+function verificationBand(asset) {
+  if (asset.applicableControlCount === 0) return { label: "None applicable", color: "muted" };
+  const pct = (asset.implementedCount / asset.applicableControlCount) * 100;
+  if (pct >= 90) return { label: "Verified", color: "green" };
+  if (pct >= 60) return { label: "Mostly", color: "amber" };
+  return { label: "Sparse", color: "red" };
 }
 
-// The view the pre-graph register had no way to show: this control, on this
-// asset, with the evidence behind it. A control's assurance is contextual, so
-// the only place a real number for it can live is here.
-function ImplementationRow({ impl }) {
-  const meta = IMPLEMENTATION_STATUS_META[impl.status];
+// CategoryBar is gone with the per-asset category rollups it drew. Categories
+// are still scored, once per system, and the bars for them live on the pages
+// that show a system.
+//
+// Worst first — an asset's problems should be at the top of its own list.
+const INSTANCE_ORDER = ["not-implemented", "partial", "undetermined", "implemented", "not-applicable"];
+
+// One control, as seen from this asset. Carries a status and a sentence, never
+// a score: the score for this control exists once, at the system boundary.
+function InstanceRow({ inst }) {
+  const meta = INSTANCE_STATUS_META[inst.status];
   const { color, bg } = colorFor(meta.color === "muted" ? "na" : meta.color);
-  const strongest = impl.evidence.reduce((best, e) => (best === null || e.confidence > best.confidence ? e : best), null);
+  const strongest = inst.evidence.reduce((best, e) => (best === null || e.confidence > best.confidence ? e : best), null);
+  const prevalent = inst.governing && inst.governing.exceptionRate != null ? inst.governing : null;
   return (
     <div className="rounded-lg px-3 py-2" style={{ background: C.panel2 }}>
       <div className="flex items-center gap-2">
-        <span className="text-xs min-w-0 flex-1 truncate" style={{ color: C.ink }}>{impl.control.friendlyName}</span>
-        <span className="text-[10px] shrink-0" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{impl.controlId}</span>
+        <span className="text-xs min-w-0 flex-1 truncate" style={{ color: C.ink }}>{inst.control?.name ?? inst.controlId}</span>
+        <span className="text-[10px] shrink-0" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{inst.controlId}</span>
         <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0" style={{ color: meta.color === "muted" ? C.muted : color, background: meta.color === "muted" ? "transparent" : bg }}>
           {meta.label}
         </span>
-        <span className="text-xs font-semibold w-7 text-right shrink-0" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{impl.score}</span>
       </div>
+      <div className="text-[11px] mt-1 leading-relaxed" style={{ color: C.muted }}>{inst.statement}</div>
       {strongest && (
         <div className="text-[11px] mt-1 leading-relaxed" style={{ color: C.muted }}>
           {strongest.source} · {strongest.coveragePct}% coverage · {strongest.ageDays}d ago{strongest.stale ? " (stale)" : ""}
-          {impl.evidenceAllocation.length > 1 && ` · +${impl.evidenceAllocation.length - 1} more composing coverage`}
+          {inst.evidence.length > 1 && ` · +${inst.evidence.length - 1} more`}
         </div>
       )}
       {/* Prevalence, not just the pass/fail label. "1 of 10,000" and "9,000 of
           10,000" are both failures and are not the same condition. */}
-      {impl.exceptionSummary && (
-        <div className="text-[11px] mt-1" style={{ color: impl.exceptionSummary.rate >= 0.5 ? C.red : impl.exceptionSummary.rate >= 0.1 ? C.amber : C.muted }}>
-          {impl.exceptionSummary.exceptions} of {impl.exceptionSummary.population} {impl.exceptionSummary.unit} in breach
-          {" "}({(impl.exceptionSummary.rate * 100).toFixed(impl.exceptionSummary.rate < 0.01 ? 2 : 1)}%)
-          {impl.exceptionSummary.rate >= 0.5 ? " — systemic" : impl.exceptionSummary.rate < 0.05 ? " — isolated" : ""}
+      {prevalent && (
+        <div className="text-[11px] mt-1" style={{ color: prevalent.exceptionRate >= 0.5 ? C.red : prevalent.exceptionRate >= 0.1 ? C.amber : C.muted }}>
+          {prevalent.exceptions} of {prevalent.population} {prevalent.populationUnit ?? "items"} in breach
+          {" "}({(prevalent.exceptionRate * 100).toFixed(prevalent.exceptionRate < 0.01 ? 2 : 1)}%)
+          {prevalent.exceptionRate >= 0.5 ? " — systemic" : prevalent.exceptionRate < 0.05 ? " — isolated" : ""}
         </div>
       )}
-      {impl.note && <div className="text-[11px] mt-1 leading-relaxed" style={{ color: C.muted }}>{impl.note}</div>}
+      {inst.mechanism && <div className="text-[11px] mt-1 leading-relaxed" style={{ color: C.muted }}>{inst.mechanism.mechanism}</div>}
     </div>
   );
 }
@@ -155,42 +159,42 @@ function AssetDetailPanel({ asset, onClose }) {
         </button>
       </div>
 
+      {/* An asset has no assurance score. It is not scored at all — the
+          controls that apply to it are scored once against its system, and this
+          asset is one of the samples behind that. What it can honestly report
+          is consequence (criticality, intrinsic) and what each control actually
+          showed here. */}
       <div className="px-5 py-4 grid grid-cols-2 gap-2" style={{ borderBottom: `1px solid ${C.border}` }}>
         <MetricChip label="Asset Criticality" value={asset.criticality} band={asset.criticalityBand} />
-        <MetricChip label="Control Assurance" value={asset.overallAssurance} band={asset.assuranceBand} />
-        <MetricChip label="Evidence Confidence" value={asset.evidenceConfidence} band={asset.evidenceConfidenceBand} />
-        {/* Replaces the old Compliance Coverage chip, which showed this asset's
-            PARENT SYSTEM's coverage — identical across every asset in the
-            boundary, and so unable to say anything about this one. */}
         <MetricChip
-          label="Control-Backed"
-          value={`${asset.controlBackedPct}%`}
-          band={asset.controlBackedPct >= 90 ? { label: "Strong", color: "green" } : asset.controlBackedPct >= 75 ? { label: "Adequate", color: "amber" } : { label: "Partial", color: "red" }}
+          label="Controls Verified"
+          value={`${asset.implementedCount} / ${asset.applicableControlCount}`}
+          band={verificationBand(asset)}
         />
-      </div>
-
-      <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <div className="text-[10px] uppercase tracking-wide mb-3" style={{ color: C.muted }}>Control Assurance by Category</div>
-        <div className="space-y-2.5">
-          {ASSURANCE_CATEGORIES.map((c) => <CategoryBar key={c} label={c} rollup={asset.categories[c]} weight={asset.categoryWeights[c]} />)}
-        </div>
-        <div className="text-[11px] mt-3 leading-relaxed" style={{ color: C.muted }}>
-          Weighted by the {asset.classification} control profile — thicker bars count for more. A filled dot means the score is backed by evidenced
-          control implementations; a grey one means it rests on the category-level assessment alone.
-        </div>
+        <MetricChip
+          label="Evidence Coverage"
+          value={`${asset.evidenceCoveragePct}%`}
+          band={asset.evidenceCoveragePct >= 90 ? { label: "Strong", color: "green" } : asset.evidenceCoveragePct >= 60 ? { label: "Partial", color: "amber" } : { label: "Sparse", color: "red" }}
+        />
+        <MetricChip label="Inherent Risk" value={asset.inherentRisk.score} band={asset.inherentRisk.band} />
       </div>
 
       <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
         <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>
-          Tracked Controls — {asset.evidencedControlCount} of {asset.requiredControlCount} evidenced
+          Controls sampled here — {asset.implementedCount} verified, {asset.partialCount} partial,
+          {" "}{asset.notImplementedCount} not implemented, {asset.undeterminedCount} uncollected
         </div>
         <div className="text-[11px] mb-3 leading-relaxed" style={{ color: C.muted }}>
-          Each control scored against this specific asset. The same control can be strong here and weak elsewhere, which is why no score is stored on the control itself.
+          Every control that applies to this asset, and what it showed here. These are the same
+          instances the system-level assessment sampled to rate its Implemented level, reached from
+          the other end — so this view and the control&apos;s own view cannot disagree.
         </div>
         <div className="space-y-1.5">
-          {[...asset.implementations].sort((a, b) => a.score - b.score).map((impl) => (
-            <ImplementationRow key={impl.controlId} impl={impl} />
-          ))}
+          {[...asset.controls]
+            .sort((a, b) => INSTANCE_ORDER.indexOf(a.status) - INSTANCE_ORDER.indexOf(b.status))
+            .map((inst) => (
+              <InstanceRow key={inst.controlId} inst={inst} />
+            ))}
         </div>
       </div>
 
@@ -204,11 +208,15 @@ function AssetDetailPanel({ asset, onClose }) {
       </div>
 
       <div className="px-5 py-4">
-        <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: C.muted }}>Residual Risk</div>
-        <div className="text-[11px] mb-2" style={{ color: C.muted }}>Impact stays fixed to the asset's criticality; only likelihood moves as control assurance improves.</div>
+        <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: C.muted }}>Inherent Risk</div>
+        <div className="text-[11px] mb-2" style={{ color: C.muted }}>
+          Impact is fixed to this asset&apos;s criticality — what happens if it is compromised, which
+          does not move because controls improved. Residual risk is no longer computed per asset:
+          it needed an asset score, and it is answered properly on the Risk Register from the
+          controls actually mapped to each scenario.
+        </div>
         <div className="flex gap-3">
           <RiskCard title="Inherent Risk" risk={asset.inherentRisk} />
-          <RiskCard title="Residual Risk" risk={asset.residualRisk} />
         </div>
       </div>
     </div>
@@ -235,7 +243,7 @@ export default function AssetRegister() {
         <PageHeader
           icon={Boxes}
           title="Asset Register"
-          description="Criticality, control assurance, evidence confidence, and residual risk for individual resources inside each system's boundary."
+          description="Individual resources inside each system's boundary. An asset carries no assurance score of its own — the controls that apply to it are assessed once against its system, and each asset is one of the samples behind that. What it reports here is consequence, and what every applicable control actually showed on it."
           right={
             <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
               {ASSETS.length} assets across {groups.length} systems

@@ -10,9 +10,10 @@
 // that can't answer "why does it say that" is asking to be trusted, and this
 // one shouldn't have to be.
 import type { Graph } from "../graph/types";
-import { BASIS, BASIS_META, ASSURANCE_CATEGORIES } from "../graph/nodes/taxonomy";
+import { BASIS, BASIS_META, ASSURANCE_CATEGORIES, PRISMA_LEVELS, COMPLIANCE_LABELS } from "../graph/nodes/taxonomy";
 import type { ClassificationApi } from "./classification";
 import type { ApplicabilityApi } from "./applicability";
+import type { AssessmentApi } from "./assessment";
 import type { ImplementationApi, Implementation } from "./implementation";
 import type { RollupsApi } from "./rollups";
 import type { RiskApi } from "./risk";
@@ -46,6 +47,7 @@ export function createSelectors(
   graph: Graph,
   classification: ClassificationApi,
   applicability: ApplicabilityApi,
+  assessment: AssessmentApi,
   implementation: ImplementationApi,
   rollups: RollupsApi,
   risk: RiskApi,
@@ -187,13 +189,16 @@ export function createSelectors(
         label: `${system.name} assurance`,
         value: system.overallAssurance,
         basis: BASIS.MEASURED,
-        formula: "Criticality-weighted mean of this system's assets, so the assets that matter most move it most.",
-        steps: system.assets.map((a) => ({
-          label: a.name,
-          value: a.overallAssurance,
-          weight: a.criticality,
-          basis: a.controlBackedPct > 0 ? BASIS.MEASURED : BASIS.ASSESSED,
-          next: { type: "asset", id: a.id },
+        formula: `Assurance categories weighted by the ${system.classification} control profile, each a flat mean of the controls assessed in it. Derived from ${system.coverage.assessed} of ${system.coverage.applicable} applicable controls (${system.coverage.assessedPct}%) — the rest were not assessed and are not scored as zero.`,
+        steps: ASSURANCE_CATEGORIES.map((c) => ({
+          label: c,
+          value: system.categories[c].score,
+          weight: system.categoryWeights[c],
+          basis: system.categories[c].basis,
+          detail: system.categories[c].raw === null
+            ? "No control in this category was assessed, so it contributes nothing rather than a zero."
+            : `Contributes ${Math.round((((system.categories[c].raw as number) * system.categoryWeights[c]) / 100) * 10) / 10} of the ${system.overallAssurance} total, from ${system.categories[c].coverage.assessed} of ${system.categories[c].coverage.applicable} controls.`,
+          next: { type: "system-category", id: `${id}::${c}` },
         })),
       };
     }
@@ -201,49 +206,79 @@ export function createSelectors(
     if (nodeType === "asset" && metric === "assurance") {
       const asset = getAsset(id);
       if (!asset) return null;
+      // An asset has no assurance score to explain any more. What it can
+      // explain is which controls it was sampled for and what each one showed —
+      // the diagnostic that replaced the score.
       return {
-        label: `${asset.name} assurance`,
-        value: asset.overallAssurance,
-        basis: asset.controlBackedPct > 0 ? BASIS.MEASURED : BASIS.ASSESSED,
-        formula: `Weighted by the ${asset.classification} control profile, so the categories that matter most for this tier of data count most. Within each category, measured implementations and the assessed remainder carry equal weight.`,
-        steps: ASSURANCE_CATEGORIES.map((c) => ({
-          label: c,
-          value: asset.categories[c].score,
-          weight: asset.categoryWeights[c],
-          basis: asset.categories[c].basis,
-          detail: `Contributes ${Math.round((((asset.categories[c].raw as number) * asset.categoryWeights[c]) / 100) * 10) / 10} of the ${asset.overallAssurance} total. ${asset.categories[c].evidencedCount} of ${asset.categories[c].requiredCount} tracked controls evidenced; assessed baseline ${asset.categories[c].baseline}.`,
-          next: { type: "category", id: `${id}::${c}` },
+        label: `${asset.name} — control instances`,
+        value: null,
+        basis: BASIS.MEASURED,
+        formula: `An asset is not scored. It is the sampling population for the controls that apply to it: ${asset.implementedCount} of ${asset.applicableControlCount} verified, ${asset.evidenceCoveragePct}% of required controls carrying any evidence. Its criticality (${asset.criticality}) still weights the enterprise rollup.`,
+        steps: asset.controls.map((i) => ({
+          label: `${i.controlId} — ${graph.controlById[i.controlId]?.name ?? ""}`,
+          value: null,
+          weight: i.credit,
+          basis: i.evidence.length > 0 ? BASIS.MEASURED : BASIS.UNASSESSED,
+          detail: i.statement,
+          next: { type: "control-assessment", id: `${i.systemId}::${i.controlId}` },
         })),
       };
     }
 
-    if (nodeType === "category") {
-      const [assetId, category] = id.split("::");
-      const asset = getAsset(assetId);
-      const rollup = asset?.categories?.[category as keyof typeof asset.categories];
+    if (nodeType === "system-category") {
+      const [systemId, category] = id.split("::");
+      const system = getSystem(systemId);
+      const rollup = system?.categories?.[category as keyof typeof system.categories];
       if (!rollup) return null;
       return {
-        label: `${asset!.name} — ${category}`,
+        label: `${system!.name} — ${category}`,
         value: rollup.score,
         basis: rollup.basis,
-        formula: "Measured implementations and the assessed baseline carry equal total weight. The baseline stands in for every in-scope control in this category that isn't individually tracked.",
-        steps: [
-          ...rollup.implementations.map((i) => ({
-            label: i.control.friendlyName,
-            value: i.score,
-            weight: 1,
-            basis: i.basis,
-            detail: i.note ?? i.applicability.reasons[0]?.rationale,
-            next: { type: "implementation", id: `${assetId}::${i.controlId}` },
-          })),
-          {
-            label: "Assessed remainder",
-            value: rollup.baseline,
-            weight: rollup.implementations.length || 1,
-            basis: BASIS.ASSESSED,
-            detail: `${rollup.assessment.maturityStage} maturity, ${rollup.assessment.evidenceType} evidence, ${rollup.assessment.effectivenessPct}% effective — ${rollup.assessment.assessedBy}, ${rollup.assessment.assessedAt}`,
-          },
-        ],
+        formula: "A flat mean of the controls assessed in this category. Every assessed control is one requirement statement the engagement tested, and no authored fact ranks them against each other within a category.",
+        steps: rollup.assessments.map((a) => ({
+          label: `${a.controlId} — ${a.control.name}`,
+          value: a.score,
+          weight: 1,
+          basis: a.basis,
+          detail: a.inherited ? `Inherited from ${system!.provider}.` : a.levels.Implemented.rationale,
+          next: { type: "control-assessment", id: `${systemId}::${a.controlId}` },
+        })),
+      };
+    }
+
+    // One control on one system, across the five PRISMA levels. This is the
+    // node the whole model resolves to.
+    if (nodeType === "control-assessment") {
+      const [systemId, controlId] = id.split("::");
+      const a = assessment.assessmentFor(systemId, controlId);
+      if (!a) return null;
+      if (!a.assessed) {
+        return {
+          label: `${a.controlId} on ${graph.systemById[systemId]?.name}`,
+          value: null,
+          basis: BASIS.UNASSESSED,
+          formula: "Applicable to this system and outside the declared assessment scope. Reported as unassessed rather than scored zero.",
+          steps: [],
+        };
+      }
+      return {
+        label: `${a.controlId} — ${a.control.name} on ${graph.systemById[systemId]?.name}`,
+        value: a.score,
+        basis: a.basis,
+        formula: `HITRUST PRISMA: Policy 15%, Procedure 20%, Implemented 40%, Measured 10%, Managed 15%, each rated on the five-point compliance scale.${a.inherited ? " Held below what ACME could claim for a control it verified itself." : ""}`,
+        steps: PRISMA_LEVELS.map((level) => {
+          const L = a.levels[level];
+          return {
+            label: `${level} — ${COMPLIANCE_LABELS[L.rating]}`,
+            value: L.rating,
+            weight: L.weight,
+            basis: L.basis,
+            detail: `${L.rating !== L.derived ? `Overridden from ${L.derived}. ` : ""}${L.rationale} Contributes ${L.contribution.toFixed(2)} of ${a.score}.`,
+            next: level === "Implemented" && a.instances.length > 0
+              ? { type: "asset", id: a.instances[0].assetId }
+              : null,
+          };
+        }),
       };
     }
 
@@ -302,24 +337,24 @@ export function createSelectors(
         label: `${riskRollup.scenario} — control assurance`,
         value: riskRollup.assurance.pct,
         basis: riskRollup.assurance.basis,
-        formula: "60% from the controls that hold this scenario down, 40% from the assets that carry it (primary contributors weighted 3x).",
+        formula: "The mean of the controls mapped to this scenario, each taken at its weakest boundary. Assets are listed as contributors but no longer carry a score into the number.",
         steps: [
           ...riskRollup.assurance.controls.map((c) => ({
             label: c.control.friendlyName,
             value: c.score,
-            weight: 3,
+            weight: 1,
             basis: BASIS.MEASURED,
             detail: c.weakest
-              ? `Weakest implementation: ${c.weakest.score} on ${c.weakest.assetId ? graph.assetById[c.weakest.assetId]?.name : "the program"}`
+              ? `Weakest boundary: ${c.weakest.score} on ${graph.systemById[c.weakest.systemId]?.name ?? c.weakest.systemId}`
               : null,
-            next: c.weakest ? { type: "implementation", id: `${c.weakest.assetId ?? "program"}::${c.control.id}` } : null,
+            next: c.weakest ? { type: "control-assessment", id: `${c.weakest.systemId}::${c.control.id}` } : null,
           })),
           ...riskRollup.assurance.assets.map((a) => ({
             label: a.asset.name,
-            value: a.asset.overallAssurance,
+            value: null,
             weight: a.weight,
             basis: BASIS.MEASURED,
-            detail: a.note ?? `${a.role} contributor`,
+            detail: a.note ?? `${a.role} contributor — carries this risk, no longer scored`,
             next: { type: "asset", id: a.asset.id },
           })),
         ],
@@ -335,21 +370,37 @@ export function createSelectors(
   // rather than letting absence read as completeness.
   function modelHealth() {
     const assets = rollups.assetRollups;
-    const allImplementations = assets.flatMap((a) => a.implementations);
+    const allInstances = assets.flatMap((a) => a.controls);
+    const allAssessments = rollups.systemRollups.flatMap((s) => s.assessments);
+    const scored = allAssessments.filter((a) => a.assessed);
     const allEvidence = graph.evidence.map(implementation.scoreEvidence);
 
-    const unevidenced = allImplementations.filter((i) => i.status === "unevidenced");
-    const notImplemented = allImplementations.filter((i) => i.status === "not-implemented");
-    const deficient = allImplementations.filter((i) => i.status === "deficient");
+    const undetermined = allInstances.filter((i) => i.status === "undetermined");
+    const notImplemented = allInstances.filter((i) => i.status === "not-implemented");
+    const partial = allInstances.filter((i) => i.status === "partial");
     const staleEvidence = allEvidence.filter((e) => e.stale);
 
-    // Categories that are assessed-only for every asset. Governance is the
-    // honest example: every one of its key controls is program-scoped, so no
-    // asset's Governance score is ever control-backed. Worth surfacing so it
-    // reads as a deliberate modelling choice rather than an oversight.
-    const alwaysAssessedCategories = ASSURANCE_CATEGORIES.filter((c) =>
-      assets.every((a) => a.categories[c].basis === BASIS.ASSESSED)
+    // The 16 in-scope controls no policy names by id. They are not a scoring
+    // failure — the Policy level rates them from the domain their area belongs
+    // to — but they are a real hole in the library, and one that only shows up
+    // if something goes looking for it.
+    const controlsNoPolicyNames = graph.inScopeControls.filter(
+      (c) => (graph.policiesByControl[c.id] ?? []).length === 0
     );
+
+    // The levels that are failing across the board. A level scoring 0 on most
+    // of the estate is the single most actionable thing this model produces:
+    // it names which rung of the ladder the whole programme is missing.
+    const levelWeakness = PRISMA_LEVELS.map((level) => {
+      const ratings: number[] = scored.map((a) => a.levels[level].rating);
+      const zero = ratings.filter((r) => r === 0).length;
+      return {
+        level,
+        zeroCount: zero,
+        zeroPct: ratings.length === 0 ? 0 : Math.round((zero / ratings.length) * 100),
+        mean: ratings.length === 0 ? null : Math.round(ratings.reduce((a, b) => a + b, 0) / ratings.length),
+      };
+    });
 
     return {
       counts: {
@@ -360,32 +411,40 @@ export function createSelectors(
         keyControls: graph.keyControls.length,
         evidenceRecords: graph.evidence.length,
         risks: graph.risks.length,
-        implementations: allImplementations.length + implementation.PROGRAM_IMPLEMENTATIONS.length,
+        assessments: allAssessments.length,
+        scoredAssessments: scored.length,
+        sampledInstances: allInstances.length,
       },
       coverage: {
-        controlBackedPct: rollups.enterprise.controlBackedPct,
-        measuredCompliancePct: compliance.ENTERPRISE_COVERAGE.measuredPct,
+        // The headline honesty figure: how much of what applies was examined.
+        assessedPct: rollups.enterprise.coverage.assessedPct,
+        assessed: rollups.enterprise.coverage.assessed,
+        applicable: rollups.enterprise.coverage.applicable,
+        inherited: rollups.enterprise.coverage.inherited,
+        evidenceBackedPct: rollups.enterprise.controlBackedPct,
         assetsWithNoDataTypes: graph.assets.filter((a) => (graph.dataTypesByAsset[a.id] ?? []).length === 0),
-        alwaysAssessedCategories,
+        controlsNoPolicyNames,
       },
+      levelWeakness,
       findings: {
-        unevidenced,
+        undetermined,
         notImplemented,
-        deficient,
+        partial,
         staleEvidence,
         exceptions: applicability.allExceptions(),
+        ladderInversions: scored.filter((a) => a.ladderInversions.length > 0),
         risksWithoutAssets: risk.riskRollups.filter((r) => r.contributingAssets.length === 0),
         risksWithoutControls: risk.riskRollups.filter((r) => r.linkedControls.length === 0),
       },
       basisDistribution: Object.entries(
-        allImplementations.reduce((acc: Record<string, number>, i) => {
-          acc[i.basis] = (acc[i.basis] || 0) + 1;
+        allAssessments.reduce((acc: Record<string, number>, a) => {
+          acc[a.basis] = (acc[a.basis] || 0) + 1;
           return acc;
         }, {})
       ).map(([basis, count]) => ({ basis, count, ...BASIS_META[basis as keyof typeof BASIS_META] })),
-      controlBackedByAsset: assets
+      evidenceCoverageByAsset: assets
         .map((a) => ({
-          id: a.id, name: a.name, pct: a.controlBackedPct,
+          id: a.id, name: a.name, pct: a.evidenceCoveragePct,
           required: a.requiredControlCount, evidenced: a.evidencedControlCount,
         }))
         .sort((a, b) => a.pct - b.pct),

@@ -25,15 +25,23 @@ const CATEGORY_PORTFOLIO_AVERAGES = getCategoryAverages();
 // — and the engine's version rolls up through systems rather than flattening
 // every asset into one pool, so the two would not have agreed. Now there is one
 // enterprise assurance figure and this is a read of it.
-const PORTFOLIO_ASSURANCE_PCT = getEnterprise().assurance;
-const TOTAL_CRITICALITY = ASSET_SUMMARIES.reduce((a, x) => a + x.criticality, 0);
-const PORTFOLIO_EVIDENCE_PCT = Math.round(
-  ASSET_SUMMARIES.reduce((a, x) => a + x.evidenceConfidence * x.criticality, 0) / TOTAL_CRITICALITY
-);
-// Was the mean of every asset's complianceCoveragePct — a figure each asset
-// inherited unchanged from its parent system, so this averaged two distinct
-// values across fifteen copies of them. Now it reads the enterprise coverage
-// the compliance engine derives from every in-scope control on both systems.
+const ENTERPRISE = getEnterprise();
+const PORTFOLIO_ASSURANCE_PCT = ENTERPRISE.assurance;
+
+// How much of the applicable control estate the number above is speaking for.
+//
+// This is the figure that has to sit beside the score from now on. Under the
+// old model every in-scope control fell back to a category judgment, so
+// "covered" was near 100% and said almost nothing. Now a control is scored only
+// if it was actually assessed, and the honest answer is that roughly a fifth of
+// the applicable set has been — which is what a real engagement looks like, and
+// what the old single number was concealing.
+const ASSESSMENT_COVERAGE_PCT = ENTERPRISE.coverage.assessedPct;
+const ASSESSED_COUNT = ENTERPRISE.coverage.assessed;
+const APPLICABLE_COUNT = ENTERPRISE.coverage.applicable;
+const INHERITED_COUNT = ENTERPRISE.coverage.inherited;
+
+// Of the controls that WERE assessed, how many are holding.
 const COMPLIANCE_COVERAGE_PCT = ENTERPRISE_COVERAGE.coveredPct;
 
 // Only the last point is real — pinned to the live computed metric above, so
@@ -54,13 +62,21 @@ const ASSURANCE_DELTA = ASSURANCE_TREND[ASSURANCE_TREND.length - 1] - ASSURANCE_
 // assets.js (portfolioCategoryAverages) so the Risk Register's board view
 // can cite the identical numbers for its per-risk assurance figure.
 const CATEGORY_AVERAGES = CATEGORY_PORTFOLIO_AVERAGES;
-const WEAKEST_ASSET = [...ASSET_SUMMARIES].sort((a, b) => a.overallAssurance - b.overallAssurance)[0];
-const WEAKEST_ASSET_CATEGORY = Object.entries(WEAKEST_ASSET.categoryScores).sort((a, b) => a[1] - b[1])[0];
 const WEAKEST_CATEGORY = [...CATEGORY_AVERAGES].sort((a, b) => a.pct - b.pct)[0];
 const STRONGEST_CATEGORY = [...CATEGORY_AVERAGES].sort((a, b) => b.pct - a.pct)[0];
-const ASSETS_BELOW_TARGET = ASSET_SUMMARIES.filter((a) => a.overallAssurance < ASSURANCE_TARGET).length;
 
-const HIGHEST_RESIDUAL_RISK_ASSETS = [...ASSET_SUMMARIES].sort((a, b) => b.residualRisk.score - a.residualRisk.score).slice(0, 3);
+// WEAKEST_ASSET and ASSETS_BELOW_TARGET are gone. An asset no longer carries a
+// score to be weakest by or to fall below a target, and naming a container was
+// always the vaguer statement: "the vector database is weakest" does not tell
+// anybody what to fix. The weakest CONTROL names the requirement that is
+// failing, and its sampled instances name the asset anyway.
+const WEAKEST_CONTROL = ENTERPRISE.weakestControl;
+const CONTROLS_BELOW_TARGET = ENTERPRISE.controlsBelowTarget;
+
+// The three riskiest scenarios, from the register, rather than the three assets
+// with the highest residual score — residual risk is computed per risk now,
+// from the controls mapped to it.
+const HIGHEST_RESIDUAL_RISKS = [...RISKS].sort((a, b) => b.residualScore - a.residualScore).slice(0, 3);
 
 // Exposure by System: share of total records/transactions each vendor holds —
 // the one figure all four Data Footprint vendors report, so no vendor needs
@@ -358,7 +374,8 @@ export default function ExecutiveDashboard({ onNavigate }) {
               <div>
                 <div className="text-sm font-medium" style={{ color: C.ink }}>{WEAKEST_CATEGORY.label} remains the weakest category at {WEAKEST_CATEGORY.pct}%</div>
                 <div className="text-xs mt-0.5" style={{ color: C.muted }}>
-                  Below the {ADEQUATE_THRESHOLD}% target, driven by {WEAKEST_ASSET.name}'s {WEAKEST_ASSET_CATEGORY[0]} controls at {WEAKEST_ASSET_CATEGORY[1]}%.
+                  Below the {ADEQUATE_THRESHOLD}% target
+                  {WEAKEST_CONTROL ? <>, weakest at {WEAKEST_CONTROL.controlId} — {WEAKEST_CONTROL.control.name} ({WEAKEST_CONTROL.score}) on {WEAKEST_CONTROL.systemId}</> : null}.
                 </div>
               </div>
             </div>
@@ -389,12 +406,16 @@ export default function ExecutiveDashboard({ onNavigate }) {
               <div className="flex items-center justify-between"><span style={{ color: C.muted }}>TARGET</span><span style={{ color: C.ink, fontWeight: 600 }}>{ASSURANCE_TARGET}%</span></div>
               <div className="flex items-center justify-between"><span style={{ color: C.muted }}>WEAKEST AREA</span><span style={{ color: C.red, fontWeight: 600 }}>{WEAKEST_CATEGORY.label} {WEAKEST_CATEGORY.pct}%</span></div>
               <div className="flex items-center justify-between"><span style={{ color: C.muted }}>STRONGEST AREA</span><span style={{ color: C.green, fontWeight: 600 }}>{STRONGEST_CATEGORY.label} {STRONGEST_CATEGORY.pct}%</span></div>
-              <div className="flex items-center justify-between"><span style={{ color: C.muted }}>COMPLIANCE COVERAGE</span><span style={{ color: C.ink, fontWeight: 600 }}>{COMPLIANCE_COVERAGE_PCT}%</span></div>
-              <div className="flex items-center justify-between"><span style={{ color: C.muted }}>EVIDENCE CONFIDENCE</span><span style={{ color: C.ink, fontWeight: 600 }}>{PORTFOLIO_EVIDENCE_PCT}%</span></div>
+              <div className="flex items-center justify-between"><span style={{ color: C.muted }}>OF ASSESSED, HOLDING</span><span style={{ color: C.ink, fontWeight: 600 }}>{COMPLIANCE_COVERAGE_PCT}%</span></div>
+              <div className="flex items-center justify-between"><span style={{ color: C.muted }}>ASSESSMENT COVERAGE</span><span style={{ color: C.ink, fontWeight: 600 }}>{ASSESSMENT_COVERAGE_PCT}%</span></div>
             </div>
           </div>
           <div className="text-xs mt-4 pt-3 flex items-center justify-between" style={{ borderTop: `1px solid ${C.border}`, color: C.muted }}>
-            Assets below {ASSURANCE_TARGET}% target <span style={{ color: C.ink, fontWeight: 600 }}>{ASSETS_BELOW_TARGET}</span>
+            Controls below {ASSURANCE_TARGET} target <span style={{ color: C.ink, fontWeight: 600 }}>{CONTROLS_BELOW_TARGET}</span>
+          </div>
+          <div className="text-[11px] mt-2 leading-relaxed" style={{ color: C.muted }}>
+            Derived from {ASSESSED_COUNT} of {APPLICABLE_COUNT} applicable controls ({INHERITED_COUNT} inherited
+            from providers). The remainder were not assessed and are reported as gaps, not scored as zero.
           </div>
         </div>
       </div>
@@ -455,38 +476,45 @@ export default function ExecutiveDashboard({ onNavigate }) {
         </div>
       </div>
 
-      {/* Highest Residual Risk Assets */}
+      {/* Highest residual risks. Was "highest residual risk assets", ranked by
+          a per-asset residual score. That score needed an asset assurance
+          number to compute; residual risk is now derived per scenario from the
+          controls actually mapped to it, which is both more precise and the
+          thing a board asks about. */}
       <div className="px-8 pt-5">
         <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
           <div className="flex items-center justify-between mb-4">
-            <div className="text-sm font-semibold" style={{ color: C.ink }}>Highest Residual Risk Assets</div>
+            <div className="text-sm font-semibold" style={{ color: C.ink }}>Highest Residual Risks</div>
             <button
-              onClick={() => onNavigate && onNavigate("asset-register")}
+              onClick={() => onNavigate && onNavigate("risk-register")}
               className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg"
               style={{ border: `1px solid ${C.border}`, color: C.ink }}
             >
-              View asset register <ArrowRight size={12} />
+              View risk register <ArrowRight size={12} />
             </button>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            {HIGHEST_RESIDUAL_RISK_ASSETS.map((a) => (
+            {HIGHEST_RESIDUAL_RISKS.map((r) => (
               <button
-                key={a.id}
-                onClick={() => onNavigate && onNavigate("asset-register")}
+                key={r.id}
+                onClick={() => onNavigate && onNavigate("risk-register")}
                 className="text-left p-3 rounded-lg hover:bg-black/[0.02] transition-colors"
                 style={{ border: `1px solid ${C.border}` }}
               >
                 <div className="flex items-center justify-between gap-2 mb-1">
-                  <span className="text-sm font-medium truncate" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{a.name}</span>
+                  <span className="text-sm font-medium truncate" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{r.id}</span>
                   <span
                     className="text-xs font-semibold px-2 py-0.5 rounded-full shrink-0"
-                    style={{ color: C[a.residualRisk.band.color], background: C[`${a.residualRisk.band.color}Bg`] }}
+                    style={{ color: severityColor(r.residual.severity), background: C.panel2 }}
                   >
-                    {a.residualRisk.band.label}
+                    {r.residual.severity}
                   </span>
                 </div>
-                <div className="text-xs" style={{ color: C.muted }}>{a.system.name}</div>
-                <div className="text-xs mt-1" style={{ color: C.muted }}>Residual {a.residualRisk.score} / 25</div>
+                <div className="text-xs leading-snug" style={{ color: C.muted }}>{r.scenario}</div>
+                <div className="text-xs mt-1" style={{ color: C.muted }}>
+                  Residual {r.residualScore} / 25
+                  {r.assurance.pct != null && ` · controls at ${r.assurance.pct}`}
+                </div>
               </button>
             ))}
           </div>

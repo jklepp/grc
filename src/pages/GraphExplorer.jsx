@@ -55,7 +55,10 @@ function e_result(node) {
 // zero — the distinction this whole model is built to preserve.
 function nodeScore(type, node) {
   if (!node) return null;
-  if (type === "system" || type === "asset") return node.overallAssurance;
+  // An asset deliberately returns nothing. It is a diagnostic now — it carries
+  // a list of control instances and a criticality, and inventing a headline
+  // number for it here would put back the score the model just removed.
+  if (type === "system") return node.overallAssurance;
   if (type === "risk") return node.assurance?.pct ?? null;
   if (type === "evidence") return node.confidence ?? null;
   return null;
@@ -126,22 +129,24 @@ function factsFor(type, node) {
         { label: "Classification", value: node.classification },
         { label: "Hosting", value: node.hostingType },
         { label: "Assurance", value: `${node.overallAssurance} (${node.assuranceBand.label})` },
-        { label: "Control-backed", value: `${node.controlBackedPct}%` },
+        { label: "Assessment coverage", value: `${node.coverage.assessed} of ${node.coverage.applicable} controls (${node.coverage.assessedPct}%)` },
+        { label: "Inherited", value: `${node.coverage.inherited} from ${node.provider}` },
         { label: "Assets", value: node.assetCount },
-        { label: "Weakest asset", value: node.weakestAsset?.name },
+        { label: "Weakest control", value: node.weakestControl ? `${node.weakestControl.controlId} at ${node.weakestControl.score}` : null },
         { label: "Standards", value: node.standards.join(", ") },
-        { label: "Controls evidenced", value: `${node.evidencedControlCount} of ${node.requiredControlCount}` },
       ];
     case "asset":
       return [
         { label: "Classification", value: node.classification },
         { label: "Criticality", value: `${node.criticality} (${node.criticalityBand.label})` },
-        { label: "Assurance", value: `${node.overallAssurance} (${node.assuranceBand.label})` },
-        { label: "Control-backed", value: `${node.controlBackedPct}%` },
-        { label: "Evidence confidence", value: node.evidenceConfidence },
-        { label: "Residual risk", value: `${node.residualRisk.score} (${node.residualRisk.band.label})` },
-        { label: "Controls required", value: node.requiredControlCount },
-        { label: "Deficient controls", value: node.deficientControls.length },
+        // No assurance row. An asset is the sampling population for the
+        // controls assessed on its system, not a scoring subject of its own.
+        { label: "Controls applicable", value: node.applicableControlCount },
+        { label: "Verified here", value: `${node.implementedCount} of ${node.applicableControlCount}` },
+        { label: "Partial / not implemented", value: `${node.partialCount} / ${node.notImplementedCount}` },
+        { label: "No evidence collected", value: node.undeterminedCount },
+        { label: "Evidence coverage", value: `${node.evidenceCoveragePct}%` },
+        { label: "Inherent risk", value: `${node.inherentRisk.score} (${node.inherentRisk.band.label})` },
       ];
     case "control":
       return [
@@ -339,12 +344,26 @@ function ModelHealth({ onSelect }) {
       <div>
         <SectionHeading icon={Activity} hint="what the model is standing on">Coverage</SectionHeading>
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
-          <HealthStat label="Enterprise assurance" value={enterprise.assurance} hint="Criticality-weighted across both systems." />
-          <HealthStat label="Control-backed" value={`${health.coverage.controlBackedPct}%`} hint="Share of tracked key controls with real evidence behind them. The rest rests on category-level assessment." />
-          <HealthStat label="Compliance measured" value={`${health.coverage.measuredCompliancePct}%`} hint="Share of in-scope framework controls with a control-level implementation rather than an inherited or assessed status." />
-          <HealthStat label="Implementations" value={health.counts.implementations} hint={`Across ${health.counts.assets} assets and ${health.counts.keyControls} key controls.`} />
+          <HealthStat label="Enterprise assurance" value={enterprise.assurance} hint={`Criticality-weighted across both systems, from ${health.coverage.assessed} of ${health.coverage.applicable} applicable controls.`} />
+          <HealthStat label="Assessment coverage" value={`${health.coverage.assessedPct}%`} hint={`${health.coverage.assessed} of ${health.coverage.applicable} applicable controls were assessed, ${health.coverage.inherited} of them inherited from a provider. The rest are reported as unassessed, never scored as zero.`} />
+          <HealthStat label="Evidence-backed" value={`${health.coverage.evidenceBackedPct}%`} hint="Share of the controls required on assets that carry a real evidence record." />
+          <HealthStat label="Assessments" value={`${health.counts.scoredAssessments} / ${health.counts.assessments}`} hint={`Scored of applicable, across ${health.counts.sampledInstances} sampled asset instances.`} />
           <HealthStat label="Evidence records" value={health.counts.evidenceRecords} />
           <HealthStat label="Data flows" value={health.counts.dataFlows} hint={`Carrying ${health.counts.dataTypes} data types.`} />
+        </div>
+      </div>
+
+      <div>
+        <SectionHeading icon={Activity} hint="which rung of the ladder the programme is missing">Maturity by level</SectionHeading>
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
+          {health.levelWeakness.map((l) => (
+            <HealthStat
+              key={l.level}
+              label={l.level}
+              value={l.mean}
+              hint={`Mean rating across scored controls. ${l.zeroCount} (${l.zeroPct}%) are Non-Compliant at this level.`}
+            />
+          ))}
         </div>
       </div>
 
@@ -361,20 +380,23 @@ function ModelHealth({ onSelect }) {
             </div>
           ))}
         </div>
-        {health.coverage.alwaysAssessedCategories.length > 0 && (
-          <div className="rounded-xl p-4 mt-3 text-xs leading-relaxed" style={{ background: C.panel2, border: `1px solid ${C.border}`, color: C.muted }}>
-            <span style={{ color: C.ink, fontWeight: 600 }}>{health.coverage.alwaysAssessedCategories.join(", ")}</span> is assessed at category level for every asset,
-            because every key control in it is program-scoped — running a risk assessment or governing the AI lifecycle is something ACME does once, not something each
-            bucket does separately. Surfaced here so it reads as a deliberate modelling choice rather than missing data.
-          </div>
-        )}
+        {/* This used to name the categories that were assessed-only for every
+            asset. That state is gone with the category assessments behind it.
+            What is worth saying in its place is what the basis split above
+            actually means now. */}
+        <div className="rounded-xl p-4 mt-3 text-xs leading-relaxed" style={{ background: C.panel2, border: `1px solid ${C.border}`, color: C.muted }}>
+          <span style={{ color: C.ink, fontWeight: 600 }}>{health.coverage.assessed} of {health.coverage.applicable}</span> applicable controls carry a score,
+          {" "}{health.coverage.inherited} of them from a provider&apos;s certification rather than ACME&apos;s own testing. The remaining
+          {" "}{health.coverage.applicable - health.coverage.assessed} are outside the declared assessment scope and are reported as unassessed — never
+          scored as zero, because nobody looking is a different fact from looking and finding nothing.
+        </div>
       </div>
 
       <div>
-        <SectionHeading icon={Boxes} hint="lowest first">Control-level backing by asset</SectionHeading>
+        <SectionHeading icon={Boxes} hint="lowest first">Evidence coverage by asset</SectionHeading>
         <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
           <div className="space-y-1.5">
-            {health.controlBackedByAsset.map((a) => (
+            {health.evidenceCoverageByAsset.map((a) => (
               <button key={a.id} onClick={() => onSelect("asset", a.id)} className="w-full flex items-center gap-3 rounded-lg px-3 py-1.5 text-left" style={{ background: C.panel2 }}>
                 <span className="text-xs min-w-0 flex-1 truncate" style={{ color: C.ink }}>{a.name}</span>
                 <span className="text-[11px] tabular-nums shrink-0" style={{ color: C.muted }}>{a.evidenced}/{a.required}</span>
@@ -392,35 +414,57 @@ function ModelHealth({ onSelect }) {
         <SectionHeading icon={Stethoscope} hint="named, not hidden">Findings</SectionHeading>
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
           <FindingList
-            title="Deficient implementations"
-            items={health.findings.deficient}
-            empty="No tracked control is currently failing its evidence."
+            title="Partially verified instances"
+            items={health.findings.partial}
+            empty="No sampled asset is evidenced-but-unverified."
             render={(i) => (
               <button key={`${i.assetId}-${i.controlId}`} onClick={() => onSelect("asset", i.assetId)} className="w-full text-left rounded-lg px-3 py-1.5" style={{ background: C.panel2 }}>
-                <div className="text-xs" style={{ color: C.ink }}>{i.control.friendlyName}</div>
-                <div className="text-[11px]" style={{ color: C.muted }}>{i.assetId} · score {i.score}</div>
+                <div className="text-xs" style={{ color: C.ink }}>{i.controlId} on {i.asset.name}</div>
+                <div className="text-[11px] leading-relaxed" style={{ color: C.muted }}>{i.statement}</div>
               </button>
             )}
           />
           <FindingList
             title="Required but not implemented"
             items={health.findings.notImplemented}
-            empty="Every required control has an implementation."
+            empty="Every required control holds on every asset it applies to."
             render={(i) => (
-              <div key={`${i.assetId}-${i.controlId}`} className="rounded-lg px-3 py-1.5" style={{ background: C.panel2 }}>
-                <div className="text-xs" style={{ color: C.ink }}>{i.control.friendlyName} — {i.assetId}</div>
-                <div className="text-[11px] leading-relaxed" style={{ color: C.muted }}>{i.note}</div>
+              <button key={`${i.assetId}-${i.controlId}`} onClick={() => onSelect("asset", i.assetId)} className="w-full text-left rounded-lg px-3 py-1.5" style={{ background: C.panel2 }}>
+                <div className="text-xs" style={{ color: C.ink }}>{i.controlId} on {i.asset.name}</div>
+                <div className="text-[11px] leading-relaxed" style={{ color: C.muted }}>{i.statement}</div>
+              </button>
+            )}
+          />
+          <FindingList
+            title="Sampled but never collected"
+            items={health.findings.undetermined}
+            empty="Every applicable control has evidence on every asset it applies to."
+            render={(i) => (
+              <button key={`${i.assetId}-${i.controlId}`} onClick={() => onSelect("asset", i.assetId)} className="w-full text-left rounded-lg px-3 py-1.5" style={{ background: C.panel2 }}>
+                <div className="text-xs" style={{ color: C.ink }}>{i.controlId} on {i.asset.name}</div>
+                <div className="text-[11px]" style={{ color: C.muted }}>Required here, and nothing has been collected against it.</div>
+              </button>
+            )}
+          />
+          <FindingList
+            title="Controls no policy names"
+            items={health.coverage.controlsNoPolicyNames}
+            empty="Every in-scope control is named by a policy."
+            render={(c) => (
+              <div key={c.id} className="rounded-lg px-3 py-1.5" style={{ background: C.panel2 }}>
+                <div className="text-xs" style={{ color: C.ink }}>{c.id} — {c.name}</div>
+                <div className="text-[11px]" style={{ color: C.muted }}>Covered by the policy governing {c.domain}, but not enumerated.</div>
               </div>
             )}
           />
           <FindingList
-            title="Unevidenced implementations"
-            items={health.findings.unevidenced}
-            empty="Every implementation has at least one evidence record."
-            render={(i) => (
-              <div key={`${i.assetId}-${i.controlId}`} className="rounded-lg px-3 py-1.5" style={{ background: C.panel2 }}>
-                <div className="text-xs" style={{ color: C.ink }}>{i.control.friendlyName} — {i.assetId}</div>
-                <div className="text-[11px]" style={{ color: C.muted }}>Falls back to the {i.category} assessment.</div>
+            title="Ladder inversions"
+            items={health.findings.ladderInversions}
+            empty="No control is rated above the rung beneath it."
+            render={(a) => (
+              <div key={a.id} className="rounded-lg px-3 py-1.5" style={{ background: C.panel2 }}>
+                <div className="text-xs" style={{ color: C.ink }}>{a.controlId} on {a.systemId}</div>
+                <div className="text-[11px]" style={{ color: C.muted }}>{a.ladderInversions.join(", ")} rated above the level below.</div>
               </div>
             )}
           />

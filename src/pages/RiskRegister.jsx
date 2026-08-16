@@ -495,7 +495,14 @@ export default function RiskRegister() {
                         <div className="flex items-center gap-2">
                           <span className="text-xs flex-1 min-w-0 truncate" style={{ color: C.ink }}>{c.asset.name}</span>
                           <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ color: c.role === "primary" ? C.accent : C.muted, background: c.role === "primary" ? C.accentBg : "transparent" }}>{c.role}</span>
-                          <span className="text-xs font-semibold tabular-nums" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{c.asset.overallAssurance}</span>
+                          {/* Which controls actually hold on this asset, rather
+                              than a score for the asset itself. The residual
+                              position comes from the controls mapped to the
+                              risk; the asset's part in that is how many of them
+                              it was verified for. */}
+                          <span className="text-[11px] tabular-nums shrink-0" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
+                            {c.asset.implementedCount}/{c.asset.applicableControlCount} verified
+                          </span>
                         </div>
                         {c.note && <div className="text-[11px] mt-1 leading-relaxed" style={{ color: C.muted }}>{c.note}</div>}
                       </div>

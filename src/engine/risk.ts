@@ -14,9 +14,8 @@ import {
 } from "../graph/nodes/risks";
 import { BASIS } from "../graph/nodes/taxonomy";
 import type { RollupsApi } from "./rollups";
-import type { ImplementationApi, Implementation } from "./implementation";
-import type { ApplicabilityApi } from "./applicability";
-import { weightedMean, mean, assuranceBand, display, ASSURANCE_TARGET } from "./assurance";
+import type { AssessmentApi, ControlAssessment } from "./assessment";
+import { mean, assuranceBand, display, ASSURANCE_TARGET } from "./assurance";
 import type { RiskId, AssetId } from "../graph/ids";
 
 // A tier's weight is its position in the ordering, so the label list and the
@@ -88,43 +87,47 @@ export function isMaterial(risk: { residual: Risk["residual"]; appetite: number 
 export function createRisk(
   graph: Graph,
   rollups: RollupsApi,
-  implementation: ImplementationApi,
-  applicability: ApplicabilityApi
+  assessment: AssessmentApi
 ) {
-  // The controls holding a risk down, resolved to their real implementations on
-  // the assets that carry it. This is the chain that makes "why did this move"
-  // answerable: risk -> control -> implementation -> evidence.
+  // The controls holding a risk down, resolved to how each was actually
+  // assessed on the systems that carry the risk. The chain that makes "why did
+  // this move" answerable: risk -> control -> level rating -> evidence.
   function controlPostureForRisk(riskId: RiskId) {
-    const contributingAssetIds = (graph.assetsByRisk[riskId] ?? []).map((e) => e.assetId);
+    const contributingAssetIds = new Set((graph.assetsByRisk[riskId] ?? []).map((e) => e.assetId));
+    // The boundaries this risk actually touches. A control's posture on a system
+    // that holds none of the risk's assets says nothing about this scenario.
+    const systemIds = [
+      ...new Set(
+        graph.assets.filter((a) => contributingAssetIds.has(a.id)).map((a) => a.systemId)
+      ),
+    ];
+    const scope = systemIds.length > 0 ? systemIds : graph.systems.map((s) => s.id);
+
     return (graph.controlsByRisk[riskId] ?? []).map((edge) => {
       const control = graph.keyControlById[edge.controlId];
-      if (control.scope === "program") {
-        const impl = implementation.programImplementation(edge.controlId)!;
-        return {
-          control, scope: "program" as const, implementations: [impl],
-          score: impl.score, rawScore: impl.rawScore, weakest: impl,
-          meanScore: undefined as number | null | undefined,
-        };
-      }
-      const implementations = applicability
-        .assetsRequiringControl(edge.controlId)
-        .filter((a) => contributingAssetIds.includes(a.id))
-        .map((a) => implementation.buildImplementation(a.id, edge.controlId));
-      const weakest: Implementation | null = implementations.length
-        ? implementations.reduce((w, i) => ((i.score as number) < (w.score as number) ? i : w))
+      const assessments = scope
+        .map((systemId) => assessment.assessmentFor(systemId, edge.controlId))
+        .filter((a): a is ControlAssessment => a !== null && a.assessed);
+
+      // The weakest assessment, not the mean. A control holds a risk down only
+      // as well as its worst boundary: a cross-tenant defect in one system
+      // exposes the tenancy no matter how well isolation works in the other,
+      // and averaging would let the healthy one hide it.
+      const weakest = assessments.length
+        ? assessments.reduce((w, a) => ((a.rawScore as number) < (w.rawScore as number) ? a : w))
         : null;
+
       return {
         control,
-        scope: "asset" as const,
-        implementations,
-        // The weakest implementation, not the mean. A control holds a risk down
-        // only as well as its worst instance: a cross-tenant defect on one
-        // component exposes the tenancy no matter how well isolation works on
-        // the other five, and averaging would let those five hide it.
+        scope: control.scope,
+        assessments,
         score: weakest ? weakest.score : null,
         rawScore: weakest ? weakest.rawScore : null,
-        meanScore: display(implementations.length ? mean(implementations.map((i) => i.rawScore as number)) : null),
+        meanScore: display(assessments.length ? mean(assessments.map((a) => a.rawScore as number)) : null),
         weakest,
+        // The instances behind the weakest boundary — which asset actually
+        // dragged it, for the pages that want to name one.
+        weakestInstances: weakest ? weakest.instances.filter((i) => contributingAssetIds.has(i.assetId)) : [],
       };
     });
   }
@@ -133,11 +136,13 @@ export function createRisk(
     const assetEdges = graph.assetsByRisk[riskId] ?? [];
     const controlPosture = controlPostureForRisk(riskId);
 
+    // Assets are still named — which components carry this risk, and in what
+    // role, is a real fact worth showing. What they no longer do is carry a
+    // score into the number.
     const assetEntries = assetEdges
       .map((e) => ({ edge: e, rollup: rollups.assetRollupById[e.assetId] }))
       .filter((x) => x.rollup)
       .map((x) => ({
-        value: x.rollup.rawAssurance as number,
         weight: ROLE_WEIGHT[x.edge.role],
         asset: x.rollup,
         role: x.edge.role,
@@ -146,22 +151,26 @@ export function createRisk(
 
     const controlScores = controlPosture.filter((c) => c.rawScore != null);
 
-    // Controls lead where they exist: they're the specific thing holding this
-    // scenario down. Asset assurance is the broader context around them.
-    const controlPct = controlScores.length ? mean(controlScores.map((c) => c.rawScore as number)) : null;
-    const assetPct = assetEntries.length ? weightedMean(assetEntries) : null;
-
-    const raw =
-      controlPct != null && assetPct != null ? controlPct * 0.6 + assetPct * 0.4 : (controlPct ?? assetPct);
+    // ENTIRELY FROM THE CONTROLS NOW.
+    //
+    // This used to blend the mapped controls' scores 60/40 with the
+    // criticality-weighted assurance of the assets carrying the risk. The asset
+    // half was always the weaker argument — it answered "how healthy is the
+    // neighbourhood" rather than "what is holding this specific scenario down" —
+    // and it is unavailable anyway now that an asset has no score. Dropping it
+    // makes the risk-to-control mapping load-bearing: the 28 edges in
+    // risk-controls.yaml are the entire input, and a risk whose controls are
+    // failing has nowhere to hide behind a healthy estate.
+    const raw = controlScores.length ? mean(controlScores.map((c) => c.rawScore as number)) : null;
     const pct = display(raw);
 
-    const measured = controlPosture.some((c) => c.implementations.some((i) => i?.basis === BASIS.MEASURED));
+    const measured = controlPosture.some((c) => c.assessments.some((a) => a.basis === BASIS.MEASURED));
 
     return {
       pct,
       band: assuranceBand(pct),
       target: ASSURANCE_TARGET,
-      basis: pct == null ? BASIS.UNASSESSED : measured ? BASIS.MEASURED : BASIS.ASSESSED,
+      basis: pct == null ? BASIS.UNASSESSED : measured ? BASIS.MEASURED : BASIS.INHERITED,
       assets: assetEntries,
       controls: controlPosture,
       weakestControl: controlScores.length
