@@ -36,22 +36,55 @@ import type { Graph } from "../graph/types";
 import {
   BOUNDARY_INGRESS_KINDS, BOUNDARY_EGRESS_KINDS, DATABASE_KINDS,
 } from "../graph/nodes/assets";
-import { ASSURANCE_CATEGORIES, BASIS, type AssuranceCategory, type ClassificationTier } from "../graph/nodes/taxonomy";
+import {
+  ASSURANCE_CATEGORIES, BASIS, PRISMA_LEVELS,
+  type AssuranceCategory, type ClassificationTier, type PrismaLevel,
+} from "../graph/nodes/taxonomy";
 import { ACTOR_DIRECTIONS } from "../graph/edges/actorAccess";
 import type { CategoryAssessment } from "../graph/edges/categoryAssessments";
 import type { ClassificationApi } from "./classification";
 import type { ApplicabilityApi } from "./applicability";
 import type { ImplementationApi } from "./implementation";
+import type { AssessmentApi, ControlAssessment } from "./assessment";
 import type { FindingsApi } from "./findings";
 import {
   blendAssurance, evidenceBaseConfidence, criticalityScore, criticalityBand, assuranceBand,
   impactFromCriticality, residualLikelihood, riskScore, riskBand, mean, weightedMean, display,
-  CRITICALITY_FACTORS,
+  CRITICALITY_FACTORS, ASSURANCE_TARGET,
 } from "./assurance";
 import type { AssetId, SystemId } from "../graph/ids";
 
 // The assessed remainder carries the same total weight as the measured set.
 const RESIDUAL_WEIGHT_RATIO = 1;
+
+// Reported beside every score, at every hop. Counts, never averaged.
+//
+// This exists because a score and the share of the estate it speaks for are two
+// different facts, and the old model could only report the first. An enterprise
+// 65 derived from 106 of 503 applicable controls is a different claim from a 65
+// derived from all of them, and printing only the number lets a reader take the
+// second reading when the first is true.
+export interface AssessmentCoverage {
+  applicable: number;
+  assessed: number;
+  selfAssessed: number;
+  inherited: number;
+  unassessed: number;
+  assessedPct: number;
+}
+
+function coverageOf(assessments: readonly ControlAssessment[]): AssessmentCoverage {
+  const assessed = assessments.filter((a) => a.assessed);
+  const inherited = assessed.filter((a) => a.inherited).length;
+  return {
+    applicable: assessments.length,
+    assessed: assessed.length,
+    selfAssessed: assessed.length - inherited,
+    inherited,
+    unassessed: assessments.length - assessed.length,
+    assessedPct: assessments.length === 0 ? 0 : Math.round((assessed.length / assessments.length) * 100),
+  };
+}
 
 function baselineScore(assessment: CategoryAssessment): number {
   return blendAssurance({
@@ -65,6 +98,7 @@ export function createRollups(
   graph: Graph,
   classification: ClassificationApi,
   applicability: ApplicabilityApi,
+  assessment: AssessmentApi,
   implementation: ImplementationApi,
   findings: FindingsApi
 ) {
@@ -189,41 +223,94 @@ export function createRollups(
   const assetRollups = graph.assets.map((a) => assetRollup(a.id));
   const assetRollupById = Object.fromEntries(assetRollups.map((a) => [a.id, a])) as Record<AssetId, (typeof assetRollups)[number]>;
 
+  // ---- The system's own assessment --------------------------------------------
+  // One category of one system: a flat mean of the controls assessed in it.
+  //
+  // FLAT, and that is a decision. Every assessed control is one requirement
+  // statement the engagement tested, and no authored fact says one matters more
+  // than another within a category — inventing a weight here would be exactly
+  // the unsourced number this model exists to avoid. HITRUST weights requirement
+  // statements equally inside a domain for the same reason.
+  //
+  // Inherited controls join the same pool at their capped scores rather than
+  // being held apart. A SaaS boundary genuinely is mostly vendor-operated, and a
+  // category score that excluded the vendor's half would describe a system ACME
+  // does not run.
+  function categoryRollupForSystem(systemId: SystemId, category: AssuranceCategory) {
+    const all = assessment.assessmentsForSystem(systemId).filter((a) => a.category === category);
+    const scored = all.filter((a) => a.assessed);
+    const raw = mean(scored.map((a) => a.rawScore as number));
+
+    return {
+      systemId, category,
+      raw,
+      score: display(raw),
+      basis: scored.length === 0
+        ? BASIS.UNASSESSED
+        : scored.every((a) => a.inherited) ? BASIS.INHERITED : BASIS.MEASURED,
+      coverage: coverageOf(all),
+      // Per-level means, so a category can say "strong at Policy, weak at
+      // Measured" instead of only carrying one number that hides which rung
+      // it is failing on.
+      levelAverages: Object.fromEntries(
+        PRISMA_LEVELS.map((level) => [level, display(mean(scored.map((a) => a.levels[level].rating)))])
+      ) as Record<PrismaLevel, number | null>,
+      assessments: scored,
+    };
+  }
+
   function systemRollup(systemId: SystemId) {
     const system = graph.systemById[systemId];
     const assets = (graph.assetsBySystem[systemId] ?? []).map((a) => assetRollupById[a.id]);
 
-    // Criticality-weighted, so the root encryption key counts for more than the
-    // audit log export. A flat mean would let a healthy peripheral asset offset a
-    // weak critical one, which is exactly the reading a system score must not
-    // support.
+    // THE SYSTEM IS ASSESSED, NOT AVERAGED FROM ITS ASSETS.
     //
-    // PROGRAM CONTROLS JOIN THE SAME POOL. They used to be scored and then
-    // consumed by nothing, so ACME's incident-handling and risk-assessment
-    // posture reached the hero number not at all. They score from the bottom like
-    // everything else — one implementation per system a rule confirmed, weighted
-    // at the mean criticality of that system's assets so each counts as one
-    // typical asset in the boundary. That weight is a stated judgment, not a
-    // derivation: count-weighting seven program controls against nineteen assets
-    // would have made the program layer ~4% of a system, and weighting them
-    // higher would let governance paperwork outvote the estate it governs.
-    const programImplementations = implementation.programImplementationsForSystem(systemId);
-    const meanAssetCriticality = mean(assets.map((a) => a.criticality)) ?? 0;
+    // This used to be the criticality-weighted mean of every asset's own score,
+    // with program controls pooled in at one typical asset's weight. The
+    // arithmetic was fine and the premise was not: it said a system is secure
+    // because each of its twenty-six assets was scored individually, and nobody
+    // assesses an estate that way. A real engagement rates a requirement
+    // statement against a boundary once and samples assets to decide whether it
+    // holds — which is what engine/assessment.ts now does, and what this reads.
+    //
+    // Assets did not stop mattering. They are the sampling population inside the
+    // Implemented level, and they still weight the enterprise hop below. What
+    // they no longer do is carry a score that rolls up.
+    //
+    // Categories are weighted by the SYSTEM's classification tier, from the same
+    // control-profile facts the asset hop used to read. The argument recorded at
+    // the asset rollup transfers intact — one-sixth weighting let a thirty-point
+    // Identity & Access shortfall vanish on a system whose entire risk is
+    // confidentiality — but the subject changes, because an asset no longer has
+    // a tier-weighted score of its own to be the subject of.
+    const categories = {} as Record<AssuranceCategory, ReturnType<typeof categoryRollupForSystem>>;
+    ASSURANCE_CATEGORIES.forEach((c) => (categories[c] = categoryRollupForSystem(systemId, c)));
 
-    const rawAssurance = weightedMean([
-      ...assets.map((a) => ({ value: a.rawAssurance as number, weight: a.criticality })),
-      ...programImplementations.map((i) => ({ value: i.rawScore, weight: meanAssetCriticality })),
-    ]);
+    const tier = classification.systemClassification(systemId) ?? "Internal";
+    const weights = graph.categoryWeights[tier as ClassificationTier] ?? graph.categoryWeights.Internal;
+
+    // A category with nothing assessed contributes no entry rather than a zero.
+    // weightedMean renormalizes over what is left, so an unexamined category
+    // lowers the coverage figure instead of silently lowering the score.
+    const rawAssurance = weightedMean(
+      ASSURANCE_CATEGORIES
+        .filter((c) => categories[c].raw !== null)
+        .map((c) => ({ value: categories[c].raw as number, weight: weights[c] }))
+    );
     const assurance = display(rawAssurance);
     const criticality = display(weightedMean(assets.map((a) => ({ value: a.criticality, weight: 1 }))));
 
+    const assessments = assessment.assessmentsForSystem(systemId);
+    const scoredAssessments = assessments.filter((a) => a.assessed);
+    const coverage = coverageOf(assessments);
+
+    const programImplementations = implementation.programImplementationsForSystem(systemId);
     const totalRequired = assets.reduce((a, x) => a + x.requiredControlCount, 0);
     const totalEvidenced = assets.reduce((a, x) => a + x.evidencedControlCount, 0);
 
-    const categories = {} as Record<AssuranceCategory, number | null>;
-    ASSURANCE_CATEGORIES.forEach((c) => {
-      categories[c] = display(weightedMean(assets.map((a) => ({ value: a.categories[c].raw, weight: a.criticality }))));
-    });
+    const categoryScores = Object.fromEntries(
+      ASSURANCE_CATEGORIES.map((c) => [c, categories[c].score])
+    ) as Record<AssuranceCategory, number | null>;
 
     return {
       ...system,
@@ -244,7 +331,19 @@ export function createRollups(
       assuranceBand: assuranceBand(assurance),
       criticality,
       criticalityBand: criticalityBand(criticality as number),
-      categoryScores: categories,
+      categories,
+      categoryScores,
+      categoryWeights: weights,
+      // The assessment behind the number, and how much of the applicable estate
+      // it speaks for. Coverage travels with every score in this model — a 69
+      // derived from 44 of 271 controls and a 69 derived from all 271 are not
+      // the same claim, and reporting only the first number conflates them.
+      assessments,
+      scoredAssessments,
+      coverage,
+      weakestControl: scoredAssessments.length === 0
+        ? null
+        : scoredAssessments.reduce((w, a) => ((a.rawScore as number) < (w.rawScore as number) ? a : w)),
       controlBackedPct: totalRequired === 0 ? 0 : Math.round((totalEvidenced / totalRequired) * 100),
       requiredControlCount: totalRequired,
       evidencedControlCount: totalEvidenced,
@@ -272,6 +371,9 @@ export function createRollups(
   );
 
   const enterpriseAssurance = display(enterpriseRaw);
+  const allAssessments = systemRollups.flatMap((s) => s.assessments);
+  const allScored = systemRollups.flatMap((s) => s.scoredAssessments);
+
   const enterprise = {
     assurance: enterpriseAssurance,
     rawAssurance: enterpriseRaw,
@@ -281,18 +383,34 @@ export function createRollups(
       (assetRollups.reduce((a, x) => a + x.evidencedControlCount, 0) /
         assetRollups.reduce((a, x) => a + x.requiredControlCount, 0)) * 100
     ),
-    assetsBelowTarget: assetRollups.filter((a) => (a.overallAssurance ?? 0) < 90).length,
+    // Summed across systems, never averaged — coverage is a count of things
+    // examined, and averaging two percentages over different denominators
+    // produces a number that is not a percentage of anything.
+    coverage: coverageOf(allAssessments),
+    // Replaces assetsBelowTarget. An asset no longer has a score to be below a
+    // target, and "which controls are failing" names the thing to go fix rather
+    // than the container it sits in.
+    controlsBelowTarget: allScored.filter((a) => (a.score ?? 0) < ASSURANCE_TARGET).length,
+    weakestControl: allScored.length === 0
+      ? null
+      : allScored.reduce((w, a) => ((a.rawScore as number) < (w.rawScore as number) ? a : w)),
     assuranceBand: assuranceBand(enterpriseAssurance),
   };
 
-  // Each category's assurance averaged across every asset — the figures the
-  // Executive Dashboard shows. Centralized so any consumer citing "the real
-  // assurance % for category X" computes it the same way.
-  const categoryPortfolioAverages = ASSURANCE_CATEGORIES.map((label) => ({
-    label,
-    pct: display(mean(assetRollups.map((a) => a.categories[label].raw))),
-    raw: mean(assetRollups.map((a) => a.categories[label].raw)),
-  }));
+  // Each category averaged across systems rather than across assets — the
+  // figures the Executive Dashboard shows. Weighted by the criticality each
+  // system contains, the same weight the enterprise hop uses, so a category is
+  // not reported as healthy because the small boundary is good at it.
+  const categoryPortfolioAverages = ASSURANCE_CATEGORIES.map((label) => {
+    const entries = systemRollups
+      .filter((s) => s.categories[label].raw !== null)
+      .map((s) => ({
+        value: s.categories[label].raw as number,
+        weight: s.assets.reduce((a, x) => a + x.criticality, 0),
+      }));
+    const raw = weightedMean(entries);
+    return { label, pct: display(raw), raw };
+  });
 
   // ---- Data map layout, derived from the flow graph ---------------------------
   // Stage membership used to be stored: a per-system dictionary naming which

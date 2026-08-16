@@ -254,6 +254,34 @@ export function validateDerivations(engine: Engine): void {
     );
   });
 
+  // ---- The system score itself -------------------------------------------------
+  // The hero number on every page. It is now a weighted mean over categories
+  // that each renormalize over whatever was assessed, and the failure mode of
+  // that shape is silence: a category with nothing in it contributes no entry,
+  // and if every category emptied the mean would be null rather than an error.
+  rollups.systemRollups.forEach((s) => {
+    check(
+      Number.isFinite(s.rawAssurance),
+      `system ${s.id}: assurance did not resolve to a number — every assurance category is empty, which means nothing was assessed`
+    );
+    check(
+      s.coverage.applicable === s.coverage.assessed + s.coverage.unassessed,
+      `system ${s.id}: coverage does not partition (${s.coverage.applicable} applicable vs ${s.coverage.assessed} assessed + ${s.coverage.unassessed} unassessed)`
+    );
+    ASSURANCE_CATEGORIES.forEach((c) => {
+      const category = s.categories[c];
+      check(
+        category.raw === null || Number.isFinite(category.raw),
+        `system ${s.id} category ${c}: resolved to ${category.raw}, which is neither a number nor an honest null`
+      );
+    });
+  });
+
+  check(
+    Number.isFinite(rollups.enterprise.rawAssurance),
+    `enterprise assurance did not resolve to a number`
+  );
+
   // ---- Assessor overrides -----------------------------------------------------
   // Same contract as an applicability exception: an override that agrees with
   // the derivation is dead text that looks like a considered judgment.

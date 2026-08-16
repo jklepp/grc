@@ -58,7 +58,7 @@ export function createEngine(graph: Graph, options: EngineOptions = {}) {
   // flipping the consumers is a separate change from proving the derivation.
   const assessment = createAssessment(graph, applicability, evidence, findings, ctx);
   const implementation = createImplementation(graph, applicability, evidence);
-  const rollups = createRollups(graph, classification, applicability, implementation, findings);
+  const rollups = createRollups(graph, classification, applicability, assessment, implementation, findings);
   const risk = createRisk(graph, rollups, implementation, applicability);
   const compliance = createCompliance(graph, assessment, applicability);
   const profile = createProfile(graph, rollups);
