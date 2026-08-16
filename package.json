@@ -8,7 +8,11 @@
     "build": "vite build",
     "lint": "oxlint",
     "typecheck": "tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:validators": "node scripts/check-validator-fires.mjs",
+    "snapshot": "node scripts/snapshot-derivations.mjs",
+    "prisma-report": "node scripts/prisma-report.mjs",
+    "check": "npm run typecheck && npm run lint && npm run check:validators"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

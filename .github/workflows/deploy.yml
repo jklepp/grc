@@ -24,6 +24,12 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # The two validators already gate the build indirectly — engine/index.ts
+      # constructs the graph at module scope, so a bad fact set throws during
+      # vite build. What that does NOT prove is that the validators still fire:
+      # a check that silently died passes every build. check:validators hands
+      # them 58 deliberately broken graphs and fails if any is accepted.
+      - run: npm run check
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
