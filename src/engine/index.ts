@@ -17,10 +17,22 @@
 // loadGraph, derivational inside createEngine. Any page that touches the model
 // has therefore already proved the model is sound before it renders a number.
 import { loadGraph } from "../graph/load";
-import { ACME_FACTS } from "../graph/sources/acme";
+import { YAML_FACTS } from "../graph/sources/yaml";
 import { createEngine } from "./create";
 
-export const engine = createEngine(loadGraph(ACME_FACTS));
+// The live dataset now comes from src/graph/facts/*.yaml. The TypeScript
+// modules those were generated from are still present and still exported as
+// sources/acme.ts, and scripts/check-source-parity.mjs asserts on every run
+// that the two remain indistinguishable — 98 checks across facts, assembled
+// graph, and derived numbers. Two sources of truth would normally be exactly
+// the failure this app exists to eliminate; they are tolerable here only
+// because a check makes divergence impossible to commit silently.
+//
+// Retiring the TypeScript data (keeping those modules for their types and
+// vocabularies, which the YAML source still depends on) is the last step, and
+// it waits on moving the per-record reasoning comments into `rationale:` fields
+// so that reasoning survives the move.
+export const engine = createEngine(loadGraph(YAML_FACTS));
 
 const { selectors, profile, risk, compliance, findings, rollups, graph } = engine;
 

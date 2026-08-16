@@ -13,6 +13,10 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "noEmit": true,
+    // Vite's ambient types. Needed for import.meta.glob, which the YAML fact
+    // source uses to inline src/graph/facts/*.yaml at build time — Vite resolves
+    // it fine without this, but tsc has no idea import.meta has a `glob`.
+    "types": ["vite/client"],
     "forceConsistentCasingInFileNames": true
   },
   "include": ["src"]
