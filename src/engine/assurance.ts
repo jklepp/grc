@@ -11,7 +11,10 @@
 // "Managed" is a fact about how ACME describes a control, "Managed is worth
 // 100" is a judgment about how to score it, and the graph should not carry
 // judgments.
-import { MATURITY_STAGES, EVIDENCE_TYPES, type MaturityStage, type EvidenceType } from "../graph/nodes/taxonomy";
+import {
+  MATURITY_STAGES, EVIDENCE_TYPES, PRISMA_LEVELS,
+  type MaturityStage, type EvidenceType, type PrismaLevel, type ComplianceRating,
+} from "../graph/nodes/taxonomy";
 
 // ---- Control maturity (PRISMA-style) ------------------------------------------
 // How convincingly a control can be shown to exist, operate consistently, be
@@ -49,6 +52,64 @@ export function meetsMaturity(actual: MaturityStage, required: MaturityStage): b
 export function meetsEvidence(actual: EvidenceType, required: EvidenceType): boolean {
   return EVIDENCE_TYPES.indexOf(actual) >= EVIDENCE_TYPES.indexOf(required);
 }
+
+// ---- HITRUST PRISMA ---------------------------------------------------------------
+// Five maturity levels, each rated on the five-point compliance scale, combined
+// as a weighted sum. The weights are HITRUST's, not ours, and the shape of them
+// is the whole argument: a control that is written down and operating is worth
+// far more than one that is only written down, so Implemented alone carries 40%
+// while the two documentation rungs together carry 35%.
+//
+// This replaces blendAssurance's maturity/evidence/effectiveness split. The old
+// blend asked three questions about a control and averaged the answers. PRISMA
+// asks the same question five times at increasing standards of proof and adds
+// up the credit, which is both the more defensible reading and the one an
+// assessor can argue with a line at a time.
+export const PRISMA_LEVEL_WEIGHTS: Record<PrismaLevel, number> = {
+  Policy: 0.15,
+  Procedure: 0.2,
+  Implemented: 0.4,
+  Measured: 0.1,
+  Managed: 0.15,
+};
+
+export function meetsLevel(actual: PrismaLevel, required: PrismaLevel): boolean {
+  return PRISMA_LEVELS.indexOf(actual) >= PRISMA_LEVELS.indexOf(required);
+}
+
+// Full precision, like everything else here — the weights are exact but a
+// rollup of these still must not round on the way up. See the note below.
+export function prismaScore(levels: Record<PrismaLevel, ComplianceRating>): number {
+  return PRISMA_LEVELS.reduce((sum, level) => sum + PRISMA_LEVEL_WEIGHTS[level] * levels[level], 0);
+}
+
+// Snap a continuous ratio (5 of 6 sampled assets passed) onto the fixed scale.
+// Nearest scale point, EXCEPT that Fully Compliant requires the ratio to be
+// exactly 1. That exception is the same judgment PREVALENCE_CEILING encodes on
+// the evidence side: a control with a verified exception is not operating
+// perfectly, however small the exception was, and rounding 0.99 up to Fully
+// Compliant would erase the one instance somebody needs to go fix.
+export function nearestRating(ratio: number): ComplianceRating {
+  if (ratio >= 1) return 100;
+  return Math.min(75, Math.round(Math.max(0, ratio) * 4) * 25) as ComplianceRating;
+}
+
+// Where a grade of proof lands on the compliance scale. Used to derive the
+// inherited ceiling below from the evidence scale rather than typing a second
+// constant that could drift away from it.
+export function complianceForConfidence(confidence: number): ComplianceRating {
+  return (Math.round((confidence / 100) * 4) * 25) as ComplianceRating;
+}
+
+// The ceiling on any level of a control ACME inherits from its provider.
+//
+// A vendor's SOC 2 is an "Auditor examination" (75), which sits below the
+// "API configuration observation" grade that engine/implementation.ts already
+// treats as the floor for calling something verified. A level ACME cannot
+// itself verify therefore cannot be rated Fully Compliant — not as a penalty
+// for using a vendor, but because the strongest thing ACME can say is what the
+// report says. Derived from EVIDENCE_CONFIDENCE so the two move together.
+export const INHERITED_LEVEL_CAP = complianceForConfidence(EVIDENCE_CONFIDENCE["Auditor examination"]);
 
 // ---- Asset criticality (FIPS-199-style) ----------------------------------------
 // Five weighted factors, each 0-100. The overall score blends the highest single

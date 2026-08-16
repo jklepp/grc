@@ -54,6 +54,48 @@ export const EVIDENCE_TYPES = [
 ] as const;
 export type EvidenceType = (typeof EVIDENCE_TYPES)[number];
 
+// ---- The PRISMA ladder -----------------------------------------------------------
+// The five maturity levels a control is rated at, from HITRUST's PRISMA-derived
+// scoring model. These are the same five rungs MATURITY_STAGES named, with
+// "Monitored" written as "Measured" so the vocabulary matches the framework it
+// implements — HITRUST's fourth rung asks whether the control's operation is
+// being measured, which is a different question from whether it is being
+// watched.
+//
+// The important difference from MATURITY_STAGES is not the spelling: a maturity
+// STAGE was one value describing where a control had reached, so a control was
+// at Procedure or at Managed but never both. A PRISMA LEVEL is a dimension — a
+// control is rated separately at all five, and the score is a weighted sum
+// across them. That is why this is a new vocabulary rather than a rename, and
+// why the two coexist until the last consumer of the old one is gone.
+//
+// Ordered weakest to strongest, so "at least Implemented" stays index arithmetic.
+export const PRISMA_LEVELS = ["Policy", "Procedure", "Implemented", "Measured", "Managed"] as const;
+export type PrismaLevel = (typeof PRISMA_LEVELS)[number];
+
+// ---- The compliance scale --------------------------------------------------------
+// What each level is rated on. Five fixed points, not a continuum: an assessor
+// says a level is Mostly Compliant, never that it is 68% compliant. Keeping the
+// scale discrete is what stops a derived ratio from arriving at the score with
+// more precision than the judgment behind it actually carries.
+//
+// Ordered, so "at least Mostly Compliant" is an index comparison rather than a
+// lookup table that could drift out of step with the labels below.
+export const COMPLIANCE_RATINGS = [0, 25, 50, 75, 100] as const;
+export type ComplianceRating = (typeof COMPLIANCE_RATINGS)[number];
+
+export const COMPLIANCE_LABELS: Record<ComplianceRating, string> = {
+  0: "Non-Compliant",
+  25: "Somewhat Compliant",
+  50: "Partially Compliant",
+  75: "Mostly Compliant",
+  100: "Fully Compliant",
+};
+
+export function isComplianceRating(value: unknown): value is ComplianceRating {
+  return (COMPLIANCE_RATINGS as readonly unknown[]).includes(value);
+}
+
 // ---- Assurance categories ------------------------------------------------------
 // The 6 rollup buckets every SCF domain resolves into for reporting.
 export const ASSURANCE_CATEGORIES = ["Data Protection", "Configuration", "Detection", "Identity & Access", "Governance", "Resilience"] as const;
