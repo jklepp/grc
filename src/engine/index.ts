@@ -22,7 +22,7 @@ import { createEngine } from "./create";
 
 export const engine = createEngine(loadGraph(ACME_FACTS));
 
-const { selectors, profile, risk, implementation, compliance, findings, rollups, graph } = engine;
+const { selectors, profile, risk, compliance, findings, rollups, graph } = engine;
 
 export { createEngine } from "./create";
 export { loadGraph } from "../graph/load";

@@ -22,7 +22,6 @@ import type { Graph, GraphFacts, ControlProfileDefinition } from "./types";
 import { DEFAULT_VALIDITY_DAYS, sourceIdFromName, type Evidence } from "./nodes/evidence";
 import type { EvidenceSource } from "./nodes/evidenceSources";
 import type { ControlProfileEntry } from "./nodes/controlProfiles";
-import type { Control } from "./nodes/controls";
 import {
   CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES, MATURITY_STAGES, EVIDENCE_TYPES,
   type ClassificationTier, type AssuranceCategory,

@@ -12,7 +12,6 @@ const server = await createServer({ server: { middlewareMode: true }, appType: "
 
 let failures = 0;
 const compare = (label, a, b) => {
-  const norm = (v) => JSON.stringify(v, Object.keys(v ?? {}).sort?.() ?? undefined);
   const left = JSON.stringify(a);
   const right = JSON.stringify(b);
   if (left === right) {
@@ -117,11 +116,6 @@ try {
   perId("risksForControl", controlIds, riskContrib.risksForControl, g.risksByControl);
 
   console.log("\nPair lookups (every asset x every key control)");
-  const pairChecks = [
-    ["evidenceFor", (a, c) => evidence.evidenceFor(a, c), (a, c) => g.evidenceByPair[`${a}::${c}`] ?? []],
-    ["assessmentFor", (a, c) => assessments.assessmentFor(a, c), null],
-    ["exceptionFor", (a, c) => applicability.exceptionFor(a, c), (a, c) => g.exceptionByPair[`${a}::${c}`] ?? null],
-  ];
   let pairMismatch = 0;
   let pairTotal = 0;
   for (const assetId of assetIds) {
