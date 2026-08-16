@@ -10,6 +10,16 @@
 //   facts   did the export lose or mangle a record on the way out
 //   graph   do the two assemble to the same indexes and normalized collections
 //   engine  do they derive the same numbers, which is what anyone actually sees
+//
+// LIFECYCLE — read this before treating a failure as a bug. This script exists
+// to prove the YAML migration was lossless, and YAML is now the live source. It
+// is NOT wired into build or typecheck, deliberately: the moment someone edits a
+// YAML fact (which is the whole point of having migrated), the TypeScript
+// modules become stale and this will report differences that are correct and
+// intended. At that point retire sources/acme.ts and delete this script — the
+// golden master in snapshot-derivations.mjs is the ongoing safety net, and it
+// needs only one source. Until then this is worth keeping, because it is the
+// only thing standing between "the two sources agree" and "we assume they do."
 import { createServer } from "vite";
 
 const server = await createServer({ server: { middlewareMode: true }, appType: "custom", logLevel: "warn" });
