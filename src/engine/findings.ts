@@ -1,25 +1,20 @@
 // Composes one Finding: resolves its owner, names the evidence and risks that
-// touch it, and computes `overdue` against the real clock instead of trusting
-// a hand-typed flag (the old systems.ts remediation array had exactly that
-// bug — SEC-2210 was still marked `overdue: false` a month past its due date).
+// touch it, and computes `overdue` against ctx.now instead of trusting a
+// hand-typed flag (the old systems.ts remediation array had exactly that bug —
+// SEC-2210 was still marked `overdue: false` a month past its due date).
 //
 // riskIds are derived, not hand-typed: a finding contributes to exactly the
 // risks that already name both its asset and its control as carrying the
-// scenario (riskContributors.ts edges), which is the same reasoning
-// engine/risk.ts already applies in the other direction (risk -> assurance).
-// evidenceIds are read off evidence records that declare `findingId`
-// themselves, matching evidence.ts's existing convention that a record
-// declares its own scope rather than being pointed at from elsewhere.
-import { FINDINGS, FINDING_STATUSES, type Finding } from "../graph/nodes/findings";
-import { ASSET_BY_ID } from "../graph/nodes/assets";
-import { KEY_CONTROL_BY_ID } from "../graph/nodes/keyControls";
-import { EVIDENCE } from "../graph/nodes/evidence";
-import { ORG_BY_ID } from "../graph/nodes/orgs";
-import { RISKS } from "../graph/nodes/risks";
-import { assetsForRisk, controlsForRisk } from "../graph/edges/riskContributors";
+// scenario (riskContributors edges), which is the same reasoning engine/risk.ts
+// already applies in the other direction (risk -> assurance). evidenceIds are
+// read off evidence records that declare `findingId` themselves, matching the
+// convention that a record declares its own scope rather than being pointed at
+// from elsewhere.
+import type { Graph } from "../graph/types";
+import { FINDING_STATUSES, type Finding } from "../graph/nodes/findings";
+import type { EngineContext } from "./context";
 import type { AssetId, ControlId, SystemId, RiskId } from "../graph/ids";
 
-const NOW = new Date();
 const OPEN_STATUSES = new Set(["open", "accepted", "remediating"]);
 
 export const FINDING_STATUS_META = {
@@ -30,55 +25,57 @@ export const FINDING_STATUS_META = {
   closed: { label: "Closed", color: "muted" },
 };
 
-function riskIdsFor(assetId: AssetId, controlId: ControlId): RiskId[] {
-  return RISKS.filter(
-    (r) =>
-      controlsForRisk(r.id).some((c) => c.controlId === controlId) &&
-      assetsForRisk(r.id).some((a) => a.assetId === assetId)
-  ).map((r) => r.id);
-}
+export function createFindings(graph: Graph, ctx: EngineContext) {
+  function riskIdsFor(assetId: AssetId, controlId: ControlId): RiskId[] {
+    return graph.risks
+      .filter(
+        (r) =>
+          (graph.controlsByRisk[r.id] ?? []).some((c) => c.controlId === controlId) &&
+          (graph.assetsByRisk[r.id] ?? []).some((a) => a.assetId === assetId)
+      )
+      .map((r) => r.id);
+  }
 
-function buildFinding(f: Finding) {
-  const asset = ASSET_BY_ID[f.assetId];
-  const control = KEY_CONTROL_BY_ID[f.controlId];
-  const owner = ORG_BY_ID[f.ownerId];
-  const evidenceIds = EVIDENCE.filter((e) => e.findingId === f.id).map((e) => e.id);
-  const riskIds = riskIdsFor(f.assetId, f.controlId);
-  const overdue = OPEN_STATUSES.has(f.status) && new Date(f.due) < NOW;
+  function buildFinding(f: Finding) {
+    const asset = graph.assetById[f.assetId];
+    const control = graph.keyControlById[f.controlId];
+    const owner = graph.orgById[f.ownerId];
+    const evidenceIds = graph.evidence.filter((e) => e.findingId === f.id).map((e) => e.id);
+    const riskIds = riskIdsFor(f.assetId, f.controlId);
+    const overdue = OPEN_STATUSES.has(f.status) && new Date(f.due) < ctx.now;
+
+    return {
+      ...f,
+      asset,
+      control,
+      owner,
+      systemId: asset.systemId,
+      evidenceIds,
+      riskIds,
+      overdue,
+      ticket: f.id,
+      jira: f.id,
+      // Display strings alongside the resolved `owner`/`control` objects above —
+      // POAM-style rendering wants a name and a label, not an object.
+      ownerName: owner?.name ?? f.ownerId,
+      controlName: control?.friendlyName ?? f.controlId,
+    };
+  }
+
+  const allFindings = graph.findings.map(buildFinding);
+  const findingById = Object.fromEntries(allFindings.map((f) => [f.id, f]));
 
   return {
-    ...f,
-    asset,
-    control,
-    owner,
-    systemId: asset.systemId,
-    evidenceIds,
-    riskIds,
-    overdue,
-    ticket: f.id,
-    jira: f.id,
-    // Display strings alongside the resolved `owner`/`control` objects above —
-    // POAM-style rendering wants a name and a label, not an object.
-    ownerName: owner?.name ?? f.ownerId,
-    controlName: control?.friendlyName ?? f.controlId,
+    buildFinding,
+    ALL_FINDINGS: allFindings,
+    FINDING_BY_ID: findingById,
+    findingsForSystem: (systemId: SystemId) => allFindings.filter((f) => f.systemId === systemId),
+    findingsForAsset: (assetId: AssetId) => allFindings.filter((f) => f.assetId === assetId),
+    findingsForRisk: (riskId: RiskId) => allFindings.filter((f) => f.riskIds.includes(riskId)),
   };
 }
 
-export type EngineFinding = ReturnType<typeof buildFinding>;
-
-export const ALL_FINDINGS: EngineFinding[] = FINDINGS.map(buildFinding);
-export const FINDING_BY_ID: Record<string, EngineFinding> = Object.fromEntries(ALL_FINDINGS.map((f) => [f.id, f]));
-
-export function findingsForSystem(systemId: SystemId): EngineFinding[] {
-  return ALL_FINDINGS.filter((f) => f.systemId === systemId);
-}
-
-export function findingsForAsset(assetId: AssetId): EngineFinding[] {
-  return ALL_FINDINGS.filter((f) => f.assetId === assetId);
-}
-
-export function findingsForRisk(riskId: RiskId): EngineFinding[] {
-  return ALL_FINDINGS.filter((f) => f.riskIds.includes(riskId));
-}
+export type FindingsApi = ReturnType<typeof createFindings>;
+export type EngineFinding = FindingsApi["ALL_FINDINGS"][number];
 
 export { FINDING_STATUSES };

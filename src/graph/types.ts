@@ -80,6 +80,12 @@ export interface GraphFacts {
   riskAssets: RiskAsset[];
   riskControls: RiskControl[];
 
+  // Why a risk names no contributing asset or no holding control. A stated
+  // reason rather than an empty list, so "nothing carries this yet" reads as a
+  // deliberate position instead of an edge someone forgot to author.
+  risksWithoutAssets: Record<RiskId, string>;
+  risksWithoutControls: Record<RiskId, string>;
+
   // Curated expectations that exist to be checked against derivation rather
   // than consumed. EXPECTED_CLASSIFICATION is the top-down human answer a
   // bottom-up rollup has to reproduce; BOARD_MATERIAL_RISK_IDS is the set
@@ -144,6 +150,8 @@ export interface Graph {
   readonly notImplemented: readonly NotImplemented[];
   readonly riskAssets: readonly RiskAsset[];
   readonly riskControls: readonly RiskControl[];
+  readonly risksWithoutAssets: Readonly<Record<RiskId, string>>;
+  readonly risksWithoutControls: Readonly<Record<RiskId, string>>;
 
   // ---- Indexes ----
   readonly assetById: Readonly<Record<AssetId, Asset>>;
@@ -164,6 +172,16 @@ export interface Graph {
   readonly flowsToAsset: Readonly<Record<AssetId, readonly DataFlow[]>>;
   readonly actorAccessByAsset: Readonly<Record<AssetId, readonly ActorAccess[]>>;
   readonly rulesByControl: Readonly<Record<ControlId, readonly ApplicabilityRule[]>>;
+
+  // Controls citing at least one framework clause. A control mapped to nothing
+  // is out of scope for every standard the company certifies against, so it is
+  // excluded from every posture figure rather than counted as an unmet one.
+  readonly inScopeControls: readonly Control[];
+
+  // Keyed `${standard}::${clause}` — the inverse of a control's own framework
+  // mappings. This is what lets "how covered is SOC 2 CC6.1" be answered from
+  // the implementations of the controls that actually satisfy it.
+  readonly controlsByClause: Readonly<Record<string, readonly Control[]>>;
 
   // Keyed `${assetId}::${controlId}`, or `program::${controlId}` for evidence
   // that covers a program-scoped control rather than any particular asset.

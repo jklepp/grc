@@ -27,24 +27,27 @@
 // everything they don't cover. controlBackedPct is reported separately and is
 // NOT this weight, so "how much of this rests on evidence" stays an honest
 // answer rather than a restatement of the formula.
-import { ASSETS, ASSET_BY_ID, assetsForSystem, BOUNDARY_INGRESS_KINDS, BOUNDARY_EGRESS_KINDS, DATABASE_KINDS, type CriticalityFactors } from "../graph/nodes/assets";
-import { SYSTEMS, SYSTEM_BY_ID } from "../graph/nodes/systems";
-import { ORG_BY_ID } from "../graph/nodes/orgs";
-import { findingsForSystem } from "./findings";
-import { ASSURANCE_CATEGORIES, BASIS, type AssuranceCategory } from "../graph/nodes/taxonomy";
-import { DATA_FLOWS, flowsTo } from "../graph/edges/dataFlows";
-import { ACTOR_ACCESS, ACTOR_DIRECTIONS } from "../graph/edges/actorAccess";
-import { ACTOR_BY_ID } from "../graph/nodes/actors";
-import { assessmentFor, type CategoryAssessment } from "../graph/edges/categoryAssessments";
-import { categoryWeightsFor } from "../graph/nodes/controlProfiles";
-import { requiredControlsForAsset } from "./applicability";
-import { implementationsForAsset } from "./implementation";
+//
+// FACTORY NOTE: category weights are read straight off the graph here rather
+// than through engine/profile.ts. profile.ts consumes asset rollups, so routing
+// weights through it would make the two mutually dependent for no gain — the
+// weights are a fact, and facts come from the graph.
+import type { Graph } from "../graph/types";
+import {
+  BOUNDARY_INGRESS_KINDS, BOUNDARY_EGRESS_KINDS, DATABASE_KINDS,
+} from "../graph/nodes/assets";
+import { ASSURANCE_CATEGORIES, BASIS, type AssuranceCategory, type ClassificationTier } from "../graph/nodes/taxonomy";
+import { ACTOR_DIRECTIONS } from "../graph/edges/actorAccess";
+import type { CategoryAssessment } from "../graph/edges/categoryAssessments";
+import type { ClassificationApi } from "./classification";
+import type { ApplicabilityApi } from "./applicability";
+import type { ImplementationApi } from "./implementation";
+import type { FindingsApi } from "./findings";
 import {
   blendAssurance, evidenceBaseConfidence, criticalityScore, criticalityBand, assuranceBand,
   impactFromCriticality, residualLikelihood, riskScore, riskBand, mean, weightedMean, display,
   CRITICALITY_FACTORS,
 } from "./assurance";
-import { assetClassification, assetClassificationDetail, systemClassification } from "./classification";
 import type { AssetId, SystemId } from "../graph/ids";
 
 // The assessed remainder carries the same total weight as the measured set.
@@ -58,349 +61,386 @@ function baselineScore(assessment: CategoryAssessment): number {
   });
 }
 
-export function categoryRollup(assetId: AssetId, category: AssuranceCategory) {
-  const assessment = assessmentFor(assetId, category)!;
-  const baseline = baselineScore(assessment);
-  const implementations = implementationsForAsset(assetId).filter((i) => i.category === category);
+export function createRollups(
+  graph: Graph,
+  classification: ClassificationApi,
+  applicability: ApplicabilityApi,
+  implementation: ImplementationApi,
+  findings: FindingsApi
+) {
+  function categoryRollup(assetId: AssetId, category: AssuranceCategory) {
+    const assessment = graph.assessmentByPair[`${assetId}::${category}`]!;
+    const baseline = baselineScore(assessment);
+    const implementations = implementation.implementationsForAsset(assetId).filter((i) => i.category === category);
 
-  if (implementations.length === 0) {
+    if (implementations.length === 0) {
+      return {
+        assetId, category, score: display(baseline), raw: baseline, basis: BASIS.ASSESSED,
+        implementations: [] as ReturnType<ImplementationApi["implementationsForAsset"]>,
+        baseline: display(baseline), rawBaseline: baseline, assessment,
+        measuredCount: 0, requiredCount: 0, evidencedCount: 0,
+      };
+    }
+
+    const residualWeight = implementations.length * RESIDUAL_WEIGHT_RATIO;
+    const raw = weightedMean([
+      ...implementations.map((i) => ({ value: i.rawScore as number, weight: 1 })),
+      { value: baseline, weight: residualWeight },
+    ]) as number;
+
+    const evidencedCount = implementations.filter((i) => i.basis === BASIS.MEASURED).length;
+
     return {
-      assetId, category, score: display(baseline), raw: baseline, basis: BASIS.ASSESSED,
-      implementations: [] as ReturnType<typeof implementationsForAsset>, baseline: display(baseline), rawBaseline: baseline, assessment,
-      measuredCount: 0, requiredCount: 0, evidencedCount: 0,
+      assetId, category, score: display(raw), raw, baseline: display(baseline), rawBaseline: baseline,
+      assessment, implementations,
+      // A category is "measured" only if something in it actually is. All-assessed
+      // implementations in a category leave it assessed, which is the truth.
+      basis: evidencedCount > 0 ? BASIS.MEASURED : BASIS.ASSESSED,
+      measuredCount: evidencedCount,
+      requiredCount: implementations.length,
+      evidencedCount,
     };
   }
 
-  const residualWeight = implementations.length * RESIDUAL_WEIGHT_RATIO;
-  const raw = weightedMean([
-    ...implementations.map((i) => ({ value: i.rawScore as number, weight: 1 })),
-    { value: baseline, weight: residualWeight },
-  ]) as number;
+  function assetRollup(assetId: AssetId) {
+    const asset = graph.assetById[assetId];
+    const system = graph.systemById[asset.systemId];
 
-  const evidencedCount = implementations.filter((i) => i.basis === BASIS.MEASURED).length;
+    // CriticalityFactors is already a typed interface with exactly these five
+    // keys — reading them directly by name, rather than looping Object.keys()
+    // and casting the result back to a shape TypeScript already knew, keeps the
+    // compiler checking the property access instead of being told to trust it.
+    const factors: Record<string, number> = Object.fromEntries(
+      CRITICALITY_FACTORS.map((f) => [f, asset.criticalityFactors[f].score])
+    );
+    const criticality = criticalityScore(factors);
 
-  return {
-    assetId, category, score: display(raw), raw, baseline: display(baseline), rawBaseline: baseline, assessment, implementations,
-    // A category is "measured" only if something in it actually is. All-assessed
-    // implementations in a category leave it assessed, which is the truth.
-    basis: evidencedCount > 0 ? BASIS.MEASURED : BASIS.ASSESSED,
-    measuredCount: evidencedCount,
-    requiredCount: implementations.length,
-    evidencedCount,
-  };
-}
+    const categories = {} as Record<AssuranceCategory, ReturnType<typeof categoryRollup>>;
+    ASSURANCE_CATEGORIES.forEach((c) => (categories[c] = categoryRollup(assetId, c)));
+    const categoryScores = Object.fromEntries(
+      ASSURANCE_CATEGORIES.map((c) => [c, categories[c].score])
+    ) as Record<AssuranceCategory, number | null>;
 
-export function assetRollup(assetId: AssetId) {
-  const asset = ASSET_BY_ID[assetId];
-  const system = SYSTEM_BY_ID[asset.systemId];
+    // Weighted by the asset's own classification tier, from the required control
+    // profile (graph facts.controlProfile).
+    //
+    // This was a flat mean, on the argument that no category is inherently more
+    // important and asset-specific weighting belongs in the control profile. The
+    // argument was right; it just hadn't been carried out — the profile set a
+    // floor per category and had no say in how much each counted. A flat mean let
+    // one-sixth weighting absorb a thirty-point Identity & Access shortfall on
+    // the asset whose entire risk is confidentiality.
+    //
+    // Computed from the categories' unrounded values so a control's movement
+    // isn't lost at this hop.
+    const tier = classification.assetClassification(assetId) ?? "Internal";
+    const weights = graph.categoryWeights[tier as ClassificationTier] ?? graph.categoryWeights.Internal;
+    const rawAssurance = weightedMean(
+      ASSURANCE_CATEGORIES.map((c) => ({ value: categories[c].raw, weight: weights[c] }))
+    );
+    const assurance = display(rawAssurance);
 
-  // CriticalityFactors is already a typed interface with exactly these five
-  // keys — reading them directly by name, rather than looping Object.keys()
-  // and casting the result back to a shape TypeScript already knew, keeps the
-  // compiler checking the property access instead of being told to trust it.
-  const factors: Record<string, number> = Object.fromEntries(
-    CRITICALITY_FACTORS.map((f) => [f, asset.criticalityFactors[f].score])
-  );
-  const criticality = criticalityScore(factors);
+    const implementations = implementation.implementationsForAsset(assetId);
+    const required = applicability.requiredControlsForAsset(assetId);
+    const evidenced = implementations.filter((i) => i.basis === BASIS.MEASURED && i.status !== "not-implemented");
 
-  const categories = {} as Record<AssuranceCategory, ReturnType<typeof categoryRollup>>;
-  ASSURANCE_CATEGORIES.forEach((c) => (categories[c] = categoryRollup(assetId, c)));
-  const categoryScores = Object.fromEntries(ASSURANCE_CATEGORIES.map((c) => [c, categories[c].score])) as Record<AssuranceCategory, number | null>;
+    // Deliberately NOT the category weighting above. This answers "how much of
+    // what we track here is actually backed by evidence," which is a coverage
+    // question, not a scoring one.
+    const controlBackedPct = required.length === 0 ? 0 : Math.round((evidenced.length / required.length) * 100);
 
-  // Weighted by the asset's own classification tier, from the required control
-  // profile (graph/nodes/controlProfiles.ts).
-  //
-  // This was a flat mean, on the argument that no category is inherently more
-  // important and asset-specific weighting belongs in the control profile. The
-  // argument was right; it just hadn't been carried out — the profile set a
-  // floor per category and had no say in how much each counted. A flat mean let
-  // one-sixth weighting absorb a thirty-point Identity & Access shortfall on
-  // the asset whose entire risk is confidentiality.
-  //
-  // Computed from the categories' unrounded values so a control's movement
-  // isn't lost at this hop.
-  const tier = assetClassification(assetId) ?? "Internal";
-  const weights = categoryWeightsFor(tier);
-  const rawAssurance = weightedMean(ASSURANCE_CATEGORIES.map((c) => ({ value: categories[c].raw, weight: weights[c] })));
-  const assurance = display(rawAssurance);
+    const evidenceConfidence = display(
+      mean(implementations.filter((i) => i.evidenceConfidence != null).map((i) => i.evidenceConfidence as number))
+    );
 
-  const implementations = implementationsForAsset(assetId);
-  const required = requiredControlsForAsset(assetId);
-  const evidenced = implementations.filter((i) => i.basis === BASIS.MEASURED && i.status !== "not-implemented");
+    const impact = impactFromCriticality(criticality);
+    const residualLikely = residualLikelihood(asset.inherentLikelihood, rawAssurance);
+    const inherentScore = riskScore(asset.inherentLikelihood, impact);
+    const residualScore = riskScore(residualLikely, impact);
 
-  // Deliberately NOT the category weighting above. This answers "how much of
-  // what we track here is actually backed by evidence," which is a coverage
-  // question, not a scoring one.
-  const controlBackedPct = required.length === 0 ? 0 : Math.round((evidenced.length / required.length) * 100);
+    return {
+      ...asset,
+      system,
+      classification: classification.assetClassification(assetId),
+      classificationDetail: classification.assetClassificationDetail(assetId),
+      criticality,
+      criticalityBand: criticalityBand(criticality),
+      categories,
+      categoryScores,
+      categoryWeights: weights,
+      overallAssurance: assurance,
+      rawAssurance,
+      assuranceBand: assuranceBand(assurance),
+      evidenceConfidence,
+      evidenceConfidenceBand: assuranceBand(evidenceConfidence),
+      controlBackedPct,
+      implementations,
+      requiredControlCount: required.length,
+      evidencedControlCount: evidenced.length,
+      deficientControls: implementations.filter((i) => i.status === "deficient" || i.status === "not-implemented"),
+      impact,
+      inherentRisk: { likelihood: asset.inherentLikelihood, impact, score: inherentScore, band: riskBand(inherentScore) },
+      residualRisk: { likelihood: residualLikely, impact, score: residualScore, band: riskBand(residualScore) },
+    };
+  }
 
-  const evidenceConfidence = display(mean(implementations.filter((i) => i.evidenceConfidence != null).map((i) => i.evidenceConfidence as number)));
+  // Built once per engine instance. Every consumer reads these rather than
+  // recomputing, so there is exactly one value for any asset's assurance.
+  const assetRollups = graph.assets.map((a) => assetRollup(a.id));
+  const assetRollupById = Object.fromEntries(assetRollups.map((a) => [a.id, a])) as Record<AssetId, (typeof assetRollups)[number]>;
 
-  const impact = impactFromCriticality(criticality);
-  const residualLikely = residualLikelihood(asset.inherentLikelihood, rawAssurance);
-  const inherentScore = riskScore(asset.inherentLikelihood, impact);
-  const residualScore = riskScore(residualLikely, impact);
+  function systemRollup(systemId: SystemId) {
+    const system = graph.systemById[systemId];
+    const assets = (graph.assetsBySystem[systemId] ?? []).map((a) => assetRollupById[a.id]);
 
-  return {
-    ...asset,
-    system,
-    classification: assetClassification(assetId),
-    classificationDetail: assetClassificationDetail(assetId),
-    criticality,
-    criticalityBand: criticalityBand(criticality),
-    categories,
-    categoryScores,
-    categoryWeights: weights,
-    overallAssurance: assurance,
-    rawAssurance,
-    assuranceBand: assuranceBand(assurance),
-    evidenceConfidence,
-    evidenceConfidenceBand: assuranceBand(evidenceConfidence),
-    controlBackedPct,
-    implementations,
-    requiredControlCount: required.length,
-    evidencedControlCount: evidenced.length,
-    deficientControls: implementations.filter((i) => i.status === "deficient" || i.status === "not-implemented"),
-    impact,
-    inherentRisk: { likelihood: asset.inherentLikelihood, impact, score: inherentScore, band: riskBand(inherentScore) },
-    residualRisk: { likelihood: residualLikely, impact, score: residualScore, band: riskBand(residualScore) },
-  };
-}
+    // Criticality-weighted, so the root encryption key counts for more than the
+    // audit log export. A flat mean would let a healthy peripheral asset offset a
+    // weak critical one, which is exactly the reading a system score must not
+    // support.
+    const rawAssurance = weightedMean(assets.map((a) => ({ value: a.rawAssurance as number, weight: a.criticality })));
+    const assurance = display(rawAssurance);
+    const criticality = display(weightedMean(assets.map((a) => ({ value: a.criticality, weight: 1 }))));
 
-export type AssetRollup = ReturnType<typeof assetRollup>;
+    const totalRequired = assets.reduce((a, x) => a + x.requiredControlCount, 0);
+    const totalEvidenced = assets.reduce((a, x) => a + x.evidencedControlCount, 0);
 
-// Built once at module load. Every consumer reads these rather than recomputing,
-// so there is exactly one value for any asset's assurance anywhere in the app.
-export const ASSET_ROLLUPS: AssetRollup[] = ASSETS.map((a) => assetRollup(a.id));
-export const ASSET_ROLLUP_BY_ID: Record<AssetId, AssetRollup> = Object.fromEntries(ASSET_ROLLUPS.map((a) => [a.id, a]));
-
-export function systemRollup(systemId: SystemId) {
-  const system = SYSTEM_BY_ID[systemId];
-  const assets = assetsForSystem(systemId).map((a) => ASSET_ROLLUP_BY_ID[a.id]);
-
-  // Criticality-weighted, so the root encryption key counts for more than the
-  // audit log export. A flat mean would let a healthy peripheral asset offset a
-  // weak critical one, which is exactly the reading a system score must not
-  // support.
-  const rawAssurance = weightedMean(assets.map((a) => ({ value: a.rawAssurance as number, weight: a.criticality })));
-  const assurance = display(rawAssurance);
-  const criticality = display(weightedMean(assets.map((a) => ({ value: a.criticality, weight: 1 }))));
-
-  const totalRequired = assets.reduce((a, x) => a + x.requiredControlCount, 0);
-  const totalEvidenced = assets.reduce((a, x) => a + x.evidencedControlCount, 0);
-
-  const categories = {} as Record<AssuranceCategory, number | null>;
-  ASSURANCE_CATEGORIES.forEach((c) => {
-    categories[c] = display(weightedMean(assets.map((a) => ({ value: a.categories[c].raw, weight: a.criticality }))));
-  });
-
-  return {
-    ...system,
-    // `assignment` is a display string resolved from the stored `ownerId`, so
-    // pages built against the old free-text roles[] didn't need to change.
-    roles: system.roles.map((r) => ({ ...r, assignment: ORG_BY_ID[r.ownerId]?.name ?? r.ownerId })),
-    findings: findingsForSystem(systemId),
-    classification: systemClassification(systemId),
-    assets,
-    assetCount: assets.length,
-    overallAssurance: assurance,
-    rawAssurance,
-    assuranceBand: assuranceBand(assurance),
-    criticality,
-    criticalityBand: criticalityBand(criticality as number),
-    categoryScores: categories,
-    controlBackedPct: totalRequired === 0 ? 0 : Math.round((totalEvidenced / totalRequired) * 100),
-    requiredControlCount: totalRequired,
-    evidencedControlCount: totalEvidenced,
-    evidenceConfidence: display(mean(assets.map((a) => a.evidenceConfidence).filter((v): v is number => v != null))),
-    residualScore: Math.round((assets.reduce((a, x) => a + x.residualRisk.score, 0) / assets.length) * 10) / 10,
-    staleEvidenceCount: assets.reduce((a, x) => a + x.implementations.filter((i) => i.evidence.some((e) => e.stale)).length, 0),
-    weakestAsset: assets.reduce((worst, a) => ((a.overallAssurance ?? 0) < (worst.overallAssurance ?? 0) ? a : worst), assets[0]),
-    deficientControls: assets.flatMap((a) => a.deficientControls),
-  };
-}
-
-export type SystemRollup = ReturnType<typeof systemRollup>;
-
-export const SYSTEM_ROLLUPS: SystemRollup[] = SYSTEMS.map((s) => systemRollup(s.id));
-export const SYSTEM_ROLLUP_BY_ID: Record<SystemId, SystemRollup> = Object.fromEntries(SYSTEM_ROLLUPS.map((s) => [s.id, s]));
-
-const ENTERPRISE_RAW = weightedMean(
-  SYSTEM_ROLLUPS.map((s) => ({
-    value: s.rawAssurance as number,
-    // A system's weight is the total criticality it contains, so a boundary
-    // holding eight critical assets outweighs one holding seven moderate ones
-    // without anyone having to declare that separately.
-    weight: s.assets.reduce((a, x) => a + x.criticality, 0),
-  }))
-);
-
-export const ENTERPRISE = {
-  assurance: display(ENTERPRISE_RAW),
-  rawAssurance: ENTERPRISE_RAW,
-  assetCount: ASSET_ROLLUPS.length,
-  systemCount: SYSTEM_ROLLUPS.length,
-  controlBackedPct: Math.round(
-    (ASSET_ROLLUPS.reduce((a, x) => a + x.evidencedControlCount, 0) / ASSET_ROLLUPS.reduce((a, x) => a + x.requiredControlCount, 0)) * 100
-  ),
-  assetsBelowTarget: ASSET_ROLLUPS.filter((a) => (a.overallAssurance ?? 0) < 90).length,
-  assuranceBand: undefined as ReturnType<typeof assuranceBand> | undefined,
-};
-ENTERPRISE.assuranceBand = assuranceBand(ENTERPRISE.assurance);
-
-// Each category's assurance averaged across every asset — the figures the
-// Executive Dashboard shows. Centralized so any consumer citing "the real
-// assurance % for category X" computes it the same way.
-export const CATEGORY_PORTFOLIO_AVERAGES = ASSURANCE_CATEGORIES.map((label) => ({
-  label,
-  pct: display(mean(ASSET_ROLLUPS.map((a) => a.categories[label].raw))),
-  raw: mean(ASSET_ROLLUPS.map((a) => a.categories[label].raw)),
-}));
-
-// ---- Data map layout, derived from the flow graph -------------------------------
-// Stage membership used to be stored: a per-system dictionary naming which
-// assets sat in "Ingress", "Primary Custody", and so on, which meant adding a
-// flow also meant remembering to re-slot the asset or the picture quietly went
-// wrong. Here depth is computed by walking inbound data edges, so the layout is
-// a consequence of the flows rather than a parallel description of them.
-export function flowLayoutForSystem(systemId: SystemId) {
-  const assets = assetsForSystem(systemId);
-  const ids = new Set(assets.map((a) => a.id));
-  const dataEdges = DATA_FLOWS.filter((f) => f.kind === "data" && ids.has(f.from) && ids.has(f.to));
-
-  // Database-kind assets carry real data edges — they aren't control-plane
-  // branches — but where the data lands is a different fact from how many
-  // hops it took to get there, so they're pulled out of the stage walk below
-  // and given their own Data Plane section instead. Excluding their edges
-  // from the walk is safe as long as nothing downstream is reachable only
-  // through one; every database in this model is a sink (nothing flows back
-  // out of it), so that holds today, but would need revisiting the day a
-  // database has an outbound data edge of its own.
-  const dbIds = new Set(assets.filter((a) => (DATABASE_KINDS as string[]).includes(a.kind)).map((a) => a.id));
-
-  // Egress-kind assets (BOUNDARY_EGRESS_KINDS) are pulled out of the stage
-  // walk the same way database-kind assets are: they're where data leaves
-  // the boundary, a distinct fact from how many hops it took to get there.
-  // Without this, "Egress" would mean nothing more than "whatever the walk
-  // happened to dead-end at," which is just as often an internal worker or
-  // log feed as an actual boundary component.
-  const egressIds = new Set(assets.filter((a) => (BOUNDARY_EGRESS_KINDS as string[]).includes(a.kind)).map((a) => a.id));
-  const pathDataEdges = dataEdges.filter((f) => !dbIds.has(f.from) && !dbIds.has(f.to) && !egressIds.has(f.from) && !egressIds.has(f.to));
-
-  // Control-plane-only assets (a key store, a service account) aren't in the
-  // request path at all. They hang off the assets they protect rather than
-  // occupying a stage of their own — the same shape the old map drew with a
-  // cosmetic `branch` flag, now meaning something.
-  const inRequestPath = new Set<string>();
-  pathDataEdges.forEach((f) => { inRequestPath.add(f.from); inRequestPath.add(f.to); });
-
-  // A real request path cycles — the model service answers back to the gateway
-  // it was called from — so there is no node with zero inbound edges to start
-  // from, and "longest path from a source" would ratchet forever around the
-  // loop. Entry is therefore identified by asset KIND (the thing that sits
-  // where traffic crosses into the boundary), which is a modelled fact, and
-  // depth is the shortest hop count from there. Breadth-first traversal visits
-  // each node once, so the cycle settles on its own.
-  const entries = assets.filter((a) => (BOUNDARY_INGRESS_KINDS as string[]).includes(a.kind) && inRequestPath.has(a.id));
-  // No ingress-kind asset (a boundary that only stores, say) falls back to
-  // whatever nothing else feeds, and failing that to the least-fed node.
-  const inDegree: Record<string, number> = {};
-  assets.forEach((a) => (inDegree[a.id] = pathDataEdges.filter((f) => f.to === a.id).length));
-  const pathAssets = assets.filter((a) => inRequestPath.has(a.id));
-  const sources = entries.length
-    ? entries
-    : pathAssets.filter((a) => inDegree[a.id] === 0).length
-      ? pathAssets.filter((a) => inDegree[a.id] === 0)
-      : pathAssets.slice().sort((a, b) => inDegree[a.id] - inDegree[b.id]).slice(0, 1);
-
-  const depth: Record<string, number | null> = {};
-  assets.forEach((a) => (depth[a.id] = null));
-
-  let frontier = sources.map((a) => a.id);
-  frontier.forEach((id) => (depth[id] = 0));
-  let level = 0;
-  while (frontier.length > 0) {
-    level += 1;
-    const next: string[] = [];
-    frontier.forEach((id) => {
-      pathDataEdges
-        .filter((f) => f.from === id)
-        .forEach((f) => {
-          if (depth[f.to] === null) {
-            depth[f.to] = level;
-            next.push(f.to);
-          }
-        });
+    const categories = {} as Record<AssuranceCategory, number | null>;
+    ASSURANCE_CATEGORIES.forEach((c) => {
+      categories[c] = display(weightedMean(assets.map((a) => ({ value: a.categories[c].raw, weight: a.criticality }))));
     });
-    frontier = next;
+
+    return {
+      ...system,
+      // `assignment` is a display string resolved from the stored `ownerId`, so
+      // pages built against the old free-text roles[] didn't need to change.
+      roles: system.roles.map((r) => ({ ...r, assignment: graph.orgById[r.ownerId]?.name ?? r.ownerId })),
+      findings: findings.findingsForSystem(systemId),
+      classification: classification.systemClassification(systemId),
+      assets,
+      assetCount: assets.length,
+      overallAssurance: assurance,
+      rawAssurance,
+      assuranceBand: assuranceBand(assurance),
+      criticality,
+      criticalityBand: criticalityBand(criticality as number),
+      categoryScores: categories,
+      controlBackedPct: totalRequired === 0 ? 0 : Math.round((totalEvidenced / totalRequired) * 100),
+      requiredControlCount: totalRequired,
+      evidencedControlCount: totalEvidenced,
+      evidenceConfidence: display(mean(assets.map((a) => a.evidenceConfidence).filter((v): v is number => v != null))),
+      residualScore: Math.round((assets.reduce((a, x) => a + x.residualRisk.score, 0) / assets.length) * 10) / 10,
+      staleEvidenceCount: assets.reduce(
+        (a, x) => a + x.implementations.filter((i) => i.evidence.some((e) => e.stale)).length, 0
+      ),
+      weakestAsset: assets.reduce((worst, a) => ((a.overallAssurance ?? 0) < (worst.overallAssurance ?? 0) ? a : worst), assets[0]),
+      deficientControls: assets.flatMap((a) => a.deficientControls),
+    };
   }
 
-  // Anything in the request path the traversal never reached still belongs on
-  // the chart — placed after the last hop rather than dropped.
-  const reachedMax = Math.max(0, ...Object.values(depth).filter((d): d is number => d !== null));
-  pathAssets.forEach((a) => {
-    if (depth[a.id] === null) depth[a.id] = reachedMax + 1;
-  });
+  const systemRollups = graph.systems.map((s) => systemRollup(s.id));
+  const systemRollupById = Object.fromEntries(systemRollups.map((s) => [s.id, s])) as Record<SystemId, (typeof systemRollups)[number]>;
 
-  const maxDepth = Math.max(0, ...Object.values(depth).filter((d): d is number => d !== null));
-  const stages: { depth: number; nodes: AssetRollup[] }[] = [];
-  for (let d = 0; d <= maxDepth; d++) {
-    const nodes = assets.filter((a) => depth[a.id] === d).map((a) => ASSET_ROLLUP_BY_ID[a.id]);
-    if (nodes.length) stages.push({ depth: d, nodes });
-  }
+  const enterpriseRaw = weightedMean(
+    systemRollups.map((s) => ({
+      value: s.rawAssurance as number,
+      // A system's weight is the total criticality it contains, so a boundary
+      // holding eight critical assets outweighs one holding seven moderate ones
+      // without anyone having to declare that separately.
+      weight: s.assets.reduce((a, x) => a + x.criticality, 0),
+    }))
+  );
 
-  const branches = assets
-    .filter((a) => depth[a.id] === null && !dbIds.has(a.id) && !egressIds.has(a.id))
-    .map((a) => ({
-      asset: ASSET_ROLLUP_BY_ID[a.id],
-      protects: DATA_FLOWS.filter((f) => f.from === a.id && f.kind === "control-plane").map((f) => ASSET_ROLLUP_BY_ID[f.to]),
-    }));
+  const enterpriseAssurance = display(enterpriseRaw);
+  const enterprise = {
+    assurance: enterpriseAssurance,
+    rawAssurance: enterpriseRaw,
+    assetCount: assetRollups.length,
+    systemCount: systemRollups.length,
+    controlBackedPct: Math.round(
+      (assetRollups.reduce((a, x) => a + x.evidencedControlCount, 0) /
+        assetRollups.reduce((a, x) => a + x.requiredControlCount, 0)) * 100
+    ),
+    assetsBelowTarget: assetRollups.filter((a) => (a.overallAssurance ?? 0) < 90).length,
+    assuranceBand: assuranceBand(enterpriseAssurance),
+  };
 
-  // Data plane: the database-kind assets pulled out of the walk above,
-  // paired with whoever's data edges actually feed them.
-  const dataPlane = assets
-    .filter((a) => dbIds.has(a.id))
-    .map((a) => ({
-      asset: ASSET_ROLLUP_BY_ID[a.id],
-      fedBy: dataEdges.filter((f) => f.to === a.id).map((f) => ASSET_ROLLUP_BY_ID[f.from]),
-    }));
-
-  // Egress: the egress-kind assets pulled out of the walk above, paired with
-  // whoever's data edges actually feed them — same shape as Data Plane,
-  // because both are terminal sinks the walk doesn't continue past.
-  const egress = assets
-    .filter((a) => egressIds.has(a.id))
-    .map((a) => ({
-      asset: ASSET_ROLLUP_BY_ID[a.id],
-      fedBy: dataEdges.filter((f) => f.to === a.id).map((f) => ASSET_ROLLUP_BY_ID[f.from]),
-    }));
-
-  // Every actor tied to this system — human or machine — split by which way
-  // the call goes. An inbound actor calls into the system (rendered before
-  // Ingress); an outbound actor is one of our assets calling out to it (a
-  // third-party model provider, an external SaaS destination), rendered
-  // after Egress. Splitting on `direction` instead of merging them into one
-  // row keeps an outbound-only actor from visually reading as if it were
-  // entering the system.
-  const systemActorAccess = ACTOR_ACCESS.filter((a) => ids.has(a.assetId)).map((a) => ({
-    actor: ACTOR_BY_ID[a.actorId],
-    assetId: a.assetId,
-    note: a.note,
-    direction: a.direction,
+  // Each category's assurance averaged across every asset — the figures the
+  // Executive Dashboard shows. Centralized so any consumer citing "the real
+  // assurance % for category X" computes it the same way.
+  const categoryPortfolioAverages = ASSURANCE_CATEGORIES.map((label) => ({
+    label,
+    pct: display(mean(assetRollups.map((a) => a.categories[label].raw))),
+    raw: mean(assetRollups.map((a) => a.categories[label].raw)),
   }));
-  const ingressActors = systemActorAccess.filter((a) => a.direction === ACTOR_DIRECTIONS.INBOUND);
-  const egressActors = systemActorAccess.filter((a) => a.direction === ACTOR_DIRECTIONS.OUTBOUND);
+
+  // ---- Data map layout, derived from the flow graph ---------------------------
+  // Stage membership used to be stored: a per-system dictionary naming which
+  // assets sat in "Ingress", "Primary Custody", and so on, which meant adding a
+  // flow also meant remembering to re-slot the asset or the picture quietly went
+  // wrong. Here depth is computed by walking inbound data edges, so the layout is
+  // a consequence of the flows rather than a parallel description of them.
+  function flowLayoutForSystem(systemId: SystemId) {
+    const assets = graph.assetsBySystem[systemId] ?? [];
+    const ids = new Set(assets.map((a) => a.id));
+    const dataEdges = graph.dataFlows.filter((f) => f.kind === "data" && ids.has(f.from) && ids.has(f.to));
+
+    // Database-kind assets carry real data edges — they aren't control-plane
+    // branches — but where the data lands is a different fact from how many
+    // hops it took to get there, so they're pulled out of the stage walk below
+    // and given their own Data Plane section instead. Excluding their edges
+    // from the walk is safe as long as nothing downstream is reachable only
+    // through one; every database in this model is a sink (nothing flows back
+    // out of it), so that holds today, but would need revisiting the day a
+    // database has an outbound data edge of its own.
+    const dbIds = new Set(assets.filter((a) => (DATABASE_KINDS as readonly string[]).includes(a.kind)).map((a) => a.id));
+
+    // Egress-kind assets (BOUNDARY_EGRESS_KINDS) are pulled out of the stage
+    // walk the same way database-kind assets are: they're where data leaves
+    // the boundary, a distinct fact from how many hops it took to get there.
+    // Without this, "Egress" would mean nothing more than "whatever the walk
+    // happened to dead-end at," which is just as often an internal worker or
+    // log feed as an actual boundary component.
+    const egressIds = new Set(assets.filter((a) => (BOUNDARY_EGRESS_KINDS as readonly string[]).includes(a.kind)).map((a) => a.id));
+    const pathDataEdges = dataEdges.filter(
+      (f) => !dbIds.has(f.from) && !dbIds.has(f.to) && !egressIds.has(f.from) && !egressIds.has(f.to)
+    );
+
+    // Control-plane-only assets (a key store, a service account) aren't in the
+    // request path at all. They hang off the assets they protect rather than
+    // occupying a stage of their own — the same shape the old map drew with a
+    // cosmetic `branch` flag, now meaning something.
+    const inRequestPath = new Set<string>();
+    pathDataEdges.forEach((f) => { inRequestPath.add(f.from); inRequestPath.add(f.to); });
+
+    // A real request path cycles — the model service answers back to the gateway
+    // it was called from — so there is no node with zero inbound edges to start
+    // from, and "longest path from a source" would ratchet forever around the
+    // loop. Entry is therefore identified by asset KIND (the thing that sits
+    // where traffic crosses into the boundary), which is a modelled fact, and
+    // depth is the shortest hop count from there. Breadth-first traversal visits
+    // each node once, so the cycle settles on its own.
+    const entries = assets.filter(
+      (a) => (BOUNDARY_INGRESS_KINDS as readonly string[]).includes(a.kind) && inRequestPath.has(a.id)
+    );
+    // No ingress-kind asset (a boundary that only stores, say) falls back to
+    // whatever nothing else feeds, and failing that to the least-fed node.
+    const inDegree: Record<string, number> = {};
+    assets.forEach((a) => (inDegree[a.id] = pathDataEdges.filter((f) => f.to === a.id).length));
+    const pathAssets = assets.filter((a) => inRequestPath.has(a.id));
+    const sources = entries.length
+      ? entries
+      : pathAssets.filter((a) => inDegree[a.id] === 0).length
+        ? pathAssets.filter((a) => inDegree[a.id] === 0)
+        : pathAssets.slice().sort((a, b) => inDegree[a.id] - inDegree[b.id]).slice(0, 1);
+
+    const depth: Record<string, number | null> = {};
+    assets.forEach((a) => (depth[a.id] = null));
+
+    let frontier = sources.map((a) => a.id);
+    frontier.forEach((id) => (depth[id] = 0));
+    let level = 0;
+    while (frontier.length > 0) {
+      level += 1;
+      const next: string[] = [];
+      frontier.forEach((id) => {
+        pathDataEdges
+          .filter((f) => f.from === id)
+          .forEach((f) => {
+            if (depth[f.to] === null) {
+              depth[f.to] = level;
+              next.push(f.to);
+            }
+          });
+      });
+      frontier = next;
+    }
+
+    // Anything in the request path the traversal never reached still belongs on
+    // the chart — placed after the last hop rather than dropped.
+    const reachedMax = Math.max(0, ...Object.values(depth).filter((d): d is number => d !== null));
+    pathAssets.forEach((a) => {
+      if (depth[a.id] === null) depth[a.id] = reachedMax + 1;
+    });
+
+    const maxDepth = Math.max(0, ...Object.values(depth).filter((d): d is number => d !== null));
+    const stages: { depth: number; nodes: (typeof assetRollups)[number][] }[] = [];
+    for (let d = 0; d <= maxDepth; d++) {
+      const nodes = assets.filter((a) => depth[a.id] === d).map((a) => assetRollupById[a.id]);
+      if (nodes.length) stages.push({ depth: d, nodes });
+    }
+
+    const branches = assets
+      .filter((a) => depth[a.id] === null && !dbIds.has(a.id) && !egressIds.has(a.id))
+      .map((a) => ({
+        asset: assetRollupById[a.id],
+        protects: graph.dataFlows.filter((f) => f.from === a.id && f.kind === "control-plane").map((f) => assetRollupById[f.to]),
+      }));
+
+    // Data plane: the database-kind assets pulled out of the walk above,
+    // paired with whoever's data edges actually feed them.
+    const dataPlane = assets
+      .filter((a) => dbIds.has(a.id))
+      .map((a) => ({
+        asset: assetRollupById[a.id],
+        fedBy: dataEdges.filter((f) => f.to === a.id).map((f) => assetRollupById[f.from]),
+      }));
+
+    // Egress: the egress-kind assets pulled out of the walk above, paired with
+    // whoever's data edges actually feed them — same shape as Data Plane,
+    // because both are terminal sinks the walk doesn't continue past.
+    const egress = assets
+      .filter((a) => egressIds.has(a.id))
+      .map((a) => ({
+        asset: assetRollupById[a.id],
+        fedBy: dataEdges.filter((f) => f.to === a.id).map((f) => assetRollupById[f.from]),
+      }));
+
+    // Every actor tied to this system — human or machine — split by which way
+    // the call goes. An inbound actor calls into the system (rendered before
+    // Ingress); an outbound actor is one of our assets calling out to it (a
+    // third-party model provider, an external SaaS destination), rendered
+    // after Egress. Splitting on `direction` instead of merging them into one
+    // row keeps an outbound-only actor from visually reading as if it were
+    // entering the system.
+    const systemActorAccess = graph.actorAccess
+      .filter((a) => ids.has(a.assetId))
+      .map((a) => ({
+        actor: graph.actorById[a.actorId],
+        assetId: a.assetId,
+        note: a.note,
+        direction: a.direction,
+      }));
+    const ingressActors = systemActorAccess.filter((a) => a.direction === ACTOR_DIRECTIONS.INBOUND);
+    const egressActors = systemActorAccess.filter((a) => a.direction === ACTOR_DIRECTIONS.OUTBOUND);
+
+    return {
+      systemId, stages, branches, dataPlane, egress, ingressActors, egressActors,
+      edges: dataEdges,
+      controlPlaneEdges: graph.dataFlows.filter((f) => f.kind === "control-plane" && ids.has(f.from)),
+    };
+  }
+
+  function inboundFlowCount(assetId: AssetId): number {
+    return (graph.flowsToAsset[assetId] ?? []).length;
+  }
 
   return {
-    systemId, stages, branches, dataPlane, egress, ingressActors, egressActors,
-    edges: dataEdges,
-    controlPlaneEdges: DATA_FLOWS.filter((f) => f.kind === "control-plane" && ids.has(f.from)),
+    categoryRollup,
+    assetRollup,
+    assetRollups,
+    assetRollupById,
+    systemRollup,
+    systemRollups,
+    systemRollupById,
+    enterprise,
+    categoryPortfolioAverages,
+    flowLayoutForSystem,
+    inboundFlowCount,
+    TOTAL_ACTOR_COUNT: graph.actorAccess.length,
+    TOTAL_FLOW_COUNT: graph.dataFlows.length,
   };
 }
 
-export const TOTAL_ACTOR_COUNT = ACTOR_ACCESS.length;
-
-export function inboundFlowCount(assetId: AssetId): number {
-  return flowsTo(assetId).length;
-}
-
-export const TOTAL_FLOW_COUNT = DATA_FLOWS.length;
+export type RollupsApi = ReturnType<typeof createRollups>;
+export type AssetRollup = RollupsApi["assetRollups"][number];
+export type SystemRollup = RollupsApi["systemRollups"][number];

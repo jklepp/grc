@@ -10,6 +10,19 @@
 // CLASSIFICATION_TIERS, FLOW_KINDS and their siblings are schema, not facts —
 // they describe what a fact is allowed to say, and every dataset shares them.
 // They stay importable directly from nodes/taxonomy.ts and friends.
+//
+// The import below is load-bearing, not a leftover. graph/validate.js holds the
+// full structural suite — every vocabulary conformance check, every referential
+// check, roughly forty-five of them — and asserts against these modules
+// directly rather than against an assembled Graph. Importing it HERE, in the
+// adapter for the dataset it actually checks, is what keeps those checks alive
+// now that nothing else pulls them in. loadGraph() runs its own source-agnostic
+// subset on top.
+//
+// Porting that suite to take a Graph is what a YAML or Postgres source needs
+// before it can be trusted to the same standard, and it is the next piece of
+// work on this seam.
+import "../validate";
 import { ASSETS } from "../nodes/assets";
 import { SYSTEMS, EXPECTED_CLASSIFICATION } from "../nodes/systems";
 import { DATA_TYPES } from "../nodes/dataTypes";
@@ -29,7 +42,9 @@ import { ACTOR_ACCESS } from "../edges/actorAccess";
 import { APPLICABILITY_RULES, APPLICABILITY_EXCEPTIONS } from "../edges/applicabilityRules";
 import { CATEGORY_ASSESSMENTS } from "../edges/categoryAssessments";
 import { OWNER_OVERRIDES, IMPLEMENTATION_OVERRIDES, NOT_IMPLEMENTED } from "../edges/controlImplementations";
-import { RISK_ASSETS, RISK_CONTROLS } from "../edges/riskContributors";
+import {
+  RISK_ASSETS, RISK_CONTROLS, RISKS_WITHOUT_ASSETS, RISKS_WITHOUT_CONTROLS,
+} from "../edges/riskContributors";
 import type { GraphFacts } from "../types";
 
 export const ACME_FACTS: GraphFacts = {
@@ -61,6 +76,8 @@ export const ACME_FACTS: GraphFacts = {
   notImplemented: NOT_IMPLEMENTED,
   riskAssets: RISK_ASSETS,
   riskControls: RISK_CONTROLS,
+  risksWithoutAssets: RISKS_WITHOUT_ASSETS,
+  risksWithoutControls: RISKS_WITHOUT_CONTROLS,
 
   expectedClassification: EXPECTED_CLASSIFICATION,
   boardMaterialRiskIds: BOARD_MATERIAL_RISK_IDS,

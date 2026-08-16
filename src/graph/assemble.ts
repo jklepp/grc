@@ -22,6 +22,7 @@ import type { Graph, GraphFacts, ControlProfileDefinition } from "./types";
 import { DEFAULT_VALIDITY_DAYS, sourceIdFromName, type Evidence } from "./nodes/evidence";
 import type { EvidenceSource } from "./nodes/evidenceSources";
 import type { ControlProfileEntry } from "./nodes/controlProfiles";
+import type { Control } from "./nodes/controls";
 import {
   CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES, MATURITY_STAGES, EVIDENCE_TYPES,
   type ClassificationTier, type AssuranceCategory,
@@ -145,6 +146,20 @@ export function assembleGraph(facts: GraphFacts): Graph {
   const evidence = normalizeEvidence(facts);
   const { sources: evidenceSources, conflicts: sourceConflicts } = deriveEvidenceSources(evidence);
 
+  // A control mapped to no framework clause is out of scope for every standard
+  // ACME certifies against, so posture figures exclude it rather than counting
+  // it as an unmet requirement.
+  const inScopeControls = facts.controls.filter((c) => c.frameworks.length > 0);
+
+  const controlsByClause: Record<string, typeof inScopeControls> = {};
+  inScopeControls.forEach((control) => {
+    control.frameworks.forEach(({ standard, clauses }) => {
+      clauses.forEach((clause) => {
+        (controlsByClause[`${standard}::${clause}`] ||= []).push(control);
+      });
+    });
+  });
+
   // Evidence with no assetIds covers a program-scoped control rather than any
   // one asset, and is filed under the "program" sentinel so evidenceFor() has a
   // single lookup shape for both cases.
@@ -185,6 +200,8 @@ export function assembleGraph(facts: GraphFacts): Graph {
     notImplemented: facts.notImplemented,
     riskAssets: facts.riskAssets,
     riskControls: facts.riskControls,
+    risksWithoutAssets: facts.risksWithoutAssets,
+    risksWithoutControls: facts.risksWithoutControls,
 
     // Entity indexes
     assetById: byId(facts.assets) as Record<AssetId, (typeof facts.assets)[number]>,
@@ -206,6 +223,8 @@ export function assembleGraph(facts: GraphFacts): Graph {
     flowsToAsset: groupBy(facts.dataFlows, (f) => f.to),
     actorAccessByAsset: groupBy(facts.actorAccess, (a) => a.assetId),
     rulesByControl: groupBy(facts.applicabilityRules, (r) => r.controlId),
+    inScopeControls,
+    controlsByClause,
 
     // Pair indexes
     evidenceByPair,
