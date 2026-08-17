@@ -327,7 +327,6 @@ export default function ExecutiveDashboard({ onNavigate }) {
       <PageHeader
         icon={LayoutDashboard}
         title="Executive Dashboard"
-        tagline="Enterprise Cyber Posture"
         right={
           <div className="flex items-center gap-2">
             <div className="text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>2026</div>

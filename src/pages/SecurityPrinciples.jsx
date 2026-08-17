@@ -179,7 +179,6 @@ export default function SecurityPrinciples({ onNavigate }) {
       <PageHeader
         icon={Shield}
         title="Security Principles"
-        tagline="The Technical Controls Every Procedure Assumes"
         description="The concrete technical requirements every procedure assumes, organized by engineering discipline."
       />
 

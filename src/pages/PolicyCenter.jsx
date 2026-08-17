@@ -122,7 +122,6 @@ export default function PolicyCenter({ onNavigate }) {
       <PageHeader
         icon={FileText}
         title="Policy Center"
-        tagline="ACME Policy Library"
         description="Plain-language policies for every ACME employee, mapped to ISO 27001 and the SCF crosswalk."
       />
 

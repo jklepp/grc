@@ -59,7 +59,6 @@ export default function ScheduledActivities({ onNavigate }) {
       <PageHeader
         icon={CalendarClock}
         title="Governance Schedule"
-        tagline="Control Timeliness"
         description="Every control that runs on a fixed cadence, grouped by activity type and tracked against its real due date."
         descriptionClassName="max-w-none whitespace-nowrap"
       />
@@ -75,17 +74,6 @@ export default function ScheduledActivities({ onNavigate }) {
             >
               {f}
             </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="px-8 pb-5">
-        <div className="rounded-xl p-4 flex items-center gap-2 flex-wrap" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-          {Object.entries(STATUS_META).map(([key, meta]) => (
-            <div key={key} className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md" style={{ background: C.panel2 }}>
-              <span style={{ color: C[meta.color], fontWeight: 700 }}>{meta.symbol}</span>
-              <span style={{ color: C.ink }}>{meta.label}</span>
-            </div>
           ))}
         </div>
       </div>
@@ -203,6 +191,15 @@ export default function ScheduledActivities({ onNavigate }) {
             Past-period completion dates are seed data (this app has no real historical completion log yet); every
             status badge itself is computed live from each item's real due date against today, never hand-typed.
           </span>
+        </div>
+
+        <div className="rounded-xl p-4 flex items-center gap-2 flex-wrap" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+          {Object.entries(STATUS_META).map(([key, meta]) => (
+            <div key={key} className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md" style={{ background: C.panel2 }}>
+              <span style={{ color: C[meta.color], fontWeight: 700 }}>{meta.symbol}</span>
+              <span style={{ color: C.ink }}>{meta.label}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>

@@ -27,11 +27,14 @@ const SB = {
 // further.
 const ITEMS = [
   { id: "overview", label: "Assurance Overview", icon: LayoutDashboard },
-  { id: "data-estate", label: "Enterprise Architecture", icon: Database },
+  { id: "data-estate", label: "Systems", icon: Database },
   { id: "assurance", label: "Controls", icon: ShieldCheck },
   { id: "governance", label: "Governance", icon: Landmark },
-  { id: "graph-explorer", label: "Graph Explorer (Beta)", icon: Share2 },
 ];
+
+// Graph Explorer is rendered separately, pinned above the theme toggle instead
+// of in the main nav list.
+const GRAPH_EXPLORER_ITEM = { id: "graph-explorer", label: "Graph Explorer (Beta)", icon: Share2 };
 
 export default function Sidebar({ expanded, onToggle, active, onSelect, mode, onToggleTheme }) {
   return (
@@ -90,6 +93,30 @@ export default function Sidebar({ expanded, onToggle, active, onSelect, mode, on
           );
         })}
       </nav>
+
+      {/* Graph Explorer, pinned above the theme toggle */}
+      <div className="px-2 pb-0.5">
+        {(() => {
+          const item = GRAPH_EXPLORER_ITEM;
+          const isActive = active === item.id;
+          const Icon = item.icon;
+          return (
+            <button
+              onClick={() => onSelect(item.id)}
+              title={item.label}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors"
+              style={{ background: isActive ? SB.accentBg : "transparent" }}
+            >
+              <Icon size={17} color={isActive ? SB.accent : SB.muted} className="shrink-0" />
+              {expanded && (
+                <span className="text-sm truncate" style={{ color: isActive ? SB.ink : SB.muted }}>
+                  {item.label}
+                </span>
+              )}
+            </button>
+          );
+        })()}
+      </div>
 
       {/* Theme toggle */}
       <button

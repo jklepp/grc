@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import Sidebar from "./components/Sidebar";
-import Assurance from "./pages/Assurance";
-import DataEstate from "./pages/DataEstate";
+import Controls from "./pages/Controls";
+import Systems from "./pages/Systems";
 import Governance from "./pages/Governance";
 import Overview from "./pages/Overview";
 import GraphExplorer from "./pages/GraphExplorer";
@@ -10,8 +10,8 @@ import { C, applyTheme, FONT_IMPORT } from "./theme";
 // Map nav item ids (defined in Sidebar.jsx) to the page component to render.
 // Adding a page = add it to NAV_ITEMS in Sidebar.jsx, then add the case here.
 const PAGES = {
-  assurance: Assurance,
-  "data-estate": DataEstate,
+  assurance: Controls,
+  "data-estate": Systems,
   governance: Governance,
   overview: Overview,
   "graph-explorer": GraphExplorer,

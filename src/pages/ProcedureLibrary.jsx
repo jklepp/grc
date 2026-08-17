@@ -724,7 +724,6 @@ export default function ProcedureLibrary({ onNavigate }) {
       <PageHeader
         icon={ListChecks}
         title="Procedure Library"
-        tagline="ACME SOP Library"
         description={'One Standard Operating Procedure per Assurance Category — the "how" behind each policy\'s "what."'}
         descriptionClassName="max-w-none whitespace-nowrap"
       />

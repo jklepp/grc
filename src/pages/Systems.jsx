@@ -7,7 +7,7 @@ import SystemsRegister from "./SystemsRegister";
 import SystemRegister from "./SystemRegister";
 import AssetRegister from "./AssetRegister";
 
-// Data Estate merges the four former top-level "Data & Assets" pages into one,
+// Systems merges the four former top-level "Data & Assets" pages into one,
 // switched by an in-page tab bar instead of four sidebar entries. Each page's
 // own content is untouched — this is purely a shell around them.
 const TABS = [
@@ -20,7 +20,7 @@ const TABS = [
 
 // `initialTab` lets other pages deep-link into a specific tab (e.g. Executive
 // Dashboard's "Explore Data Footprint" button) via App.jsx's legacy-id map.
-export default function DataEstate({ initialTab }) {
+export default function Systems({ initialTab }) {
   const [tab, setTab] = useState(initialTab || TABS[0].id);
   // Set only by System Register's card selection, and consumed once — as the
   // mount-time default for System Security Profile's own system picker — so
