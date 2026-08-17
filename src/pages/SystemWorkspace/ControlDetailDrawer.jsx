@@ -1,8 +1,8 @@
 import React from "react";
 import { X, Link2 } from "lucide-react";
 import { C } from "../../theme";
-import { PRISMA_LEVELS, COMPLIANCE_LABELS, INSTANCE_STATUS_META } from "../../engine";
-import { STATUS_META, IMPLEMENTATION_META, ratingColor, assetName } from "./controlMeta";
+import { PRISMA_LEVELS, COMPLIANCE_LABELS, INSTANCE_STATUS_META, findingsForSystem, FINDING_STATUS_META, FINDING_SEVERITY_META } from "../../engine";
+import { STATUS_META, IMPLEMENTATION_META, RESPONSIBILITY_META, ratingColor, assetName } from "./controlMeta";
 import { POLICY_BY_CONTROL } from "./policyLookup";
 
 // Right-side slide-over for a single control row's full detail — the primary
@@ -14,7 +14,9 @@ export function ControlDetailDrawer({ row, system, onClose }) {
   const governingPolicy = POLICY_BY_CONTROL[row.control.id];
   const drawerClauses = row.control.frameworks.filter((f) => system.standards.includes(f.standard));
   const statusMeta = STATUS_META[row.status];
+  const respMeta = RESPONSIBILITY_META[row.responsibility];
   const implMeta = IMPLEMENTATION_META.find((m) => m.type === row.control.implementationType);
+  const controlFindings = findingsForSystem(system.id).filter((f) => f.controlId === row.control.id);
 
   return (
     <div className="fixed inset-0 z-20 flex justify-end">
@@ -32,6 +34,11 @@ export function ControlDetailDrawer({ row, system, onClose }) {
             <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded" style={{ background: statusMeta.bg, color: statusMeta.color }}>
               <statusMeta.Icon size={12} /> {statusMeta.label}
             </span>
+            {respMeta && (
+              <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded" style={{ background: respMeta.bg, color: respMeta.color }}>
+                <respMeta.Icon size={12} /> {respMeta.label}
+              </span>
+            )}
             {implMeta && (
               <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded" style={{ background: implMeta.bg, color: implMeta.color }}>
                 <implMeta.Icon size={12} /> {implMeta.type}
@@ -131,6 +138,36 @@ export function ControlDetailDrawer({ row, system, onClose }) {
                     ))}
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {controlFindings.length > 0 && (
+            <div className="rounded-lg p-4 mb-6" style={{ background: C.redBg, border: `1px solid ${C.red}4D` }}>
+              <div className="text-[10px] uppercase tracking-wide mb-2 font-semibold" style={{ color: C.red }}>
+                Findings — {row.control.id}
+              </div>
+              <div className="space-y-2">
+                {controlFindings.map((f) => {
+                  const statusMetaF = FINDING_STATUS_META[f.status];
+                  const severityMetaF = FINDING_SEVERITY_META[f.severity];
+                  return (
+                    <div key={f.id} className="rounded p-2" style={{ background: C.panel }}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs flex-1 min-w-0 truncate" style={{ color: C.ink }}>{f.title}</span>
+                        {severityMetaF && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0" style={{ background: C.panel2, color: C.muted }}>{severityMetaF.label}</span>
+                        )}
+                        {statusMetaF && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0" style={{ background: C.panel2, color: C.muted }}>{statusMetaF.label}</span>
+                        )}
+                      </div>
+                      <div className="text-[11px] mt-1 leading-snug" style={{ color: C.muted }}>
+                        {assetName(system, f.assetId)} · owner {f.ownerName} · due {f.due}{f.overdue && " · OVERDUE"}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

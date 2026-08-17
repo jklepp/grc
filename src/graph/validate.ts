@@ -30,6 +30,7 @@ import { ASSET_KINDS } from "./nodes/assets";
 import { REGULATORY_FLAGS } from "./nodes/dataTypes";
 import { DOMAINS, FRAMEWORKS } from "./nodes/controls";
 import { CERTIFICATION_REPORT_TYPES } from "./nodes/providerCertifications";
+import { SHARED_RESPONSIBILITY_DOMAINS } from "./edges/controlImplementations";
 import { ACTIVITY_FREQUENCIES, PERIODS_PER_YEAR } from "./nodes/scheduledActivities";
 import { EVIDENCE_RESULTS, INDEPENDENCE_LEVELS } from "./nodes/evidence";
 import { SEVERITY_LEVELS, LIKELIHOOD_LEVELS } from "./nodes/risks";
@@ -504,6 +505,45 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
       )
     );
   });
+
+  // ---- Enterprise attestations ------------------------------------------------
+  // No "claimed but unbacked" check is needed here the way provider
+  // certifications need one: graph.enterpriseInheritedDomains is DERIVED from
+  // these records (assemble.ts), so a domain can't be claimed inherited
+  // without one already backing it — the drift the provider-certification
+  // check exists to catch structurally cannot happen on this side.
+  graph.enterpriseAttestations.forEach((a) => {
+    check(has(graph.orgById, a.ownerOrgId), `enterprise attestation ${a.id}: ownerOrgId "${a.ownerOrgId}" is not an org`);
+    check(CERTIFICATION_REPORT_TYPES.includes(a.reportType), `enterprise attestation ${a.id}: reportType "${a.reportType}" is not one of ${CERTIFICATION_REPORT_TYPES.join(", ")}`);
+    check(EVIDENCE_TYPES.includes(a.evidenceType), `enterprise attestation ${a.id}: evidenceType "${a.evidenceType}" is not one of ${EVIDENCE_TYPES.join(", ")}`);
+    check(!Number.isNaN(Date.parse(a.assessedAt)), `enterprise attestation ${a.id}: assessedAt "${a.assessedAt}" is not a parseable date`);
+    check(a.validForDays > 0, `enterprise attestation ${a.id}: validForDays must be positive`);
+    check(a.reference.trim().length > 0, `enterprise attestation ${a.id}: needs a reference naming the actual review`);
+    check(a.domains.length > 0, `enterprise attestation ${a.id}: names no domains — an attestation covering nothing inherits nothing`);
+    a.domains.forEach((d) => check(DOMAINS.includes(d), `enterprise attestation ${a.id}: domain "${d}" is not an SCF domain`));
+  });
+
+  // ---- Shared-responsibility domains -------------------------------------------
+  SHARED_RESPONSIBILITY_DOMAINS.forEach((d) =>
+    check(DOMAINS.includes(d), `SHARED_RESPONSIBILITY_DOMAINS names "${d}", which is not an SCF domain`)
+  );
+
+  // ---- Pending applicability ---------------------------------------------------
+  graph.pendingApplicability.forEach((p, i) => {
+    check(has(graph.systemById, p.systemId), `pendingApplicability[${i}]: systemId "${p.systemId}" is not a system`);
+    check(has(graph.controlById, p.controlId), `pendingApplicability[${i}]: controlId "${p.controlId}" is not a real control`);
+    check(p.reason.trim().length > 0, `pendingApplicability[${i}]: needs a reason — pending without a stated question isn't distinguishable from forgotten`);
+    check(
+      !graph.exceptionByPair[`${p.systemId}::${p.controlId}`],
+      `pendingApplicability[${i}]: ${p.systemId}/${p.controlId} is also recorded as an applicability exception — a control can't be both an already-made decision and an open one`
+    );
+  });
+  const pendingKeys: Record<string, number> = {};
+  graph.pendingApplicability.forEach((p) => {
+    const k = `${p.systemId}::${p.controlId}`;
+    pendingKeys[k] = (pendingKeys[k] ?? 0) + 1;
+  });
+  Object.entries(pendingKeys).forEach(([k, n]) => check(n === 1, `pendingApplicability: ${k} listed ${n} times, expected at most once`));
 
   // ---- PRISMA overrides ------------------------------------------------------
   const overrideKeys: Record<string, number> = {};

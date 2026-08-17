@@ -40,6 +40,8 @@ import type {
 import type { PolicyRecord, ProcedureRecord } from "./nodes/programArtifacts";
 import type { AssessmentScope } from "./nodes/assessmentScope";
 import type { ProviderCertification } from "./nodes/providerCertifications";
+import type { EnterpriseAttestation } from "./nodes/enterpriseAttestations";
+import type { PendingApplicability } from "./nodes/pendingApplicability";
 import type { ScheduledActivityRecord } from "./nodes/scheduledActivities";
 import type { PrismaLevelOverride } from "./edges/prismaOverrides";
 import type { RiskAsset, RiskControl } from "./edges/riskContributors";
@@ -140,6 +142,17 @@ export interface GraphFacts {
   // like the two above — these are primary facts about reports ACME holds.
   providerCertifications: ProviderCertification[];
 
+  // The enterprise-program counterpart: what an Enterprise Inherited domain
+  // stands on, when the domain is run centrally by an ACME program rather than
+  // a vendor. Same rule as provider certifications — a domain claimed
+  // inherited needs a real attestation behind it.
+  enterpriseAttestations: EnterpriseAttestation[];
+
+  // Controls whose applicability is genuinely undecided on a system, as
+  // opposed to decided-and-excepted (applicabilityExceptions) or
+  // decided-and-required (everything else).
+  pendingApplicability: PendingApplicability[];
+
   // ---- System Register cockpit domains -----------------------------------
   // Eight new fact domains backing the assurance-cockpit rework: identity
   // population/coverage, attack surface, vulnerability posture, security
@@ -228,6 +241,8 @@ export interface Graph {
   readonly scheduledActivities: readonly ScheduledActivityRecord[];
   readonly assessmentScopes: readonly AssessmentScope[];
   readonly providerCertifications: readonly ProviderCertification[];
+  readonly enterpriseAttestations: readonly EnterpriseAttestation[];
+  readonly pendingApplicability: readonly PendingApplicability[];
   readonly riskAssets: readonly RiskAsset[];
   readonly riskControls: readonly RiskControl[];
   readonly risksWithoutAssets: Readonly<Record<RiskId, string>>;
@@ -301,6 +316,14 @@ export interface Graph {
   // decide whether a control is scored or reported as unassessed.
   readonly assessedPairs: ReadonlySet<string>;
   readonly certificationsByProvider: Readonly<Record<string, readonly ProviderCertification[]>>;
+  // Every domain at least one enterprise attestation covers — the derived
+  // counterpart to INHERITED_DOMAINS, built from the attestations themselves so
+  // it can never name a domain nothing backs.
+  readonly enterpriseInheritedDomains: ReadonlySet<string>;
+  readonly attestationsByDomain: Readonly<Record<string, readonly EnterpriseAttestation[]>>;
+  // `${systemId}::${controlId}` — pulled out of a system's applicable set and
+  // reported as pending instead.
+  readonly pendingByPair: Readonly<Record<string, PendingApplicability>>;
   // `${systemId}::${controlId}::${level}`, at most one per key.
   readonly prismaOverrideByKey: Readonly<Record<string, PrismaLevelOverride>>;
   readonly activitiesByControl: Readonly<Record<ControlId, readonly ScheduledActivityRecord[]>>;

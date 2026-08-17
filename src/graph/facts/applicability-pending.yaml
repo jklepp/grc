@@ -1,0 +1,55 @@
+# Controls under active applicability review — matched by a rule or framework,
+# but deliberately not yet resolved to Applicable or Not Applicable.
+#
+# Distinct from applicability-exceptions.yaml (an EXCEPTION is a decision
+# already made: "this matched, and here is why it doesn't apply"). A pending
+# entry is the opposite state — nobody has made that call yet — and reporting
+# it as either Applicable or Not Applicable would assert a decision that
+# hasn't happened. engine/applicability.ts pulls a control out of a system's
+# applicable set when it's listed here; engine/compliance.ts reports it in its
+# own bucket instead, with the reason a pending control actually has: what's
+# unresolved, not why it doesn't apply.
+
+- systemId: "SYS-003"
+  controlId: "AAT-07"
+  reason: >
+    AI risk-management decision authority is being redefined alongside the
+    enterprise AI governance program's next revision (see
+    enterprise-attestations.yaml), which hasn't shipped. Assessing decision
+    rights that are themselves mid-rewrite would grade against a moving
+    target.
+
+- systemId: "SYS-003"
+  controlId: "AAT-09"
+  reason: >
+    Risk profiling for agentic use cases depends on the risk-tiering model the
+    AI governance program is revising this quarter — the control clearly
+    applies, but what it requires in practice isn't settled yet.
+
+- systemId: "SYS-003"
+  controlId: "AAT-11"
+  reason: >
+    Stakeholder engagement requirements for the agent platform are being
+    scoped alongside Legal and Product following its expanded tool-calling
+    surface; which stakeholders and what cadence hasn't been decided.
+
+- systemId: "SYS-003"
+  controlId: "AAT-16"
+  reason: >
+    Production monitoring for autonomous behavior depends on telemetry the
+    platform team has scoped but not fully deployed — the control's premise
+    isn't testable against what's instrumented today.
+
+- systemId: "SYS-003"
+  controlId: "AAT-17"
+  reason: >
+    Harm-prevention thresholds for agentic output are under review with
+    Product following the platform's expanded tool-calling scope this
+    quarter; where the line sits hasn't been decided.
+
+- systemId: "SYS-003"
+  controlId: "AAT-18"
+  reason: >
+    Risk-tracking for AI-specific findings is being folded into the general
+    findings register rather than a parallel AI risk log — the mechanism is
+    being decided, not yet the answer.

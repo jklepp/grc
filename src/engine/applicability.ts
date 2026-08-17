@@ -260,7 +260,30 @@ export function createApplicability(graph: Graph, classification: Classification
     // Filtered back through inScopeControls so a rule cannot drag in a control
     // that cites no framework clause at all — that one is out of scope
     // everywhere, and validate.ts already refuses to let a scope name it.
-    return graph.inScopeControls.filter((c) => byStandard.has(c.id)) as Control[];
+    //
+    // A control listed in graph.pendingByPair matched here — that's exactly
+    // what makes it pending rather than moot — but is held out of the
+    // resolved applicable set until the open question behind it is answered.
+    // pendingControlsForSystem (below) is where it's reported instead.
+    return graph.inScopeControls.filter(
+      (c) => byStandard.has(c.id) && !graph.pendingByPair[`${systemId}::${c.id}`]
+    ) as Control[];
+  }
+
+  // Controls that matched a system's applicability the same way any other
+  // does, but that a pendingApplicability record pulls out of the resolved
+  // set above — reported with the open question, not silently dropped.
+  function pendingControlsForSystem(systemId: SystemId): { control: Control; reason: string }[] {
+    const system = graph.systemById[systemId];
+    const byStandard = new Set(controlsForStandards(system.standards).map((c) => c.id));
+    (graph.assetsBySystem[systemId] ?? []).forEach((asset) => {
+      (requiredByAsset[asset.id] ?? []).forEach((id) => byStandard.add(id));
+    });
+    (programBySystem[systemId] ?? []).forEach((id) => byStandard.add(id));
+
+    return graph.pendingApplicability
+      .filter((p) => p.systemId === systemId && byStandard.has(p.controlId))
+      .map((p) => ({ control: graph.controlById[p.controlId] as Control, reason: p.reason }));
   }
 
   // Built once. Every coverage figure and every control matrix walks this.
@@ -277,6 +300,7 @@ export function createApplicability(graph: Graph, classification: Classification
     programControlsForSystem,
     controlsForStandards,
     applicableControlsForSystem: (systemId: SystemId) => applicableBySystem[systemId] ?? [],
+    pendingControlsForSystem,
     PROGRAM_CONTROL_IDS: programControlIds,
   };
 }

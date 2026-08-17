@@ -55,6 +55,21 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
     );
   });
 
+  // A pending applicability entry only means something if the control would
+  // otherwise have resolved applicable — the same failure mode as the
+  // exception check above, one state over. A control no framework or rule
+  // ever matched isn't "undecided," it's just not applicable, and marking it
+  // pending would misreport it as a live open question.
+  graph.pendingApplicability.forEach((p) => {
+    const stillPending = applicability
+      .pendingControlsForSystem(p.systemId)
+      .some((x) => x.control.id === p.controlId);
+    check(
+      stillPending,
+      `pendingApplicability ${p.systemId}/${p.controlId}: no framework or applicability rule ever matches this control on this system, so there is no open question to be pending about — remove it or fix what it was meant to gate`
+    );
+  });
+
   // An override or a not-implemented declaration against a control that doesn't
   // apply is a claim about something that isn't there.
   graph.implementationOverrides.forEach((o) => {

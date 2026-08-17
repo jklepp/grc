@@ -39,6 +39,8 @@ import { BASIS } from "../graph/nodes/taxonomy";
 import type { AssessmentApi, ControlAssessment } from "./assessment";
 import type { ApplicabilityApi } from "./applicability";
 import { mean, assuranceBand, display } from "./assurance";
+import { inheritsDomain } from "../graph/nodes/systems";
+import { RESPONSIBILITIES, SHARED_RESPONSIBILITY_DOMAINS, type Responsibility } from "../graph/edges/controlImplementations";
 import type { SystemId, ControlId } from "../graph/ids";
 
 export const COVERAGE_STATES = ["measured", "inherited", "assessed", "unassessed"];
@@ -194,6 +196,84 @@ export function createCompliance(
     };
   }
 
+  // ---- Applicability and responsibility --------------------------------------
+  // Two axes the matrix above doesn't answer. systemControlMatrix only ever
+  // walked the applicable set — a control that doesn't apply was invisible,
+  // not reported as excluded. And every row it does carry reads as ACME's own
+  // regardless of who actually operates it. Both are real, both are derivable
+  // from facts already in the graph, and neither changes a score: this is a
+  // second read of the same assessments, not a new one.
+
+  // Who actually runs a control on a system, independent of whether it was
+  // assessed. Order of resolution: an explicit per-pair mechanism record (the
+  // most specific fact available) beats the domain defaults below it, which
+  // in turn only apply because nothing more specific was authored — the same
+  // "sparse authoring, honest default" convention ImplementationMechanism
+  // already uses for the internal default.
+  function responsibilityForControl(systemId: SystemId, controlId: ControlId): Responsibility {
+    const system = graph.systemById[systemId];
+    const control = graph.controlById[controlId];
+    if (!system || !control) return RESPONSIBILITIES.INTERNAL;
+
+    const explicit = (graph.assetsBySystem[systemId] ?? [])
+      .map((a) => graph.mechanismByPair[`${a.id}::${controlId}`])
+      .find((m) => m?.responsibility)?.responsibility;
+    if (explicit) return explicit;
+
+    const domain = control.domain;
+    if (inheritsDomain(system.hostingType, domain)) return RESPONSIBILITIES.VENDOR;
+    if (graph.enterpriseInheritedDomains.has(domain)) return RESPONSIBILITIES.ENTERPRISE;
+    if (SHARED_RESPONSIBILITY_DOMAINS.includes(domain)) return RESPONSIBILITIES.SHARED;
+    return RESPONSIBILITIES.INTERNAL;
+  }
+
+  // A control this system's applicability never resolved to Applicable or
+  // Pending — reported with the honest generic reason (no certifying
+  // framework and no matching rule) rather than silently absent from every
+  // count. Per-asset exceptions still carry their own specific reason; this is
+  // the system-level read for a control no asset-level machinery even
+  // considered.
+  function notApplicableControlsForSystem(systemId: SystemId): { control: Control; reason: string }[] {
+    const system = graph.systemById[systemId];
+    const applicableIds = new Set(applicability.applicableControlsForSystem(systemId).map((c) => c.id));
+    const pendingIds = new Set(applicability.pendingControlsForSystem(systemId).map((p) => p.control.id));
+    return graph.inScopeControls
+      .filter((c) => !applicableIds.has(c.id) && !pendingIds.has(c.id))
+      .map((control) => ({
+        control,
+        reason: `No framework ${system.name} certifies against (${system.standards.join(", ")}) cites ${control.id}, and no applicability rule matches an asset in this boundary.`,
+      }));
+  }
+
+  // The header block a Controls page reads: the full in-scope catalog against
+  // one system, split into Applicable (with its responsibility breakdown),
+  // Not Applicable, and Pending — the three-way split systemControlMatrix
+  // never made because it only ever walked the applicable rows.
+  function controlApplicabilitySummary(systemId: SystemId) {
+    const applicable = applicability.applicableControlsForSystem(systemId);
+    const pending = applicability.pendingControlsForSystem(systemId);
+    const notApplicable = notApplicableControlsForSystem(systemId);
+
+    const byResponsibility = { owned: 0, shared: 0, enterprise: 0, vendor: 0 };
+    applicable.forEach((c) => {
+      const r = responsibilityForControl(systemId, c.id);
+      if (r === RESPONSIBILITIES.VENDOR) byResponsibility.vendor += 1;
+      else if (r === RESPONSIBILITIES.ENTERPRISE) byResponsibility.enterprise += 1;
+      else if (r === RESPONSIBILITIES.SHARED) byResponsibility.shared += 1;
+      else byResponsibility.owned += 1;
+    });
+
+    return {
+      total: graph.inScopeControls.length,
+      applicable: applicable.length,
+      byResponsibility,
+      notApplicable: notApplicable.length,
+      notApplicableControls: notApplicable,
+      pending: pending.length,
+      pendingControls: pending,
+    };
+  }
+
   // ---- Framework posture ----------------------------------------------------
   // A clause is as covered as the controls that satisfy it, across every system
   // certifying against that framework. This is the payoff the old model couldn't
@@ -344,6 +424,9 @@ export function createCompliance(
     controlCoverageForSystem,
     systemControlMatrix,
     systemCoverageBreakdown,
+    responsibilityForControl,
+    notApplicableControlsForSystem,
+    controlApplicabilitySummary,
     SYSTEM_COVERAGE: Object.fromEntries(graph.systems.map((s) => [s.id, systemCoverageBreakdown(s.id)])),
     clauseCoverage,
     frameworkPosture,

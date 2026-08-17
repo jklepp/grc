@@ -61,11 +61,34 @@ import type { AssetId, ControlId, OrgId, FindingId, SystemId } from "../ids";
 // config APIs (observation, 90); a SaaS vendor hands over an annual SOC 2 PDF
 // (auditor examination, 75). Same scale, same decay, same ceiling.
 export const RESPONSIBILITIES = {
-  INTERNAL: "internal", // an ACME team runs it
-  VENDOR: "vendor", // the provider runs it; we review their evidence
-  SHARED: "shared", // provider secures the platform, ACME configures it
+  INTERNAL: "internal", // an ACME team runs it, scoped to this system — System Owned
+  VENDOR: "vendor", // the provider runs it; we review their evidence — Vendor Inherited
+  SHARED: "shared", // provider secures the platform, ACME configures it — Shared Responsibility
+  // A central ACME program runs it once, the same way, for every system in the
+  // register — not this system's team, and not a vendor. Enterprise IAM,
+  // vulnerability management, and incident response are the shape: one team,
+  // one process, attested once (graph/nodes/enterpriseAttestations.ts) and
+  // inherited by every boundary rather than re-proven per system.
+  ENTERPRISE: "enterprise", // Enterprise Inherited
 } as const;
 export type Responsibility = (typeof RESPONSIBILITIES)[keyof typeof RESPONSIBILITIES];
+
+// Domains where the provider secures the platform and ACME configures it —
+// SHARED by nature of the domain, not because someone happened to type
+// `responsibility: "shared"` on one pair. Unlike VENDOR/ENTERPRISE this
+// carries no scoring effect: the control is still assessed (or not) exactly
+// as any other, this only changes which responsibility bucket it displays
+// under. A specific (asset, control) pair can still override this default via
+// ImplementationMechanism.responsibility, the same way one can already
+// override the internal default.
+export const SHARED_RESPONSIBILITY_DOMAINS: string[] = [
+  "Cloud Security",
+  "Cryptographic Protections",
+  "Network Security",
+  "Configuration Management",
+  "Change Management",
+  "Endpoint Security",
+];
 
 // ---- The per-implementation facts a person owns -------------------------------
 // `mechanism` is the HOW, and it genuinely did not exist anywhere in the model

@@ -11,6 +11,14 @@
   standards:
     - "SOC 2"
     - "ISO 27001"
+    # Added alongside the applicability/responsibility rework below: this is
+    # ACME's AI platform, and ISO 42001 (the AI management-system standard) is
+    # the framework whose clauses actually name the AI-governance, model-risk,
+    # and agentic controls this boundary holds. Certifying against SOC 2/ISO
+    # 27001 alone left every AAT-domain control not already framework-mapped
+    # elsewhere reading as "not applicable," which was false — they apply,
+    # nothing had named the standard that says so.
+    - "ISO 42001"
   mission: "ACME's core AI product platform — the model-serving, retrieval-augmented generation (RAG),
     and API layer that powers ACME's customer-facing AI features, from the public ingress point down
     through the customer data it draws on to answer queries."

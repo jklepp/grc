@@ -257,6 +257,8 @@ export function assembleGraph(facts: GraphFacts): Graph {
     scheduledActivities: facts.scheduledActivities,
     assessmentScopes: facts.assessmentScopes,
     providerCertifications: facts.providerCertifications,
+    enterpriseAttestations: facts.enterpriseAttestations,
+    pendingApplicability: facts.pendingApplicability,
     riskAssets: facts.riskAssets,
     riskControls: facts.riskControls,
     risksWithoutAssets: facts.risksWithoutAssets,
@@ -305,6 +307,15 @@ export function assembleGraph(facts: GraphFacts): Graph {
     assessmentScopeBySystem: keyBy(facts.assessmentScopes, (s) => s.systemId),
     assessedPairs,
     certificationsByProvider: groupBy(facts.providerCertifications, (c) => c.provider),
+    enterpriseInheritedDomains: new Set(facts.enterpriseAttestations.flatMap((a) => a.domains)),
+    attestationsByDomain: (() => {
+      const out: Record<string, (typeof facts.enterpriseAttestations)[number][]> = {};
+      facts.enterpriseAttestations.forEach((a) => {
+        a.domains.forEach((d) => (out[d] ||= []).push(a));
+      });
+      return out;
+    })(),
+    pendingByPair: keyBy(facts.pendingApplicability, (p) => pair(p.systemId, p.controlId)),
     prismaOverrideByKey: keyBy(facts.prismaOverrides, (o) => `${o.systemId}::${o.controlId}::${o.level}`),
     activitiesByControl: (() => {
       const byControl: Record<string, (typeof facts.scheduledActivities)[number][]> = {};

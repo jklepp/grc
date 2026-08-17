@@ -115,6 +115,10 @@ export const ENTERPRISE_COVERAGE = compliance.ENTERPRISE_COVERAGE;
 export const IN_SCOPE_FRAMEWORKS = compliance.IN_SCOPE_FRAMEWORKS;
 export const SYSTEM_COVERAGE = compliance.SYSTEM_COVERAGE;
 export const programControlReach = compliance.programControlReach;
+export const responsibilityForControl = compliance.responsibilityForControl;
+export const notApplicableControlsForSystem = compliance.notApplicableControlsForSystem;
+export const controlApplicabilitySummary = compliance.controlApplicabilitySummary;
+export const pendingControlsForSystem = engine.applicability.pendingControlsForSystem;
 
 // Profile
 export const CONTROL_PROFILES = profile.CONTROL_PROFILES;
@@ -178,6 +182,8 @@ export { IR_FUNCTIONS } from "../graph/nodes/irExercises";
 export { VENDOR_CATEGORIES } from "../graph/nodes/vendors";
 export { REGULATORY_FLAGS } from "../graph/nodes/dataTypes";
 export { AVAILABILITY_TIERS, HOSTING_TYPES, INHERITED_DOMAINS, DATA_SUBJECT_TYPES } from "../graph/nodes/systems";
+export { RESPONSIBILITIES, SHARED_RESPONSIBILITY_DOMAINS } from "../graph/edges/controlImplementations";
+export type { Responsibility } from "../graph/edges/controlImplementations";
 export { ASSET_KINDS } from "../graph/nodes/assets";
 export type { CockpitItem } from "./cockpit";
 export {

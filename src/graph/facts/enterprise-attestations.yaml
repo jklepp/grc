@@ -1,0 +1,104 @@
+# Enterprise attestations — what ACME's Enterprise Inherited controls actually stand on.
+#
+# The counterpart to provider-certifications.yaml. INHERITED_DOMAINS
+# (src/graph/nodes/systems.ts) says a vendor covers a domain under its own
+# certification; this says a central ACME program covers a domain the same way,
+# for every system in the register, rather than each system's own team proving
+# it independently. The claim only scores because a real internal review backs
+# it — src/graph/validate.ts fails the build if a domain is claimed here with
+# nothing behind it, the same rule provider certifications are held to.
+#
+# `evidenceType` is the same seven-value scale every other piece of evidence in
+# this graph uses. A self-run program's internal audit sits below the grade the
+# engine treats as ACME-verified for the system itself, which is what holds an
+# enterprise-inherited control below one this system proved on its own — not a
+# penalty for centralizing the work, the honest ceiling on any control ACME
+# didn't re-test at the system boundary.
+
+- id: "ATT-AI-GOV-2026"
+  program: "Enterprise AI Governance Program"
+  ownerOrgId: "grc"
+  reportType: "type-2"
+  evidenceType: "Auditor examination"
+  assessedAt: "2026-04-01"
+  validForDays: 365
+  domains:
+    - "Artificial Intelligence & Autonomous Technologies"
+  reference: >
+    FY26 internal audit of the enterprise AI governance program — model risk
+    tiering, use-case intake, and the AI use policy every system serving a
+    model or agent inherits from, rather than re-establishing its own.
+
+- id: "ATT-IAM-2026"
+  program: "Enterprise Identity & Access Program"
+  ownerOrgId: "it-security"
+  reportType: "type-2"
+  evidenceType: "Auditor examination"
+  assessedAt: "2026-03-10"
+  validForDays: 365
+  domains:
+    - "Identification & Authentication"
+  reference: >
+    FY26 internal audit of the enterprise identity program — SSO enrollment,
+    MFA enforcement, and joiner/mover/leaver provisioning run centrally through
+    Okta, rather than each system administering its own identity store.
+
+- id: "ATT-SECOPS-2026"
+  program: "Enterprise Security Operations Program"
+  ownerOrgId: "secops"
+  reportType: "type-2"
+  evidenceType: "Auditor examination"
+  assessedAt: "2026-02-20"
+  validForDays: 365
+  domains:
+    - "Continuous Monitoring"
+    - "Vulnerability & Patch Management"
+  reference: >
+    FY26 internal audit of the enterprise vulnerability management and
+    security-monitoring program — the fleet-wide scan cadence and SIEM
+    correlation rules every system's telemetry feeds into, rather than each
+    system running its own scanning and monitoring program.
+
+- id: "ATT-IR-2026"
+  program: "Enterprise Incident Response Program"
+  ownerOrgId: "it-security-soc"
+  reportType: "type-2"
+  evidenceType: "Auditor examination"
+  assessedAt: "2026-01-15"
+  validForDays: 365
+  domains:
+    - "Incident Response"
+  reference: >
+    FY26 internal audit of the enterprise incident-response program — the
+    on-call rotation, playbooks, and tabletop cadence every system's incidents
+    escalate into, rather than each system standing up its own IR process.
+
+- id: "ATT-PEOPLE-SEC-2026"
+  program: "Enterprise People Security Program"
+  ownerOrgId: "hr-operations"
+  reportType: "type-1"
+  evidenceType: "Document"
+  assessedAt: "2026-03-25"
+  validForDays: 365
+  domains:
+    - "Human Resources Security"
+    - "Security Awareness & Training"
+  reference: >
+    FY26 review of the enterprise people-security program — background
+    screening at hire, the security awareness curriculum, and annual training
+    completion tracking, run once for every ACME employee rather than per
+    system.
+
+- id: "ATT-ASSET-MGMT-2026"
+  program: "Enterprise IT Asset Management Program"
+  ownerOrgId: "it"
+  reportType: "type-1"
+  evidenceType: "Document"
+  assessedAt: "2026-02-05"
+  validForDays: 365
+  domains:
+    - "Asset Management"
+  reference: >
+    FY26 review of the enterprise asset-management program — the CMDB
+    reconciliation and asset-lifecycle process every system's inventory rolls
+    up into, rather than each system maintaining an independent register.

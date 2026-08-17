@@ -155,6 +155,8 @@ export const YAML_FACTS: GraphFacts = {
   boardMaterialRiskIds: read("board-material-risks"),
   assessmentScopes: read("assessment-scope"),
   providerCertifications: read("provider-certifications"),
+  enterpriseAttestations: read("enterprise-attestations"),
+  pendingApplicability: read("applicability-pending"),
 
   // System Register cockpit domains
   identityPopulations: read("identity-populations"),

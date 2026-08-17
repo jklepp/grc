@@ -278,6 +278,40 @@ export function createAssessment(
     return (graph.certificationsByProvider[provider] ?? []).find((c) => c.domains.includes(domain)) ?? null;
   }
 
+  // An enterprise attestation adapted to the exact shape a provider
+  // certification carries, so the inherited rating functions in engine/levels.ts
+  // — written once, for a vendor's report — need no awareness that this
+  // source is a central ACME program rather than a vendor's auditor. Same
+  // scale, same decay, same ceiling; only who ran the review differs, and that
+  // lives in `provider` either way.
+  function enterpriseCertificationFor(domain: string): ProviderCertification | null {
+    const attestation = (graph.attestationsByDomain[domain] ?? [])[0];
+    if (!attestation) return null;
+    return {
+      id: attestation.id,
+      provider: attestation.program,
+      standard: "Internal attestation",
+      reportType: attestation.reportType,
+      evidenceType: attestation.evidenceType,
+      issuedAt: attestation.assessedAt,
+      validForDays: attestation.validForDays,
+      domains: attestation.domains,
+      reference: attestation.reference,
+    };
+  }
+
+  // The Managed rung for a vendor-run domain asks "is the vendor relationship
+  // itself on a reassessment cadence" (vendorReviewActivities, below). For an
+  // enterprise-run domain there is no vendor to reassess — the equivalent
+  // question is whether anything on the calendar actually revisits the
+  // domain the central program covers, so an enterprise-inherited control
+  // isn't "Managed" purely because a review happened once at attestation time.
+  function domainReviewActivity(domain: string) {
+    return withOverdue(
+      graph.scheduledActivities.filter((a) => a.controlIds.some((cid) => graph.controlById[cid]?.domain === domain))
+    )[0] ?? null;
+  }
+
   function certificationExpired(cert: ProviderCertification): boolean {
     const age = Math.floor((ctx.now.getTime() - Date.parse(cert.issuedAt)) / DAY_MS);
     return age > cert.validForDays;
@@ -296,7 +330,13 @@ export function createAssessment(
     const category = categoryForDomain(domain);
 
     const applicable = applicability.applicableControlsForSystem(systemId).some((c) => c.id === controlId);
-    const inherited = inheritsDomain(system.hostingType, domain);
+    // Vendor inheritance first — a domain a system's own hosting arrangement
+    // hands to its provider. Enterprise inheritance only applies where vendor
+    // inheritance doesn't, so a domain can't claim two inheritance sources at
+    // once.
+    const vendorInherited = inheritsDomain(system.hostingType, domain);
+    const enterpriseInherited = !vendorInherited && graph.enterpriseInheritedDomains.has(domain);
+    const inherited = vendorInherited || enterpriseInherited;
     const inScope = graph.assessedPairs.has(`${systemId}::${controlId}`);
     const assessed = inScope || inherited;
 
@@ -372,9 +412,10 @@ export function createAssessment(
     let certification: ProviderCertification | null = null;
 
     if (inherited && !inScope) {
-      certification = certificationFor(systemId, domain);
+      certification = vendorInherited ? certificationFor(systemId, domain) : enterpriseCertificationFor(domain);
       const expired = certification ? certificationExpired(certification) : false;
-      implementedLevel = rateInheritedImplemented({ controlId, certification, provider: system.provider, expired, domain });
+      const inheritedProvider = certification?.provider ?? system.provider;
+      implementedLevel = rateInheritedImplemented({ controlId, certification, provider: inheritedProvider, expired, domain });
       measuredLevel = rateInheritedMeasured({ certification, domain });
 
       // ACME's own Managed responsibility for something a vendor runs is
@@ -382,9 +423,13 @@ export function createAssessment(
       // DOMAIN of the controls an activity cites rather than by an id prefix —
       // "TPM-" happens to spell third-party management today, and a model that
       // reads meaning out of an id string breaks the first time one is renamed.
+      //
+      // An enterprise-run domain has no vendor relationship to reassess — its
+      // Managed rung reads whether anything on the calendar actually revisits
+      // the domain the central program covers (domainReviewActivity) instead.
       managedLevel = rateInheritedManaged({
-        provider: system.provider,
-        vendorReview: vendorReviewActivities[0] ?? null,
+        provider: inheritedProvider,
+        vendorReview: vendorInherited ? (vendorReviewActivities[0] ?? null) : domainReviewActivity(domain),
       });
     } else {
       const counted = instances.filter((i) => i.status !== "not-applicable");

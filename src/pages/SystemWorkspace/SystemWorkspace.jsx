@@ -4,7 +4,7 @@ import {
   getAllSystems, systemControlMatrix, dataTypesForSystem,
   cockpitSummary, identityPostureForSystem, exposureForSystem, securityTestsForSystem,
   resilienceForSystem, irForSystem, vendorsForSystem, vulnerabilitiesForSystem, sdlcForSystem,
-  topRisksForSystem,
+  topRisksForSystem, controlApplicabilitySummary, responsibilityForControl, systemCoverageBreakdown,
 } from "../../engine";
 import { SUB_TABS } from "./tabs";
 import { STATUS_ORDER } from "./controlMeta";
@@ -38,8 +38,26 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   const [selectedRow, setSelectedRow] = useState(null);
 
   const system = SYSTEMS.find((s) => s.id === systemId);
-  const matrix = useMemo(() => systemControlMatrix(system.id), [system]);
+  const matrix = useMemo(
+    () => systemControlMatrix(system.id).map((row) => ({
+      ...row,
+      responsibility: responsibilityForControl(system.id, row.controlId),
+    })),
+    [system]
+  );
   const referencedPolicies = useMemo(() => getReferencedPolicies(matrix), [matrix]);
+  const applicabilitySummary = useMemo(() => controlApplicabilitySummary(system.id), [system]);
+  const coverageBreakdown = useMemo(() => systemCoverageBreakdown(system.id), [system]);
+  // Three separately-meaningful numbers, not one score read three ways:
+  // compliance asks whether what was assessed holds, assurance is the
+  // criticality-weighted rollup across every category, coverage asks how much
+  // of what applies was ever looked at. See CLAUDE.md — keeping these apart is
+  // a project rule, not a UI choice.
+  const posture = useMemo(() => ({
+    compliance: coverageBreakdown.coveredPct,
+    assurance: system.overallAssurance,
+    coverage: coverageBreakdown.assessedPct,
+  }), [coverageBreakdown, system]);
 
   const cockpit = useMemo(() => cockpitSummary(system.id), [system]);
   const identity = useMemo(() => identityPostureForSystem(system.id), [system]);
@@ -123,6 +141,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         <SystemControls
           matrix={matrix} statusCounts={statusCounts} filtered={filtered} domains={domains}
           referencedPolicies={referencedPolicies}
+          applicabilitySummary={applicabilitySummary} posture={posture}
           query={query} setQuery={setQuery}
           domainFilter={domainFilter} setDomainFilter={setDomainFilter}
           statusFilter={statusFilter} setStatusFilter={setStatusFilter}
