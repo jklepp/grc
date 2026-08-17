@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from "react";
-import { Network, AlertTriangle, X, KeyRound, User, Cpu, Database, Workflow, LayoutList, Download, Loader2 } from "lucide-react";
+import { Network, AlertTriangle, X, KeyRound, User, Cpu, Database, Workflow, LayoutList, Download, Loader2, UserCog, Rocket, Fingerprint } from "lucide-react";
 import { C, CLASS_META } from "../theme";
 import { PageHeader } from "../components/Headings";
 import { ClassificationTag, AssuranceBadge, SystemPicker } from "../components/SystemBadges";
@@ -30,6 +30,7 @@ function colorFor(key) {
 function naFill() {
   return `color-mix(in srgb, ${C.na} 60%, black)`;
 }
+
 
 function AssuranceChip({ label, value, band }) {
   const { color, bg } = colorFor(band.color);
@@ -68,7 +69,7 @@ function AssuranceRiskCard({ title, risk }) {
 // because the deepest stage the walk reaches is just as often an internal
 // worker or log feed as an actual boundary component.
 function stageLabel(depth) {
-  if (depth === 0) return "Ingress";
+  if (depth === 0) return "Web Ingress";
   return `Stage ${depth}`;
 }
 
@@ -141,7 +142,7 @@ function ActorCard({ actor }) {
   return (
     <div
       className="rounded-xl overflow-hidden shrink-0 text-left p-2 flex flex-col"
-      style={{ background: C.panel, border: `1px solid ${C.border}`, width: ACTOR_CARD_WIDTH, height: 76 }}
+      style={{ background: C.panel, border: `1px solid ${C.border}`, width: ACTOR_CARD_WIDTH }}
     >
       <div className="flex items-center justify-between gap-1.5 mb-1">
         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ background: isHuman ? C.accent : naFill(), color: "#fff" }}>
@@ -155,9 +156,10 @@ function ActorCard({ actor }) {
   );
 }
 
-function SectionLabel({ children, hint }) {
+function SectionLabel({ children, hint, icon: Icon }) {
   return (
     <div className="flex items-center gap-2 mb-1.5">
+      {Icon && <Icon size={12} color={C.accent} />}
       <span
         className="text-[10px] uppercase tracking-widest font-semibold leading-none"
         style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}
@@ -169,11 +171,11 @@ function SectionLabel({ children, hint }) {
   );
 }
 
-function ActorRow({ actorAccess, title, hint, isFirst }) {
+function ActorRow({ actorAccess, title, hint, icon, isFirst }) {
   if (actorAccess.length === 0) return null;
   return (
     <div className="flex flex-col items-start w-full" style={isFirst ? undefined : { marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
-      <SectionLabel hint={hint}>{title}</SectionLabel>
+      <SectionLabel hint={hint} icon={icon}>{title}</SectionLabel>
       <div className="flex flex-wrap items-start justify-center gap-3 w-full">
         {actorAccess.map(({ actor }) => (
           <ActorCard key={actor.id} actor={actor} />
@@ -186,7 +188,7 @@ function ActorRow({ actorAccess, title, hint, isFirst }) {
 function StageRow({ stage, isFirst, selectedKey, onSelectNode, rolesFor }) {
   return (
     <div className="flex flex-col items-start w-full" style={isFirst ? undefined : { marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
-      <SectionLabel>{stageLabel(stage.depth)}</SectionLabel>
+      <SectionLabel icon={Cpu}>{stageLabel(stage.depth)}</SectionLabel>
       <div className="flex flex-wrap items-start justify-center gap-3 w-full">
         {stage.nodes.map((asset) => (
           <NodeCard key={asset.id} asset={asset} footer={rolesFor(asset.id)?.join(" · ")} selected={asset.id === selectedKey} onSelect={onSelectNode} compact />
@@ -196,11 +198,67 @@ function StageRow({ stage, isFirst, selectedKey, onSelectNode, rolesFor }) {
   );
 }
 
-function EgressRow({ egress, isFirst, selectedKey, onSelectNode, rolesFor }) {
+function WorkforceIngressRow({ ingress, selectedKey, onSelectNode }) {
+  if (ingress.length === 0) return null;
   return (
-    <div className="flex flex-col items-start w-full" style={isFirst ? undefined : { marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
-      <SectionLabel>Egress</SectionLabel>
+    <div className="flex flex-col items-start w-full" style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
+      <SectionLabel icon={Fingerprint} hint="how workforce (employee/admin) traffic reaches a privileged asset — a separate path from the customer/partner request path above">
+        Ingress - Workforce
+      </SectionLabel>
       <div className="flex flex-wrap items-start justify-center gap-3 w-full">
+        {ingress.map(({ asset, grantsAccessTo }) => (
+          <NodeCard
+            key={asset.id}
+            asset={asset}
+            footer={grantsAccessTo.length > 0 ? `grants access to ${grantsAccessTo.map((p) => p.code).join(" · ")}` : null}
+            selected={asset.id === selectedKey}
+            onSelect={onSelectNode}
+            compact
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Column variants of ActorRow/StageRow/EgressRow: same label-over-cards
+// shape, but sized to sit side-by-side in a two-column row instead of
+// stacking full-width, and with no border-top/isFirst logic of their own —
+// that separator belongs to the row wrapping them, not to each column.
+function ActorColumn({ actorAccess, title, hint, icon }) {
+  if (!actorAccess || actorAccess.length === 0) return null;
+  return (
+    <div className="flex-1 min-w-0 flex flex-col items-center">
+      <SectionLabel hint={hint} icon={icon}>{title}</SectionLabel>
+      <div className="flex flex-wrap items-start justify-center gap-3 w-full">
+        {actorAccess.map(({ actor }) => (
+          <ActorCard key={actor.id} actor={actor} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StageColumn({ stage, selectedKey, onSelectNode, rolesFor }) {
+  if (!stage) return null;
+  return (
+    <div className="flex-1 min-w-0 flex flex-col items-center">
+      <SectionLabel>{stageLabel(stage.depth)}</SectionLabel>
+      <div className="flex flex-wrap items-start justify-center gap-3 w-full pt-2">
+        {stage.nodes.map((asset) => (
+          <NodeCard key={asset.id} asset={asset} footer={rolesFor(asset.id)?.join(" · ")} selected={asset.id === selectedKey} onSelect={onSelectNode} compact />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EgressColumn({ egress, selectedKey, onSelectNode, rolesFor }) {
+  if (!egress || egress.length === 0) return null;
+  return (
+    <div className="flex-1 min-w-0 flex flex-col items-center">
+      <SectionLabel>Web Egress</SectionLabel>
+      <div className="flex flex-wrap items-start justify-center gap-3 w-full pt-2">
         {egress.map(({ asset }) => (
           <NodeCard key={asset.id} asset={asset} footer={rolesFor(asset.id)?.join(" · ")} selected={asset.id === selectedKey} onSelect={onSelectNode} compact />
         ))}
@@ -209,8 +267,26 @@ function EgressRow({ egress, isFirst, selectedKey, onSelectNode, rolesFor }) {
   );
 }
 
+// The vertical rule between columns — dotted blue, matching the Outside
+// Trust Boundary box these rows always sit inside — only drawn when both
+// columns actually have content, since a lone column has nothing to divide.
+function TwoColumnRow({ isFirst, left, right }) {
+  if (!left && !right) return null;
+  return (
+    <div className="flex items-start gap-6 w-full" style={isFirst ? undefined : { marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
+      {left}
+      {left && right && <div className="shrink-0 self-stretch" style={{ borderLeft: `2px dotted ${C.amber}` }} />}
+      {right}
+    </div>
+  );
+}
+
 function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
-  if (layout.stages.length === 0 && layout.dataPlane.length === 0 && layout.egress.length === 0) {
+  if (
+    layout.stages.length === 0 && layout.dataPlane.length === 0 && layout.egress.length === 0
+    && (!layout.softwareDeployment || layout.softwareDeployment.length === 0)
+    && (!layout.workforceIngress || layout.workforceIngress.length === 0)
+  ) {
     return (
       <div className="rounded-2xl p-8 text-center text-sm" style={{ background: C.panel2, border: `1px dashed ${C.border}`, color: C.muted }}>
         No asset in this boundary carries the selected data type.
@@ -219,77 +295,204 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
   }
   const hasIngressActors = layout.ingressActors && layout.ingressActors.length > 0;
   const hasEgressActors = layout.egressActors && layout.egressActors.length > 0;
+  const hasInternalActors = layout.internalActors && layout.internalActors.length > 0;
+  const hasWorkforceIngress = layout.workforceIngress && layout.workforceIngress.length > 0;
+  // Ingress - Web is specifically the depth-0 stage (see stageLabel), which
+  // pairs with Egress as row two. Any deeper stage (Stage 1, Stage 2, ...) is
+  // internal processing — ACME-operated, same as the data/control plane below
+  // it — so it renders inside the trust boundary rather than above it.
+  const ingressWebStage = layout.stages.find((s) => s.depth === 0);
+  const remainingStages = layout.stages.filter((s) => s.depth !== 0);
+
+  const hasBoundaryStages = remainingStages.length > 0;
+  const hasActorsBlock = hasInternalActors || hasWorkforceIngress;
+  const hasDataPlane = layout.dataPlane.length > 0;
+  const hasControlPlane = layout.branches.length > 0;
+  const hasSoftwareDeployment = layout.softwareDeployment && layout.softwareDeployment.length > 0;
+  const hasTrustedSection = hasBoundaryStages || hasActorsBlock || hasDataPlane || hasControlPlane || hasSoftwareDeployment;
+  // Which of the (fixed-order) boundary sections is first — that one skips
+  // the top separator every other present section gets.
+  const firstBoundarySection = [
+    hasBoundaryStages && "stages",
+    hasActorsBlock && "actors",
+    hasDataPlane && "dataPlane",
+    hasControlPlane && "controlPlane",
+    hasSoftwareDeployment && "softwareDeployment",
+  ].find(Boolean);
+
+  const rowA = (hasIngressActors || hasEgressActors) && (
+    <TwoColumnRow
+      isFirst
+      left={hasIngressActors && <ActorColumn actorAccess={layout.ingressActors} title="Actors - Ingress" />}
+      right={hasEgressActors && (
+        <ActorColumn
+          actorAccess={layout.egressActors}
+          title="Actors - Egress"
+          hint="external destinations reached from within the request path — not always from the Egress stage itself"
+        />
+      )}
+    />
+  );
+  const rowB = (ingressWebStage || layout.egress.length > 0) && (
+    <TwoColumnRow
+      isFirst={!rowA}
+      left={ingressWebStage && <StageColumn stage={ingressWebStage} selectedKey={selectedKey} onSelectNode={onSelectNode} rolesFor={rolesFor} />}
+      right={layout.egress.length > 0 && <EgressColumn egress={layout.egress} selectedKey={selectedKey} onSelectNode={onSelectNode} rolesFor={rolesFor} />}
+    />
+  );
+
+  const hasUntrustedSection = Boolean(rowA || rowB);
+
   return (
     <div className="rounded-2xl p-6" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-      <div className="flex flex-col items-stretch">
-        {hasIngressActors && <ActorRow actorAccess={layout.ingressActors} title="Actors - Ingress" isFirst />}
-        {layout.stages.map((s, i) => (
-          <StageRow key={s.depth} stage={s} isFirst={!hasIngressActors && i === 0} selectedKey={selectedKey} onSelectNode={onSelectNode} rolesFor={rolesFor} />
-        ))}
-        {layout.egress.length > 0 && (
-          <EgressRow egress={layout.egress} isFirst={!hasIngressActors && layout.stages.length === 0} selectedKey={selectedKey} onSelectNode={onSelectNode} rolesFor={rolesFor} />
-        )}
-        {hasEgressActors && (
-          <ActorRow
-            actorAccess={layout.egressActors}
-            title="Actors - Egress"
-            hint="external destinations reached from within the request path — not always from the Egress stage itself"
-          />
-        )}
-      </div>
-
-      {layout.dataPlane.length > 0 && (
-        <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
-          <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <Database size={12} color={C.accent} />
-            <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-              Data plane
-            </span>
-            <span className="text-[11px]" style={{ color: C.muted }}>
-              — persistent and stateful stores used by the system
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            {layout.dataPlane.map(({ asset, fedBy }) => (
-              <NodeCard
-                key={asset.id}
-                asset={asset}
-                footer={fedBy.length > 0 ? `fed by ${fedBy.map((p) => p.code).join(" · ")}` : null}
-                selected={asset.id === selectedKey}
-                onSelect={onSelectNode}
-                width={WIDE_NODE_CARD_WIDTH}
-                height={WIDE_NODE_CARD_HEIGHT}
-              />
-            ))}
+      {/* Everything above the trust boundary crosses in from outside ACME's
+          control — end users, partners, the open internet. It is inherently
+          less trustworthy than anything inside, so it gets its own tint and
+          label, mirroring the Trust Boundary box below rather than reading
+          as just "the top of the panel." */}
+      {hasUntrustedSection && (
+        <div
+          className="relative pt-6 px-6 pb-5 -mx-6 -mt-6 rounded-t-2xl"
+          style={{
+            background: C.amberBg,
+            border: `1px dashed ${C.amber}`,
+            borderBottom: "none",
+          }}
+        >
+          <span
+            className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-[10px] font-bold uppercase tracking-widest"
+            style={{ background: C.panel2, color: C.amber, fontFamily: "'IBM Plex Mono', monospace" }}
+          >
+            Outside Trust Boundary
+          </span>
+          <div className="flex flex-col items-stretch">
+            {rowA}
+            {rowB}
           </div>
         </div>
       )}
 
-      {layout.branches.length > 0 && (
-        <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
-          <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <KeyRound size={12} color={C.accent} />
-            <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-              Control plane
-            </span>
-            <span className="text-[11px]" style={{ color: C.muted }}>
-              — not in the request path; these protect the assets above rather than carrying data through them
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            {layout.branches.map(({ asset, protects }) => (
-              <NodeCard
-                key={asset.id}
-                asset={asset}
-                footer={protects.length > 0 ? `protects ${protects.map((p) => p.code).join(" · ")}` : null}
-                selected={asset.id === selectedKey}
-                onSelect={onSelectNode}
-                isBranch
-                width={WIDE_NODE_CARD_WIDTH}
-                height={WIDE_NODE_CARD_HEIGHT}
-              />
-            ))}
-          </div>
+      {/* Everything ACME operates and trusts directly, as opposed to the
+          request path above (which crosses out to actual end users and
+          partners). Boxed and labelled as one trust boundary rather than
+          left as separate sections, since that's the actual security
+          claim being made about this group. */}
+      {hasTrustedSection && (
+        <div className="relative pt-6 px-6 pb-6 -mx-6 -mb-6 rounded-b-2xl" style={{ border: `1px dashed ${C.green}` }}>
+          <span
+            className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-[10px] font-bold uppercase tracking-widest"
+            style={{ background: C.panel2, color: C.green, fontFamily: "'IBM Plex Mono', monospace" }}
+          >
+            Trust Boundary
+          </span>
+
+          {hasBoundaryStages && (
+            <div className="flex flex-col items-stretch">
+              {remainingStages.map((s, i) => (
+                <StageRow key={s.depth} stage={s} isFirst={firstBoundarySection === "stages" && i === 0} selectedKey={selectedKey} onSelectNode={onSelectNode} rolesFor={rolesFor} />
+              ))}
+            </div>
+          )}
+
+          {hasActorsBlock && (
+            <div className={firstBoundarySection === "actors" ? "flex flex-col items-stretch" : "flex flex-col items-stretch mt-4 pt-3"} style={firstBoundarySection === "actors" ? undefined : { borderTop: `1px solid ${C.border}` }}>
+              {hasInternalActors && (
+                <ActorRow
+                  actorAccess={layout.internalActors}
+                  title="Actors - Internal"
+                  icon={UserCog}
+                  hint="operates the platform directly — standing reach into the data plane and control plane rather than a request-path call"
+                  isFirst
+                />
+              )}
+              {hasWorkforceIngress && (
+                <WorkforceIngressRow ingress={layout.workforceIngress} selectedKey={selectedKey} onSelectNode={onSelectNode} />
+              )}
+            </div>
+          )}
+
+          {layout.dataPlane.length > 0 && (
+            <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <Database size={12} color={C.accent} />
+                <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
+                  Data plane
+                </span>
+                <span className="text-[11px]" style={{ color: C.muted }}>
+                  — persistent and stateful stores used by the system
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {layout.dataPlane.map(({ asset, fedBy }) => (
+                  <NodeCard
+                    key={asset.id}
+                    asset={asset}
+                    footer={fedBy.length > 0 ? `fed by ${fedBy.map((p) => p.code).join(" · ")}` : null}
+                    selected={asset.id === selectedKey}
+                    onSelect={onSelectNode}
+                    width={WIDE_NODE_CARD_WIDTH}
+                    height={WIDE_NODE_CARD_HEIGHT}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {layout.branches.length > 0 && (
+            <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <KeyRound size={12} color={C.accent} />
+                <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
+                  Control plane
+                </span>
+                <span className="text-[11px]" style={{ color: C.muted }}>
+                  — not in the request path; these protect the assets above rather than carrying data through them
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {layout.branches.map(({ asset, protects }) => (
+                  <NodeCard
+                    key={asset.id}
+                    asset={asset}
+                    footer={protects.length > 0 ? `protects ${protects.map((p) => p.code).join(" · ")}` : null}
+                    selected={asset.id === selectedKey}
+                    onSelect={onSelectNode}
+                    isBranch
+                    width={WIDE_NODE_CARD_WIDTH}
+                    height={WIDE_NODE_CARD_HEIGHT}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {layout.softwareDeployment && layout.softwareDeployment.length > 0 && (
+            <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <Rocket size={12} color={C.accent} />
+                <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
+                  Software Deployment
+                </span>
+                <span className="text-[11px]" style={{ color: C.muted }}>
+                  — pushes ACME's own code and infrastructure changes into this boundary; not part of the live request path
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {layout.softwareDeployment.map(({ asset, deploysTo }) => (
+                  <NodeCard
+                    key={asset.id}
+                    asset={asset}
+                    footer={deploysTo.length > 0 ? `deploys to ${deploysTo.map((p) => p.code).join(" · ")}` : null}
+                    selected={asset.id === selectedKey}
+                    onSelect={onSelectNode}
+                    isBranch
+                    width={WIDE_NODE_CARD_WIDTH}
+                    height={WIDE_NODE_CARD_HEIGHT}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -464,7 +667,7 @@ export default function DataMap() {
   const system = SYSTEMS.find((s) => s.id === systemId);
   const systemDataTypes = useMemo(() => (systemId ? dataTypesForSystem(systemId) : []), [systemId]);
   const fullLayout = useMemo(
-    () => (systemId ? getDataFlows(systemId) : { stages: [], branches: [], dataPlane: [], egress: [], edges: [], controlPlaneEdges: [], ingressActors: [], egressActors: [] }),
+    () => (systemId ? getDataFlows(systemId) : { stages: [], branches: [], dataPlane: [], egress: [], softwareDeployment: [], workforceIngress: [], edges: [], controlPlaneEdges: [], ingressActors: [], egressActors: [], internalActors: [] }),
     [systemId]
   );
 

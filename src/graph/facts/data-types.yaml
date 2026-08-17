@@ -91,3 +91,13 @@
   regulatoryFlags:
     - "Employee-Data"
   description: "Benefits elections and supporting documentation held alongside the employee record."
+- id: "DT-010"
+  name: "Deployment Artifacts & CI/CD Credentials"
+  kind: "deployment"
+  sensitivity: "Confidential"
+  regulatedBy: []
+  regulatoryFlags:
+    - "Credentials"
+  description: "Build artifacts, container images, and the deploy credentials that push ACME's own
+    code and infrastructure changes into a boundary. Confidential rather than Restricted: possession
+    grants the ability to change what runs, not direct access to customer data."

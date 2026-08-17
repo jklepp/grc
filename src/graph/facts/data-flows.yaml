@@ -316,6 +316,57 @@
   dataTypeIds:
     - "DT-006"
   note: "Aggregated security telemetry forwarded to Splunk for detection and investigation."
+- id: "FLOW-003-44"
+  from: "AST-003-20"
+  to: "AST-003-02"
+  kind: "deploys-to"
+  dataTypeIds:
+    - "DT-010"
+  note: "CI/CD pipeline ships new builds of the agent runtime/orchestrator."
+- id: "FLOW-003-45"
+  from: "AST-003-20"
+  to: "AST-003-03"
+  kind: "deploys-to"
+  dataTypeIds:
+    - "DT-010"
+  note: "CI/CD pipeline ships new builds of the RAG retrieval service."
+- id: "FLOW-003-46"
+  from: "AST-003-21"
+  to: "AST-003-02"
+  kind: "deploys-to"
+  dataTypeIds:
+    - "DT-010"
+  note: "Container images pulled from the registry become the agent runtime/orchestrator's running
+    workload."
+- id: "FLOW-003-47"
+  from: "AST-003-21"
+  to: "AST-003-03"
+  kind: "deploys-to"
+  dataTypeIds:
+    - "DT-010"
+  note: "Container images pulled from the registry become the RAG retrieval service's running
+    workload."
+- id: "FLOW-003-48"
+  from: "AST-003-22"
+  to: "AST-003-16"
+  kind: "deploys-to"
+  dataTypeIds:
+    - "DT-010"
+  note: "Terraform apply provisions and updates IAM roles, trust policies, and workload identities."
+- id: "FLOW-003-49"
+  from: "AST-003-23"
+  to: "AST-003-16"
+  kind: "control-plane"
+  dataTypeIds:
+    - "DT-004"
+  note: "SSO authentication grants the administrator's IAM role assumption."
+- id: "FLOW-003-50"
+  from: "AST-003-24"
+  to: "AST-003-16"
+  kind: "control-plane"
+  dataTypeIds:
+    - "DT-004"
+  note: "ZTNA-gated network path the administrator's authenticated session takes to reach IAM."
 - id: "FLOW-042-01"
   from: "AST-042-02"
   to: "AST-042-01"

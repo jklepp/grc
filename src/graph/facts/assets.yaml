@@ -481,6 +481,135 @@
       reason: "The last line of detection if a container workload is compromised despite every upstream
         control"
   inherentLikelihood: 3
+- id: "AST-003-20"
+  systemId: "SYS-003"
+  name: "CI/CD Pipeline"
+  type: "GitHub Actions / AWS CodeDeploy"
+  kind: "cicd-pipeline"
+  provider: "AWS"
+  code: "CICD"
+  criticalityFactors:
+    confidentiality:
+      score: 75
+      reason: "Holds deploy credentials and build-time secrets for every workload it ships"
+    integrity:
+      score: 90
+      reason: "A compromised pipeline can push arbitrary code straight into production, bypassing every
+        runtime control downstream"
+    availability:
+      score: 55
+      reason: "Blocks new releases if it goes down; running workloads are unaffected"
+    regulatory:
+      score: 65
+      reason: "The change-management control point for software delivered into a Restricted-tier
+        boundary"
+    businessDependency:
+      score: 70
+      reason: "The only sanctioned path new code takes into the platform"
+  inherentLikelihood: 3
+- id: "AST-003-21"
+  systemId: "SYS-003"
+  name: "Container Image Registry"
+  type: "Amazon ECR"
+  kind: "artifact-registry"
+  provider: "AWS"
+  code: "ECR"
+  criticalityFactors:
+    confidentiality:
+      score: 65
+      reason: "Stores built container images, which can embed baked-in configuration and dependencies"
+    integrity:
+      score: 85
+      reason: "A tampered or unscanned image becomes the running workload the moment it's pulled"
+    availability:
+      score: 50
+      reason: "Blocks new deployments if unavailable; running containers keep serving traffic"
+    regulatory:
+      score: 60
+      reason: "Image provenance and scanning are part of the platform's secure-SDLC posture"
+    businessDependency:
+      score: 62
+      reason: "Every workload's running image traces back to what's stored here"
+  inherentLikelihood: 2
+- id: "AST-003-22"
+  systemId: "SYS-003"
+  name: "Infrastructure-as-Code Pipeline"
+  type: "Terraform Cloud"
+  kind: "iac-pipeline"
+  provider: "Terraform Cloud"
+  code: "IAC"
+  criticalityFactors:
+    confidentiality:
+      score: 70
+      reason: "Terraform state and apply credentials describe and can reconfigure the whole boundary's
+        infrastructure"
+    integrity:
+      score: 92
+      reason: "An unreviewed apply can rewrite IAM policy, networking, or key management for the entire
+        boundary in one run"
+    availability:
+      score: 45
+      reason: "Blocks infrastructure changes if unavailable; the running boundary is unaffected"
+    regulatory:
+      score: 68
+      reason: "The control point for reviewed, auditable infrastructure change rather than manual
+        console edits"
+    businessDependency:
+      score: 68
+      reason: "The sanctioned path every infrastructure change to the boundary takes"
+  inherentLikelihood: 2
+- id: "AST-003-23"
+  systemId: "SYS-003"
+  name: "Okta"
+  type: "Okta Workforce Identity Cloud"
+  kind: "identity-provider"
+  provider: "Okta"
+  code: "OKTA"
+  criticalityFactors:
+    confidentiality:
+      score: 78
+      reason: "Brokers the SSO session that grants an administrator standing reach into the boundary"
+    integrity:
+      score: 88
+      reason: "A bypassed MFA policy or compromised admin account here grants privileged access directly"
+    availability:
+      score: 55
+      reason: "Blocks new privileged sign-in if unavailable; already-authenticated sessions and running
+        workloads are unaffected"
+    regulatory:
+      score: 72
+      reason: "The workforce identity control point least-privilege and MFA requirements are enforced
+        through"
+    businessDependency:
+      score: 68
+      reason: "The sanctioned identity path every administrator takes to reach the boundary"
+  inherentLikelihood: 3
+- id: "AST-003-24"
+  systemId: "SYS-003"
+  name: "Zscaler"
+  type: "Zscaler Private Access (ZTNA)"
+  kind: "secure-web-gateway"
+  provider: "Zscaler"
+  code: "ZSC"
+  criticalityFactors:
+    confidentiality:
+      score: 70
+      reason: "Mediates the network path an administrator's traffic takes into the boundary, without
+        holding boundary data itself"
+    integrity:
+      score: 80
+      reason: "A gap in device posture or destination policy lets an unmanaged device reach a privileged
+        endpoint directly"
+    availability:
+      score: 50
+      reason: "Blocks new administrator network access if unavailable; running workloads are unaffected"
+    regulatory:
+      score: 65
+      reason: "The zero-trust network control point that keeps administrator access off the flat network"
+    businessDependency:
+      score: 62
+      reason: "The sanctioned network path every administrator's device takes to reach the boundary"
+  inherentLikelihood: 3
 - id: "AST-042-01"
   systemId: "SYS-042"
   name: "Production Tenant"

@@ -16,8 +16,9 @@
 - id: "ACC-003-04"
   actorId: "ACTOR-PLATFORM-ADMIN"
   assetId: "AST-003-16"
-  direction: "inbound"
-  note: "Privileged administrators authenticate via IAM roles and SSO rather than the public API
+  direction: "internal"
+  note: "Privileged administrators authenticate via IAM roles and SSO with standing operational reach
+    into the data plane and control plane directly, rather than entering through the public API
     surface."
 - id: "ACC-042-01"
   actorId: "ACTOR-WORKDAY-INTEGRATION"

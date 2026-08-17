@@ -53,6 +53,11 @@ export const ASSET_KINDS = [
   "telemetry",
   "siem",
   "runtime-security",
+  "cicd-pipeline",
+  "artifact-registry",
+  "iac-pipeline",
+  "identity-provider",
+  "secure-web-gateway",
 ] as const;
 export type AssetKind = (typeof ASSET_KINDS)[number];
 
@@ -92,6 +97,24 @@ export const BOUNDARY_EGRESS_KINDS: AssetKind[] = ["egress-gateway", "export-end
 // many hops it took to get there. A cache still counts: a session or
 // workflow-state store is where its data lands even if the TTL is short.
 export const DATABASE_KINDS: AssetKind[] = ["relational-db", "vector-db", "object-storage", "cache"];
+
+// The kinds that push ACME's own code and infrastructure changes into the
+// boundary — a CI/CD pipeline, an artifact registry, an IaC apply step. Not
+// in the request path and not a control-plane branch protecting other
+// assets — they're the delivery mechanism assets get their running state
+// from — so they're pulled into their own Software Deployment section
+// instead, the same way DATABASE_KINDS and BOUNDARY_EGRESS_KINDS are pulled
+// out of the request-path walk and Control Plane branches respectively.
+export const SOFTWARE_DELIVERY_KINDS: AssetKind[] = ["cicd-pipeline", "artifact-registry", "iac-pipeline"];
+
+// The kinds that mediate workforce (employee/admin) access into the
+// boundary — an SSO/identity provider, a ZTNA/secure web gateway — as
+// distinct from BOUNDARY_INGRESS_KINDS above, which is customer/partner
+// traffic entering through the public API surface. Neither carries a real
+// request-path data edge into the walk: they gate the internal actor's path
+// to a privileged asset (typically IAM), the same shape BOUNDARY_EGRESS_KINDS
+// and SOFTWARE_DELIVERY_KINDS already pull out into their own section.
+export const WORKFORCE_INGRESS_KINDS: AssetKind[] = ["identity-provider", "secure-web-gateway"];
 
 export interface CriticalityFactor {
   score: number;

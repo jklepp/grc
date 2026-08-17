@@ -34,7 +34,7 @@
 // weights are a fact, and facts come from the graph.
 import type { Graph } from "../graph/types";
 import {
-  BOUNDARY_INGRESS_KINDS, BOUNDARY_EGRESS_KINDS, DATABASE_KINDS,
+  BOUNDARY_INGRESS_KINDS, BOUNDARY_EGRESS_KINDS, DATABASE_KINDS, SOFTWARE_DELIVERY_KINDS, WORKFORCE_INGRESS_KINDS,
 } from "../graph/nodes/assets";
 import {
   ASSURANCE_CATEGORIES, BASIS, PRISMA_LEVELS,
@@ -426,6 +426,16 @@ export function createRollups(
     // happened to dead-end at," which is just as often an internal worker or
     // log feed as an actual boundary component.
     const egressIds = new Set(assets.filter((a) => (BOUNDARY_EGRESS_KINDS as readonly string[]).includes(a.kind)).map((a) => a.id));
+
+    // Software-delivery-kind assets (a CI/CD pipeline, an artifact registry, an
+    // IaC apply step) are pulled out the same way — they push code and config
+    // into the boundary, they don't carry a live request through it.
+    const deliveryIds = new Set(assets.filter((a) => (SOFTWARE_DELIVERY_KINDS as readonly string[]).includes(a.kind)).map((a) => a.id));
+
+    // Workforce-ingress-kind assets (an SSO provider, a ZTNA gateway) are
+    // pulled out the same way — they gate an internal actor's path to a
+    // privileged asset, they don't carry a live customer request through it.
+    const workforceIngressIds = new Set(assets.filter((a) => (WORKFORCE_INGRESS_KINDS as readonly string[]).includes(a.kind)).map((a) => a.id));
     const pathDataEdges = dataEdges.filter(
       (f) => !dbIds.has(f.from) && !dbIds.has(f.to) && !egressIds.has(f.from) && !egressIds.has(f.to)
     );
@@ -495,7 +505,7 @@ export function createRollups(
     }
 
     const branches = assets
-      .filter((a) => depth[a.id] === null && !dbIds.has(a.id) && !egressIds.has(a.id))
+      .filter((a) => depth[a.id] === null && !dbIds.has(a.id) && !egressIds.has(a.id) && !deliveryIds.has(a.id) && !workforceIngressIds.has(a.id))
       .map((a) => ({
         asset: assetRollupById[a.id],
         protects: graph.dataFlows.filter((f) => f.from === a.id && f.kind === "control-plane").map((f) => assetRollupById[f.to]),
@@ -520,6 +530,26 @@ export function createRollups(
         fedBy: dataEdges.filter((f) => f.to === a.id).map((f) => assetRollupById[f.from]),
       }));
 
+    // Software Deployment: the software-delivery-kind assets pulled out of the
+    // branch walk above, paired with whichever assets they actually push code
+    // or config into.
+    const softwareDeployment = assets
+      .filter((a) => deliveryIds.has(a.id))
+      .map((a) => ({
+        asset: assetRollupById[a.id],
+        deploysTo: graph.dataFlows.filter((f) => f.from === a.id && f.kind === "deploys-to").map((f) => assetRollupById[f.to]),
+      }));
+
+    // Ingress - Workforce: the workforce-ingress-kind assets pulled out of
+    // the branch walk above, paired with whichever privileged asset they
+    // grant access to.
+    const workforceIngress = assets
+      .filter((a) => workforceIngressIds.has(a.id))
+      .map((a) => ({
+        asset: assetRollupById[a.id],
+        grantsAccessTo: graph.dataFlows.filter((f) => f.from === a.id && f.kind === "control-plane").map((f) => assetRollupById[f.to]),
+      }));
+
     // Every actor tied to this system — human or machine — split by which way
     // the call goes. An inbound actor calls into the system (rendered before
     // Ingress); an outbound actor is one of our assets calling out to it (a
@@ -537,9 +567,10 @@ export function createRollups(
       }));
     const ingressActors = systemActorAccess.filter((a) => a.direction === ACTOR_DIRECTIONS.INBOUND);
     const egressActors = systemActorAccess.filter((a) => a.direction === ACTOR_DIRECTIONS.OUTBOUND);
+    const internalActors = systemActorAccess.filter((a) => a.direction === ACTOR_DIRECTIONS.INTERNAL);
 
     return {
-      systemId, stages, branches, dataPlane, egress, ingressActors, egressActors,
+      systemId, stages, branches, dataPlane, egress, softwareDeployment, workforceIngress, ingressActors, egressActors, internalActors,
       edges: dataEdges,
       controlPlaneEdges: graph.dataFlows.filter((f) => f.kind === "control-plane" && ids.has(f.from)),
     };
