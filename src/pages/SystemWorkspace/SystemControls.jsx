@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { Search, ChevronDown, ChevronRight, RadioTower, Layers, BookOpen, ShieldCheck } from "lucide-react";
+import { RadioTower, Layers, AlertTriangle } from "lucide-react";
 import { C } from "../../theme";
 import { SectionHeading } from "../../components/Headings";
-import { STATUS_META, STATUS_ORDER, IMPLEMENTATION_META, RESPONSIBILITY_META, APPLICABILITY_META } from "./controlMeta";
+import { STATUS_META, RESPONSIBILITY_META, APPLICABILITY_META } from "./controlMeta";
 import { POLICY_BY_CONTROL } from "./policyLookup";
+import { StatRing } from "./shared/StatRing";
 
 function ControlRow({ row, onSelect }) {
   const meta = STATUS_META[row.status];
@@ -45,64 +46,161 @@ function ControlRow({ row, onSelect }) {
   );
 }
 
-// Not Applicable and Pending controls, shown on demand — real rows with a
-// real stated reason, not folded silently out of the page the way they were
-// before this control had any representation at all.
-function ExcludedControlList({ title, meta, items, getReason }) {
-  const [open, setOpen] = useState(false);
+// Split once so Controls Satisfied and Controls Outstanding never repeat
+// the same status chip: Controls Satisfied is the "resolved" read (good
+// state, or ruled out entirely), Outstanding is everything still owed.
+const RESOLVED_STATUSES = ["inherited", "satisfied"];
+const NOT_APPLICABLE_META = APPLICABILITY_META["not-applicable"];
+
+// The punch list a system owner actually needs to work: applicable controls
+// not yet at a resolved good state (Inherited/Satisfied), plus Pending
+// applicability calls still waiting on a decision.
+const OUTSTANDING_STATUSES = ["partial", "deficient", "not-implemented", "unassessed"];
+
+// Every chip on the summary card is a drill-down trigger. `selection` is
+// { kind: "status" | "responsibility" | "not-applicable" | "pending", key, label }
+// or null; clicking the active chip again clears it. Kept as one shape so the
+// table at the bottom of the page only needs one switch, not four.
+function Chip({ meta, count, active, onClick }) {
+  // The neutral (panel2-backed) variants — Not Assessed, System Owned — sit
+  // too close in value to the card behind them to read as a pill on their
+  // own; give just those a border so they don't wash out.
+  const neutral = meta.bg === C.panel2;
   return (
-    <div className="rounded-xl overflow-hidden mb-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-      <button onClick={() => setOpen((v) => !v)} className="w-full flex items-center gap-3 p-4 text-left">
-        <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: meta.bg }}>
-          <meta.Icon size={15} color={meta.color} />
+    <button
+      onClick={onClick}
+      className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded shrink-0 transition-colors"
+      style={{
+        background: meta.bg,
+        color: meta.color,
+        border: neutral ? `1px solid ${C.borderStrong}` : "1px solid transparent",
+        boxShadow: active ? `0 0 0 1.5px ${meta.color}` : "none",
+      }}
+    >
+      <meta.Icon size={11} /> {count} {meta.label}
+    </button>
+  );
+}
+
+// One row of this tri-split: a fixed-width label, the row's own subtotal
+// (the number the chips beside it add up to), then the chips themselves. The
+// three subtotals — this row's, Outstanding's, and Not Applicable's — always
+// sum to the system's full in-scope catalog; see TallyBar below.
+function TallyRow({ label, count, color, borderTop, highlight, icon: Icon, hint, children }) {
+  return (
+    <div
+      className={`flex items-center gap-3 py-1 ${highlight ? "rounded-lg" : "px-2"}`}
+      style={{
+        ...(borderTop ? { marginTop: 6, paddingTop: 7, borderTop: `1px solid ${C.border}` } : {}),
+        // Full-bleed so the pill's border runs edge-to-edge with the card
+        // (and the control table below it), instead of sitting inset like
+        // the plain rows above/below it — the outer p-5/px-2 insets are
+        // cancelled here and rebuilt as padding so the label still lines up.
+        ...(highlight
+          ? { marginLeft: -20, marginRight: -20, paddingLeft: 28, paddingRight: 28, background: C.amberBg, border: `1px solid ${C.amber}4D` }
+          : {}),
+      }}
+    >
+      <span className="text-[10px] uppercase tracking-wide font-semibold w-40 shrink-0 whitespace-nowrap" style={{ color: highlight ? color : C.muted }}>
+        {label}
+      </span>
+      <span className="text-sm font-semibold w-8 shrink-0 tabular-nums" style={{ color, fontFamily: "'IBM Plex Mono', monospace" }}>{count}</span>
+      <div className="flex items-center gap-2 flex-nowrap overflow-x-auto">{children}</div>
+      {hint && (
+        <span className="text-[11px] ml-auto shrink-0 font-medium inline-flex items-center gap-1" style={{ color }}>
+          {Icon && <Icon size={12} />} {hint}
         </span>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold" style={{ color: C.ink }}>{title}</span>
-            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.panel2, color: C.muted }}>{items.length}</span>
-          </div>
-        </div>
-        {open ? <ChevronDown size={16} color={C.muted} /> : <ChevronRight size={16} color={C.muted} />}
-      </button>
-      {open && (
-        <div style={{ borderTop: `1px solid ${C.border}`, maxHeight: 360, overflowY: "auto" }}>
-          {items.map((item) => {
-            const control = item.control;
-            return (
-              <div key={control.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.border}` }}>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>{control.id}</span>
-                  <span className="text-sm" style={{ color: C.ink }}>{control.name}</span>
-                </div>
-                <div className="text-[11px] mt-1 leading-snug" style={{ color: C.muted }}>{getReason(item)}</div>
-              </div>
-            );
-          })}
-          {items.length === 0 && <div className="p-4 text-xs text-center" style={{ color: C.muted }}>None.</div>}
-        </div>
       )}
     </div>
   );
 }
 
-function ImplementationSection({ meta, rows, expanded, onToggle, onSelectRow }) {
+function OutstandingControls({ statusCounts, pendingCount, count, selection, onToggle }) {
+  const chips = [
+    ...OUTSTANDING_STATUSES.map((status) => ({ kind: "status", key: status, meta: STATUS_META[status], count: statusCounts[status] })),
+    { kind: "pending", key: "pending", meta: APPLICABILITY_META.pending, count: pendingCount },
+  ];
   return (
-    <div className="rounded-xl overflow-hidden mb-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-      <button onClick={onToggle} className="w-full flex items-center gap-3 p-4 text-left">
-        <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: meta.bg }}>
-          <meta.Icon size={15} color={meta.color} />
-        </span>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold" style={{ color: C.ink }}>{meta.type}</span>
-            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: C.panel2, color: C.muted }}>{rows.length}</span>
-          </div>
-          <div className="text-xs mt-0.5" style={{ color: C.muted }}>{meta.blurb}</div>
+    <TallyRow label="Attention Required" count={count} color={C.amber} borderTop highlight icon={AlertTriangle} hint="Needs review">
+      {chips.map(({ kind, key, meta, count }) => (
+        <Chip
+          key={key}
+          meta={meta}
+          count={count}
+          active={selection?.kind === kind && selection.key === key}
+          onClick={() => onToggle({ kind, key, label: `${meta.label} controls` })}
+        />
+      ))}
+    </TallyRow>
+  );
+}
+
+// The stacked bar and equation that make the tri-split's arithmetic visible
+// rather than something a reader has to add up themselves.
+function TallyBar({ statusCount, outstandingCount, naCount, total }) {
+  const segments = [
+    { count: statusCount, color: C.green, label: "Controls Satisfied" },
+    { count: outstandingCount, color: C.amber, label: "Attention Required" },
+    { count: naCount, color: C.muted, label: "Not Applicable" },
+  ];
+  return (
+    <div className="flex items-start gap-3 px-2 py-1" style={{ marginTop: 6, borderTop: `1px solid ${C.border}`, paddingTop: 7 }}>
+      <span className="text-[10px] uppercase tracking-wide font-semibold w-40 shrink-0 pt-0.5 whitespace-nowrap" style={{ color: C.muted }}>Control Catalog</span>
+      <div className="flex-1 min-w-0">
+        <div className="flex h-2 rounded-full overflow-hidden" style={{ background: C.panel2 }}>
+          {segments.map((s) => (
+            <div key={s.label} title={`${s.label}: ${s.count}`} style={{ width: `${total ? (s.count / total) * 100 : 0}%`, background: s.color }} />
+          ))}
         </div>
-        {expanded ? <ChevronDown size={16} color={C.muted} /> : <ChevronRight size={16} color={C.muted} />}
-      </button>
-      {expanded && (
-        <div style={{ borderTop: `1px solid ${C.border}` }}>
+        <div className="text-xs mt-2" style={{ color: C.muted }}>
+          <span className="font-semibold" style={{ color: C.green }}>{statusCount}</span> +{" "}
+          <span className="font-semibold" style={{ color: C.amber }}>{outstandingCount}</span> +{" "}
+          <span className="font-semibold" style={{ color: C.ink }}>{naCount}</span> ={" "}
+          <span className="font-semibold" style={{ color: C.ink }}>{total}</span> total controls
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// The dynamic drill-down table: whatever chip is selected up in the summary
+// card, its matching controls render here. Status/Responsibility chips carry
+// full matrix rows (real status, evidence, drawer detail); Not Applicable/
+// Pending only ever had a control + a reason, so they get a lighter table
+// instead of forcing a fake status onto them.
+function SelectedControlsTable({ selection, matrix, applicabilitySummary, onSelectRow, onClear }) {
+  if (!selection) return null;
+
+  const isReasonBased = selection.kind === "not-applicable" || selection.kind === "pending";
+  const rows = selection.kind === "status" ? matrix.filter((r) => r.status === selection.key)
+    : selection.kind === "responsibility" ? matrix.filter((r) => r.responsibility === selection.key)
+    : selection.kind === "not-applicable" ? applicabilitySummary.notApplicableControls
+    : applicabilitySummary.pendingControls;
+
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+      <div className="flex items-center gap-3 p-4" style={{ borderBottom: `1px solid ${C.border}` }}>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold capitalize" style={{ color: C.ink }}>{selection.label}</div>
+          <div className="text-xs mt-0.5" style={{ color: C.muted }}>{rows.length} control{rows.length !== 1 ? "s" : ""}</div>
+        </div>
+        <button onClick={onClear} className="text-xs px-2 py-1 rounded font-medium" style={{ background: C.panel2, color: C.muted }}>Clear</button>
+      </div>
+      {isReasonBased ? (
+        <div style={{ maxHeight: 480, overflowY: "auto" }}>
+          {rows.map((item) => (
+            <div key={item.control.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.border}` }}>
+              <div className="flex items-center gap-2">
+                <span className="text-xs" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>{item.control.id}</span>
+                <span className="text-sm" style={{ color: C.ink }}>{item.control.name}</span>
+              </div>
+              <div className="text-[11px] mt-1 leading-snug" style={{ color: C.muted }}>{item.reason}</div>
+            </div>
+          ))}
+          {rows.length === 0 && <div className="p-6 text-xs text-center" style={{ color: C.muted }}>None.</div>}
+        </div>
+      ) : (
+        <>
           <div className="grid text-[11px] font-medium px-4 py-2.5" style={{ gridTemplateColumns: "90px 2fr 150px 170px 150px", borderBottom: `1px solid ${C.border}`, color: C.muted }}>
             <div>SCF #</div>
             <div style={{ borderLeft: `1px solid ${C.border}`, paddingLeft: 12 }}>CONTROL</div>
@@ -114,162 +212,124 @@ function ImplementationSection({ meta, rows, expanded, onToggle, onSelectRow }) 
             {rows.map((row) => <ControlRow key={row.control.id} row={row} onSelect={onSelectRow} />)}
             {rows.length === 0 && <div className="p-6 text-xs text-center" style={{ color: C.muted }}>No controls match this filter.</div>}
           </div>
-        </div>
+        </>
       )}
     </div>
   );
 }
 
 // What controls should exist, are they implemented, and can we prove them?
-// Requirement → Control → Implementation → Evidence chain, drilled into via
-// ControlDetailDrawer on row click.
-export function SystemControls({
-  matrix, statusCounts, filtered, domains, referencedPolicies,
-  query, setQuery, domainFilter, setDomainFilter, statusFilter, setStatusFilter,
-  expandedTypes, toggleType, onSelectRow,
-  applicabilitySummary, posture,
-}) {
+// Requirement → Control → Implementation → Evidence chain: the summary card's
+// chips are the requirement/applicability read, the table at the bottom
+// (opened by clicking a chip) is the drill-down, and ControlDetailDrawer
+// (opened from a table row) is the full per-control detail.
+export function SystemControls({ matrix, statusCounts, applicabilitySummary, posture, onSelectRow }) {
   const resp = applicabilitySummary?.byResponsibility;
+  const controlStatusCount = RESOLVED_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
+  const outstandingCount = OUTSTANDING_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0) + (applicabilitySummary?.pending ?? 0);
+  const [selection, setSelection] = useState(null);
+
+  function toggleSelection(next) {
+    setSelection((prev) => (prev && prev.kind === next.kind && prev.key === next.key ? null : next));
+  }
+
   return (
-    <div className="px-8 pb-10 space-y-8">
+    <div className="px-8 pb-10 space-y-6">
+      <SectionHeading icon={Layers}>Controls</SectionHeading>
+
       {applicabilitySummary && (
-        <div>
-          <SectionHeading icon={ShieldCheck}>Control Applicability</SectionHeading>
-          <div className="rounded-xl p-5 mb-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-            <div className="flex items-baseline gap-3 flex-wrap mb-4">
-              <span className="text-2xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{applicabilitySummary.total}</span>
-              <span className="text-xs" style={{ color: C.muted }}>common controls</span>
-              <span className="text-2xl font-semibold ml-4" style={{ color: C.accent, fontFamily: "'Source Serif 4', serif" }}>{applicabilitySummary.applicable}</span>
-              <span className="text-xs" style={{ color: C.muted }}>applicable to this system</span>
+        <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+          {posture && (
+            <div className="grid grid-cols-3 gap-6 pb-5 mb-4" style={{ borderBottom: `1px solid ${C.border}` }}>
+              <div
+                className="flex items-center gap-3 rounded-xl p-4"
+                style={{ background: `linear-gradient(135deg, ${C.accent} 0%, #4B3F99 100%)` }}
+              >
+                <StatRing pct={posture.assurance} color="#FFFFFF" trackColor="rgba(255,255,255,0.25)" size={44} />
+                <div>
+                  <div className="text-3xl font-semibold" style={{ color: "#FFFFFF", fontFamily: "'Source Serif 4', serif" }}>{posture.assurance}%</div>
+                  <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.75)" }}>Assurance — confidence controls operate effectively</div>
+                </div>
+              </div>
+              <div className="flex flex-col justify-center">
+                <div className="text-3xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{posture.compliance}%</div>
+                <div className="text-xs mt-1" style={{ color: C.muted }}>Compliance — are applicable controls implemented</div>
+              </div>
+              <div className="flex flex-col justify-center">
+                <div className="text-3xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{posture.coverage}%</div>
+                <div className="text-xs mt-1" style={{ color: C.muted }}>Assessment Coverage — have applicable controls been assessed</div>
+              </div>
             </div>
-            <div className="grid grid-cols-4 gap-3 mb-4">
+          )}
+
+          <TallyRow label="Controls Satisfied" count={controlStatusCount} color={C.green}>
+            {RESOLVED_STATUSES.map((status) => {
+              const meta = STATUS_META[status];
+              return (
+                <Chip
+                  key={status}
+                  meta={meta}
+                  count={statusCounts[status]}
+                  active={selection?.kind === "status" && selection.key === status}
+                  onClick={() => toggleSelection({ kind: "status", key: status, label: `${meta.label} controls` })}
+                />
+              );
+            })}
+          </TallyRow>
+
+          <OutstandingControls
+            statusCounts={statusCounts}
+            pendingCount={applicabilitySummary.pending}
+            count={outstandingCount}
+            selection={selection}
+            onToggle={toggleSelection}
+          />
+
+          <TallyRow label="Controls Not Applicable" count={applicabilitySummary.notApplicable} color={C.ink} borderTop>
+            <Chip
+              meta={NOT_APPLICABLE_META}
+              count={applicabilitySummary.notApplicable}
+              active={selection?.kind === "not-applicable"}
+              onClick={() => toggleSelection({ kind: "not-applicable", key: "not-applicable", label: "Not Applicable controls" })}
+            />
+          </TallyRow>
+
+          <TallyBar
+            statusCount={controlStatusCount}
+            outstandingCount={outstandingCount}
+            naCount={applicabilitySummary.notApplicable}
+            total={applicabilitySummary.total}
+          />
+
+          <div className="flex items-center gap-3 px-2 py-1" style={{ marginTop: 6, borderTop: `1px solid ${C.border}`, paddingTop: 7 }}>
+            <span className="text-[10px] uppercase tracking-wide font-semibold w-40 shrink-0 whitespace-nowrap" style={{ color: C.muted }}>Responsibility</span>
+            <div className="flex items-center gap-2 flex-wrap">
               {[
                 { respKey: "internal", count: resp?.owned },
                 { respKey: "shared", count: resp?.shared },
                 { respKey: "enterprise", count: resp?.enterprise },
                 { respKey: "vendor", count: resp?.vendor },
-              ].map(({ respKey, count }) => {
-                const meta = RESPONSIBILITY_META[respKey];
-                return (
-                  <div key={respKey} className="rounded-lg p-3" style={{ background: C.panel2 }}>
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <meta.Icon size={12} color={meta.color} />
-                      <span className="text-[10px] uppercase tracking-wide" style={{ color: C.muted }}>{meta.label}</span>
-                    </div>
-                    <div className="text-lg font-semibold" style={{ color: meta.color, fontFamily: "'Source Serif 4', serif" }}>{count}</div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex items-center gap-4 text-xs" style={{ color: C.muted }}>
-              <span><span className="font-semibold" style={{ color: C.ink }}>{applicabilitySummary.notApplicable}</span> Not Applicable</span>
-              <span><span className="font-semibold" style={{ color: C.ink }}>{applicabilitySummary.pending}</span> Pending</span>
+              ].map(({ respKey, count }) => (
+                <Chip
+                  key={respKey}
+                  meta={RESPONSIBILITY_META[respKey]}
+                  count={count}
+                  active={selection?.kind === "responsibility" && selection.key === respKey}
+                  onClick={() => toggleSelection({ kind: "responsibility", key: respKey, label: `${RESPONSIBILITY_META[respKey].label} controls` })}
+                />
+              ))}
             </div>
           </div>
-
-          {posture && (
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-                <div className="text-2xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{posture.compliance}%</div>
-                <div className="text-xs mt-1" style={{ color: C.muted }}>Compliance — are applicable controls implemented</div>
-              </div>
-              <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-                <div className="text-2xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{posture.assurance}%</div>
-                <div className="text-xs mt-1" style={{ color: C.muted }}>Assurance — confidence controls operate effectively</div>
-              </div>
-              <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-                <div className="text-2xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{posture.coverage}%</div>
-                <div className="text-xs mt-1" style={{ color: C.muted }}>Assessment Coverage — have applicable controls been assessed</div>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
-      <div>
-        <SectionHeading icon={Layers}>Controls</SectionHeading>
-        <div className="grid grid-cols-4 gap-4 mb-6">
-          {STATUS_ORDER.map((status) => {
-            const meta = STATUS_META[status];
-            return (
-              <div key={status} className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-                <div className="text-2xl font-semibold" style={{ color: meta.color, fontFamily: "'Source Serif 4', serif" }}>{statusCounts[status]}</div>
-                <div className="text-xs mt-1" style={{ color: C.muted }}>{meta.label} · of {matrix.length} required</div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center gap-3 mb-4 flex-wrap">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1 min-w-[200px]" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-            <Search size={14} color={C.muted} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search controls or SCF #" className="bg-transparent text-sm outline-none w-full" style={{ color: C.ink }} />
-          </div>
-          <select value={domainFilter} onChange={(e) => setDomainFilter(e.target.value)}
-            className="text-xs pl-3 pr-7 py-2 rounded-lg font-medium" style={{ background: C.panel, color: C.ink, border: `1px solid ${C.border}` }}>
-            <option value="All">All domains</option>
-            {domains.map((d) => <option key={d} value={d}>{d}</option>)}
-          </select>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-            className="text-xs pl-3 pr-7 py-2 rounded-lg font-medium" style={{ background: C.panel, color: C.ink, border: `1px solid ${C.border}` }}>
-            <option value="All">All statuses</option>
-            {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
-          </select>
-          <span className="text-xs px-3 py-2 rounded-full" style={{ background: C.panel2, color: C.muted }}>
-            Showing {filtered.length.toLocaleString()} of {matrix.length.toLocaleString()}
-          </span>
-        </div>
-
-        {IMPLEMENTATION_META.map((meta) => (
-          <ImplementationSection
-            key={meta.type}
-            meta={meta}
-            rows={filtered.filter((r) => r.control.implementationType === meta.type)}
-            expanded={expandedTypes.has(meta.type)}
-            onToggle={() => toggleType(meta.type)}
-            onSelectRow={onSelectRow}
-          />
-        ))}
-
-        <div className="text-xs mt-1 flex items-center gap-1.5" style={{ color: C.muted }}>
-          <RadioTower size={12} /> marks the controls ACME tracks with live evidence; every other row is at the tier the Data Classification Register already reports, just broken out control by control. Implementation type is assigned per SCF domain, not audited per control.
-        </div>
-      </div>
-
-      {applicabilitySummary && (
-        <div>
-          <ExcludedControlList
-            title="Not Applicable"
-            meta={APPLICABILITY_META["not-applicable"]}
-            items={applicabilitySummary.notApplicableControls}
-            getReason={(item) => item.reason}
-          />
-          <ExcludedControlList
-            title="Pending"
-            meta={APPLICABILITY_META.pending}
-            items={applicabilitySummary.pendingControls}
-            getReason={(item) => item.reason}
-          />
-        </div>
-      )}
-
-      <div>
-        <SectionHeading icon={BookOpen}>Referenced Policies & Procedures</SectionHeading>
-        <p className="text-xs mb-3" style={{ color: C.muted }}>
-          Every ACME policy that governs at least one control required for this system, computed from the control matrix above — not a separately maintained list that can drift out of sync.
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          {referencedPolicies.map(({ policy, count }) => (
-            <div key={policy.id} className="flex items-center justify-between gap-2 rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-              <div className="min-w-0">
-                <div className="text-xs" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>{policy.code}</div>
-                <div className="text-sm truncate" style={{ color: C.ink }}>{policy.title}</div>
-              </div>
-              <span className="shrink-0 text-xs px-2 py-0.5 rounded-full" style={{ background: C.panel2, color: C.muted }}>{count} control{count !== 1 ? "s" : ""}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <SelectedControlsTable
+        selection={selection}
+        matrix={matrix}
+        applicabilitySummary={applicabilitySummary}
+        onSelectRow={onSelectRow}
+        onClear={() => setSelection(null)}
+      />
     </div>
   );
 }

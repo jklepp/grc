@@ -8,7 +8,6 @@ import {
 } from "../../engine";
 import { SUB_TABS } from "./tabs";
 import { STATUS_ORDER } from "./controlMeta";
-import { getReferencedPolicies } from "./policyLookup";
 import { SystemHeader } from "./SystemHeader";
 import { SystemOverview } from "./SystemOverview";
 import { SystemArchitecture } from "./SystemArchitecture";
@@ -31,10 +30,6 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   const systemId = controlledSystemId ?? localSystemId;
   const setSystemId = onSelectSystem ?? setLocalSystemId;
   const [subTab, setSubTab] = useState(SUB_TABS.some((t) => t.id === initialSubTab) ? initialSubTab : SUB_TABS[0].id);
-  const [query, setQuery] = useState("");
-  const [domainFilter, setDomainFilter] = useState("All");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [expandedTypes, setExpandedTypes] = useState(() => new Set());
   const [selectedRow, setSelectedRow] = useState(null);
 
   const system = SYSTEMS.find((s) => s.id === systemId);
@@ -45,7 +40,6 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
     })),
     [system]
   );
-  const referencedPolicies = useMemo(() => getReferencedPolicies(matrix), [matrix]);
   const applicabilitySummary = useMemo(() => controlApplicabilitySummary(system.id), [system]);
   const coverageBreakdown = useMemo(() => systemCoverageBreakdown(system.id), [system]);
   // Three separately-meaningful numbers, not one score read three ways:
@@ -71,18 +65,6 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   const topRisks = useMemo(() => topRisksForSystem(system.id, 5), [system]);
   const dataTypes = useMemo(() => dataTypesForSystem(system.id), [system]);
 
-  const domains = useMemo(() => {
-    const set = new Set(matrix.map((r) => r.control.domain));
-    return [...set].sort();
-  }, [matrix]);
-
-  const filtered = matrix.filter(
-    (r) =>
-      (domainFilter === "All" || r.control.domain === domainFilter) &&
-      (statusFilter === "All" || r.status === statusFilter) &&
-      (r.control.name.toLowerCase().includes(query.toLowerCase()) || r.control.id.toLowerCase().includes(query.toLowerCase()))
-  );
-
   const statusCounts = useMemo(() => {
     const counts = Object.fromEntries(STATUS_ORDER.map((s) => [s, 0]));
     matrix.forEach((r) => { counts[r.status] += 1; });
@@ -92,19 +74,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   function selectSystem(id) {
     setSystemId(id);
     setSubTab(SUB_TABS[0].id);
-    setDomainFilter("All");
-    setStatusFilter("All");
-    setQuery("");
     setSelectedRow(null);
-    setExpandedTypes(new Set());
-  }
-
-  function toggleType(type) {
-    setExpandedTypes((prev) => {
-      const next = new Set(prev);
-      if (next.has(type)) next.delete(type); else next.add(type);
-      return next;
-    });
   }
 
   return (
@@ -139,13 +109,8 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
 
       {subTab === "controls" && (
         <SystemControls
-          matrix={matrix} statusCounts={statusCounts} filtered={filtered} domains={domains}
-          referencedPolicies={referencedPolicies}
+          matrix={matrix} statusCounts={statusCounts}
           applicabilitySummary={applicabilitySummary} posture={posture}
-          query={query} setQuery={setQuery}
-          domainFilter={domainFilter} setDomainFilter={setDomainFilter}
-          statusFilter={statusFilter} setStatusFilter={setStatusFilter}
-          expandedTypes={expandedTypes} toggleType={toggleType}
           onSelectRow={setSelectedRow}
         />
       )}

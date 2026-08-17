@@ -17,7 +17,7 @@ export const STATUS_META = {
   // thing said twice. This status means applicable and unassessed; Not
   // Applicable (APPLICABILITY_META below) means the control was never in play
   // here at all. Different claims, so they need different words.
-  unassessed: { label: "Not Assessed", color: C.muted, bg: C.panel2, Icon: ScrollText },
+  unassessed: { label: "Not Assessed", color: C.ink, bg: C.panel2, Icon: ScrollText },
 };
 export const STATUS_ORDER = ["inherited", "satisfied", "partial", "deficient", "not-implemented", "unassessed"];
 
