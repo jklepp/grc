@@ -55,6 +55,12 @@ export function AttentionRequired({ cockpit, onNavigate }) {
   return (
     <div className="space-y-4">
       <Panel>
+        <div className="text-[11px] uppercase tracking-wide font-semibold mb-2" style={{ color: C.green }}>Positive Assurance</div>
+        {cockpit.positiveAssurance.length === 0 ? (
+          <div className="text-sm" style={{ color: C.muted }}>Nothing proven yet.</div>
+        ) : cockpit.positiveAssurance.map((item, i) => <PositiveRow key={i} item={item} />)}
+      </Panel>
+      <Panel>
         <div className="flex items-center justify-between mb-2">
           <div className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: C.red }}>Attention Required</div>
           {cockpit.attentionRequired.length > 0 && (
@@ -66,12 +72,6 @@ export function AttentionRequired({ cockpit, onNavigate }) {
         {cockpit.attentionRequired.length === 0 ? (
           <div className="text-sm" style={{ color: C.muted }}>Nothing outstanding.</div>
         ) : cockpit.attentionRequired.map((item, i) => <AttentionRow key={i} item={item} onNavigate={onNavigate} />)}
-      </Panel>
-      <Panel>
-        <div className="text-[11px] uppercase tracking-wide font-semibold mb-2" style={{ color: C.green }}>Positive Assurance</div>
-        {cockpit.positiveAssurance.length === 0 ? (
-          <div className="text-sm" style={{ color: C.muted }}>Nothing proven yet.</div>
-        ) : cockpit.positiveAssurance.map((item, i) => <PositiveRow key={i} item={item} />)}
       </Panel>
     </div>
   );

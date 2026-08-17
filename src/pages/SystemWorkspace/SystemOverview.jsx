@@ -11,8 +11,8 @@ export function SystemOverview({ system, cockpit, identity, exposure, resilience
       <AssuranceCockpit system={system} cockpit={cockpit} />
 
       <div className="grid grid-cols-2 gap-5">
-        <AttentionRequired cockpit={cockpit} onNavigate={onNavigate} />
         <SystemSnapshot system={system} exposure={exposure} dataTypes={dataTypes} />
+        <AttentionRequired cockpit={cockpit} onNavigate={onNavigate} />
       </div>
 
       <DataSnapshot dataTypes={dataTypes} onNavigate={onNavigate} />
