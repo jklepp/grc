@@ -38,3 +38,9 @@ export function ratingColor(rating) {
 export function assetName(system, assetId) {
   return system.assets.find((a) => a.id === assetId)?.name ?? assetId;
 }
+
+const HOSTING_TYPE_LABEL = { cloud: "Cloud", saas: "SaaS", "on-prem": "On-Prem" };
+
+export function hostingTypeLabel(hostingType) {
+  return HOSTING_TYPE_LABEL[hostingType] ?? (hostingType ? hostingType[0].toUpperCase() + hostingType.slice(1) : hostingType);
+}

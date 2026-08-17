@@ -8,6 +8,8 @@
   prReviewRequired: true
   sastEnabled: true
   scaEnabled: true
+  dastEnabled: true
+  containerScanningEnabled: true
   secretScanningEnabled: true
   iacScanningEnabled: true
   cicdIdentityHardened: true
@@ -22,6 +24,8 @@
   prReviewRequired: false
   sastEnabled: false
   scaEnabled: false
+  dastEnabled: false
+  containerScanningEnabled: false
   secretScanningEnabled: false
   iacScanningEnabled: false
   cicdIdentityHardened: false

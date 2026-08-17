@@ -112,11 +112,11 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
       {subTab === "data" && <SystemData system={system} dataTypes={dataTypes} />}
 
       {subTab === "security" && (
-        <SystemSecurity system={system} identity={identity} exposure={exposure} vuln={vuln} sdlc={sdlc} vendors={vendors} />
+        <SystemSecurity system={system} identity={identity} exposure={exposure} sdlc={sdlc} vendors={vendors} />
       )}
 
       {subTab === "testing" && (
-        <SystemTesting secTests={secTests} ir={ir} resilience={resilience} vendors={vendors} />
+        <SystemTesting secTests={secTests} vuln={vuln} ir={ir} resilience={resilience} vendors={vendors} />
       )}
 
       {subTab === "controls" && (

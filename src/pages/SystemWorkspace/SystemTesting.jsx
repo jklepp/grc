@@ -1,16 +1,17 @@
 import React from "react";
-import { Crosshair, Siren, LifeBuoy, Handshake, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Crosshair, Bug, Siren, LifeBuoy, Handshake, CheckCircle2, AlertTriangle } from "lucide-react";
 import { C } from "../../theme";
 import { SectionHeading } from "../../components/Headings";
 import { Panel } from "./shared/Panel";
 import { IdentificationField } from "./shared/IdentificationField";
+import { StatTile } from "./shared/StatTile";
 import { CadenceBadge } from "./shared/CadenceBadge";
 import { POAMRow } from "./shared/POAMRow";
 
 // Do we know that the protections actually work? Implemented vs tested vs
-// proven effective — penetration testing, IR exercises, resilience testing,
-// and vendor assurance, grouped as cards.
-export function SystemTesting({ secTests, ir, resilience, vendors }) {
+// proven effective — penetration testing, vulnerability scanning, IR
+// exercises, resilience testing, and vendor assurance, grouped as cards.
+export function SystemTesting({ secTests, vuln, ir, resilience, vendors }) {
   return (
     <div className="px-8 pb-10 space-y-8">
       <div>
@@ -47,6 +48,28 @@ export function SystemTesting({ secTests, ir, resilience, vendors }) {
             {secTests.openFindings.map((f) => <POAMRow key={f.id} item={f} />)}
           </div>
         )}
+      </div>
+
+      <div>
+        <SectionHeading icon={Bug}>Vulnerability Scanning</SectionHeading>
+        <Panel>
+          {vuln ? (
+            <>
+              <div className="grid grid-cols-4 gap-4 mb-4">
+                <StatTile label="Critical" value={vuln.criticalCount} color={vuln.criticalCount > 0 ? C.red : C.green} />
+                <StatTile label="High" value={vuln.highCount} color={vuln.highCount > 0 ? C.amber : C.green} />
+                <StatTile label="Past SLA" value={vuln.pastSlaCount} color={vuln.pastSlaCount > 0 ? C.red : C.green} />
+                <StatTile label="Patch SLA Compliance" value={`${vuln.patchSlaCompliancePct}%`} />
+              </div>
+              <div className="grid grid-cols-3 gap-5">
+                <IdentificationField label="Configuration Findings" value={vuln.configFindingCount} />
+                <IdentificationField label="Unsupported Components" value={vuln.unsupportedComponentCount} />
+                <IdentificationField label="Internet-Facing Critical" value={vuln.internetFacingCriticalCount} />
+              </div>
+              <div className="text-[11px] mt-3" style={{ color: C.muted }}>As of {vuln.asOf}</div>
+            </>
+          ) : <div className="text-sm" style={{ color: C.muted }}>No vulnerability scan on record.</div>}
+        </Panel>
       </div>
 
       <div>

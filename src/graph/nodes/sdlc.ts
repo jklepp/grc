@@ -13,6 +13,8 @@ export interface SdlcPosture {
   prReviewRequired: boolean;
   sastEnabled: boolean;
   scaEnabled: boolean;
+  dastEnabled: boolean;
+  containerScanningEnabled: boolean;
   secretScanningEnabled: boolean;
   iacScanningEnabled: boolean;
   cicdIdentityHardened: boolean;
