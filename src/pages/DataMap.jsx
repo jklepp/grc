@@ -141,10 +141,10 @@ function ActorCard({ actor }) {
   const Icon = isHuman ? User : Cpu;
   return (
     <div
-      className="rounded-xl overflow-hidden shrink-0 text-left p-2 flex flex-col"
+      className="rounded-xl overflow-hidden shrink-0 text-left p-1.5 flex flex-col"
       style={{ background: C.panel, border: `1px solid ${C.border}`, width: ACTOR_CARD_WIDTH }}
     >
-      <div className="flex items-center justify-between gap-1.5 mb-1">
+      <div className="flex items-center justify-between gap-1.5 mb-0.5">
         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ background: isHuman ? C.accent : naFill(), color: "#fff" }}>
           {isHuman ? "HUMAN" : "MACHINE"}
         </span>
@@ -174,7 +174,7 @@ function SectionLabel({ children, hint, icon: Icon }) {
 function ActorRow({ actorAccess, title, hint, icon, isFirst }) {
   if (actorAccess.length === 0) return null;
   return (
-    <div className="flex flex-col items-start w-full" style={isFirst ? undefined : { marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
+    <div className="flex flex-col items-start w-full" style={isFirst ? undefined : { marginTop: 12, paddingTop: 10, borderTop: `1px dotted ${C.green}` }}>
       <SectionLabel hint={hint} icon={icon}>{title}</SectionLabel>
       <div className="flex flex-wrap items-start justify-center gap-3 w-full">
         {actorAccess.map(({ actor }) => (
@@ -185,10 +185,10 @@ function ActorRow({ actorAccess, title, hint, icon, isFirst }) {
   );
 }
 
-function StageRow({ stage, isFirst, selectedKey, onSelectNode, rolesFor }) {
+function StageRow({ stage, isFirst, flushTop, selectedKey, onSelectNode, rolesFor }) {
   return (
     <>
-      {!isFirst && <div className="-mx-6" style={{ marginTop: 12, marginBottom: 10, borderTop: `1px solid ${C.borderStrong}` }} />}
+      {!isFirst && <div className="-mx-6" style={{ marginTop: flushTop ? 0 : 12, marginBottom: 10, borderTop: `1px solid ${C.borderStrong}` }} />}
       <div className="flex flex-col items-start w-full">
         <SectionLabel icon={Cpu}>{stageLabel(stage.depth)}</SectionLabel>
         <div className="flex flex-wrap items-start justify-center gap-3 w-full">
@@ -205,7 +205,7 @@ function WorkforceIngressRow({ ingress, selectedKey, onSelectNode }) {
   if (ingress.length === 0) return null;
   return (
     <>
-      <div className="-mx-6" style={{ marginTop: 12, marginBottom: 10, borderTop: `1px solid ${C.borderStrong}` }} />
+      <div className="-mx-6" style={{ marginTop: 12, marginBottom: 10, borderTop: `1px dotted ${C.green}` }} />
       <div className="flex flex-col items-start w-full">
         <SectionLabel icon={Fingerprint} hint="how workforce (employee/admin) traffic reaches a privileged asset — a separate path from the customer/partner request path above">
           Ingress - Workforce
@@ -285,10 +285,10 @@ function TwoColumnRow({ isFirst, left, right }) {
   if (!left && !right) return null;
   return (
     <>
-      {!isFirst && <div className="-mx-6" style={{ marginTop: 12, marginBottom: 10, borderTop: `2px dotted ${C.amber}` }} />}
+      {!isFirst && <div className="-mx-6" style={{ marginTop: 12, marginBottom: 10, borderTop: `1px dotted ${C.amber}` }} />}
       <div className="flex items-start gap-6 w-full">
         {left}
-        {left && right && <div className="shrink-0 self-stretch" style={{ borderLeft: `2px dotted ${C.amber}` }} />}
+        {left && right && <div className="shrink-0 self-stretch" style={{ borderLeft: `1px dotted ${C.amber}` }} />}
         {right}
       </div>
     </>
@@ -325,14 +325,18 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
   const hasSoftwareDeployment = layout.softwareDeployment && layout.softwareDeployment.length > 0;
   const hasTrustedSection = hasBoundaryStages || hasActorsBlock || hasDataPlane || hasControlPlane || hasSoftwareDeployment;
   // Which of the (fixed-order) boundary sections is first — that one skips
-  // the top separator every other present section gets.
-  const firstBoundarySection = [
-    hasBoundaryStages && "stages",
+  // the top separator every other present section gets. Also tracked which
+  // is last, so the actors block (the only one with its own fill background)
+  // knows whether to bleed to the System Boundary box's bottom edge too.
+  const presentBoundarySections = [
     hasActorsBlock && "actors",
+    hasBoundaryStages && "stages",
     hasDataPlane && "dataPlane",
     hasControlPlane && "controlPlane",
     hasSoftwareDeployment && "softwareDeployment",
-  ].find(Boolean);
+  ].filter(Boolean);
+  const firstBoundarySection = presentBoundarySections[0];
+  const lastBoundarySection = presentBoundarySections[presentBoundarySections.length - 1];
 
   const rowA = (hasIngressActors || hasEgressActors) && (
     <TwoColumnRow
@@ -400,18 +404,19 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
             System Boundary
           </span>
 
-          {hasBoundaryStages && (
-            <div className="flex flex-col items-stretch">
-              {remainingStages.map((s, i) => (
-                <StageRow key={s.depth} stage={s} isFirst={firstBoundarySection === "stages" && i === 0} selectedKey={selectedKey} onSelectNode={onSelectNode} rolesFor={rolesFor} />
-              ))}
-            </div>
-          )}
-
           {hasActorsBlock && (
             <>
               {firstBoundarySection !== "actors" && <div className="-mx-6" style={{ marginTop: 16, marginBottom: 12, borderTop: `1px solid ${C.borderStrong}` }} />}
-              <div className="flex flex-col items-stretch">
+              <div
+                className={`flex flex-col items-stretch -mx-6 px-6 ${lastBoundarySection === "actors" ? "rounded-b-2xl" : ""}`}
+                style={{
+                  background: C.greenBg,
+                  marginTop: firstBoundarySection === "actors" ? -24 : 0,
+                  paddingTop: firstBoundarySection === "actors" ? 24 : 12,
+                  marginBottom: lastBoundarySection === "actors" ? -24 : 0,
+                  paddingBottom: lastBoundarySection === "actors" ? 24 : 12,
+                }}
+              >
               {hasInternalActors && (
                 <ActorRow
                   actorAccess={layout.internalActors}
@@ -426,6 +431,22 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
               )}
               </div>
             </>
+          )}
+
+          {hasBoundaryStages && (
+            <div className="flex flex-col items-stretch">
+              {remainingStages.map((s, i) => (
+                <StageRow
+                  key={s.depth}
+                  stage={s}
+                  isFirst={firstBoundarySection === "stages" && i === 0}
+                  flushTop={i === 0 && firstBoundarySection === "actors"}
+                  selectedKey={selectedKey}
+                  onSelectNode={onSelectNode}
+                  rolesFor={rolesFor}
+                />
+              ))}
+            </div>
           )}
 
           {layout.dataPlane.length > 0 && (
