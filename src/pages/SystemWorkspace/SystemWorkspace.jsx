@@ -5,6 +5,7 @@ import {
   cockpitSummary, identityPostureForSystem, exposureForSystem, securityTestsForSystem,
   resilienceForSystem, irForSystem, vendorsForSystem, vulnerabilitiesForSystem, sdlcForSystem,
   topRisksForSystem, controlApplicabilitySummary, responsibilityForControl, systemCoverageBreakdown,
+  findingsForSystem,
 } from "../../engine";
 import { SUB_TABS } from "./tabs";
 import { STATUS_ORDER } from "./controlMeta";
@@ -71,6 +72,19 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
     return counts;
   }, [matrix]);
 
+  const findings = useMemo(() => findingsForSystem(system.id), [system]);
+  // Open findings per control, so the table can show a count without every
+  // row re-filtering the system's whole findings list.
+  const findingsByControl = useMemo(() => {
+    const counts = {};
+    findings.forEach((f) => {
+      if (f.status === "open" || f.status === "accepted" || f.status === "remediating") {
+        counts[f.controlId] = (counts[f.controlId] ?? 0) + 1;
+      }
+    });
+    return counts;
+  }, [findings]);
+
   function selectSystem(id) {
     setSystemId(id);
     setSubTab(SUB_TABS[0].id);
@@ -111,6 +125,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         <SystemControls
           matrix={matrix} statusCounts={statusCounts}
           applicabilitySummary={applicabilitySummary} posture={posture}
+          findingsByControl={findingsByControl}
           onSelectRow={setSelectedRow}
         />
       )}

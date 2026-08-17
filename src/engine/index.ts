@@ -119,6 +119,7 @@ export const responsibilityForControl = compliance.responsibilityForControl;
 export const notApplicableControlsForSystem = compliance.notApplicableControlsForSystem;
 export const controlApplicabilitySummary = compliance.controlApplicabilitySummary;
 export const pendingControlsForSystem = engine.applicability.pendingControlsForSystem;
+export { STATUS_RANK } from "./compliance";
 
 // Profile
 export const CONTROL_PROFILES = profile.CONTROL_PROFILES;
