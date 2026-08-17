@@ -13,7 +13,7 @@ import {
   PRISMA_LEVELS, COMPLIANCE_LABELS, INSTANCE_STATUS_META,
   cockpitSummary, identityPostureForSystem, exposureForSystem, securityTestsForSystem,
   resilienceForSystem, irForSystem, vendorsForSystem, vulnerabilitiesForSystem, sdlcForSystem,
-  topRisksForSystem, FINDING_SEVERITY_META,
+  topRisksForSystem, FINDING_SEVERITY_META, SEVERITY_LEVELS,
 } from "../engine";
 
 // The compliance scale, coloured. Deliberately not assuranceBand's thresholds:
@@ -68,7 +68,6 @@ const SEVERITY_COLOR = { critical: C.red, high: C.red, medium: C.amber, low: C.m
 // page doesn't render as one long scroll. Section numbers stay attached to
 // their content below — only which sub-tab shows them changes.
 const SUB_TABS = [
-  { id: "cockpit", label: "Assurance Cockpit", icon: Gauge },
   { id: "overview", label: "Overview", icon: Info },
   { id: "security", label: "Security & Exposure", icon: Fingerprint },
   { id: "testing", label: "Testing & Resilience", icon: Crosshair },
@@ -128,12 +127,39 @@ function IdentificationField({ label, value }) {
 }
 
 // ---- Cockpit strip components -------------------------------------------------
-function StatTile({ label, value, sub, color }) {
+// A tiny ring chart for a single 0-100 value — just enough visual weight to
+// tell these four tiles apart from an ordinary stat card at a glance, without
+// pretending to be a real analytics widget.
+function StatRing({ pct, color, size = 40, stroke = 4 }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const filled = Math.max(0, Math.min(100, pct ?? 0));
   return (
-    <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-      <div className="text-2xl font-semibold" style={{ color: color || C.ink, fontFamily: "'Source Serif 4', serif" }}>{value}</div>
-      <div className="text-xs mt-1" style={{ color: C.muted }}>{label}</div>
-      {sub && <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{sub}</div>}
+    <svg width={size} height={size} className="shrink-0" style={{ transform: "rotate(-90deg)" }}>
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={C.border} strokeWidth={stroke} />
+      <circle
+        cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+        strokeDasharray={c} strokeDashoffset={c - (filled / 100) * c} strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+// `pct` renders a ring for tiles whose value is already a 0-100 measure
+// (assurance, target, coverage); `ring`/`ringColor` overrides that with a
+// value on a different scale (residual risk's severity-derived fill) so the
+// card doesn't imply the number itself is a percentage.
+function StatTile({ label, value, sub, color, pct, ring, ringColor, muted }) {
+  const ringPct = ring !== undefined ? ring : pct;
+  const ringCol = ringColor || color || (muted ? C.muted : C.accent);
+  return (
+    <div className="rounded-xl p-4 flex items-center justify-between gap-3" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+      <div className="min-w-0">
+        <div className="text-2xl font-semibold" style={{ color: color || C.ink, fontFamily: "'Source Serif 4', serif" }}>{value}</div>
+        <div className="text-xs mt-1" style={{ color: C.muted }}>{label}</div>
+        {sub && <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{sub}</div>}
+      </div>
+      {ringPct !== undefined && ringPct !== null && <StatRing pct={ringPct} color={ringCol} />}
     </div>
   );
 }
@@ -356,8 +382,7 @@ export default function SystemRegister() {
             <AssuranceBadge pct={system.overallAssurance} />
           </span>
         }
-        tagline="Assurance Cockpit"
-        description="What makes this system dangerous, what ACME is doing about it, and what has actually been proven to work — not a CMDB record."
+        description="A complete view of this system's security posture — what it contains, how it's exposed, how it's protected, and what the evidence proves."
         descriptionClassName="max-w-none whitespace-nowrap"
         right={<SystemPicker systems={SYSTEMS} systemId={systemId} onSelect={selectSystem} />}
       />
@@ -366,18 +391,36 @@ export default function SystemRegister() {
 
       <div className="pt-6" />
 
-      {subTab === "cockpit" && (
+      {subTab === "overview" && (
+      <>
+      {/* ---- Assurance Cockpit --------------------------------------------------
+          Lives at the top of Overview rather than its own tab — it's the
+          at-a-glance status the rest of the numbered sections back up with
+          detail, so it reads as the opening summary, not a peer section. */}
       <div className="px-8 pb-10">
         <SectionHeading icon={Gauge}>Assurance Cockpit</SectionHeading>
         <div className="grid grid-cols-4 gap-4 mb-5">
-          <StatTile label="Assurance" value={cockpit.assurance ?? "—"} color={cockpit.assuranceBand?.color === "green" ? C.green : cockpit.assuranceBand?.color === "amber" ? C.amber : cockpit.assuranceBand?.color === "red" ? C.red : C.ink} sub={cockpit.assuranceBand?.label} />
-          <StatTile label="Target" value={cockpit.target ?? "—"} sub={`${system.classification} tier`} />
-          <StatTile label="Assessment Coverage" value={`${cockpit.coverage?.assessedPct ?? 0}%`} sub={`${cockpit.coverage?.assessed ?? 0} of ${cockpit.coverage?.applicable ?? 0} controls`} />
+          <StatTile
+            label="Assurance"
+            value={cockpit.assurance ?? "—"}
+            color={cockpit.assuranceBand?.color === "green" ? C.green : cockpit.assuranceBand?.color === "amber" ? C.amber : cockpit.assuranceBand?.color === "red" ? C.red : C.ink}
+            sub={cockpit.assuranceBand?.label}
+            pct={cockpit.assurance}
+          />
+          <StatTile label="Target" value={cockpit.target ?? "—"} sub={`${system.classification} tier`} pct={cockpit.target} muted />
+          <StatTile
+            label="Assessment Coverage"
+            value={`${cockpit.coverage?.assessedPct ?? 0}%`}
+            sub={`${cockpit.coverage?.assessed ?? 0} of ${cockpit.coverage?.applicable ?? 0} controls`}
+            pct={cockpit.coverage?.assessedPct}
+          />
           <StatTile
             label="Residual Risk"
             value={cockpit.residualRisk.top ? cockpit.residualRisk.top.residual.severity : "—"}
             color={cockpit.residualRisk.top?.residual.severity === "Severe" ? C.red : C.ink}
             sub={cockpit.residualRisk.top ? `Top of ${cockpit.residualRisk.count} scenarios` : "No mapped scenarios"}
+            ring={cockpit.residualRisk.top ? (SEVERITY_LEVELS.indexOf(cockpit.residualRisk.top.residual.severity) + 1) * 25 : 0}
+            ringColor={cockpit.residualRisk.top?.residual.severity === "Severe" ? C.red : C.amber}
           />
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -395,10 +438,7 @@ export default function SystemRegister() {
           </Panel>
         </div>
       </div>
-      )}
 
-      {subTab === "overview" && (
-      <>
       {/* ---- 1. System Context ------------------------------------------------ */}
       <DocSection number="1" title="System Context" icon={Info}>
         <Panel className="grid grid-cols-4 gap-5">

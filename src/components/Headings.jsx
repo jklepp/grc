@@ -105,7 +105,7 @@ export function TabBar({ tabs, active, onChange, variant = "primary" }) {
 // it, so it's off by default everywhere else.
 export function SectionHeading({ icon: Icon, children, number, hint, right, className = "" }) {
   return (
-    <div className={`flex items-center gap-2 mb-4 pb-2 flex-wrap ${className}`} style={{ borderBottom: `1px solid ${C.accent}` }}>
+    <div className={`flex items-center gap-2 mb-4 pb-2 flex-wrap ${className}`} style={{ borderBottom: `1px solid ${C.borderStrong}` }}>
       {number && (
         <span className="text-xs font-semibold px-2 py-0.5 rounded shrink-0" style={{ background: C.accentBg, color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
           {number}
