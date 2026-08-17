@@ -1,0 +1,50 @@
+import React, { useMemo } from "react";
+import { Clock } from "lucide-react";
+import { C } from "../../../theme";
+import { SectionHeading } from "../../../components/Headings";
+import { Panel } from "../shared/Panel";
+import { recentActivityForSystem } from "./recentActivity";
+
+const DOMAIN_COLOR = {
+  Identity: C.accent,
+  Resilience: C.green,
+  "Security Testing": C.amber,
+  "Incident Response": C.red,
+  "Vendor Assurance": C.muted,
+};
+
+export function RecentSystemActivity({ identity, resilience, secTests, ir, vendors }) {
+  const events = useMemo(
+    () => recentActivityForSystem({ identity, resilience, secTests, ir, vendors }),
+    [identity, resilience, secTests, ir, vendors]
+  );
+
+  return (
+    <div>
+      <SectionHeading icon={Clock} hint="a full changelog is planned">Recent Activity</SectionHeading>
+      <Panel>
+        {events.length === 0 ? (
+          <div className="text-sm" style={{ color: C.muted }}>No recent activity on record for this system.</div>
+        ) : (
+          <div className="space-y-2.5">
+            {events.map((e, i) => (
+              <div key={i} className="flex items-start gap-3">
+                <span
+                  className="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 w-28 text-center"
+                  style={{ color: DOMAIN_COLOR[e.domain] ?? C.muted, background: C.panel2 }}
+                >
+                  {e.domain}
+                </span>
+                <div className="min-w-0">
+                  <span className="text-sm" style={{ color: C.ink }}>{e.label}</span>
+                  <span className="text-xs ml-2" style={{ color: C.muted }}>{e.detail}</span>
+                </div>
+                <span className="text-[11px] ml-auto shrink-0" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{e.ts}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
+    </div>
+  );
+}

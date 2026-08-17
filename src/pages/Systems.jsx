@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import SelectSystem from "./SelectSystem";
 import SystemDetail from "./SystemDetail";
-import { DEFAULT_SYSTEM_ID } from "./SystemRegister";
+import { DEFAULT_SYSTEM_ID } from "./SystemWorkspace/SystemWorkspace";
 
 // Systems is a thin router: "Select a System" until one is picked, then the
 // full-page System Security Profile (with its Map/Assets sibling tabs) via

@@ -1,16 +1,16 @@
 import React, { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { C } from "../theme";
-import SystemRegister from "./SystemRegister";
+import SystemWorkspace from "./SystemWorkspace/SystemWorkspace";
 
 // Legacy top-level tab ids ("profile"/"map"/"assets") map onto the System
-// Security Profile's own internal tabs, so deep-links set up before Map and
+// Workspace's own internal tabs, so deep-links set up before Architecture and
 // Assets moved in there still land on the right one.
-const INITIAL_SUBTAB_BY_LEGACY_TAB = { profile: "overview", map: "map", assets: "assets" };
+const INITIAL_SUBTAB_BY_LEGACY_TAB = { profile: "overview", map: "architecture", assets: "assets" };
 
-// Full-page view for a single selected system. Its Security Map and Assets
-// are tabs inside SystemRegister itself now, alongside its other document
-// sections — this wrapper just adds the "All Systems" back-link above it.
+// Full-page view for a single selected system. Its Architecture and Assets
+// are tabs inside SystemWorkspace itself now, alongside its other tabs —
+// this wrapper just adds the "All Systems" back-link above it.
 export default function SystemDetail({ systemId: initialSystemId, initialTab, onBack }) {
   const [systemId, setSystemId] = useState(initialSystemId);
 
@@ -26,7 +26,7 @@ export default function SystemDetail({ systemId: initialSystemId, initialTab, on
         </button>
       </div>
 
-      <SystemRegister
+      <SystemWorkspace
         systemId={systemId}
         onSelectSystem={setSystemId}
         initialSubTab={INITIAL_SUBTAB_BY_LEGACY_TAB[initialTab]}
