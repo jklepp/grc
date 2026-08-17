@@ -11,8 +11,8 @@ import AssetRegister from "./AssetRegister";
 // own content is untouched — this is purely a shell around them.
 const TABS = [
   { id: "footprint", label: "Data Footprint", icon: Database, Page: DataFootprint },
-  { id: "map", label: "Systems Data Flow", icon: Network, Page: DataMap },
-  { id: "register", label: "System Register", icon: ClipboardCheck, Page: SystemRegister },
+  { id: "map", label: "System Trust Map", icon: Network, Page: DataMap },
+  { id: "register", label: "System Security Profile", icon: ClipboardCheck, Page: SystemRegister },
   { id: "assets", label: "Asset Register", icon: Boxes, Page: AssetRegister },
 ];
 

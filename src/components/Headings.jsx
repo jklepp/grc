@@ -38,7 +38,39 @@ export function PageHeader({ icon: Icon, title, tagline, description, descriptio
 // a segmented control rather than an underline, so the active tab reads as
 // "selected" at a glance — inverted ink/bg fill instead of a thin accent line.
 // `tabs` is [{ id, label, icon }]; `active` is the selected id.
-export function TabBar({ tabs, active, onChange }) {
+// `variant="secondary"` is for a TabBar nested *below* another TabBar (e.g.
+// System Security Profile's sub-tabs inside Data Estate's top-level tabs) —
+// an underline style so the two rows don't read as the same kind of control
+// stacked twice.
+export function TabBar({ tabs, active, onChange, variant = "primary" }) {
+  if (variant === "secondary") {
+    return (
+      <div className="px-8 pt-6">
+        <div className="flex items-center gap-5" style={{ borderBottom: `1px solid ${C.border}` }}>
+          {tabs.map((t) => {
+            const isActive = active === t.id;
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.id}
+                onClick={() => onChange(t.id)}
+                className="flex items-center gap-1.5 pb-2 text-xs font-medium transition-colors"
+                style={{
+                  color: isActive ? C.ink : C.muted,
+                  borderBottom: `2px solid ${isActive ? C.accent : "transparent"}`,
+                  marginBottom: -1,
+                }}
+              >
+                {Icon && <Icon size={13} />}
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="px-8 pt-8">
       <div className="inline-flex items-center gap-1 p-1 rounded-xl" style={{ background: C.panel2 }}>

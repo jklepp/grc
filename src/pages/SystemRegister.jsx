@@ -6,8 +6,8 @@ import {
   TrendingUp, Building2,
 } from "lucide-react";
 import { C } from "../theme";
-import { PageHeader, SectionHeading } from "../components/Headings";
-import { ClassificationTag, DataTypeChip, StandardChip } from "../components/SystemBadges";
+import { PageHeader, SectionHeading, TabBar } from "../components/Headings";
+import { ClassificationTag, AssuranceBadge, SystemPicker } from "../components/SystemBadges";
 import {
   getAllSystems, systemControlMatrix, dataTypesForSystem, IMPLEMENTATION_TYPES,
   PRISMA_LEVELS, COMPLIANCE_LABELS, INSTANCE_STATUS_META,
@@ -29,6 +29,10 @@ function ratingColor(rating) {
 
 const SYSTEMS = getAllSystems();
 import { POLICIES } from "../data/policies";
+
+// Opens on Production AI Platform — the system most worth landing on by
+// default — falling back to the first system if it's ever renamed or removed.
+const DEFAULT_SYSTEM_ID = (SYSTEMS.find((s) => s.name === "Production AI Platform") ?? SYSTEMS[0]).id;
 
 // Every visible SCF control belongs to exactly one policy's domain set (verified
 // when Policy Center was built — the 307 visible controls split cleanly across
@@ -59,6 +63,18 @@ const IMPLEMENTATION_META = [
 ];
 
 const SEVERITY_COLOR = { critical: C.red, high: C.red, medium: C.amber, low: C.muted, info: C.green };
+
+// The 16 numbered document sections grouped into 5 thematic sub-tabs, so the
+// page doesn't render as one long scroll. Section numbers stay attached to
+// their content below — only which sub-tab shows them changes.
+const SUB_TABS = [
+  { id: "cockpit", label: "Assurance Cockpit", icon: Gauge },
+  { id: "overview", label: "Overview", icon: Info },
+  { id: "security", label: "Security & Exposure", icon: Fingerprint },
+  { id: "testing", label: "Testing & Resilience", icon: Crosshair },
+  { id: "controls", label: "Control Assurance", icon: Layers },
+  { id: "risk", label: "Risk & Remediation", icon: TrendingUp },
+];
 
 function assetName(system, assetId) {
   return system.assets.find((a) => a.id === assetId)?.name ?? assetId;
@@ -267,7 +283,8 @@ function POAMRow({ item }) {
 }
 
 export default function SystemRegister() {
-  const [systemId, setSystemId] = useState(SYSTEMS[0].id);
+  const [systemId, setSystemId] = useState(DEFAULT_SYSTEM_ID);
+  const [subTab, setSubTab] = useState(SUB_TABS[0].id);
   const [query, setQuery] = useState("");
   const [domainFilter, setDomainFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -309,6 +326,7 @@ export default function SystemRegister() {
 
   function selectSystem(id) {
     setSystemId(id);
+    setSubTab(SUB_TABS[0].id);
     setDomainFilter("All");
     setStatusFilter("All");
     setQuery("");
@@ -331,42 +349,24 @@ export default function SystemRegister() {
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
       <PageHeader
         icon={ClipboardCheck}
-        title="System Register"
+        title={
+          <span className="inline-flex items-center gap-3">
+            {system.name}
+            <ClassificationTag level={system.classification} />
+            <AssuranceBadge pct={system.overallAssurance} />
+          </span>
+        }
         tagline="Assurance Cockpit"
         description="What makes this system dangerous, what ACME is doing about it, and what has actually been proven to work — not a CMDB record."
         descriptionClassName="max-w-none whitespace-nowrap"
+        right={<SystemPicker systems={SYSTEMS} systemId={systemId} onSelect={selectSystem} />}
       />
 
-      <div className="px-8 grid grid-cols-3 gap-4 mb-8">
-        {SYSTEMS.map((s) => {
-          const active = s.id === systemId;
-          return (
-            <div
-              key={s.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => selectSystem(s.id)}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") selectSystem(s.id); }}
-              className="text-left rounded-xl p-4 cursor-pointer"
-              style={{ background: active ? C.accentBg : C.panel, border: `1px solid ${active ? C.accent : C.border}` }}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <ClassificationTag level={s.classification} />
-                <span className="text-xs" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{s.id}</span>
-                {s.internetFacing && <Globe size={11} color={C.muted} />}
-              </div>
-              <div className="text-sm font-semibold mb-1.5" style={{ color: C.ink }}>{s.name}</div>
-              <div className="text-xs mb-2" style={{ color: C.muted }}>{s.env}</div>
-              <div className="flex gap-1.5 flex-wrap items-center">
-                {dataTypesForSystem(s.id).map((t) => <DataTypeChip key={t.id} type={t.name} />)}
-                {s.standards.map((std, i) => <StandardChip key={i} standard={std} />)}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <TabBar tabs={SUB_TABS} active={subTab} onChange={setSubTab} variant="secondary" />
 
-      {/* ---- Cockpit strip -------------------------------------------------- */}
+      <div className="pt-6" />
+
+      {subTab === "cockpit" && (
       <div className="px-8 pb-10">
         <SectionHeading icon={Gauge}>Assurance Cockpit</SectionHeading>
         <div className="grid grid-cols-4 gap-4 mb-5">
@@ -395,7 +395,10 @@ export default function SystemRegister() {
           </Panel>
         </div>
       </div>
+      )}
 
+      {subTab === "overview" && (
+      <>
       {/* ---- 1. System Context ------------------------------------------------ */}
       <DocSection number="1" title="System Context" icon={Info}>
         <Panel className="grid grid-cols-4 gap-5">
@@ -440,7 +443,11 @@ export default function SystemRegister() {
           </div>
         </Panel>
       </DocSection>
+      </>
+      )}
 
+      {subTab === "security" && (
+      <>
       {/* ---- 3. Identity & Access ------------------------------------------------ */}
       <DocSection number="3" title="Identity & Access" icon={Fingerprint}>
         <Panel>
@@ -522,7 +529,11 @@ export default function SystemRegister() {
           ))}
         </Panel>
       </DocSection>
+      </>
+      )}
 
+      {subTab === "testing" && (
+      <>
       {/* ---- 5. Security Testing --------------------------------------------------- */}
       <DocSection number="5" title="Security Testing" icon={Crosshair}>
         <div className="grid grid-cols-2 gap-4 mb-4">
@@ -670,7 +681,11 @@ export default function SystemRegister() {
           {vendors.vendors.length === 0 && <div className="text-sm" style={{ color: C.muted }}>No dependencies registered for this system.</div>}
         </div>
       </DocSection>
+      </>
+      )}
 
+      {subTab === "security" && (
+      <>
       {/* ---- 9. Vulnerability & Configuration --------------------------------------- */}
       <DocSection number="9" title="Vulnerability & Configuration" icon={Bug}>
         <Panel>
@@ -719,7 +734,11 @@ export default function SystemRegister() {
           <div className="text-sm p-4 rounded-lg" style={{ background: C.panel2, color: C.muted }}>Not applicable — {sdlc.notApplicableReason}</div>
         </DocSection>
       )}
+      </>
+      )}
 
+      {subTab === "risk" && (
+      <>
       {/* ---- 11. Risk ------------------------------------------------------------- */}
       <DocSection number="11" title="Top Risk Scenarios" icon={TrendingUp}>
         <div className="space-y-2">
@@ -741,7 +760,11 @@ export default function SystemRegister() {
           {topRisks.length === 0 && <div className="text-sm" style={{ color: C.muted }}>No risk scenarios map to this system's assets.</div>}
         </div>
       </DocSection>
+      </>
+      )}
 
+      {subTab === "overview" && (
+      <>
       {/* ---- 12. Physical / Environmental ------------------------------------------ */}
       <DocSection number="12" title="Physical / Environmental" icon={Building2}>
         <div className="text-sm p-4 rounded-lg" style={{ background: C.panel2, color: C.ink }}>
@@ -749,7 +772,11 @@ export default function SystemRegister() {
           see the Vendor / Dependency Assurance section above for what backs that claim. No ACME-operated facility is in scope for this system.
         </div>
       </DocSection>
+      </>
+      )}
 
+      {subTab === "controls" && (
+      <>
       {/* ---- 13. Control Assurance -------------------------------------------------- */}
       <DocSection number="13" title="Control Assurance" icon={Layers}>
         <div className="grid grid-cols-4 gap-4 mb-6">
@@ -799,7 +826,11 @@ export default function SystemRegister() {
           <RadioTower size={12} /> marks the controls ACME tracks with live evidence; every other row is at the tier the Data Classification Register already reports, just broken out control by control. Implementation type is assigned per SCF domain, not audited per control.
         </div>
       </DocSection>
+      </>
+      )}
 
+      {subTab === "overview" && (
+      <>
       <DocSection number="14" title="Roles & Responsibilities" icon={Users2}>
         <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
           {system.roles.map((r, i) => (
@@ -814,7 +845,11 @@ export default function SystemRegister() {
           ))}
         </div>
       </DocSection>
+      </>
+      )}
 
+      {subTab === "risk" && (
+      <>
       <DocSection number="15" title="Plan of Action & Milestones (POA&M)" icon={ListTodo}>
         <p className="text-xs mb-3" style={{ color: C.muted }}>
           Every control not yet fully implemented, with the planned remediation, the resource responsible, and a target date — pulled from ACME's live remediation tracker, not a static appendix.
@@ -827,7 +862,11 @@ export default function SystemRegister() {
           system.findings.map((item) => <POAMRow key={item.id} item={item} />)
         )}
       </DocSection>
+      </>
+      )}
 
+      {subTab === "overview" && (
+      <>
       <DocSection number="16" title="Referenced Policies & Procedures" icon={BookOpen}>
         <p className="text-xs mb-3" style={{ color: C.muted }}>
           Every ACME policy that governs at least one control required for this system, computed from the control matrix above — not a separately maintained list that can drift out of sync.
@@ -844,6 +883,8 @@ export default function SystemRegister() {
           ))}
         </div>
       </DocSection>
+      </>
+      )}
 
       {selectedRow && (
         <div className="fixed inset-0 z-20 flex justify-end">

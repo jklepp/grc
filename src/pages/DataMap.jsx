@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Network, AlertTriangle, X, KeyRound, User, Cpu, Database, Search, ChevronDown, Workflow, LayoutList, Download, Loader2 } from "lucide-react";
+import React, { useMemo, useRef, useState } from "react";
+import { Network, AlertTriangle, X, KeyRound, User, Cpu, Database, Workflow, LayoutList, Download, Loader2 } from "lucide-react";
 import { C, CLASS_META } from "../theme";
 import { PageHeader } from "../components/Headings";
-import { ClassificationTag } from "../components/SystemBadges";
+import { ClassificationTag, AssuranceBadge, SystemPicker } from "../components/SystemBadges";
 import {
   getAllSystems, getAsset, getDataFlows, getAllDataTypes, dataTypesForSystem, dataForAsset,
-  assuranceBand, INSTANCE_STATUS_META, PRISMA_LEVELS, ASSURANCE_TARGET,
+  INSTANCE_STATUS_META, PRISMA_LEVELS, ASSURANCE_TARGET,
   ACTOR_KINDS,
 } from "../engine";
 import { buildDataFlowDiagram, buildControlPlaneMatrix } from "../utils/flowDiagramLayout";
@@ -452,92 +452,6 @@ function SystemDetailPanel({ assetId, onClose }) {
   );
 }
 
-// Tiles worked when there were two systems to lay out side by side; at
-// production scale (100+ systems) a grid like that is just a long scroll.
-// A search-and-select combobox keeps the footprint constant regardless of
-// how many systems are in the register, while still surfacing the one fact
-// that matters most before and after picking one — its classification tier
-// — right in the control itself rather than requiring a click to find out.
-function SystemPicker({ systems, systemId, onSelect }) {
-  const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef(null);
-
-  const selected = systems.find((s) => s.id === systemId);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return systems;
-    return systems.filter((s) =>
-      s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q) || s.classification.toLowerCase().includes(q)
-    );
-  }, [systems, query]);
-
-  useEffect(() => {
-    function onDocMouseDown(e) {
-      if (containerRef.current && !containerRef.current.contains(e.target)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDocMouseDown);
-    return () => document.removeEventListener("mousedown", onDocMouseDown);
-  }, []);
-
-  function choose(id) {
-    onSelect(id);
-    setQuery("");
-    setOpen(false);
-  }
-
-  return (
-    <div className="relative" ref={containerRef} style={{ width: 380 }}>
-      <div
-        className="flex items-center gap-2 pl-3 pr-2 py-2 rounded-lg cursor-text"
-        style={{ background: C.panel, border: `1px solid ${open ? C.accent : C.border}` }}
-        onClick={() => setOpen(true)}
-      >
-        <Search size={14} color={C.muted} className="shrink-0" />
-        <input
-          value={query}
-          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
-          placeholder={selected ? selected.name : "Search systems…"}
-          className="bg-transparent text-sm outline-none w-full min-w-0"
-          style={{ color: C.ink }}
-        />
-        <ChevronDown size={14} color={C.muted} className="shrink-0" />
-      </div>
-
-      {open && (
-        <div
-          className="absolute z-10 mt-1.5 w-full rounded-lg overflow-y-auto"
-          style={{ background: C.panel, border: `1px solid ${C.border}`, maxHeight: 320, boxShadow: "0 12px 28px rgba(0,0,0,0.28)" }}
-        >
-          {filtered.length === 0 ? (
-            <div className="px-3 py-3 text-xs" style={{ color: C.muted }}>No systems match "{query}"</div>
-          ) : (
-            filtered.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => choose(s.id)}
-                className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-white/[0.04] transition-colors"
-                style={{ background: s.id === systemId ? C.accentBg : "transparent", borderBottom: `1px solid ${C.border}` }}
-              >
-                <div className="min-w-0">
-                  <div className="text-sm font-medium truncate" style={{ color: C.ink }}>{s.name}</div>
-                  <div className="text-[11px]" style={{ color: C.muted }}>{s.id} · {s.assetCount} assets</div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <ClassificationTag level={s.classification} />
-                  <span className="text-xs font-semibold w-9 text-right" style={{ color: colorFor(assuranceBand(s.overallAssurance).color).color }}>{s.overallAssurance}%</span>
-                </div>
-              </button>
-            ))
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function DataMap() {
   const [systemId, setSystemId] = useState(SYSTEMS[0]?.id ?? null);
   const [selectedKey, setSelectedKey] = useState(null);
@@ -621,22 +535,20 @@ export default function DataMap() {
       <div className="flex-1 min-w-0">
         <PageHeader
           icon={Network}
-          title="Systems Data Flow"
-          description="How data moves between a system's assets, from ingress to egress."
+          title={
+            system ? (
+              <span className="inline-flex items-center gap-3">
+                {system.name}
+                <ClassificationTag level={system.classification} />
+                <AssuranceBadge pct={system.overallAssurance} />
+              </span>
+            ) : "Systems Data Flow"
+          }
+          description="How the system is built, connected, protected, and exposed across its assets and trust boundaries."
           right={<SystemPicker systems={SYSTEMS} systemId={systemId} onSelect={selectSystem} />}
         />
 
         <div className="px-8 pb-4">
-          {system && (
-            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-              <h2 className="text-xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>{system.name}</h2>
-              <div className="flex items-center gap-2 text-xs" style={{ color: C.muted }}>
-                <ClassificationTag level={system.classification} />
-                <span>{system.overallAssurance}% Cyber Assurance</span>
-              </div>
-            </div>
-          )}
-
           {system ? (
             <>
               <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
