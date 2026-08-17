@@ -103,6 +103,9 @@ export function buildDataFlowDiagram(layout) {
   (layout.stages || []).forEach((s) => {
     columns.push(columnOf(s.nodes.map((a) => ({ id: a.id, ref: a, w: NODE_W, h: NODE_H })), "asset"));
   });
+  if (layout.internalActors?.length) {
+    columns.push(columnOf(layout.internalActors.map((a) => ({ id: a.actor.id, ref: a.actor, w: ACTOR_W, h: ACTOR_H })), "actor"));
+  }
   if (layout.egress?.length) {
     columns.push(columnOf(layout.egress.map((e) => ({ id: e.asset.id, ref: e.asset, w: NODE_W, h: NODE_H })), "asset"));
   }
@@ -163,6 +166,11 @@ export function buildDataFlowDiagram(layout) {
       rawEdges.push({ id: `${a.assetId}->${a.actor.id}`, from: a.assetId, to: a.actor.id, kind: "actor-out", dataTypeIds: [], note: a.note });
     }
   });
+  (layout.internalActors || []).forEach((a) => {
+    if (positions[a.actor.id] && positions[a.assetId]) {
+      rawEdges.push({ id: `${a.actor.id}->${a.assetId}`, from: a.actor.id, to: a.assetId, kind: "actor-internal", dataTypeIds: [], note: a.note });
+    }
+  });
 
   const edges = fanOutEdges(rawEdges, positions);
   const nodes = Object.entries(positions).map(([id, pos]) => ({ id, ...pos }));
@@ -184,7 +192,10 @@ const CONTROL_CATEGORY_BY_KIND = {
   "runtime-security": "Observability & Detection",
 };
 const CONTROL_CATEGORY_FALLBACK = "Other Controls";
-const CONTROL_CATEGORY_ORDER = ["Encryption & Secrets", "Identity & Workload", "Observability & Detection", CONTROL_CATEGORY_FALLBACK];
+const CONTROL_CATEGORY_ORDER = [
+  "Encryption & Secrets", "Identity & Workload", "Observability & Detection",
+  "Ingress - Workforce", "Software Deployment", CONTROL_CATEGORY_FALLBACK,
+];
 
 export function controlPlaneCategory(kind) {
   return CONTROL_CATEGORY_BY_KIND[kind] || CONTROL_CATEGORY_FALLBACK;
@@ -201,15 +212,22 @@ const MATRIX_CATEGORY_ROW_H = 22;
 // can skip the page entirely rather than render an empty one.
 export function buildControlPlaneMatrix(layout, getAssetById) {
   const branches = layout.branches || [];
-  if (branches.length === 0) return null;
+  const workforceIngress = layout.workforceIngress || [];
+  const softwareDeployment = layout.softwareDeployment || [];
+  if (branches.length === 0 && workforceIngress.length === 0 && softwareDeployment.length === 0) return null;
 
   // Rows: protectors, grouped by category — same grouping the earlier
   // node-link version used, still meaningful here since it clusters rows
-  // that tend to have similar column patterns next to each other.
+  // that tend to have similar column patterns next to each other. Workforce
+  // ingress and software deployment assets are pulled out of the branch walk
+  // upstream (rollups.ts) precisely because they aren't generic protectors,
+  // so they get their own fixed categories instead of `controlPlaneCategory`.
   const groups = {};
   branches.forEach((b) => {
     (groups[controlPlaneCategory(b.asset.kind)] ||= []).push(b.asset);
   });
+  if (workforceIngress.length) groups["Ingress - Workforce"] = workforceIngress.map((w) => w.asset);
+  if (softwareDeployment.length) groups["Software Deployment"] = softwareDeployment.map((s) => s.asset);
   const rows = [];
   const categoryBreaks = [];
   CONTROL_CATEGORY_ORDER.filter((cat) => groups[cat]?.length).forEach((cat) => {
@@ -228,10 +246,19 @@ export function buildControlPlaneMatrix(layout, getAssetById) {
   (layout.egress || []).forEach((e) => naturalOrder.push(e.asset.id));
   (layout.dataPlane || []).forEach((d) => naturalOrder.push(d.asset.id));
 
+  // Software deployment's targets ride a `deploys-to` edge kind, not
+  // `control-plane` — outside `layout.controlPlaneEdges` entirely — so they're
+  // collected separately here rather than dropped for lacking a matching kind.
+  const deployTargets = {};
+  softwareDeployment.forEach((s) => {
+    deployTargets[s.asset.id] = s.deploysTo.map((t) => ({ to: t.id, note: `${s.asset.code} deploys to ${t.code}` }));
+  });
+
   const targetIds = new Set();
   (layout.controlPlaneEdges || []).forEach((f) => {
     if (rowIds.has(f.from)) targetIds.add(f.to);
   });
+  Object.values(deployTargets).forEach((list) => list.forEach((t) => targetIds.add(t.to)));
 
   const cols = [];
   const seenCol = new Set();
@@ -249,6 +276,11 @@ export function buildControlPlaneMatrix(layout, getAssetById) {
   const cellByKey = {};
   (layout.controlPlaneEdges || []).forEach((f) => {
     if (rowIds.has(f.from) && seenCol.has(f.to)) cellByKey[`${f.from}::${f.to}`] = f;
+  });
+  Object.entries(deployTargets).forEach(([from, list]) => {
+    list.forEach(({ to, note }) => {
+      if (seenCol.has(to)) cellByKey[`${from}::${to}`] = { note };
+    });
   });
 
   const width = MATRIX_MARGIN * 2 + MATRIX_ROW_LABEL_W + cols.length * MATRIX_COL_W;

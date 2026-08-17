@@ -187,37 +187,43 @@ function ActorRow({ actorAccess, title, hint, icon, isFirst }) {
 
 function StageRow({ stage, isFirst, selectedKey, onSelectNode, rolesFor }) {
   return (
-    <div className="flex flex-col items-start w-full" style={isFirst ? undefined : { marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
-      <SectionLabel icon={Cpu}>{stageLabel(stage.depth)}</SectionLabel>
-      <div className="flex flex-wrap items-start justify-center gap-3 w-full">
-        {stage.nodes.map((asset) => (
-          <NodeCard key={asset.id} asset={asset} footer={rolesFor(asset.id)?.join(" · ")} selected={asset.id === selectedKey} onSelect={onSelectNode} compact />
-        ))}
+    <>
+      {!isFirst && <div className="-mx-6" style={{ marginTop: 12, marginBottom: 10, borderTop: `1px solid ${C.borderStrong}` }} />}
+      <div className="flex flex-col items-start w-full">
+        <SectionLabel icon={Cpu}>{stageLabel(stage.depth)}</SectionLabel>
+        <div className="flex flex-wrap items-start justify-center gap-3 w-full">
+          {stage.nodes.map((asset) => (
+            <NodeCard key={asset.id} asset={asset} footer={rolesFor(asset.id)?.join(" · ")} selected={asset.id === selectedKey} onSelect={onSelectNode} compact />
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
 function WorkforceIngressRow({ ingress, selectedKey, onSelectNode }) {
   if (ingress.length === 0) return null;
   return (
-    <div className="flex flex-col items-start w-full" style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
-      <SectionLabel icon={Fingerprint} hint="how workforce (employee/admin) traffic reaches a privileged asset — a separate path from the customer/partner request path above">
-        Ingress - Workforce
-      </SectionLabel>
-      <div className="flex flex-wrap items-start justify-center gap-3 w-full">
-        {ingress.map(({ asset, grantsAccessTo }) => (
-          <NodeCard
-            key={asset.id}
-            asset={asset}
-            footer={grantsAccessTo.length > 0 ? `grants access to ${grantsAccessTo.map((p) => p.code).join(" · ")}` : null}
-            selected={asset.id === selectedKey}
-            onSelect={onSelectNode}
-            compact
-          />
-        ))}
+    <>
+      <div className="-mx-6" style={{ marginTop: 12, marginBottom: 10, borderTop: `1px solid ${C.borderStrong}` }} />
+      <div className="flex flex-col items-start w-full">
+        <SectionLabel icon={Fingerprint} hint="how workforce (employee/admin) traffic reaches a privileged asset — a separate path from the customer/partner request path above">
+          Ingress - Workforce
+        </SectionLabel>
+        <div className="flex flex-wrap items-start justify-center gap-3 w-full">
+          {ingress.map(({ asset, grantsAccessTo }) => (
+            <NodeCard
+              key={asset.id}
+              asset={asset}
+              footer={grantsAccessTo.length > 0 ? `grants access to ${grantsAccessTo.map((p) => p.code).join(" · ")}` : null}
+              selected={asset.id === selectedKey}
+              onSelect={onSelectNode}
+              compact
+            />
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -270,14 +276,22 @@ function EgressColumn({ egress, selectedKey, onSelectNode, rolesFor }) {
 // The vertical rule between columns — dotted blue, matching the Outside
 // Trust Boundary box these rows always sit inside — only drawn when both
 // columns actually have content, since a lone column has nothing to divide.
+// The horizontal rule between stacked rows (e.g. Actors row above the Web
+// Ingress/Egress row) uses the same dotted blue treatment rather than the
+// plain gray divider used elsewhere, and is pulled out with -mx-6 to cancel
+// the Outside Trust Boundary box's own px-6 padding so it spans edge to edge
+// like the box border, instead of stopping at the row's own content width.
 function TwoColumnRow({ isFirst, left, right }) {
   if (!left && !right) return null;
   return (
-    <div className="flex items-start gap-6 w-full" style={isFirst ? undefined : { marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.border}` }}>
-      {left}
-      {left && right && <div className="shrink-0 self-stretch" style={{ borderLeft: `2px dotted ${C.amber}` }} />}
-      {right}
-    </div>
+    <>
+      {!isFirst && <div className="-mx-6" style={{ marginTop: 12, marginBottom: 10, borderTop: `2px dotted ${C.amber}` }} />}
+      <div className="flex items-start gap-6 w-full">
+        {left}
+        {left && right && <div className="shrink-0 self-stretch" style={{ borderLeft: `2px dotted ${C.amber}` }} />}
+        {right}
+      </div>
+    </>
   );
 }
 
@@ -323,11 +337,11 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
   const rowA = (hasIngressActors || hasEgressActors) && (
     <TwoColumnRow
       isFirst
-      left={hasIngressActors && <ActorColumn actorAccess={layout.ingressActors} title="Actors - Ingress" />}
+      left={hasIngressActors && <ActorColumn actorAccess={layout.ingressActors} title="Actors - External" />}
       right={hasEgressActors && (
         <ActorColumn
           actorAccess={layout.egressActors}
-          title="Actors - Egress"
+          title="Actors - External"
           hint="external destinations reached from within the request path — not always from the Egress stage itself"
         />
       )}
@@ -363,7 +377,7 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
             className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-[10px] font-bold uppercase tracking-widest"
             style={{ background: C.panel2, color: C.amber, fontFamily: "'IBM Plex Mono', monospace" }}
           >
-            Outside Trust Boundary
+            Outer System Boundary
           </span>
           <div className="flex flex-col items-stretch">
             {rowA}
@@ -383,7 +397,7 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
             className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-[10px] font-bold uppercase tracking-widest"
             style={{ background: C.panel2, color: C.green, fontFamily: "'IBM Plex Mono', monospace" }}
           >
-            Trust Boundary
+            System Boundary
           </span>
 
           {hasBoundaryStages && (
@@ -395,7 +409,9 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
           )}
 
           {hasActorsBlock && (
-            <div className={firstBoundarySection === "actors" ? "flex flex-col items-stretch" : "flex flex-col items-stretch mt-4 pt-3"} style={firstBoundarySection === "actors" ? undefined : { borderTop: `1px solid ${C.border}` }}>
+            <>
+              {firstBoundarySection !== "actors" && <div className="-mx-6" style={{ marginTop: 16, marginBottom: 12, borderTop: `1px solid ${C.borderStrong}` }} />}
+              <div className="flex flex-col items-stretch">
               {hasInternalActors && (
                 <ActorRow
                   actorAccess={layout.internalActors}
@@ -408,11 +424,14 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
               {hasWorkforceIngress && (
                 <WorkforceIngressRow ingress={layout.workforceIngress} selectedKey={selectedKey} onSelectNode={onSelectNode} />
               )}
-            </div>
+              </div>
+            </>
           )}
 
           {layout.dataPlane.length > 0 && (
-            <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+            <>
+              <div className="-mx-6" style={{ marginTop: 16, marginBottom: 12, borderTop: `1px solid ${C.borderStrong}` }} />
+              <div>
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <Database size={12} color={C.accent} />
                 <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
@@ -435,11 +454,14 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
                   />
                 ))}
               </div>
-            </div>
+              </div>
+            </>
           )}
 
           {layout.branches.length > 0 && (
-            <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+            <>
+              <div className="-mx-6" style={{ marginTop: 16, marginBottom: 12, borderTop: `1px solid ${C.borderStrong}` }} />
+              <div>
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <KeyRound size={12} color={C.accent} />
                 <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
@@ -463,11 +485,14 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
                   />
                 ))}
               </div>
-            </div>
+              </div>
+            </>
           )}
 
           {layout.softwareDeployment && layout.softwareDeployment.length > 0 && (
-            <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+            <>
+              <div className="-mx-6" style={{ marginTop: 16, marginBottom: 12, borderTop: `1px solid ${C.borderStrong}` }} />
+              <div>
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <Rocket size={12} color={C.accent} />
                 <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
@@ -491,7 +516,8 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
                   />
                 ))}
               </div>
-            </div>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -821,7 +847,7 @@ export default function DataMap() {
                         onSelectNode={(k) => setSelectedKey((cur) => (cur === k ? null : k))}
                       />
                     </div>
-                    <FlowDiagramLegend kinds={["data", "actor-in", "actor-out"]} />
+                    <FlowDiagramLegend kinds={layout.internalActors?.length ? ["data", "actor-in", "actor-out", "actor-internal"] : ["data", "actor-in", "actor-out"]} />
                   </div>
 
                   {controlPlaneMatrix && (

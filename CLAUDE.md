@@ -22,5 +22,5 @@ Not a compliance checklist tool. Risk supports assurance; it is not the primary 
 - Run only relevant checks for touched files unless the change is cross-cutting.
 
 ## Change control
-Before non-trivial edits: list files to change/create and why; wait for approval.
+Give me a list of the files that will ultimately be changed before you proceede with changes.
 Trivial single-file copy/style fixes may proceed with minimal diff.

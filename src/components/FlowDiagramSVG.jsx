@@ -16,6 +16,7 @@ const EDGE_STYLE = {
   "control-plane": { stroke: LIGHT.na, dash: "5,4", marker: "arrow-control", label: "Control plane (protects, not in request path)" },
   "actor-in": { stroke: LIGHT.green, dash: null, marker: "arrow-in", label: "Actor — inbound (calls in)" },
   "actor-out": { stroke: LIGHT.amber, dash: null, marker: "arrow-out", label: "Actor — outbound (we call out)" },
+  "actor-internal": { stroke: LIGHT.red, dash: "1,3", marker: "arrow-internal", label: "Actor — internal (standing access, not a request-path call)" },
 };
 
 function Markers() {
