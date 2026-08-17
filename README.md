@@ -1,16 +1,50 @@
-# React + Vite
+# ACME GRC
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+An enterprise security system of record that connects systems, identities, assets, data, controls, evidence, risks and operational decisions into one continuously derived model.
 
-Currently, two official plugins are available:
+## Concept
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Boundary is the system; the unit of assessment is (system, control).**
+- Controls are scored on HITRUST PRISMA's five maturity levels — Policy, Procedure, Implemented, Measured, Managed — per system, not enterprise-wide.
+- Unassessed controls carry a `null` score, never a `0`. Inheritance from enterprise-level controls is capped, not automatic.
+- Applicability of a control to a system must be explainable — deterministic rules, not a silent AI judgment call.
+- Assurance scores (how well a control actually works) are kept separate from assessment coverage (how much has been assessed).
+- Assets are diagnostic and sample `Implemented` only — there's no asset-level PRISMA scoring.
 
-## React Compiler
+## Architecture
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```
+src/graph/     facts and edges — the source of truth (YAML-backed)
+src/engine/    all derivations: assessment, levels, assurance, rollups,
+               profile, applicability, evidence
+src/components/  UI
+src/pages/       app pages (Overview, Systems, Controls, Policy Center,
+                 Procedure Library, Risk Register, Executive Dashboard, ...)
+```
 
-## Expanding the Oxlint configuration
+`src/graph` holds facts and edges (types/vocab in TypeScript, data in YAML). Everything derived — scores, rollups, applicability — lives in `src/engine`. Pages read from the engine; nothing recomputes scoring or applicability logic on its own. See `CLAUDE.md` for the full contributor notes.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+## Getting started
+
+```sh
+npm install
+npm run dev
+```
+
+## Scripts
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the Vite dev server |
+| `npm run build` | Production build |
+| `npm run preview` | Preview the production build |
+| `npm run lint` | Oxlint |
+| `npm run typecheck` | TypeScript, no emit |
+| `npm run check:validators` | Build-time data integrity validators for the graph |
+| `npm run snapshot` | Snapshot derived engine output |
+| `npm run prisma-report` | Generate a PRISMA scoring report |
+| `npm run check` | typecheck + lint + validators |
+
+## Status
+
+Prototype / demo. Data represents fictional systems and controls for illustration only.

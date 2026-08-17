@@ -23,9 +23,9 @@ const PAGES = {
 // page, opened to the tab the old id used to mean — without having to touch
 // every caller each time another consolidation happens.
 const LEGACY_ROUTES = {
-  "data-footprint": { page: "data-estate", tab: "footprint" },
+  "data-footprint": { page: "overview", tab: "footprint" },
   "data-map": { page: "data-estate", tab: "map" },
-  "gap-matrix": { page: "data-estate", tab: "register" },
+  "gap-matrix": { page: "data-estate", tab: "profile" },
   "asset-register": { page: "data-estate", tab: "assets" },
   ccf: { page: "assurance", tab: "ccf" },
   "control-profile": { page: "assurance", tab: "control-profile" },
@@ -33,12 +33,12 @@ const LEGACY_ROUTES = {
   "procedure-library": { page: "governance", tab: "procedures" },
   "security-principles": { page: "governance", tab: "principles" },
   "activity-timeliness": { page: "governance", tab: "schedule" },
-  ssp: { page: "data-estate", tab: "register" },
+  ssp: { page: "data-estate", tab: "profile" },
 };
 
 export default function App() {
   const [active, setActive] = useState("data-estate");
-  const [initialTab, setInitialTab] = useState("map");
+  const [initialTab, setInitialTab] = useState(undefined);
   const [expanded, setExpanded] = useState(false);
   const [mode, setMode] = useState("light");
 

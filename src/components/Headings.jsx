@@ -46,7 +46,7 @@ export function TabBar({ tabs, active, onChange, variant = "primary" }) {
   if (variant === "secondary") {
     return (
       <div className="px-8 pt-6">
-        <div className="flex items-center gap-5" style={{ borderBottom: `1px solid ${C.border}` }}>
+        <div className="flex items-center gap-1 flex-wrap" style={{ borderBottom: `1px solid ${C.border}` }}>
           {tabs.map((t) => {
             const isActive = active === t.id;
             const Icon = t.icon;
@@ -54,11 +54,10 @@ export function TabBar({ tabs, active, onChange, variant = "primary" }) {
               <button
                 key={t.id}
                 onClick={() => onChange(t.id)}
-                className="flex items-center gap-1.5 pb-2 text-xs font-medium transition-colors"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-t-lg text-xs font-medium transition-colors"
                 style={{
-                  color: isActive ? C.ink : C.muted,
-                  borderBottom: `2px solid ${isActive ? C.accent : "transparent"}`,
-                  marginBottom: -1,
+                  color: isActive ? "#fff" : C.muted,
+                  background: isActive ? C.accentStrong : "transparent",
                 }}
               >
                 {Icon && <Icon size={13} />}

@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from "react";
-import { Network, AlertTriangle, X, KeyRound, User, Cpu, Database, Workflow, LayoutList, Download, Loader2, UserCog, Rocket, Fingerprint } from "lucide-react";
+import { Network, AlertTriangle, X, KeyRound, User, Cpu, Database, Workflow, LayoutList, Download, Loader2, UserCog, Rocket, Fingerprint, RotateCcw } from "lucide-react";
 import { C, CLASS_META } from "../theme";
 import { PageHeader } from "../components/Headings";
 import { ClassificationTag, AssuranceBadge, SystemPicker } from "../components/SystemBadges";
@@ -702,8 +702,10 @@ function SystemDetailPanel({ assetId, onClose }) {
   );
 }
 
-export default function DataMap() {
-  const [systemId, setSystemId] = useState(SYSTEMS[0]?.id ?? null);
+export default function DataMap({ systemId: controlledSystemId, onSelectSystem, embedded }) {
+  const [localSystemId, setLocalSystemId] = useState(SYSTEMS[0]?.id ?? null);
+  const systemId = controlledSystemId ?? localSystemId;
+  const setSystemId = onSelectSystem ?? setLocalSystemId;
   const [selectedKey, setSelectedKey] = useState(null);
   const [dataTypeId, setDataTypeId] = useState("all");
   const [viewMode, setViewMode] = useState("cards");
@@ -783,43 +785,27 @@ export default function DataMap() {
   return (
     <div className="w-full flex" style={{ fontFamily: "'Inter', sans-serif" }}>
       <div className="flex-1 min-w-0">
-        <PageHeader
-          icon={Network}
-          title={
-            system ? (
-              <span className="inline-flex items-center gap-3">
-                {system.name}
-                <ClassificationTag level={system.classification} />
-                <AssuranceBadge pct={system.overallAssurance} />
-              </span>
-            ) : "Systems Data Flow"
-          }
-          description="How the system is built, connected, protected, and exposed across its assets and trust boundaries."
-          right={<SystemPicker systems={SYSTEMS} systemId={systemId} onSelect={selectSystem} />}
-        />
+        {!embedded && (
+          <PageHeader
+            icon={Network}
+            title={
+              system ? (
+                <span className="inline-flex items-center gap-3">
+                  {system.name}
+                  <ClassificationTag level={system.classification} />
+                  <AssuranceBadge pct={system.overallAssurance} />
+                </span>
+              ) : "Systems Data Flow"
+            }
+            description="How the system is built, connected, protected, and exposed across its assets and trust boundaries."
+            right={<SystemPicker systems={SYSTEMS} systemId={systemId} onSelect={selectSystem} />}
+          />
+        )}
 
         <div className="px-8 pb-4">
           {system ? (
             <>
-              <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-                <div className="flex items-center gap-2 overflow-x-auto" style={{ scrollbarWidth: "thin" }}>
-                  <span className="text-[11px] mr-1 shrink-0" style={{ color: C.muted }}>Filter by data type:</span>
-                  {[{ id: "all", name: "All data" }, ...systemDataTypes].map((dt) => (
-                    <button
-                      key={dt.id}
-                      onClick={() => setDataTypeId(dt.id)}
-                      className="px-2.5 py-1 rounded-lg text-[11px] font-medium shrink-0"
-                      style={{
-                        background: dataTypeId === dt.id ? C.accentBg : "transparent",
-                        color: dataTypeId === dt.id ? C.accent : C.muted,
-                        border: `1px solid ${dataTypeId === dt.id ? C.accent : C.border}`,
-                      }}
-                    >
-                      {dt.name}
-                    </button>
-                  ))}
-                </div>
-
+              <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
                 <div className="flex items-center gap-2 shrink-0">
                   <div className="flex items-center rounded-lg p-0.5" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
                     <button
@@ -847,6 +833,30 @@ export default function DataMap() {
                     >
                       {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
                       {exporting ? "Exporting…" : "Export PDF"}
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <select
+                    value={dataTypeId}
+                    onChange={(e) => setDataTypeId(e.target.value)}
+                    className="text-xs pl-3 pr-7 py-2 rounded-lg font-medium"
+                    style={{ background: C.panel, color: C.ink, border: `1px solid ${C.border}` }}
+                  >
+                    <option value="all">All data</option>
+                    {systemDataTypes.map((dt) => (
+                      <option key={dt.id} value={dt.id}>{dt.name}</option>
+                    ))}
+                  </select>
+                  {dataTypeId !== "all" && (
+                    <button
+                      onClick={() => setDataTypeId("all")}
+                      className="flex items-center justify-center p-2 rounded-lg shrink-0"
+                      style={{ background: C.panel, color: C.muted, border: `1px solid ${C.border}` }}
+                      title="Reset to all data"
+                    >
+                      <RotateCcw size={13} />
                     </button>
                   )}
                 </div>

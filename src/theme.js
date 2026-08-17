@@ -14,6 +14,10 @@ export const DARK = {
   ink: "#E7E9EE",
   muted: "#8891A3",
   accent: "#8C7AE6",
+  // A deeper shade of accent for surfaces that need a solid fill rather than
+  // a text/border color — e.g. the active pill on a selected tab, where the
+  // base accent reads too light against dark ink text on top of it.
+  accentStrong: "#5B4BB8",
   green: "#5FB98A",
   // Severity escalation now runs green -> teal -> blue -> indigo instead of
   // the traffic-light green -> amber -> red. No hue in this ramp reads as a
@@ -42,6 +46,7 @@ export const LIGHT = {
   ink: "#1B1E2B",
   muted: "#6B7280",
   accent: "#6C5DD3",
+  accentStrong: "#4A3C99",
   green: "#1F9254",
   amber: "#2E6CB5", // same blue family as DARK.amber, darkened/saturated to match this palette's contrast pattern
   red: "#2C3B85", // same indigo family as DARK.red, darkened/saturated to match this palette's contrast pattern

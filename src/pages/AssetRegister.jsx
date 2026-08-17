@@ -54,6 +54,94 @@ function AssetCard({ asset, selected, onSelect }) {
   );
 }
 
+// Same row-table treatment as the Select a System list — an asset register
+// reads the same way a system register does, and it's the pattern this asset
+// list is asked to match. Kept as its own component rather than reusing
+// SelectSystem's SystemRow: the columns and click target (opens the slideout
+// here, navigates there) are different enough that sharing would mean a prop
+// escape hatch on both sides for no real reuse.
+const ASSET_COLUMNS = "2.2fr 130px 150px 150px";
+
+function AssetAvatar({ name }) {
+  const initial = name.trim().charAt(0).toUpperCase();
+  return (
+    <div
+      className="flex items-center justify-center rounded-lg shrink-0 font-semibold"
+      style={{ width: 34, height: 34, background: C.accentBg, color: C.accent, fontFamily: "'Source Serif 4', serif" }}
+    >
+      {initial}
+    </div>
+  );
+}
+
+function StatCell({ value, band }) {
+  const { color, bg } = colorFor(band.color);
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-sm font-semibold tabular-nums" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{value}</span>
+      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color, background: bg }}>{band.label}</span>
+    </div>
+  );
+}
+
+function AssetRow({ asset, onSelect, selected, striped }) {
+  return (
+    <button
+      onClick={() => onSelect(asset.id)}
+      className="w-full grid items-center gap-3 pl-3.5 pr-4 py-3.5 text-left transition-all group"
+      style={{
+        gridTemplateColumns: ASSET_COLUMNS,
+        borderBottom: `1px solid ${C.border}`,
+        borderLeft: `3px solid ${selected ? C.accent : "transparent"}`,
+        background: selected ? C.accentBg : striped ? C.panel2 : "transparent",
+      }}
+      onMouseEnter={(e) => { if (!selected) { e.currentTarget.style.borderLeftColor = C.accent; e.currentTarget.style.background = C.accentBg; } }}
+      onMouseLeave={(e) => { if (!selected) { e.currentTarget.style.borderLeftColor = "transparent"; e.currentTarget.style.background = striped ? C.panel2 : "transparent"; } }}
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <AssetAvatar name={asset.name} />
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <div className="text-sm font-semibold truncate" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{asset.name}</div>
+            <ClassificationTag level={asset.classification} />
+          </div>
+          <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{asset.type} · {asset.provider}</div>
+        </div>
+      </div>
+      <StatCell value={asset.criticality} band={asset.criticalityBand} />
+      <StatCell value={`${asset.implementedCount}/${asset.applicableControlCount}`} band={verificationBand(asset)} />
+      <StatCell value={asset.inherentRisk.score} band={asset.inherentRisk.band} />
+    </button>
+  );
+}
+
+function AssetTable({ assets, selectedId, onSelect }) {
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}`, boxShadow: "0 6px 20px rgba(0,0,0,0.06)" }}>
+      <div
+        className="grid gap-3 pl-3.5 pr-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide"
+        style={{ gridTemplateColumns: ASSET_COLUMNS, background: C.panel2, color: C.muted, borderBottom: `2px solid ${C.accent}` }}
+      >
+        <div>Asset</div>
+        <div>Criticality</div>
+        <div>Verified</div>
+        <div>Inherent Risk</div>
+      </div>
+      {assets.length === 0 ? (
+        <div className="px-4 py-6 text-sm text-center" style={{ color: C.muted, background: C.panel }}>
+          No assets registered for this system.
+        </div>
+      ) : (
+        <div style={{ background: C.panel }}>
+          {assets.map((asset, i) => (
+            <AssetRow key={asset.id} asset={asset} selected={asset.id === selectedId} onSelect={onSelect} striped={i % 2 === 1} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // A verification ratio is a coverage figure, not a score, so it gets a band
 // only to colour it — deliberately not assuranceBand, whose thresholds mean
 // something about posture rather than about how much was looked at.
@@ -223,12 +311,13 @@ function AssetDetailPanel({ asset, onClose }) {
   );
 }
 
-export default function AssetRegister() {
-  const [selectedId, setSelectedId] = useState(ASSETS[0]?.id ?? null);
-  const selected = ASSETS.find((a) => a.id === selectedId) || null;
+export default function AssetRegister({ systemId }) {
+  const assets = systemId ? ASSETS.filter((a) => a.system.id === systemId) : ASSETS;
+  const [selectedId, setSelectedId] = useState(assets[0]?.id ?? null);
+  const selected = assets.find((a) => a.id === selectedId) || null;
 
   const groups = [];
-  ASSETS.forEach((asset) => {
+  assets.forEach((asset) => {
     let group = groups.find((g) => g.system.id === asset.system.id);
     if (!group) {
       group = { system: asset.system, assets: [] };
@@ -240,33 +329,39 @@ export default function AssetRegister() {
   return (
     <div className="w-full flex" style={{ fontFamily: "'Inter', sans-serif" }}>
       <div className="flex-1 min-w-0">
-        <PageHeader
-          icon={Boxes}
-          title="Asset Register"
-          description="Individual resources inside each system's boundary. An asset carries no assurance score of its own — the controls that apply to it are assessed once against its system, and each asset is one of the samples behind that. What it reports here is consequence, and what every applicable control actually showed on it."
-          right={
-            <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
-              {ASSETS.length} assets across {groups.length} systems
-            </div>
-          }
-        />
+        {!systemId && (
+          <PageHeader
+            icon={Boxes}
+            title="Asset Register"
+            description="Individual resources inside each system's boundary. An asset carries no assurance score of its own — the controls that apply to it are assessed once against its system, and each asset is one of the samples behind that. What it reports here is consequence, and what every applicable control actually showed on it."
+            right={
+              <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
+                {assets.length} assets across {groups.length} systems
+              </div>
+            }
+          />
+        )}
 
         <div className="px-8 py-6 space-y-8">
-          {groups.map((group) => (
-            <div key={group.system.id}>
-              <SectionHeading
-                icon={Boxes}
-                right={<span className="text-xs" style={{ color: C.muted }}>{group.system.id} · {group.system.env}</span>}
-              >
-                {group.system.name}
-              </SectionHeading>
-              <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
-                {group.assets.map((asset) => (
-                  <AssetCard key={asset.id} asset={asset} selected={asset.id === selectedId} onSelect={setSelectedId} />
-                ))}
+          {systemId ? (
+            <AssetTable assets={assets} selectedId={selectedId} onSelect={setSelectedId} />
+          ) : (
+            groups.map((group) => (
+              <div key={group.system.id}>
+                <SectionHeading
+                  icon={Boxes}
+                  right={<span className="text-xs" style={{ color: C.muted }}>{group.system.id} · {group.system.env}</span>}
+                >
+                  {group.system.name}
+                </SectionHeading>
+                <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+                  {group.assets.map((asset) => (
+                    <AssetCard key={asset.id} asset={asset} selected={asset.id === selectedId} onSelect={setSelectedId} />
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 

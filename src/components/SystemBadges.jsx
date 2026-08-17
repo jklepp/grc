@@ -69,6 +69,30 @@ export function DataTypeChip({ type }) {
   );
 }
 
+// A single data type a system processes, shown as a scannable card (name +
+// sensitivity + regulatory flags) instead of a comma-joined text line — used
+// on the System Security Profile's Data section.
+export function DataTypeCard({ dataType }) {
+  return (
+    <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <div className="text-sm font-semibold" style={{ color: C.ink }}>{dataType.name}</div>
+        <ClassificationTag level={dataType.sensitivity} />
+      </div>
+      {dataType.description && (
+        <div className="text-xs mt-1 leading-relaxed" style={{ color: C.muted }}>{dataType.description}</div>
+      )}
+      <div className="flex gap-1.5 flex-wrap mt-3">
+        {dataType.regulatoryFlags.length > 0
+          ? dataType.regulatoryFlags.map((f) => (
+              <span key={f} className="text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ background: C.accentBg, color: C.accent }}>{f}</span>
+            ))
+          : <span className="text-[11px]" style={{ color: C.muted }}>No regulated-data category</span>}
+      </div>
+    </div>
+  );
+}
+
 export function SourceBadge({ syncSource }) {
   const isVanta = syncSource === "vanta";
   return (

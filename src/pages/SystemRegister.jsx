@@ -3,11 +3,13 @@ import {
   ClipboardCheck, Search, X, Cloud, CheckCircle2, MinusCircle, Circle, RadioTower, Link2, Zap, UserCog, ScrollText,
   ChevronDown, ChevronRight, Info, Layers, Users2, ListTodo, BookOpen, AlertCircle, Clock, User,
   Gauge, AlertTriangle, Database, Fingerprint, Globe, Crosshair, Siren, LifeBuoy, Handshake, Bug, GitBranch,
-  TrendingUp, Building2,
+  TrendingUp, Building2, Network, Boxes,
 } from "lucide-react";
 import { C } from "../theme";
 import { PageHeader, SectionHeading, TabBar } from "../components/Headings";
-import { ClassificationTag, AssuranceBadge, SystemPicker } from "../components/SystemBadges";
+import { ClassificationTag, AssuranceBadge, SystemPicker, DataTypeCard } from "../components/SystemBadges";
+import DataMap from "./DataMap";
+import AssetRegister from "./AssetRegister";
 import {
   getAllSystems, systemControlMatrix, dataTypesForSystem, IMPLEMENTATION_TYPES,
   PRISMA_LEVELS, COMPLIANCE_LABELS, INSTANCE_STATUS_META,
@@ -32,7 +34,7 @@ import { POLICIES } from "../data/policies";
 
 // Opens on Production AI Platform — the system most worth landing on by
 // default — falling back to the first system if it's ever renamed or removed.
-const DEFAULT_SYSTEM_ID = (SYSTEMS.find((s) => s.name === "Production AI Platform") ?? SYSTEMS[0]).id;
+export const DEFAULT_SYSTEM_ID = (SYSTEMS.find((s) => s.name === "Production AI Platform") ?? SYSTEMS[0]).id;
 
 // Every visible SCF control belongs to exactly one policy's domain set (verified
 // when Policy Center was built — the 307 visible controls split cleanly across
@@ -69,10 +71,12 @@ const SEVERITY_COLOR = { critical: C.red, high: C.red, medium: C.amber, low: C.m
 // their content below — only which sub-tab shows them changes.
 const SUB_TABS = [
   { id: "overview", label: "Overview", icon: Info },
+  { id: "map", label: "System Security Map", icon: Network },
   { id: "security", label: "Security & Exposure", icon: Fingerprint },
   { id: "testing", label: "Testing & Resilience", icon: Crosshair },
   { id: "controls", label: "Control Assurance", icon: Layers },
   { id: "risk", label: "Risk & Remediation", icon: TrendingUp },
+  { id: "assets", label: "Assets", icon: Boxes },
 ];
 
 function assetName(system, assetId) {
@@ -308,9 +312,11 @@ function POAMRow({ item }) {
   );
 }
 
-export default function SystemRegister({ initialSystemId }) {
-  const [systemId, setSystemId] = useState(initialSystemId || DEFAULT_SYSTEM_ID);
-  const [subTab, setSubTab] = useState(SUB_TABS[0].id);
+export default function SystemRegister({ systemId: controlledSystemId, onSelectSystem, initialSubTab }) {
+  const [localSystemId, setLocalSystemId] = useState(DEFAULT_SYSTEM_ID);
+  const systemId = controlledSystemId ?? localSystemId;
+  const setSystemId = onSelectSystem ?? setLocalSystemId;
+  const [subTab, setSubTab] = useState(SUB_TABS.some((t) => t.id === initialSubTab) ? initialSubTab : SUB_TABS[0].id);
   const [query, setQuery] = useState("");
   const [domainFilter, setDomainFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -370,6 +376,494 @@ export default function SystemRegister({ initialSystemId }) {
 
   const governingPolicy = selectedRow ? POLICY_BY_CONTROL[selectedRow.control.id] : null;
   const drawerClauses = selectedRow ? selectedRow.control.frameworks.filter((f) => system.standards.includes(f.standard)) : [];
+
+  const dataTypes = useMemo(() => dataTypesForSystem(system.id), [system]);
+
+  // The 16 numbered document sections, in reading order — the single source
+  // of truth for both content and number (index + 1), so numbering can never
+  // drift out of sync the way scattered hardcoded number="N" literals did.
+  const sectionOrder = [
+    {
+      id: "system-context", subtab: "overview", title: "System Context", icon: Info,
+      render: () => (
+        <Panel className="grid grid-cols-4 gap-5">
+          <IdentificationField label="System Name" value={system.name} />
+          <IdentificationField label="System ID" value={system.id} />
+          <IdentificationField label="Classification" value={system.classification} />
+          <IdentificationField label="Hosting Environment" value={system.env} />
+          <IdentificationField label="Availability Tier" value={system.availabilityTier.replace(/-/g, " ")} />
+          <IdentificationField label="Internet Facing" value={system.internetFacing ? "Yes" : "No"} />
+          <IdentificationField label="Users" value={system.userCount.toLocaleString()} />
+          <IdentificationField label="Regions" value={system.regions.join(", ")} />
+          <IdentificationField label="Compliance Standards In Scope" value={system.standards.join(", ")} />
+          <div className="col-span-4">
+            <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Purpose</div>
+            <div className="text-sm leading-relaxed" style={{ color: C.ink }}>{system.mission}</div>
+          </div>
+          <div className="col-span-4">
+            <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Boundary</div>
+            <div className="text-sm leading-relaxed" style={{ color: C.ink }}>{system.boundary}</div>
+          </div>
+        </Panel>
+      ),
+    },
+    {
+      id: "data", subtab: "overview", title: "Data", icon: Database,
+      render: () => (
+        <>
+          <Panel className="grid grid-cols-4 gap-5 mb-5">
+            <IdentificationField label="Data Subjects" value={system.dataProfile.subjects.join(", ")} />
+            <IdentificationField label="Approx. Records" value={system.dataProfile.approxRecords.toLocaleString()} />
+            <IdentificationField label="Residency" value={system.dataProfile.residency.join(", ")} />
+            <div>
+              <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Retention</div>
+              <div className="text-sm" style={{ color: C.ink }}>{system.dataProfile.retention}</div>
+            </div>
+          </Panel>
+          <div className="grid grid-cols-3 gap-4">
+            {dataTypes.map((t) => <DataTypeCard key={t.id} dataType={t} />)}
+            {dataTypes.length === 0 && (
+              <div className="text-sm" style={{ color: C.muted }}>No data types mapped to this system's assets.</div>
+            )}
+          </div>
+        </>
+      ),
+    },
+    {
+      id: "identity", subtab: "security", title: "Identity & Access", icon: Fingerprint,
+      render: () => (
+        <Panel>
+          <div className="grid overflow-x-auto">
+            <div className="grid text-[11px] font-medium pb-2 mb-2" style={{ gridTemplateColumns: "1.2fr 90px 1fr 1fr 1fr 90px", borderBottom: `1px solid ${C.border}`, color: C.muted }}>
+              <div>Identity Type</div>
+              <div className="text-right">Total</div>
+              <div>SSO</div>
+              <div>MFA</div>
+              <div>Strong MFA</div>
+              <div className="text-right">Dormant</div>
+            </div>
+            {identity.populations.map((p) => (
+              <div key={p.id} className="grid items-center py-1.5" style={{ gridTemplateColumns: "1.2fr 90px 1fr 1fr 1fr 90px" }}>
+                <div className="text-sm capitalize" style={{ color: C.ink }}>{p.identityType.replace(/-/g, " ")}</div>
+                <div className="text-sm text-right tabular-nums" style={{ color: C.ink }}>{p.totalCount}</div>
+                <div><CoverageBar pct={p.ssoCoveragePct} color={C.accent} /></div>
+                <div><CoverageBar pct={p.mfaCoveragePct} color={C.amber} /></div>
+                <div><CoverageBar pct={p.strongMfaCoveragePct} color={C.green} /></div>
+                <div className="text-sm text-right tabular-nums" style={{ color: p.dormantCount > 0 ? C.amber : C.muted }}>{p.dormantCount}</div>
+              </div>
+            ))}
+            {identity.populations.length === 0 && <div className="text-sm py-4" style={{ color: C.muted }}>No identity population is tracked for this system.</div>}
+          </div>
+          <div className="grid grid-cols-4 gap-4 mt-5 pt-4" style={{ borderTop: `1px solid ${C.border}` }}>
+            <IdentificationField label="Shared Accounts" value={identity.totals.shared} />
+            <IdentificationField label="Local Accounts Bypassing SSO" value={identity.totals.localBypass} />
+            <IdentificationField label="Accounts Awaiting Termination" value={identity.totals.awaitingTermination} />
+            <div>
+              <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Last Access Review</div>
+              {identity.review ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm" style={{ color: C.ink }}>{identity.review.reviewedAt} · {identity.review.reviewedCount}/{identity.review.totalCount}</span>
+                  <CadenceBadge cadence={identity.review.cadence} />
+                </div>
+              ) : <span className="text-sm" style={{ color: C.muted }}>None on record</span>}
+            </div>
+          </div>
+        </Panel>
+      ),
+    },
+    {
+      id: "exposure", subtab: "security", title: "Exposure / Attack Surface", icon: Globe,
+      render: () => (
+        <Panel>
+          <div className="grid grid-cols-5 gap-5 mb-5">
+            <IdentificationField label="Internet-Facing Services" value={exposure.externalServices.filter((s) => s.internetFacing).length} />
+            <IdentificationField label="Externally Reachable" value={exposure.externallyReachableCount} />
+            <IdentificationField label="Inbound Integrations" value={exposure.posture?.inboundIntegrationCount ?? "—"} />
+            <IdentificationField label="Outbound Integrations" value={exposure.posture?.outboundIntegrationCount ?? "—"} />
+            <IdentificationField label="Connected Vendors" value={vendors.vendors.length} />
+          </div>
+          <div className="grid grid-cols-3 gap-5 mb-5">
+            <IdentificationField label="Egress Posture" value={exposure.posture?.egressPosture.replace(/-/g, " ") ?? "—"} />
+            <IdentificationField label="Admin Posture" value={exposure.posture?.adminPosture.replace(/-/g, " ") ?? "—"} />
+            <IdentificationField label="API Posture" value={exposure.posture?.apiPosture.replace(/-/g, " ") ?? "—"} />
+          </div>
+          <div className="space-y-1.5 mb-4">
+            {exposure.externalServices.map((s) => (
+              <div key={s.id} className="flex items-center gap-2 text-sm" style={{ color: C.ink }}>
+                {s.kind === "admin-interface" ? <Crosshair size={12} color={C.muted} /> : <Globe size={12} color={C.muted} />}
+                {s.name}
+                <span className="text-xs" style={{ color: C.muted }}>({s.kind.replace(/-/g, " ")}{s.internetFacing ? ", internet-facing" : ", private"})</span>
+                {!s.wafProtected && s.internetFacing && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: C.amberBg, color: C.amber }}>No WAF</span>}
+              </div>
+            ))}
+          </div>
+          {exposure.dangerousConditionsUnmitigated.length > 0 && (
+            <div className="space-y-1 mb-3">
+              {exposure.dangerousConditionsUnmitigated.map((c) => (
+                <div key={c} className="flex items-center gap-2 text-sm" style={{ color: C.red }}><AlertTriangle size={12} /> {c.replace(/-/g, " ")}</div>
+              ))}
+            </div>
+          )}
+          {exposure.exceptions.map((e) => (
+            <div key={e.id} className="rounded-lg p-3 mt-2" style={{ background: C.greenBg }}>
+              <div className="flex items-center gap-2 text-sm font-medium" style={{ color: C.green }}><CheckCircle2 size={12} /> {e.condition.replace(/-/g, " ")} — accepted</div>
+              <div className="text-xs mt-1 leading-relaxed" style={{ color: C.muted }}>{e.reason}</div>
+            </div>
+          ))}
+        </Panel>
+      ),
+    },
+    {
+      id: "sec-testing", subtab: "testing", title: "Security Testing", icon: Crosshair,
+      render: () => (
+        <>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            {["penetration-test", "red-team"].map((type) => {
+              const latest = secTests.latestByType[type];
+              return (
+                <Panel key={type}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-sm font-semibold" style={{ color: C.ink }}>{type === "penetration-test" ? "External Penetration Test" : "Red Team"}</div>
+                    {latest && <CadenceBadge cadence={latest.cadence} />}
+                  </div>
+                  {latest ? (
+                    <div className="space-y-1.5 text-sm" style={{ color: C.ink }}>
+                      <div>Last completed <span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{latest.completedAt}</span> · {latest.vendor}</div>
+                      <div className="text-xs" style={{ color: C.muted }}>{latest.scope}</div>
+                      <div className="flex items-center gap-3 mt-1.5">
+                        <span style={{ color: latest.criticalFindingCount > 0 ? C.red : C.muted }}>Critical: {latest.criticalFindingCount}</span>
+                        <span style={{ color: latest.highFindingCount > 0 ? C.amber : C.muted }}>High: {latest.highFindingCount}</span>
+                        {type === "red-team" && latest.objectiveAchieved !== undefined && (
+                          <span style={{ color: latest.objectiveAchieved ? C.green : C.red }}>Objective {latest.objectiveAchieved ? "achieved" : "not achieved"}</span>
+                        )}
+                      </div>
+                    </div>
+                  ) : <div className="text-sm" style={{ color: C.muted }}>Never conducted.</div>}
+                </Panel>
+              );
+            })}
+          </div>
+          {secTests.openFindings.length > 0 && (
+            <div>
+              <div className="text-xs mb-2" style={{ color: C.muted }}>Open findings from these exercises:</div>
+              {secTests.openFindings.map((f) => <POAMRow key={f.id} item={f} />)}
+            </div>
+          )}
+        </>
+      ),
+    },
+    {
+      id: "ir", subtab: "testing", title: "Incident Response", icon: Siren,
+      render: () => (
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            <Panel>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm font-semibold" style={{ color: C.ink }}>IR Plan</div>
+                {ir.planCurrency && <CadenceBadge cadence={ir.planCurrency.cadence} />}
+              </div>
+              <div className="text-sm" style={{ color: C.ink }}>{ir.planCurrency ? `Last reviewed ${ir.planCurrency.lastReviewedAt}` : "No plan on record"}</div>
+              <div className="text-sm mt-3 pt-3" style={{ color: C.ink, borderTop: `1px solid ${C.border}` }}>Last production incident</div>
+              <div className="text-sm" style={{ color: C.muted }}>
+                {ir.lastIncident ? `${ir.lastIncident.occurredAt} · ${ir.lastIncident.severity} · lessons learned ${ir.lastIncident.lessonsLearnedComplete ? "complete" : "outstanding"}` : "None on record"}
+              </div>
+            </Panel>
+            <Panel>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm font-semibold" style={{ color: C.ink }}>Last Tabletop</div>
+                {ir.lastTabletop && <CadenceBadge cadence={ir.lastTabletop.cadence} />}
+              </div>
+              {ir.lastTabletop ? (
+                <div className="space-y-1.5 text-sm" style={{ color: C.ink }}>
+                  <div>{ir.lastTabletop.conductedAt} · {ir.lastTabletop.scenario}</div>
+                  <div className="text-xs" style={{ color: C.muted }}>{ir.lastTabletop.scope === "program" ? "Program-wide exercise" : "System-specific exercise"}</div>
+                  <div style={{ color: C.muted }}>Issues identified: {ir.lastTabletop.issuesIdentified}</div>
+                  <div className="flex gap-1.5 flex-wrap mt-1">
+                    {ir.lastTabletop.participatingFunctions.map((f) => (
+                      <span key={f} className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: C.greenBg, color: C.green }}><CheckCircle2 size={9} className="inline mr-1" />{f.replace(/-/g, " ")}</span>
+                    ))}
+                    {["legal", "customer-comms"].filter((f) => !ir.lastTabletop.participatingFunctions.includes(f)).map((f) => (
+                      <span key={f} className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: C.amberBg, color: C.amber }}><AlertTriangle size={9} className="inline mr-1" />{f.replace(/-/g, " ")} not exercised</span>
+                    ))}
+                  </div>
+                </div>
+              ) : <div className="text-sm" style={{ color: C.muted }}>No tabletop on record.</div>}
+            </Panel>
+          </div>
+          {ir.openFindings.length > 0 && (
+            <div className="mt-4">
+              <div className="text-xs mb-2" style={{ color: C.muted }}>Open items from tabletop exercises:</div>
+              {ir.openFindings.map((f) => <POAMRow key={f.id} item={f} />)}
+            </div>
+          )}
+        </>
+      ),
+    },
+    {
+      id: "resilience", subtab: "testing", title: "Resilience / Backup / Recovery", icon: LifeBuoy,
+      render: () => (
+        <div className="grid grid-cols-2 gap-4">
+          <Panel>
+            <div className="text-sm font-semibold mb-3" style={{ color: C.ink }}>Backup Configuration</div>
+            {resilience.backup ? (
+              <div className="grid grid-cols-2 gap-4">
+                <IdentificationField label="Enabled" value={resilience.backup.enabled ? "Yes" : "No"} />
+                <IdentificationField label="Coverage" value={`${resilience.backup.coveragePct}%`} />
+                <IdentificationField label="Immutable" value={resilience.backup.immutable ? "Yes" : "No"} />
+                <IdentificationField label="Cross-Region" value={resilience.backup.crossRegion ? "Yes" : "No"} />
+                <IdentificationField label="RPO Target" value={`${resilience.backup.rpoTargetMinutes}m`} />
+                <IdentificationField label="RTO Target" value={`${resilience.backup.rtoTargetMinutes}m`} />
+              </div>
+            ) : <div className="text-sm" style={{ color: C.muted }}>No backup configuration on record.</div>}
+          </Panel>
+          <Panel>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-sm font-semibold" style={{ color: C.ink }}>Last Recovery Test</div>
+              {resilience.lastDrTest && <CadenceBadge cadence={resilience.lastDrTest.cadence} />}
+            </div>
+            {resilience.lastDrTest ? (
+              <div className="grid grid-cols-2 gap-3 text-sm" style={{ color: C.ink }}>
+                <IdentificationField label="Date" value={resilience.lastDrTest.conductedAt} />
+                <IdentificationField label="Restore Successful" value={resilience.lastDrTest.restoreSuccessful ? "Yes" : "No"} />
+                <IdentificationField label="Actual RPO" value={`${resilience.lastDrTest.actualRpoMinutes}m`} />
+                <IdentificationField label="Actual RTO" value={`${resilience.lastDrTest.actualRtoMinutes}m`} />
+                <div className="col-span-2">
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: resilience.targetsMetLastTest ? C.greenBg : C.redBg, color: resilience.targetsMetLastTest ? C.green : C.red }}>
+                    Targets {resilience.targetsMetLastTest ? "met" : "not met"}
+                  </span>
+                </div>
+                {resilience.lastDrTest.issues && <div className="col-span-2 text-xs" style={{ color: C.amber }}>{resilience.lastDrTest.issues}</div>}
+              </div>
+            ) : <div className="text-sm" style={{ color: C.muted }}>No recovery test on record.</div>}
+          </Panel>
+        </div>
+      ),
+    },
+    {
+      id: "vendor", subtab: "testing", title: "Vendor / Dependency Assurance", icon: Handshake,
+      render: () => (
+        <div className="space-y-3">
+          {vendors.vendors.map((v) => (
+            <Panel key={v.vendorId}>
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div>
+                  <div className="text-sm font-semibold" style={{ color: C.ink }}>{v.vendor?.name ?? v.vendorId}</div>
+                  <div className="text-xs" style={{ color: C.muted }}>{v.dependency}</div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[11px] px-2 py-0.5 rounded-full capitalize" style={{ background: C.panel2, color: C.muted }}>{v.criticality}</span>
+                  {v.assurance && <CadenceBadge cadence={v.assurance.cadence} />}
+                </div>
+              </div>
+              <div className="flex items-center gap-4 text-xs flex-wrap" style={{ color: C.muted }}>
+                <span>Reassessed: {v.assurance?.reassessedAt ?? "never"}</span>
+                <span style={{ color: v.assurance?.sharedResponsibilityReviewed ? C.green : C.amber }}>
+                  Shared responsibility {v.assurance?.sharedResponsibilityReviewed ? "reviewed" : "not reviewed"}
+                </span>
+                {v.assurance?.certification && <span>Backed by {v.assurance.certification.id}</span>}
+                {v.dataAccessible.length > 0 && <span>Data: {v.dataAccessible.length} type{v.dataAccessible.length !== 1 ? "s" : ""} accessible</span>}
+              </div>
+            </Panel>
+          ))}
+          {vendors.vendors.length === 0 && <div className="text-sm" style={{ color: C.muted }}>No dependencies registered for this system.</div>}
+        </div>
+      ),
+    },
+    {
+      id: "vuln", subtab: "security", title: "Vulnerability & Configuration", icon: Bug,
+      render: () => (
+        <Panel>
+          {vuln ? (
+            <>
+              <div className="grid grid-cols-4 gap-4 mb-4">
+                <StatTile label="Critical" value={vuln.criticalCount} color={vuln.criticalCount > 0 ? C.red : C.green} />
+                <StatTile label="High" value={vuln.highCount} color={vuln.highCount > 0 ? C.amber : C.green} />
+                <StatTile label="Past SLA" value={vuln.pastSlaCount} color={vuln.pastSlaCount > 0 ? C.red : C.green} />
+                <StatTile label="Patch SLA Compliance" value={`${vuln.patchSlaCompliancePct}%`} />
+              </div>
+              <div className="grid grid-cols-3 gap-5">
+                <IdentificationField label="Configuration Findings" value={vuln.configFindingCount} />
+                <IdentificationField label="Unsupported Components" value={vuln.unsupportedComponentCount} />
+                <IdentificationField label="Internet-Facing Critical" value={vuln.internetFacingCriticalCount} />
+              </div>
+              <div className="text-[11px] mt-3" style={{ color: C.muted }}>As of {vuln.asOf}</div>
+            </>
+          ) : <div className="text-sm" style={{ color: C.muted }}>No vulnerability scan on record.</div>}
+        </Panel>
+      ),
+    },
+    {
+      id: "sdlc", subtab: "security", title: "Secure Development", icon: GitBranch,
+      render: () => {
+        if (!sdlc) return null;
+        if (sdlc.applicable) {
+          return (
+            <Panel className="grid grid-cols-4 gap-4">
+              {[
+                ["Branch Protection", sdlc.repoBranchProtection], ["PR Review Required", sdlc.prReviewRequired],
+                ["SAST", sdlc.sastEnabled], ["SCA", sdlc.scaEnabled],
+                ["Secret Scanning", sdlc.secretScanningEnabled], ["IaC Scanning", sdlc.iacScanningEnabled],
+                ["CI/CD Identity Hardened", sdlc.cicdIdentityHardened], ["Deploy Approval Required", sdlc.deployApprovalRequired],
+              ].map(([label, val]) => (
+                <div key={label} className="flex items-center gap-2">
+                  {val ? <CheckCircle2 size={13} color={C.green} /> : <Circle size={13} color={C.red} />}
+                  <span className="text-sm" style={{ color: C.ink }}>{label}</span>
+                </div>
+              ))}
+              <div className="col-span-4 pt-2" style={{ borderTop: `1px solid ${C.border}` }}>
+                <IdentificationField label="Last Threat Model" value={sdlc.lastThreatModelAt ?? "None on record"} />
+              </div>
+            </Panel>
+          );
+        }
+        return <div className="text-sm p-4 rounded-lg" style={{ background: C.panel2, color: C.muted }}>Not applicable — {sdlc.notApplicableReason}</div>;
+      },
+    },
+    {
+      id: "risk", subtab: "risk", title: "Top Risk Scenarios", icon: TrendingUp,
+      render: () => (
+        <div className="space-y-2">
+          {topRisks.map((r) => (
+            <div key={r.id} className="rounded-lg p-4 flex items-center justify-between gap-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold" style={{ color: C.ink }}>{r.scenario}</div>
+                <div className="text-xs mt-0.5" style={{ color: C.muted }}>{r.domain} · Owner: {r.owner}</div>
+              </div>
+              <div className="flex items-center gap-4 shrink-0 text-xs">
+                <span style={{ color: r.residual.severity === "Severe" ? C.red : C.muted }}>Residual: {r.residual.severity} / {r.residual.likelihood}</span>
+                <span style={{ color: C.muted }}>Control assurance: {r.assurance.pct ?? "—"}</span>
+                <span className={r.appetiteRatio > 1 ? "font-semibold" : ""} style={{ color: r.appetiteRatio > 1 ? C.red : C.green }}>
+                  {r.appetiteRatio}x appetite
+                </span>
+              </div>
+            </div>
+          ))}
+          {topRisks.length === 0 && <div className="text-sm" style={{ color: C.muted }}>No risk scenarios map to this system's assets.</div>}
+        </div>
+      ),
+    },
+    {
+      id: "physical", subtab: "overview", title: "Physical / Environmental", icon: Building2,
+      render: () => (
+        <div className="text-sm p-4 rounded-lg" style={{ background: C.panel2, color: C.ink }}>
+          Physical and environmental controls are inherited from the hosting provider's own certification —
+          see the Vendor / Dependency Assurance section above for what backs that claim. No ACME-operated facility is in scope for this system.
+        </div>
+      ),
+    },
+    {
+      id: "control-assurance", subtab: "controls", title: "Control Assurance", icon: Layers,
+      render: () => (
+        <>
+          <div className="grid grid-cols-4 gap-4 mb-6">
+            {STATUS_ORDER.map((status) => {
+              const meta = STATUS_META[status];
+              return (
+                <div key={status} className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+                  <div className="text-2xl font-semibold" style={{ color: meta.color, fontFamily: "'Source Serif 4', serif" }}>{statusCounts[status]}</div>
+                  <div className="text-xs mt-1" style={{ color: C.muted }}>{meta.label} · of {matrix.length} required</div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1 min-w-[200px]" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+              <Search size={14} color={C.muted} />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search controls or SCF #" className="bg-transparent text-sm outline-none w-full" style={{ color: C.ink }} />
+            </div>
+            <select value={domainFilter} onChange={(e) => setDomainFilter(e.target.value)}
+              className="text-xs pl-3 pr-7 py-2 rounded-lg font-medium" style={{ background: C.panel, color: C.ink, border: `1px solid ${C.border}` }}>
+              <option value="All">All domains</option>
+              {domains.map((d) => <option key={d} value={d}>{d}</option>)}
+            </select>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+              className="text-xs pl-3 pr-7 py-2 rounded-lg font-medium" style={{ background: C.panel, color: C.ink, border: `1px solid ${C.border}` }}>
+              <option value="All">All statuses</option>
+              {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
+            </select>
+            <span className="text-xs px-3 py-2 rounded-full" style={{ background: C.panel2, color: C.muted }}>
+              Showing {filtered.length.toLocaleString()} of {matrix.length.toLocaleString()}
+            </span>
+          </div>
+
+          {IMPLEMENTATION_META.map((meta) => (
+            <ImplementationSection
+              key={meta.type}
+              meta={meta}
+              rows={filtered.filter((r) => r.control.implementationType === meta.type)}
+              expanded={expandedTypes.has(meta.type)}
+              onToggle={() => toggleType(meta.type)}
+              onSelectRow={setSelectedRow}
+            />
+          ))}
+
+          <div className="text-xs mt-1 flex items-center gap-1.5" style={{ color: C.muted }}>
+            <RadioTower size={12} /> marks the controls ACME tracks with live evidence; every other row is at the tier the Data Classification Register already reports, just broken out control by control. Implementation type is assigned per SCF domain, not audited per control.
+          </div>
+        </>
+      ),
+    },
+    {
+      id: "roles", subtab: "overview", title: "Roles & Responsibilities", icon: Users2,
+      render: () => (
+        <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+          {system.roles.map((r, i) => (
+            <div
+              key={i}
+              className="grid px-4 py-3"
+              style={{ gridTemplateColumns: "220px 1fr", borderTop: i > 0 ? `1px solid ${C.border}` : "none", background: i % 2 ? "transparent" : C.panel2 }}
+            >
+              <div className="text-sm font-semibold" style={{ color: C.ink }}>{r.role}</div>
+              <div className="text-sm" style={{ color: C.muted }}>{r.assignment}</div>
+            </div>
+          ))}
+        </div>
+      ),
+    },
+    {
+      id: "poam", subtab: "risk", title: "Plan of Action & Milestones (POA&M)", icon: ListTodo,
+      render: () => (
+        <>
+          <p className="text-xs mb-3" style={{ color: C.muted }}>
+            Every control not yet fully implemented, with the planned remediation, the resource responsible, and a target date — pulled from ACME's live remediation tracker, not a static appendix.
+          </p>
+          {system.findings.length === 0 ? (
+            <div className="text-sm p-4 rounded-lg" style={{ background: C.greenBg, color: C.green }}>
+              No open items — every tracked control on this system is fully implemented.
+            </div>
+          ) : (
+            system.findings.map((item) => <POAMRow key={item.id} item={item} />)
+          )}
+        </>
+      ),
+    },
+    {
+      id: "policies", subtab: "overview", title: "Referenced Policies & Procedures", icon: BookOpen,
+      render: () => (
+        <>
+          <p className="text-xs mb-3" style={{ color: C.muted }}>
+            Every ACME policy that governs at least one control required for this system, computed from the control matrix above — not a separately maintained list that can drift out of sync.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {referencedPolicies.map(({ policy, count }) => (
+              <div key={policy.id} className="flex items-center justify-between gap-2 rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+                <div className="min-w-0">
+                  <div className="text-xs" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>{policy.code}</div>
+                  <div className="text-sm truncate" style={{ color: C.ink }}>{policy.title}</div>
+                </div>
+                <span className="shrink-0 text-xs px-2 py-0.5 rounded-full" style={{ background: C.panel2, color: C.muted }}>{count} control{count !== 1 ? "s" : ""}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      ),
+    },
+  ];
+
+  const numberedSections = sectionOrder
+    .map((section, i) => ({ ...section, number: i + 1 }))
+    .filter((section) => section.subtab === subTab);
 
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -439,492 +933,39 @@ export default function SystemRegister({ initialSystemId }) {
         </div>
       </div>
 
-      {/* ---- 1. System Context ------------------------------------------------ */}
-      <DocSection number="1" title="System Context" icon={Info}>
-        <Panel className="grid grid-cols-4 gap-5">
-          <IdentificationField label="System Name" value={system.name} />
-          <IdentificationField label="System ID" value={system.id} />
-          <IdentificationField label="Classification" value={system.classification} />
-          <IdentificationField label="Hosting Environment" value={system.env} />
-          <IdentificationField label="Availability Tier" value={system.availabilityTier.replace(/-/g, " ")} />
-          <IdentificationField label="Internet Facing" value={system.internetFacing ? "Yes" : "No"} />
-          <IdentificationField label="Users" value={system.userCount.toLocaleString()} />
-          <IdentificationField label="Regions" value={system.regions.join(", ")} />
-          <IdentificationField label="Compliance Standards In Scope" value={system.standards.join(", ")} />
-          <div className="col-span-4">
-            <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Purpose</div>
-            <div className="text-sm leading-relaxed" style={{ color: C.ink }}>{system.mission}</div>
-          </div>
-          <div className="col-span-4">
-            <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Boundary</div>
-            <div className="text-sm leading-relaxed" style={{ color: C.ink }}>{system.boundary}</div>
-          </div>
-        </Panel>
-      </DocSection>
-
-      {/* ---- 2. Data ------------------------------------------------------------ */}
-      <DocSection number="2" title="Data" icon={Database}>
-        <Panel className="grid grid-cols-4 gap-5">
-          <IdentificationField label="Data Types Processed" value={dataTypesForSystem(system.id).map((t) => t.name).join(", ")} />
-          <IdentificationField label="Data Subjects" value={system.dataProfile.subjects.join(", ")} />
-          <IdentificationField label="Approx. Records" value={system.dataProfile.approxRecords.toLocaleString()} />
-          <IdentificationField label="Residency" value={system.dataProfile.residency.join(", ")} />
-          <div className="col-span-4">
-            <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Retention</div>
-            <div className="text-sm" style={{ color: C.ink }}>{system.dataProfile.retention}</div>
-          </div>
-          <div className="col-span-4 flex gap-2 flex-wrap">
-            {[...new Set(dataTypesForSystem(system.id).flatMap((t) => t.regulatoryFlags))].map((f) => (
-              <span key={f} className="text-[11px] px-2 py-0.5 rounded-full font-medium" style={{ background: C.accentBg, color: C.accent }}>{f}</span>
-            ))}
-            {dataTypesForSystem(system.id).every((t) => t.regulatoryFlags.length === 0) && (
-              <span className="text-xs" style={{ color: C.muted }}>No regulated-data categories flagged.</span>
-            )}
-          </div>
-        </Panel>
-      </DocSection>
-      </>
-      )}
-
-      {subTab === "security" && (
-      <>
-      {/* ---- 3. Identity & Access ------------------------------------------------ */}
-      <DocSection number="3" title="Identity & Access" icon={Fingerprint}>
-        <Panel>
-          <div className="grid overflow-x-auto">
-            <div className="grid text-[11px] font-medium pb-2 mb-2" style={{ gridTemplateColumns: "1.2fr 90px 1fr 1fr 1fr 90px", borderBottom: `1px solid ${C.border}`, color: C.muted }}>
-              <div>Identity Type</div>
-              <div className="text-right">Total</div>
-              <div>SSO</div>
-              <div>MFA</div>
-              <div>Strong MFA</div>
-              <div className="text-right">Dormant</div>
-            </div>
-            {identity.populations.map((p) => (
-              <div key={p.id} className="grid items-center py-1.5" style={{ gridTemplateColumns: "1.2fr 90px 1fr 1fr 1fr 90px" }}>
-                <div className="text-sm capitalize" style={{ color: C.ink }}>{p.identityType.replace(/-/g, " ")}</div>
-                <div className="text-sm text-right tabular-nums" style={{ color: C.ink }}>{p.totalCount}</div>
-                <div><CoverageBar pct={p.ssoCoveragePct} color={C.accent} /></div>
-                <div><CoverageBar pct={p.mfaCoveragePct} color={C.amber} /></div>
-                <div><CoverageBar pct={p.strongMfaCoveragePct} color={C.green} /></div>
-                <div className="text-sm text-right tabular-nums" style={{ color: p.dormantCount > 0 ? C.amber : C.muted }}>{p.dormantCount}</div>
-              </div>
-            ))}
-            {identity.populations.length === 0 && <div className="text-sm py-4" style={{ color: C.muted }}>No identity population is tracked for this system.</div>}
-          </div>
-          <div className="grid grid-cols-4 gap-4 mt-5 pt-4" style={{ borderTop: `1px solid ${C.border}` }}>
-            <IdentificationField label="Shared Accounts" value={identity.totals.shared} />
-            <IdentificationField label="Local Accounts Bypassing SSO" value={identity.totals.localBypass} />
-            <IdentificationField label="Accounts Awaiting Termination" value={identity.totals.awaitingTermination} />
-            <div>
-              <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Last Access Review</div>
-              {identity.review ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm" style={{ color: C.ink }}>{identity.review.reviewedAt} · {identity.review.reviewedCount}/{identity.review.totalCount}</span>
-                  <CadenceBadge cadence={identity.review.cadence} />
-                </div>
-              ) : <span className="text-sm" style={{ color: C.muted }}>None on record</span>}
-            </div>
-          </div>
-        </Panel>
-      </DocSection>
-
-      {/* ---- 4. Exposure ---------------------------------------------------------- */}
-      <DocSection number="4" title="Exposure / Attack Surface" icon={Globe}>
-        <Panel>
-          <div className="grid grid-cols-5 gap-5 mb-5">
-            <IdentificationField label="Internet-Facing Services" value={exposure.externalServices.filter((s) => s.internetFacing).length} />
-            <IdentificationField label="Externally Reachable" value={exposure.externallyReachableCount} />
-            <IdentificationField label="Inbound Integrations" value={exposure.posture?.inboundIntegrationCount ?? "—"} />
-            <IdentificationField label="Outbound Integrations" value={exposure.posture?.outboundIntegrationCount ?? "—"} />
-            <IdentificationField label="Connected Vendors" value={vendors.vendors.length} />
-          </div>
-          <div className="grid grid-cols-3 gap-5 mb-5">
-            <IdentificationField label="Egress Posture" value={exposure.posture?.egressPosture.replace(/-/g, " ") ?? "—"} />
-            <IdentificationField label="Admin Posture" value={exposure.posture?.adminPosture.replace(/-/g, " ") ?? "—"} />
-            <IdentificationField label="API Posture" value={exposure.posture?.apiPosture.replace(/-/g, " ") ?? "—"} />
-          </div>
-          <div className="space-y-1.5 mb-4">
-            {exposure.externalServices.map((s) => (
-              <div key={s.id} className="flex items-center gap-2 text-sm" style={{ color: C.ink }}>
-                {s.kind === "admin-interface" ? <Crosshair size={12} color={C.muted} /> : <Globe size={12} color={C.muted} />}
-                {s.name}
-                <span className="text-xs" style={{ color: C.muted }}>({s.kind.replace(/-/g, " ")}{s.internetFacing ? ", internet-facing" : ", private"})</span>
-                {!s.wafProtected && s.internetFacing && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: C.amberBg, color: C.amber }}>No WAF</span>}
-              </div>
-            ))}
-          </div>
-          {exposure.dangerousConditionsUnmitigated.length > 0 && (
-            <div className="space-y-1 mb-3">
-              {exposure.dangerousConditionsUnmitigated.map((c) => (
-                <div key={c} className="flex items-center gap-2 text-sm" style={{ color: C.red }}><AlertTriangle size={12} /> {c.replace(/-/g, " ")}</div>
-              ))}
-            </div>
-          )}
-          {exposure.exceptions.map((e) => (
-            <div key={e.id} className="rounded-lg p-3 mt-2" style={{ background: C.greenBg }}>
-              <div className="flex items-center gap-2 text-sm font-medium" style={{ color: C.green }}><CheckCircle2 size={12} /> {e.condition.replace(/-/g, " ")} — accepted</div>
-              <div className="text-xs mt-1 leading-relaxed" style={{ color: C.muted }}>{e.reason}</div>
-            </div>
-          ))}
-        </Panel>
-      </DocSection>
-      </>
-      )}
-
-      {subTab === "testing" && (
-      <>
-      {/* ---- 5. Security Testing --------------------------------------------------- */}
-      <DocSection number="5" title="Security Testing" icon={Crosshair}>
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          {["penetration-test", "red-team"].map((type) => {
-            const latest = secTests.latestByType[type];
-            return (
-              <Panel key={type}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-sm font-semibold" style={{ color: C.ink }}>{type === "penetration-test" ? "External Penetration Test" : "Red Team"}</div>
-                  {latest && <CadenceBadge cadence={latest.cadence} />}
-                </div>
-                {latest ? (
-                  <div className="space-y-1.5 text-sm" style={{ color: C.ink }}>
-                    <div>Last completed <span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{latest.completedAt}</span> · {latest.vendor}</div>
-                    <div className="text-xs" style={{ color: C.muted }}>{latest.scope}</div>
-                    <div className="flex items-center gap-3 mt-1.5">
-                      <span style={{ color: latest.criticalFindingCount > 0 ? C.red : C.muted }}>Critical: {latest.criticalFindingCount}</span>
-                      <span style={{ color: latest.highFindingCount > 0 ? C.amber : C.muted }}>High: {latest.highFindingCount}</span>
-                      {type === "red-team" && latest.objectiveAchieved !== undefined && (
-                        <span style={{ color: latest.objectiveAchieved ? C.green : C.red }}>Objective {latest.objectiveAchieved ? "achieved" : "not achieved"}</span>
-                      )}
-                    </div>
-                  </div>
-                ) : <div className="text-sm" style={{ color: C.muted }}>Never conducted.</div>}
-              </Panel>
-            );
-          })}
-        </div>
-        {secTests.openFindings.length > 0 && (
-          <div>
-            <div className="text-xs mb-2" style={{ color: C.muted }}>Open findings from these exercises:</div>
-            {secTests.openFindings.map((f) => <POAMRow key={f.id} item={f} />)}
-          </div>
-        )}
-      </DocSection>
-
-      {/* ---- 6. Incident Response --------------------------------------------------- */}
-      <DocSection number="6" title="Incident Response" icon={Siren}>
-        <div className="grid grid-cols-2 gap-4">
-          <Panel>
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-semibold" style={{ color: C.ink }}>IR Plan</div>
-              {ir.planCurrency && <CadenceBadge cadence={ir.planCurrency.cadence} />}
-            </div>
-            <div className="text-sm" style={{ color: C.ink }}>{ir.planCurrency ? `Last reviewed ${ir.planCurrency.lastReviewedAt}` : "No plan on record"}</div>
-            <div className="text-sm mt-3 pt-3" style={{ color: C.ink, borderTop: `1px solid ${C.border}` }}>Last production incident</div>
-            <div className="text-sm" style={{ color: C.muted }}>
-              {ir.lastIncident ? `${ir.lastIncident.occurredAt} · ${ir.lastIncident.severity} · lessons learned ${ir.lastIncident.lessonsLearnedComplete ? "complete" : "outstanding"}` : "None on record"}
-            </div>
-          </Panel>
-          <Panel>
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-semibold" style={{ color: C.ink }}>Last Tabletop</div>
-              {ir.lastTabletop && <CadenceBadge cadence={ir.lastTabletop.cadence} />}
-            </div>
-            {ir.lastTabletop ? (
-              <div className="space-y-1.5 text-sm" style={{ color: C.ink }}>
-                <div>{ir.lastTabletop.conductedAt} · {ir.lastTabletop.scenario}</div>
-                <div className="text-xs" style={{ color: C.muted }}>{ir.lastTabletop.scope === "program" ? "Program-wide exercise" : "System-specific exercise"}</div>
-                <div style={{ color: C.muted }}>Issues identified: {ir.lastTabletop.issuesIdentified}</div>
-                <div className="flex gap-1.5 flex-wrap mt-1">
-                  {ir.lastTabletop.participatingFunctions.map((f) => (
-                    <span key={f} className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: C.greenBg, color: C.green }}><CheckCircle2 size={9} className="inline mr-1" />{f.replace(/-/g, " ")}</span>
-                  ))}
-                  {["legal", "customer-comms"].filter((f) => !ir.lastTabletop.participatingFunctions.includes(f)).map((f) => (
-                    <span key={f} className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: C.amberBg, color: C.amber }}><AlertTriangle size={9} className="inline mr-1" />{f.replace(/-/g, " ")} not exercised</span>
-                  ))}
-                </div>
-              </div>
-            ) : <div className="text-sm" style={{ color: C.muted }}>No tabletop on record.</div>}
-          </Panel>
-        </div>
-        {ir.openFindings.length > 0 && (
-          <div className="mt-4">
-            <div className="text-xs mb-2" style={{ color: C.muted }}>Open items from tabletop exercises:</div>
-            {ir.openFindings.map((f) => <POAMRow key={f.id} item={f} />)}
-          </div>
-        )}
-      </DocSection>
-
-      {/* ---- 7. Resilience --------------------------------------------------------- */}
-      <DocSection number="7" title="Resilience / Backup / Recovery" icon={LifeBuoy}>
-        <div className="grid grid-cols-2 gap-4">
-          <Panel>
-            <div className="text-sm font-semibold mb-3" style={{ color: C.ink }}>Backup Configuration</div>
-            {resilience.backup ? (
-              <div className="grid grid-cols-2 gap-4">
-                <IdentificationField label="Enabled" value={resilience.backup.enabled ? "Yes" : "No"} />
-                <IdentificationField label="Coverage" value={`${resilience.backup.coveragePct}%`} />
-                <IdentificationField label="Immutable" value={resilience.backup.immutable ? "Yes" : "No"} />
-                <IdentificationField label="Cross-Region" value={resilience.backup.crossRegion ? "Yes" : "No"} />
-                <IdentificationField label="RPO Target" value={`${resilience.backup.rpoTargetMinutes}m`} />
-                <IdentificationField label="RTO Target" value={`${resilience.backup.rtoTargetMinutes}m`} />
-              </div>
-            ) : <div className="text-sm" style={{ color: C.muted }}>No backup configuration on record.</div>}
-          </Panel>
-          <Panel>
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-semibold" style={{ color: C.ink }}>Last Recovery Test</div>
-              {resilience.lastDrTest && <CadenceBadge cadence={resilience.lastDrTest.cadence} />}
-            </div>
-            {resilience.lastDrTest ? (
-              <div className="grid grid-cols-2 gap-3 text-sm" style={{ color: C.ink }}>
-                <IdentificationField label="Date" value={resilience.lastDrTest.conductedAt} />
-                <IdentificationField label="Restore Successful" value={resilience.lastDrTest.restoreSuccessful ? "Yes" : "No"} />
-                <IdentificationField label="Actual RPO" value={`${resilience.lastDrTest.actualRpoMinutes}m`} />
-                <IdentificationField label="Actual RTO" value={`${resilience.lastDrTest.actualRtoMinutes}m`} />
-                <div className="col-span-2">
-                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: resilience.targetsMetLastTest ? C.greenBg : C.redBg, color: resilience.targetsMetLastTest ? C.green : C.red }}>
-                    Targets {resilience.targetsMetLastTest ? "met" : "not met"}
-                  </span>
-                </div>
-                {resilience.lastDrTest.issues && <div className="col-span-2 text-xs" style={{ color: C.amber }}>{resilience.lastDrTest.issues}</div>}
-              </div>
-            ) : <div className="text-sm" style={{ color: C.muted }}>No recovery test on record.</div>}
-          </Panel>
-        </div>
-      </DocSection>
-
-      {/* ---- 8. Vendor Assurance ------------------------------------------------------ */}
-      <DocSection number="8" title="Vendor / Dependency Assurance" icon={Handshake}>
-        <div className="space-y-3">
-          {vendors.vendors.map((v) => (
-            <Panel key={v.vendorId}>
-              <div className="flex items-start justify-between gap-3 mb-2">
-                <div>
-                  <div className="text-sm font-semibold" style={{ color: C.ink }}>{v.vendor?.name ?? v.vendorId}</div>
-                  <div className="text-xs" style={{ color: C.muted }}>{v.dependency}</div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-[11px] px-2 py-0.5 rounded-full capitalize" style={{ background: C.panel2, color: C.muted }}>{v.criticality}</span>
-                  {v.assurance && <CadenceBadge cadence={v.assurance.cadence} />}
-                </div>
-              </div>
-              <div className="flex items-center gap-4 text-xs flex-wrap" style={{ color: C.muted }}>
-                <span>Reassessed: {v.assurance?.reassessedAt ?? "never"}</span>
-                <span style={{ color: v.assurance?.sharedResponsibilityReviewed ? C.green : C.amber }}>
-                  Shared responsibility {v.assurance?.sharedResponsibilityReviewed ? "reviewed" : "not reviewed"}
-                </span>
-                {v.assurance?.certification && <span>Backed by {v.assurance.certification.id}</span>}
-                {v.dataAccessible.length > 0 && <span>Data: {v.dataAccessible.length} type{v.dataAccessible.length !== 1 ? "s" : ""} accessible</span>}
-              </div>
-            </Panel>
-          ))}
-          {vendors.vendors.length === 0 && <div className="text-sm" style={{ color: C.muted }}>No dependencies registered for this system.</div>}
-        </div>
-      </DocSection>
-      </>
-      )}
-
-      {subTab === "security" && (
-      <>
-      {/* ---- 9. Vulnerability & Configuration --------------------------------------- */}
-      <DocSection number="9" title="Vulnerability & Configuration" icon={Bug}>
-        <Panel>
-          {vuln ? (
-            <>
-              <div className="grid grid-cols-4 gap-4 mb-4">
-                <StatTile label="Critical" value={vuln.criticalCount} color={vuln.criticalCount > 0 ? C.red : C.green} />
-                <StatTile label="High" value={vuln.highCount} color={vuln.highCount > 0 ? C.amber : C.green} />
-                <StatTile label="Past SLA" value={vuln.pastSlaCount} color={vuln.pastSlaCount > 0 ? C.red : C.green} />
-                <StatTile label="Patch SLA Compliance" value={`${vuln.patchSlaCompliancePct}%`} />
-              </div>
-              <div className="grid grid-cols-3 gap-5">
-                <IdentificationField label="Configuration Findings" value={vuln.configFindingCount} />
-                <IdentificationField label="Unsupported Components" value={vuln.unsupportedComponentCount} />
-                <IdentificationField label="Internet-Facing Critical" value={vuln.internetFacingCriticalCount} />
-              </div>
-              <div className="text-[11px] mt-3" style={{ color: C.muted }}>As of {vuln.asOf}</div>
-            </>
-          ) : <div className="text-sm" style={{ color: C.muted }}>No vulnerability scan on record.</div>}
-        </Panel>
-      </DocSection>
-
-      {/* ---- 10. Secure SDLC ---------------------------------------------------------- */}
-      {sdlc?.applicable && (
-        <DocSection number="10" title="Secure Development" icon={GitBranch}>
-          <Panel className="grid grid-cols-4 gap-4">
-            {[
-              ["Branch Protection", sdlc.repoBranchProtection], ["PR Review Required", sdlc.prReviewRequired],
-              ["SAST", sdlc.sastEnabled], ["SCA", sdlc.scaEnabled],
-              ["Secret Scanning", sdlc.secretScanningEnabled], ["IaC Scanning", sdlc.iacScanningEnabled],
-              ["CI/CD Identity Hardened", sdlc.cicdIdentityHardened], ["Deploy Approval Required", sdlc.deployApprovalRequired],
-            ].map(([label, val]) => (
-              <div key={label} className="flex items-center gap-2">
-                {val ? <CheckCircle2 size={13} color={C.green} /> : <Circle size={13} color={C.red} />}
-                <span className="text-sm" style={{ color: C.ink }}>{label}</span>
-              </div>
-            ))}
-            <div className="col-span-4 pt-2" style={{ borderTop: `1px solid ${C.border}` }}>
-              <IdentificationField label="Last Threat Model" value={sdlc.lastThreatModelAt ?? "None on record"} />
-            </div>
-          </Panel>
-        </DocSection>
-      )}
-      {sdlc && !sdlc.applicable && (
-        <DocSection number="10" title="Secure Development" icon={GitBranch}>
-          <div className="text-sm p-4 rounded-lg" style={{ background: C.panel2, color: C.muted }}>Not applicable — {sdlc.notApplicableReason}</div>
-        </DocSection>
-      )}
-      </>
-      )}
-
-      {subTab === "risk" && (
-      <>
-      {/* ---- 11. Risk ------------------------------------------------------------- */}
-      <DocSection number="11" title="Top Risk Scenarios" icon={TrendingUp}>
-        <div className="space-y-2">
-          {topRisks.map((r) => (
-            <div key={r.id} className="rounded-lg p-4 flex items-center justify-between gap-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-              <div className="min-w-0">
-                <div className="text-sm font-semibold" style={{ color: C.ink }}>{r.scenario}</div>
-                <div className="text-xs mt-0.5" style={{ color: C.muted }}>{r.domain} · Owner: {r.owner}</div>
-              </div>
-              <div className="flex items-center gap-4 shrink-0 text-xs">
-                <span style={{ color: r.residual.severity === "Severe" ? C.red : C.muted }}>Residual: {r.residual.severity} / {r.residual.likelihood}</span>
-                <span style={{ color: C.muted }}>Control assurance: {r.assurance.pct ?? "—"}</span>
-                <span className={r.appetiteRatio > 1 ? "font-semibold" : ""} style={{ color: r.appetiteRatio > 1 ? C.red : C.green }}>
-                  {r.appetiteRatio}x appetite
-                </span>
-              </div>
-            </div>
-          ))}
-          {topRisks.length === 0 && <div className="text-sm" style={{ color: C.muted }}>No risk scenarios map to this system's assets.</div>}
-        </div>
-      </DocSection>
-      </>
-      )}
-
-      {subTab === "overview" && (
-      <>
-      {/* ---- 12. Physical / Environmental ------------------------------------------ */}
-      <DocSection number="12" title="Physical / Environmental" icon={Building2}>
-        <div className="text-sm p-4 rounded-lg" style={{ background: C.panel2, color: C.ink }}>
-          Hosting model: {system.hostingType}. Physical and environmental controls are inherited from {system.provider}'s own certification —
-          see the Vendor / Dependency Assurance section above for what backs that claim. No ACME-operated facility is in scope for this system.
-        </div>
-      </DocSection>
-      </>
-      )}
-
-      {subTab === "controls" && (
-      <>
-      {/* ---- 13. Control Assurance -------------------------------------------------- */}
-      <DocSection number="13" title="Control Assurance" icon={Layers}>
-        <div className="grid grid-cols-4 gap-4 mb-6">
-          {STATUS_ORDER.map((status) => {
-            const meta = STATUS_META[status];
-            return (
-              <div key={status} className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-                <div className="text-2xl font-semibold" style={{ color: meta.color, fontFamily: "'Source Serif 4', serif" }}>{statusCounts[status]}</div>
-                <div className="text-xs mt-1" style={{ color: C.muted }}>{meta.label} · of {matrix.length} required</div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center gap-3 mb-4 flex-wrap">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1 min-w-[200px]" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-            <Search size={14} color={C.muted} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search controls or SCF #" className="bg-transparent text-sm outline-none w-full" style={{ color: C.ink }} />
-          </div>
-          <select value={domainFilter} onChange={(e) => setDomainFilter(e.target.value)}
-            className="text-xs pl-3 pr-7 py-2 rounded-lg font-medium" style={{ background: C.panel, color: C.ink, border: `1px solid ${C.border}` }}>
-            <option value="All">All domains</option>
-            {domains.map((d) => <option key={d} value={d}>{d}</option>)}
-          </select>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-            className="text-xs pl-3 pr-7 py-2 rounded-lg font-medium" style={{ background: C.panel, color: C.ink, border: `1px solid ${C.border}` }}>
-            <option value="All">All statuses</option>
-            {STATUS_ORDER.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
-          </select>
-          <span className="text-xs px-3 py-2 rounded-full" style={{ background: C.panel2, color: C.muted }}>
-            Showing {filtered.length.toLocaleString()} of {matrix.length.toLocaleString()}
-          </span>
-        </div>
-
-        {IMPLEMENTATION_META.map((meta) => (
-          <ImplementationSection
-            key={meta.type}
-            meta={meta}
-            rows={filtered.filter((r) => r.control.implementationType === meta.type)}
-            expanded={expandedTypes.has(meta.type)}
-            onToggle={() => toggleType(meta.type)}
-            onSelectRow={setSelectedRow}
+      {/* ---- Quick glance -----------------------------------------------------
+          What is this system, before what's wrong with it: hosting, exposure,
+          and its most sensitive data, at a glance — unnumbered, same treatment
+          as the Assurance Cockpit above it. */}
+      <div className="px-8 pb-6">
+        <div className="grid grid-cols-3 gap-4">
+          <StatTile label="Hosting" value={system.hostingType} sub={system.provider} />
+          <StatTile
+            label="Internet-Facing"
+            value={system.internetFacing ? "Yes" : "No"}
+            color={system.internetFacing ? C.amber : C.green}
           />
-        ))}
-
-        <div className="text-xs mt-1 flex items-center gap-1.5" style={{ color: C.muted }}>
-          <RadioTower size={12} /> marks the controls ACME tracks with live evidence; every other row is at the tier the Data Classification Register already reports, just broken out control by control. Implementation type is assigned per SCF domain, not audited per control.
+          <StatTile
+            label="Top Data Classification"
+            value={<ClassificationTag level={dataTypes[0]?.sensitivity ?? system.classification} />}
+          />
         </div>
-      </DocSection>
+      </div>
       </>
       )}
 
-      {subTab === "overview" && (
-      <>
-      <DocSection number="14" title="Roles & Responsibilities" icon={Users2}>
-        <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-          {system.roles.map((r, i) => (
-            <div
-              key={i}
-              className="grid px-4 py-3"
-              style={{ gridTemplateColumns: "220px 1fr", borderTop: i > 0 ? `1px solid ${C.border}` : "none", background: i % 2 ? "transparent" : C.panel2 }}
-            >
-              <div className="text-sm font-semibold" style={{ color: C.ink }}>{r.role}</div>
-              <div className="text-sm" style={{ color: C.muted }}>{r.assignment}</div>
-            </div>
-          ))}
-        </div>
-      </DocSection>
-      </>
-      )}
+      {numberedSections.map((section) => {
+        const content = section.render();
+        if (content == null) return null;
+        return (
+          <DocSection key={section.id} number={String(section.number)} title={section.title} icon={section.icon}>
+            {content}
+          </DocSection>
+        );
+      })}
 
-      {subTab === "risk" && (
-      <>
-      <DocSection number="15" title="Plan of Action & Milestones (POA&M)" icon={ListTodo}>
-        <p className="text-xs mb-3" style={{ color: C.muted }}>
-          Every control not yet fully implemented, with the planned remediation, the resource responsible, and a target date — pulled from ACME's live remediation tracker, not a static appendix.
-        </p>
-        {system.findings.length === 0 ? (
-          <div className="text-sm p-4 rounded-lg" style={{ background: C.greenBg, color: C.green }}>
-            No open items — every tracked control on this system is fully implemented.
-          </div>
-        ) : (
-          system.findings.map((item) => <POAMRow key={item.id} item={item} />)
-        )}
-      </DocSection>
-      </>
-      )}
-
-      {subTab === "overview" && (
-      <>
-      <DocSection number="16" title="Referenced Policies & Procedures" icon={BookOpen}>
-        <p className="text-xs mb-3" style={{ color: C.muted }}>
-          Every ACME policy that governs at least one control required for this system, computed from the control matrix above — not a separately maintained list that can drift out of sync.
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          {referencedPolicies.map(({ policy, count }) => (
-            <div key={policy.id} className="flex items-center justify-between gap-2 rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-              <div className="min-w-0">
-                <div className="text-xs" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>{policy.code}</div>
-                <div className="text-sm truncate" style={{ color: C.ink }}>{policy.title}</div>
-              </div>
-              <span className="shrink-0 text-xs px-2 py-0.5 rounded-full" style={{ background: C.panel2, color: C.muted }}>{count} control{count !== 1 ? "s" : ""}</span>
-            </div>
-          ))}
-        </div>
-      </DocSection>
-      </>
-      )}
+      {subTab === "map" && <DataMap systemId={systemId} onSelectSystem={selectSystem} embedded />}
+      {subTab === "assets" && <AssetRegister systemId={systemId} />}
 
       {selectedRow && (
         <div className="fixed inset-0 z-20 flex justify-end">
