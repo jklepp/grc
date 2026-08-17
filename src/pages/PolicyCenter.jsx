@@ -92,7 +92,7 @@ function ClassificationLevels({ levels, onViewRegister }) {
           className="mt-3 flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg"
           style={{ background: C.panel2, color: C.accent, border: `1px solid ${C.border}` }}
         >
-          View live systems in the Data Classification Register <ArrowUpRight size={13} />
+          View live systems in the System Register <ArrowUpRight size={13} />
         </button>
       )}
     </div>

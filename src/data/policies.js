@@ -220,13 +220,8 @@ const POLICY_DEFS = [
     purpose: "Not all data is equally sensitive, and misjudging that is one of the most common ways a real incident starts. This policy defines ACME's four sensitivity labels, gives concrete examples of each, and sets the security bar a system must clear before it's allowed to hold data at a given label.",
     scope: "All ACME data, wherever it lives — email, chat, file shares, SaaS apps, laptops, and paper — and every system that stores, processes, or transmits it.",
     // Rendered as its own prominent, color-coded block in the UI (PolicyCenter.jsx
-    // reads this field specifically) — this is the policy the Data Classification
-    // Register enforces, so `level` must stay in sync with CLASS_ORDER/CLASS_META in
-    // theme.js, and the two system-requirement tiers below intentionally name the
-    // same six controls (Encryption at Rest, Encryption in Transit, Access Logging &
-    // Review, Least-Privilege Access, DLP Monitoring, Retention & Disposal) that
-    // DataClassificationGapMatrix.jsx actually tracks per system, so the policy and
-    // the register can never quietly drift apart.
+    // reads this field specifically), so `level` must stay in sync with
+    // CLASS_ORDER/CLASS_META in theme.js.
     classificationLevels: [
       {
         level: "Public",

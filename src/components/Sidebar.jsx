@@ -20,11 +20,11 @@ const SB = {
 // Every item's `id` routes to an actual page in App.jsx's PAGES map. Flat list —
 // category grouping is being removed as pages get consolidated (Overview merges
 // Executive Dashboard + Risk Register; Data Estate merges Data Footprint,
-// Systems Data Flow, Systems Register, and Asset Register; Assurance merges
-// Common Controls and Control Profile; Governance merges Policy Center,
-// Procedure Library, Security Principles, Governance Schedule, and System
-// Security Plan). More consolidations land later, at which point this list
-// shrinks further.
+// Systems Data Flow, System Register (formerly System Security Plan), and Asset
+// Register; Assurance merges Common Controls and Control Profile; Governance
+// merges Policy Center, Procedure Library, Security Principles, and Governance
+// Schedule). More consolidations land later, at which point this list shrinks
+// further.
 const ITEMS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "data-estate", label: "Data Estate", icon: Database },

@@ -25,7 +25,7 @@ const PAGES = {
 const LEGACY_ROUTES = {
   "data-footprint": { page: "data-estate", tab: "footprint" },
   "data-map": { page: "data-estate", tab: "map" },
-  "gap-matrix": { page: "data-estate", tab: "systems" },
+  "gap-matrix": { page: "data-estate", tab: "register" },
   "asset-register": { page: "data-estate", tab: "assets" },
   ccf: { page: "assurance", tab: "ccf" },
   "control-profile": { page: "assurance", tab: "control-profile" },
@@ -33,7 +33,7 @@ const LEGACY_ROUTES = {
   "procedure-library": { page: "governance", tab: "procedures" },
   "security-principles": { page: "governance", tab: "principles" },
   "activity-timeliness": { page: "governance", tab: "schedule" },
-  ssp: { page: "governance", tab: "register" },
+  ssp: { page: "data-estate", tab: "register" },
 };
 
 export default function App() {

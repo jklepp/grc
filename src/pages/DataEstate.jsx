@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { Database, Network, ShieldCheck, Boxes } from "lucide-react";
+import { Database, Network, ClipboardCheck, Boxes } from "lucide-react";
 import { TabBar } from "../components/Headings";
 import DataFootprint from "./DataFootprint";
 import DataMap from "./DataMap";
-import DataClassificationGapMatrix from "./DataClassificationGapMatrix";
+import SystemRegister from "./SystemRegister";
 import AssetRegister from "./AssetRegister";
 
 // Data Estate merges the four former top-level "Data & Assets" pages into one,
@@ -12,7 +12,7 @@ import AssetRegister from "./AssetRegister";
 const TABS = [
   { id: "footprint", label: "Data Footprint", icon: Database, Page: DataFootprint },
   { id: "map", label: "Systems Data Flow", icon: Network, Page: DataMap },
-  { id: "systems", label: "Systems Register", icon: ShieldCheck, Page: DataClassificationGapMatrix },
+  { id: "register", label: "System Register", icon: ClipboardCheck, Page: SystemRegister },
   { id: "assets", label: "Asset Register", icon: Boxes, Page: AssetRegister },
 ];
 
