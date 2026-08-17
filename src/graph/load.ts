@@ -23,3 +23,18 @@ export function loadGraph(facts: GraphFacts): Graph {
   validateGraph(graph);
   return graph;
 }
+
+// Same assemble-then-validate path as loadGraph, but for a caller that needs to
+// show the user what's wrong rather than crash the app — the Add System
+// wizard's dry run. Never throws: a malformed fact shape that would throw a raw
+// TypeError inside assembleGraph is caught and folded into the same problems
+// list a structural validation failure would produce.
+export function tryLoadGraph(facts: GraphFacts): { graph: Graph | null; problems: string[] } {
+  try {
+    const graph = assembleGraph(facts);
+    const problems = validateGraph(graph, { throwOnFailure: false });
+    return problems.length > 0 ? { graph: null, problems } : { graph, problems: [] };
+  } catch (err) {
+    return { graph: null, problems: [err instanceof Error ? err.message : String(err)] };
+  }
+}

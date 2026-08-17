@@ -308,8 +308,8 @@ function POAMRow({ item }) {
   );
 }
 
-export default function SystemRegister() {
-  const [systemId, setSystemId] = useState(DEFAULT_SYSTEM_ID);
+export default function SystemRegister({ initialSystemId }) {
+  const [systemId, setSystemId] = useState(initialSystemId || DEFAULT_SYSTEM_ID);
   const [subTab, setSubTab] = useState(SUB_TABS[0].id);
   const [query, setQuery] = useState("");
   const [domainFilter, setDomainFilter] = useState("All");

@@ -16,7 +16,8 @@ import { CLASS_ORDER } from "../theme";
 import { CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES } from "../graph/nodes/taxonomy";
 import type { Engine } from "./create";
 
-export function validateDerivations(engine: Engine): void {
+export function validateDerivations(engine: Engine, options: { throwOnFailure?: boolean } = {}): string[] {
+  const { throwOnFailure = true } = options;
   const { graph, classification, applicability, assessment, rollups, findings } = engine;
   const problems: string[] = [];
   const check = (condition: boolean, message: string) => {
@@ -365,9 +366,10 @@ export function validateDerivations(engine: Engine): void {
     }
   });
 
-  if (problems.length > 0) {
+  if (problems.length > 0 && throwOnFailure) {
     throw new Error(
       `Derivation integrity check failed (${problems.length} problem${problems.length === 1 ? "" : "s"}):\n  - ${problems.join("\n  - ")}`
     );
   }
+  return problems;
 }

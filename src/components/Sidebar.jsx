@@ -26,9 +26,9 @@ const SB = {
 // Schedule). More consolidations land later, at which point this list shrinks
 // further.
 const ITEMS = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "data-estate", label: "Data Estate", icon: Database },
-  { id: "assurance", label: "Assurance", icon: ShieldCheck },
+  { id: "overview", label: "Assurance Overview", icon: LayoutDashboard },
+  { id: "data-estate", label: "Enterprise Architecture", icon: Database },
+  { id: "assurance", label: "Controls", icon: ShieldCheck },
   { id: "governance", label: "Governance", icon: Landmark },
   { id: "graph-explorer", label: "Graph Explorer (Beta)", icon: Share2 },
 ];

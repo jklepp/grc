@@ -37,8 +37,8 @@ const LEGACY_ROUTES = {
 };
 
 export default function App() {
-  const [active, setActive] = useState("overview");
-  const [initialTab, setInitialTab] = useState(undefined);
+  const [active, setActive] = useState("data-estate");
+  const [initialTab, setInitialTab] = useState("map");
   const [expanded, setExpanded] = useState(false);
   const [mode, setMode] = useState("light");
 

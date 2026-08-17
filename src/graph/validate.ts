@@ -47,7 +47,8 @@ import { IR_FUNCTIONS } from "./nodes/irExercises";
 import { VENDOR_CATEGORIES, VENDOR_CRITICALITY } from "./nodes/vendors";
 import type { Graph } from "./types";
 
-export function validateGraph(graph: Graph): void {
+export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean } = {}): string[] {
+  const { throwOnFailure = true } = options;
   const problems: string[] = [];
   const check = (condition: boolean, message: string) => {
     if (!condition) problems.push(message);
@@ -684,9 +685,10 @@ export function validateGraph(graph: Graph): void {
     sdlcSystems.add(p.systemId);
   });
 
-  if (problems.length > 0) {
+  if (problems.length > 0 && throwOnFailure) {
     throw new Error(
       `Graph integrity check failed (${problems.length} problem${problems.length === 1 ? "" : "s"}):\n  - ${problems.join("\n  - ")}`
     );
   }
+  return problems;
 }

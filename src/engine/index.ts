@@ -19,6 +19,8 @@
 import { loadGraph } from "../graph/load";
 import { YAML_FACTS } from "../graph/sources/yaml";
 import { createEngine } from "./create";
+import { buildLiveEngine } from "./liveGraph";
+import { loadRuntimeFacts, hasRuntimeFacts } from "./runtimeFactsStore";
 
 // The live dataset now comes from src/graph/facts/*.yaml. The TypeScript
 // modules those were generated from are still present and still exported as
@@ -32,7 +34,21 @@ import { createEngine } from "./create";
 // vocabularies, which the YAML source still depends on) is the last step, and
 // it waits on moving the per-record reasoning comments into `rationale:` fields
 // so that reasoning survives the move.
-export const engine = createEngine(loadGraph(YAML_FACTS));
+// If the Add System wizard has saved anything, rebuild over YAML_FACTS plus
+// those runtime facts so a reload reconstructs the same live dataset the user
+// had. Persisted facts already passed buildLiveEngine's validation once (the
+// wizard would not have saved otherwise), but a later change to the
+// validators could in principle invalidate an old blob — fall back to the
+// plain YAML engine rather than let a stale localStorage entry break the app.
+const runtimeFacts = loadRuntimeFacts();
+export const engine = hasRuntimeFacts(runtimeFacts)
+  ? (() => {
+      const { engine: liveEngine, problems } = buildLiveEngine(YAML_FACTS, runtimeFacts);
+      if (liveEngine) return liveEngine;
+      console.warn("grc-runtime-facts: persisted systems failed validation, falling back to the YAML-only dataset:", problems);
+      return createEngine(loadGraph(YAML_FACTS));
+    })()
+  : createEngine(loadGraph(YAML_FACTS));
 
 const {
   selectors, profile, risk, compliance, findings, rollups, graph,
@@ -144,6 +160,8 @@ export const ORG_BY_ID = graph.orgById;
 export const EVIDENCE_SOURCES = graph.evidenceSources;
 export const EVIDENCE_SOURCE_BY_ID = graph.evidenceSourceById;
 export const IN_SCOPE_CONTROLS = graph.inScopeControls;
+export const VENDORS = graph.vendors;
+export const PROVIDER_CERTIFICATIONS = graph.providerCertifications;
 
 // ---- Pure scoring + vocabulary -------------------------------------------------
 // Neither depends on a graph, so both are plain re-exports.
@@ -159,7 +177,8 @@ export { SECURITY_TEST_TYPES } from "../graph/nodes/securityTests";
 export { IR_FUNCTIONS } from "../graph/nodes/irExercises";
 export { VENDOR_CATEGORIES } from "../graph/nodes/vendors";
 export { REGULATORY_FLAGS } from "../graph/nodes/dataTypes";
-export { AVAILABILITY_TIERS } from "../graph/nodes/systems";
+export { AVAILABILITY_TIERS, HOSTING_TYPES, INHERITED_DOMAINS, DATA_SUBJECT_TYPES } from "../graph/nodes/systems";
+export { ASSET_KINDS } from "../graph/nodes/assets";
 export type { CockpitItem } from "./cockpit";
 export {
   SEVERITY_VALUE, LIKELIHOOD_VALUE, score, isMaterial,
