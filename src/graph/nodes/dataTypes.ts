@@ -25,12 +25,20 @@
 import type { ClassificationTier } from "./taxonomy";
 import type { DataTypeId } from "../ids";
 
+// A fixed vocabulary for the one question the System Register's Data section
+// needs a hard yes/no on: does this data type carry a named regulated-data
+// category at all. `regulatedBy` (named laws like "GDPR") stays free text —
+// this is a separate, closed axis alongside it, not a replacement.
+export const REGULATORY_FLAGS = ["PII", "PHI", "PCI", "Employee-Data", "Financial", "Credentials"] as const;
+export type RegulatoryFlag = (typeof REGULATORY_FLAGS)[number];
+
 export interface DataType {
   id: DataTypeId;
   name: string;
   kind: string;
   sensitivity: ClassificationTier;
   regulatedBy: string[];
+  regulatoryFlags: RegulatoryFlag[];
   description: string;
 }
 

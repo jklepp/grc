@@ -1,0 +1,33 @@
+# Which vendors a system depends on, for what, and what data they can reach.
+
+- systemId: "SYS-003"
+  vendorId: "VEND-AWS"
+  dependency: "Compute, storage, KMS, and network isolation for the entire production boundary"
+  dataAccessible:
+    - "DT-001"
+    - "DT-002"
+    - "DT-003"
+    - "DT-004"
+  criticality: "critical"
+- systemId: "SYS-003"
+  vendorId: "VEND-MODEL-PROVIDER"
+  dependency: "Third-party LLM inference backing RAG completions"
+  dataAccessible:
+    - "DT-002"
+    - "DT-003"
+  criticality: "critical"
+
+- systemId: "SYS-042"
+  vendorId: "VEND-WORKDAY"
+  dependency: "HR system of record — tenant infrastructure, patching, and hosting"
+  dataAccessible:
+    - "DT-007"
+    - "DT-008"
+    - "DT-009"
+  criticality: "critical"
+- systemId: "SYS-042"
+  vendorId: "VEND-PAYROLL"
+  dependency: "Compensation data processing for the external payroll run"
+  dataAccessible:
+    - "DT-008"
+  criticality: "high"

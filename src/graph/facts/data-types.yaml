@@ -8,6 +8,8 @@
   kind: "pii"
   sensitivity: "Restricted"
   regulatedBy: []
+  regulatoryFlags:
+    - "PII"
   description: "Personally identifiable information belonging to ACME's customers' end users, carried
     through the AI platform on every authenticated request. Not GDPR-scoped in this register (the
     customer base in scope is US-contractual), but held to the Restricted tier on contractual and
@@ -17,6 +19,7 @@
   kind: "documents"
   sensitivity: "Restricted"
   regulatedBy: []
+  regulatoryFlags: []
   description: "Raw customer-supplied source documents ingested for retrieval-augmented generation.
     The ground truth every RAG answer traces back to."
 - id: "DT-003"
@@ -24,6 +27,8 @@
   kind: "modelData"
   sensitivity: "Restricted"
   regulatedBy: []
+  regulatoryFlags:
+    - "PII"
   description: "Customer prompts and model completions, including the retrieved document context
     injected into them. Restricted because a prompt routinely contains verbatim customer data."
 - id: "DT-004"
@@ -31,6 +36,8 @@
   kind: "secrets"
   sensitivity: "Restricted"
   regulatedBy: []
+  regulatoryFlags:
+    - "Credentials"
   description: "Cryptographic key material and service credentials. Restricted not because of what it
     is, but because possession of it grants access to everything else at this tier."
 - id: "DT-005"
@@ -38,6 +45,7 @@
   kind: "metadata"
   sensitivity: "Confidential"
   regulatedBy: []
+  regulatoryFlags: []
   description: "Conversation and session records plus the customer identifiers that scope access and
     attribute usage. Not document content, but enough to link a person to their activity."
 - id: "DT-006"
@@ -46,6 +54,8 @@
   sensitivity: "Confidential"
   regulatedBy:
     - "GDPR"
+  regulatoryFlags:
+    - "Employee-Data"
   description: "Access, authentication, and change events. Carries who-did-what metadata rather than
     the underlying records — but the actor in every one of those records is an identifiable
     employee, which makes the log itself personal data and holds it at the same tier as the records
@@ -56,6 +66,9 @@
   sensitivity: "Confidential"
   regulatedBy:
     - "GDPR"
+  regulatoryFlags:
+    - "PII"
+    - "Employee-Data"
   description: "Employee personal data held in the HR system of record — identity, contact,
     employment, and org records for ACME's workforce."
 - id: "DT-008"
@@ -64,6 +77,9 @@
   sensitivity: "Confidential"
   regulatedBy:
     - "GDPR"
+  regulatoryFlags:
+    - "Financial"
+    - "Employee-Data"
   description: "Salary, bonus, and equity records. Flows to the external payroll processor on a fixed
     pay-cycle schedule."
 - id: "DT-009"
@@ -72,4 +88,6 @@
   sensitivity: "Confidential"
   regulatedBy:
     - "GDPR"
+  regulatoryFlags:
+    - "Employee-Data"
   description: "Benefits elections and supporting documentation held alongside the employee record."

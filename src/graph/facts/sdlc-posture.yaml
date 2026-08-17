@@ -1,0 +1,28 @@
+# Secure SDLC posture, one row per system. Rendered only when applicable —
+# SYS-042 is a vendor-operated SaaS tenant ACME writes no code into, so it
+# carries a required reason instead of a block of false booleans.
+
+- systemId: "SYS-003"
+  applicable: true
+  repoBranchProtection: true
+  prReviewRequired: true
+  sastEnabled: true
+  scaEnabled: true
+  secretScanningEnabled: true
+  iacScanningEnabled: true
+  cicdIdentityHardened: true
+  deployApprovalRequired: true
+  lastThreatModelAt: "2026-01-15"
+
+- systemId: "SYS-042"
+  applicable: false
+  notApplicableReason: "Workday is a vendor-operated SaaS tenant; ACME writes no code deployed into
+    it, so there is no SDLC pipeline of ACME's own to assess."
+  repoBranchProtection: false
+  prReviewRequired: false
+  sastEnabled: false
+  scaEnabled: false
+  secretScanningEnabled: false
+  iacScanningEnabled: false
+  cicdIdentityHardened: false
+  deployApprovalRequired: false

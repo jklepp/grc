@@ -1,0 +1,23 @@
+# The most recent access recertification per system, checked against
+# identity-populations.yaml's totals for consistency in
+# engine/validateDerivations.ts.
+
+- id: "ACR-SYS-003-2026Q2"
+  systemId: "SYS-003"
+  reviewedAt: "2026-06-15"
+  cadenceDays: 90
+  reviewedCount: 85
+  totalCount: 85
+  exceptionsIdentified: 3
+  exceptionsOpen: 1
+  reviewerOrgId: "it-security"
+
+- id: "ACR-SYS-042-2026Q1"
+  systemId: "SYS-042"
+  reviewedAt: "2026-03-01"
+  cadenceDays: 90
+  reviewedCount: 19
+  totalCount: 21
+  exceptionsIdentified: 1
+  exceptionsOpen: 1
+  reviewerOrgId: "it-security-saas-admin"

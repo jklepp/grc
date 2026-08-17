@@ -235,3 +235,33 @@ export function riskBand(score: number): Band {
   if (score >= 2) return { label: "Low", color: "green" };
   return { label: "Minimal", color: "green" };
 }
+
+// ---- Cadence / overdue ------------------------------------------------------
+// "Is this stale" against ctx.now, shared by every System Register cockpit
+// domain that runs on a recurring cadence — a security test, a DR test, an
+// IR tabletop, an access review, a vendor reassessment. One derivation
+// instead of five copies of the same date arithmetic.
+export interface CadenceStatus {
+  lastAt: string | null;
+  cadenceDays: number;
+  dueAt: string | null;
+  ageDays: number | null;
+  overdue: boolean;
+  daysUntilDue: number | null;
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+export function cadenceStatus(lastAt: string | null | undefined, cadenceDays: number, now: Date): CadenceStatus {
+  if (!lastAt) {
+    return { lastAt: null, cadenceDays, dueAt: null, ageDays: null, overdue: true, daysUntilDue: null };
+  }
+  const last = new Date(lastAt);
+  const due = new Date(last.getTime() + cadenceDays * MS_PER_DAY);
+  const ageDays = Math.round((now.getTime() - last.getTime()) / MS_PER_DAY);
+  const daysUntilDue = Math.round((due.getTime() - now.getTime()) / MS_PER_DAY);
+  return {
+    lastAt, cadenceDays, dueAt: due.toISOString().slice(0, 10),
+    ageDays, overdue: due < now, daysUntilDue,
+  };
+}

@@ -34,7 +34,11 @@ import { createEngine } from "./create";
 // so that reasoning survives the move.
 export const engine = createEngine(loadGraph(YAML_FACTS));
 
-const { selectors, profile, risk, compliance, findings, rollups, graph } = engine;
+const {
+  selectors, profile, risk, compliance, findings, rollups, graph,
+  identity, exposure, vulnerabilities, securityTesting, resilience,
+  incidentResponse, vendors, sdlc, cockpit,
+} = engine;
 
 export { createEngine } from "./create";
 export { loadGraph } from "../graph/load";
@@ -107,12 +111,26 @@ export const MATERIAL_RISKS = risk.MATERIAL_RISKS;
 export const MATERIAL_RISK_EXPOSURE = risk.MATERIAL_RISK_EXPOSURE;
 export const ABOVE_APPETITE_COUNT = risk.ABOVE_APPETITE_COUNT;
 export const QUANTIFIED_EXPOSURE = risk.QUANTIFIED_EXPOSURE;
+export const risksForSystem = risk.risksForSystem;
+export const topRisksForSystem = risk.topRisksForSystem;
 
 // Findings
 export const ALL_FINDINGS = findings.ALL_FINDINGS;
 export const findingsForSystem = findings.findingsForSystem;
 export const findingsForAsset = findings.findingsForAsset;
 export const findingsForRisk = findings.findingsForRisk;
+export const openFindingsForSource = findings.openFindingsForSource;
+
+// System Register cockpit domains
+export const identityPostureForSystem = identity.identityPostureForSystem;
+export const exposureForSystem = exposure.exposureForSystem;
+export const vulnerabilitiesForSystem = vulnerabilities.vulnerabilitiesForSystem;
+export const securityTestsForSystem = securityTesting.securityTestsForSystem;
+export const resilienceForSystem = resilience.resilienceForSystem;
+export const irForSystem = incidentResponse.irForSystem;
+export const vendorsForSystem = vendors.vendorsForSystem;
+export const sdlcForSystem = sdlc.sdlcForSystem;
+export const cockpitSummary = cockpit.cockpitSummary;
 
 // Rollup totals
 export const TOTAL_FLOW_COUNT = rollups.TOTAL_FLOW_COUNT;
@@ -133,7 +151,16 @@ export * from "./assurance";
 export { effectivenessFactor, composeEvidenceConfidence } from "./evidence";
 export { INSTANCE_STATUS_META } from "./assessment";
 export { COVERAGE_STATUS_META, COVERAGE_STATES } from "./compliance";
-export { FINDING_STATUS_META, FINDING_STATUSES } from "./findings";
+export { FINDING_STATUS_META, FINDING_STATUSES, FINDING_SEVERITY_META } from "./findings";
+export { FINDING_SEVERITIES, FINDING_SOURCES } from "../graph/nodes/findings";
+export { IDENTITY_TYPES } from "../graph/nodes/identity";
+export { EGRESS_POSTURE, ADMIN_POSTURE, API_POSTURE } from "../graph/nodes/exposure";
+export { SECURITY_TEST_TYPES } from "../graph/nodes/securityTests";
+export { IR_FUNCTIONS } from "../graph/nodes/irExercises";
+export { VENDOR_CATEGORIES } from "../graph/nodes/vendors";
+export { REGULATORY_FLAGS } from "../graph/nodes/dataTypes";
+export { AVAILABILITY_TIERS } from "../graph/nodes/systems";
+export type { CockpitItem } from "./cockpit";
 export {
   SEVERITY_VALUE, LIKELIHOOD_VALUE, score, isMaterial,
   annualProbabilityRange, lossMagnitudeRange, riskTrend, appetiteRatio,

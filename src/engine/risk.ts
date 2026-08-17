@@ -16,7 +16,7 @@ import { BASIS } from "../graph/nodes/taxonomy";
 import type { RollupsApi } from "./rollups";
 import type { AssessmentApi, ControlAssessment } from "./assessment";
 import { mean, assuranceBand, display, ASSURANCE_TARGET } from "./assurance";
-import type { RiskId, AssetId } from "../graph/ids";
+import type { RiskId, AssetId, SystemId } from "../graph/ids";
 
 // A tier's weight is its position in the ordering, so the label list and the
 // numeric scale cannot disagree — the previous pair of hand-typed lookup
@@ -240,6 +240,21 @@ export function createRisk(
     // Register uses to show what a weak asset is actually putting at stake.
     risksForAssetRollup: (assetId: AssetId) =>
       riskRollups.filter((r) => r.contributingAssets.some((c) => c.assetId === assetId)),
+
+    // Aggregated over a system's own assets via the same riskAssets edges —
+    // the System Register's Risk section reads this rather than a
+    // separately-authored per-system risk list.
+    risksForSystem: (systemId: SystemId) => {
+      const assetIds = new Set((graph.assetsBySystem[systemId] ?? []).map((a) => a.id));
+      return riskRollups.filter((r) => r.contributingAssets.some((c) => assetIds.has(c.assetId)));
+    },
+    topRisksForSystem: (systemId: SystemId, limit = 5) => {
+      const assetIds = new Set((graph.assetsBySystem[systemId] ?? []).map((a) => a.id));
+      return riskRollups
+        .filter((r) => r.contributingAssets.some((c) => assetIds.has(c.assetId)))
+        .sort((a, b) => b.residualScore - a.residualScore || b.exposure - a.exposure)
+        .slice(0, limit);
+    },
   };
 }
 

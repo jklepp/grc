@@ -39,6 +39,20 @@
   lastSynced: "8 min ago"
   oktaEnforced: "compliant"
   mfaEnforced: "compliant"
+  internetFacing: true
+  availabilityTier: "tier-1-critical"
+  userCount: 1842
+  regions:
+    - "us-east-1"
+    - "us-west-2"
+  dataProfile:
+    subjects:
+      - "customers"
+      - "end-users"
+    approxRecords: 4200000
+    retention: "7 years post-contract-termination"
+    residency:
+      - "United States"
 - id: "SYS-042"
   name: "Workday"
   env: "Production — SaaS (Workday)"
@@ -72,3 +86,16 @@
   lastSynced: "8 min ago"
   oktaEnforced: "compliant"
   mfaEnforced: "compliant"
+  internetFacing: false
+  availabilityTier: "tier-2-high"
+  userCount: 412
+  regions:
+    - "us-east-1"
+  dataProfile:
+    subjects:
+      - "employees"
+      - "contractors"
+    approxRecords: 3100
+    retention: "7 years post-employment, per ACME's HR records policy"
+    residency:
+      - "United States"

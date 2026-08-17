@@ -1,0 +1,19 @@
+# The vendor register — broader than provider-certifications.yaml, which
+# only ever backed the INHERITED_DOMAINS claim for a system's own hosting
+# provider. `name` must match at least one System.provider for the two
+# providers that also anchor an inherited-domain claim; a subprocessor with
+# no such claim (the model provider, the payroll processor) is registered
+# here without needing one.
+
+- id: "VEND-AWS"
+  name: "AWS"
+  category: "cloud-infrastructure"
+- id: "VEND-WORKDAY"
+  name: "Workday"
+  category: "saas"
+- id: "VEND-MODEL-PROVIDER"
+  name: "External Model Provider"
+  category: "subprocessor"
+- id: "VEND-PAYROLL"
+  name: "External Payroll Processor"
+  category: "subprocessor"

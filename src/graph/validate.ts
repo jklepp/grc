@@ -25,8 +25,9 @@ import {
   CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES, EVIDENCE_TYPES,
   PRISMA_LEVELS, COMPLIANCE_RATINGS, isComplianceRating,
 } from "./nodes/taxonomy";
-import { HOSTING_TYPES, INHERITED_DOMAINS } from "./nodes/systems";
+import { HOSTING_TYPES, INHERITED_DOMAINS, AVAILABILITY_TIERS, DATA_SUBJECT_TYPES } from "./nodes/systems";
 import { ASSET_KINDS } from "./nodes/assets";
+import { REGULATORY_FLAGS } from "./nodes/dataTypes";
 import { DOMAINS, FRAMEWORKS } from "./nodes/controls";
 import { CERTIFICATION_REPORT_TYPES } from "./nodes/providerCertifications";
 import { ACTIVITY_FREQUENCIES, PERIODS_PER_YEAR } from "./nodes/scheduledActivities";
@@ -36,9 +37,14 @@ import { DATA_ROLE_META } from "./edges/assetDataTypes";
 import { FLOW_KINDS } from "./edges/dataFlows";
 import { CONTRIBUTOR_ROLES } from "./edges/riskContributors";
 import { ORG_KINDS } from "./nodes/orgs";
-import { FINDING_STATUSES } from "./nodes/findings";
+import { FINDING_STATUSES, FINDING_SEVERITIES, FINDING_SOURCES } from "./nodes/findings";
 import { ACTOR_KINDS } from "./nodes/actors";
 import { ACTOR_DIRECTIONS } from "./edges/actorAccess";
+import { IDENTITY_TYPES } from "./nodes/identity";
+import { EGRESS_POSTURE, ADMIN_POSTURE, API_POSTURE, EXTERNAL_SERVICE_KINDS, DANGEROUS_CONDITIONS } from "./nodes/exposure";
+import { SECURITY_TEST_TYPES } from "./nodes/securityTests";
+import { IR_FUNCTIONS } from "./nodes/irExercises";
+import { VENDOR_CATEGORIES, VENDOR_CRITICALITY } from "./nodes/vendors";
 import type { Graph } from "./types";
 
 export function validateGraph(graph: Graph): void {
@@ -67,6 +73,15 @@ export function validateGraph(graph: Graph): void {
     s.roles.forEach((r) =>
       check(has(graph.orgById, r.ownerId), `system ${s.id} role "${r.role}": ownerId "${r.ownerId}" is not an org`)
     );
+    check(AVAILABILITY_TIERS.includes(s.availabilityTier), `system ${s.id}: availabilityTier "${s.availabilityTier}" is not one of ${AVAILABILITY_TIERS.join(", ")}`);
+    check(Number.isInteger(s.userCount) && s.userCount >= 0, `system ${s.id}: userCount must be a non-negative integer`);
+    check(s.regions.length > 0, `system ${s.id}: regions must name at least one region`);
+    check(s.dataProfile.approxRecords >= 0, `system ${s.id}: dataProfile.approxRecords must be non-negative`);
+    check(s.dataProfile.residency.length > 0, `system ${s.id}: dataProfile.residency must name at least one jurisdiction`);
+    check(Boolean(s.dataProfile.retention?.trim()), `system ${s.id}: dataProfile.retention needs a value`);
+    s.dataProfile.subjects.forEach((subj) =>
+      check(DATA_SUBJECT_TYPES.includes(subj), `system ${s.id}: dataProfile subject "${subj}" is not one of ${DATA_SUBJECT_TYPES.join(", ")}`)
+    );
   });
 
   graph.assets.forEach((a) => {
@@ -77,6 +92,9 @@ export function validateGraph(graph: Graph): void {
 
   graph.dataTypes.forEach((d) => {
     check(CLASSIFICATION_TIERS.includes(d.sensitivity), `data type ${d.id}: sensitivity "${d.sensitivity}" is not a classification tier`);
+    d.regulatoryFlags.forEach((f) =>
+      check(REGULATORY_FLAGS.includes(f), `data type ${d.id}: regulatoryFlags entry "${f}" is not one of ${REGULATORY_FLAGS.join(", ")}`)
+    );
   });
 
   graph.keyControls.forEach((c) => {
@@ -286,6 +304,8 @@ export function validateGraph(graph: Graph): void {
     check(FINDING_STATUSES.includes(f.status), `finding ${f.id}: status "${f.status}" is not one of ${FINDING_STATUSES.join(", ")}`);
     check(!Number.isNaN(new Date(f.due).getTime()), `finding ${f.id}: due "${f.due}" is not a parseable date`);
     check(Boolean(f.title?.trim()), `finding ${f.id}: needs a title`);
+    check(!f.severity || FINDING_SEVERITIES.includes(f.severity), `finding ${f.id}: severity "${f.severity}" is not one of ${FINDING_SEVERITIES.join(", ")}`);
+    check(!f.source || FINDING_SOURCES.includes(f.source), `finding ${f.id}: source "${f.source}" is not one of ${FINDING_SOURCES.join(", ")}`);
   });
   check(new Set(graph.findings.map((f) => f.id)).size === graph.findings.length, `findings: duplicate id`);
 
@@ -520,6 +540,148 @@ export function validateGraph(graph: Graph): void {
     check(has(graph.assetById, h.assetId), `operatingHistory[${i}]: assetId "${h.assetId}" is not an asset`);
     check(has(graph.keyControlById, h.controlId), `operatingHistory[${i}]: controlId "${h.controlId}" is not a key control`);
     check(!Number.isNaN(Date.parse(h.implementedAt)), `operatingHistory[${i}]: implementedAt "${h.implementedAt}" is not a valid date`);
+  });
+
+  // ---- System Register cockpit domains ---------------------------------------
+  const idPopKeysSeen = new Set<string>();
+  graph.identityPopulations.forEach((p) => {
+    check(has(graph.systemById, p.systemId), `identity population ${p.id}: systemId "${p.systemId}" is not a system`);
+    check(IDENTITY_TYPES.includes(p.identityType), `identity population ${p.id}: identityType "${p.identityType}" is not one of ${IDENTITY_TYPES.join(", ")}`);
+    const key = `${p.systemId}::${p.identityType}`;
+    check(!idPopKeysSeen.has(key), `identity population ${p.id}: duplicate row for ${key}`);
+    idPopKeysSeen.add(key);
+    [p.ssoEnforcedCount, p.mfaEnforcedCount, p.dormantCount, p.localBypassCount, p.sharedCount, p.awaitingTerminationCount].forEach((n) =>
+      check(n >= 0 && n <= p.totalCount, `identity population ${p.id}: a sub-count exceeds totalCount (${p.totalCount})`)
+    );
+    check(p.strongMfaCount <= p.mfaEnforcedCount, `identity population ${p.id}: strongMfaCount (${p.strongMfaCount}) exceeds mfaEnforcedCount (${p.mfaEnforcedCount})`);
+  });
+
+  graph.accessReviews.forEach((r) => {
+    check(has(graph.systemById, r.systemId), `access review ${r.id}: systemId "${r.systemId}" is not a system`);
+    check(has(graph.orgById, r.reviewerOrgId), `access review ${r.id}: reviewerOrgId "${r.reviewerOrgId}" is not an org`);
+    check(r.reviewedCount <= r.totalCount, `access review ${r.id}: reviewedCount (${r.reviewedCount}) exceeds totalCount (${r.totalCount})`);
+    check(r.exceptionsOpen <= r.exceptionsIdentified, `access review ${r.id}: exceptionsOpen (${r.exceptionsOpen}) exceeds exceptionsIdentified (${r.exceptionsIdentified})`);
+    check(!Number.isNaN(Date.parse(r.reviewedAt)), `access review ${r.id}: reviewedAt "${r.reviewedAt}" is not a parseable date`);
+  });
+
+  graph.exposurePostures.forEach((p) => {
+    check(has(graph.systemById, p.systemId), `exposure posture: systemId "${p.systemId}" is not a system`);
+    check(EGRESS_POSTURE.includes(p.egressPosture), `exposure posture ${p.systemId}: egressPosture "${p.egressPosture}" is not one of ${EGRESS_POSTURE.join(", ")}`);
+    check(ADMIN_POSTURE.includes(p.adminPosture), `exposure posture ${p.systemId}: adminPosture "${p.adminPosture}" is not one of ${ADMIN_POSTURE.join(", ")}`);
+    check(API_POSTURE.includes(p.apiPosture), `exposure posture ${p.systemId}: apiPosture "${p.apiPosture}" is not one of ${API_POSTURE.join(", ")}`);
+  });
+  const exposurePostureSystems = new Set<string>();
+  graph.exposurePostures.forEach((p) => {
+    check(!exposurePostureSystems.has(p.systemId), `exposure posture: more than one row for system ${p.systemId}`);
+    exposurePostureSystems.add(p.systemId);
+  });
+
+  graph.externalServices.forEach((e) => {
+    check(has(graph.systemById, e.systemId), `external service ${e.id}: systemId "${e.systemId}" is not a system`);
+    check(EXTERNAL_SERVICE_KINDS.includes(e.kind), `external service ${e.id}: kind "${e.kind}" is not one of ${EXTERNAL_SERVICE_KINDS.join(", ")}`);
+    check(!e.externallyReachable || e.internetFacing, `external service ${e.id}: externallyReachable is true but internetFacing is false — a service can't be reachable from the internet without being internet-facing`);
+  });
+
+  graph.exposureExceptions.forEach((e) => {
+    check(has(graph.systemById, e.systemId), `exposure exception ${e.id}: systemId "${e.systemId}" is not a system`);
+    check(DANGEROUS_CONDITIONS.includes(e.condition), `exposure exception ${e.id}: condition "${e.condition}" is not one of ${DANGEROUS_CONDITIONS.join(", ")}`);
+    check(Boolean(e.reason?.trim()), `exposure exception ${e.id}: needs a reason — an accepted dangerous condition without one is indistinguishable from nobody looking`);
+    check(has(graph.orgById, e.approvedBy), `exposure exception ${e.id}: approvedBy "${e.approvedBy}" is not an org`);
+  });
+
+  graph.vulnSnapshots.forEach((v) => {
+    check(has(graph.systemById, v.systemId), `vuln snapshot: systemId "${v.systemId}" is not a system`);
+    [v.criticalCount, v.highCount, v.pastSlaCount, v.configFindingCount, v.unsupportedComponentCount, v.internetFacingCriticalCount].forEach((n) =>
+      check(n >= 0, `vuln snapshot ${v.systemId}: counts must be non-negative`)
+    );
+    check(v.patchSlaCompliancePct >= 0 && v.patchSlaCompliancePct <= 100, `vuln snapshot ${v.systemId}: patchSlaCompliancePct must be 0-100`);
+  });
+  const vulnSnapshotSystems = new Set<string>();
+  graph.vulnSnapshots.forEach((v) => {
+    check(!vulnSnapshotSystems.has(v.systemId), `vuln snapshot: more than one row for system ${v.systemId}`);
+    vulnSnapshotSystems.add(v.systemId);
+  });
+
+  graph.securityTests.forEach((t) => {
+    check(has(graph.systemById, t.systemId), `security test ${t.id}: systemId "${t.systemId}" is not a system`);
+    check(SECURITY_TEST_TYPES.includes(t.type), `security test ${t.id}: type "${t.type}" is not one of ${SECURITY_TEST_TYPES.join(", ")}`);
+    check(t.cadenceDays > 0, `security test ${t.id}: cadenceDays must be positive`);
+    check(t.criticalFindingCount >= 0 && t.highFindingCount >= 0, `security test ${t.id}: finding counts must be non-negative`);
+    check(!Number.isNaN(Date.parse(t.completedAt)), `security test ${t.id}: completedAt "${t.completedAt}" is not a parseable date`);
+    check(t.objectiveAchieved === undefined || t.type === "red-team", `security test ${t.id}: objectiveAchieved is only meaningful for a red-team exercise`);
+  });
+
+  graph.backupConfigs.forEach((b) => {
+    check(has(graph.systemById, b.systemId), `backup config: systemId "${b.systemId}" is not a system`);
+    check(b.coveragePct >= 0 && b.coveragePct <= 100, `backup config ${b.systemId}: coveragePct must be 0-100`);
+    check(b.rpoTargetMinutes > 0 && b.rtoTargetMinutes > 0, `backup config ${b.systemId}: RPO/RTO targets must be positive`);
+  });
+
+  graph.drTests.forEach((t) => {
+    check(has(graph.systemById, t.systemId), `DR test ${t.id}: systemId "${t.systemId}" is not a system`);
+    check(t.cadenceDays > 0, `DR test ${t.id}: cadenceDays must be positive`);
+    check(t.actualRpoMinutes >= 0 && t.actualRtoMinutes >= 0, `DR test ${t.id}: actual RPO/RTO must be non-negative`);
+    check(!Number.isNaN(Date.parse(t.conductedAt)), `DR test ${t.id}: conductedAt "${t.conductedAt}" is not a parseable date`);
+    check(t.restoreSuccessful || Boolean(t.issues?.trim()), `DR test ${t.id}: restoreSuccessful is false but no issues are recorded — a failed restore has to say what went wrong`);
+  });
+
+  graph.irPlanCurrency.forEach((p) => {
+    check(p.scope === "program" || has(graph.systemById, p.scope), `IR plan currency: scope "${p.scope}" is neither "program" nor a system`);
+    check(p.cadenceDays > 0, `IR plan currency ${p.scope}: cadenceDays must be positive`);
+    check(!Number.isNaN(Date.parse(p.lastReviewedAt)), `IR plan currency ${p.scope}: lastReviewedAt "${p.lastReviewedAt}" is not a parseable date`);
+  });
+
+  graph.tabletopExercises.forEach((t) => {
+    check(t.scope === "program" || has(graph.systemById, t.scope), `tabletop exercise ${t.id}: scope "${t.scope}" is neither "program" nor a system`);
+    check(t.cadenceDays > 0, `tabletop exercise ${t.id}: cadenceDays must be positive`);
+    check(t.issuesIdentified >= 0, `tabletop exercise ${t.id}: issuesIdentified must be non-negative`);
+    t.participantOrgIds.forEach((id) => check(has(graph.orgById, id), `tabletop exercise ${t.id}: participantOrgId "${id}" is not an org`));
+    t.participatingFunctions.forEach((f) => check(IR_FUNCTIONS.includes(f), `tabletop exercise ${t.id}: participating function "${f}" is not one of ${IR_FUNCTIONS.join(", ")}`));
+  });
+
+  graph.productionIncidents.forEach((i) => {
+    check(has(graph.systemById, i.systemId), `production incident ${i.id}: systemId "${i.systemId}" is not a system`);
+    check(SEVERITY_LEVELS.includes(i.severity), `production incident ${i.id}: severity "${i.severity}" is not a severity level`);
+  });
+
+  graph.vendors.forEach((v) => {
+    check(VENDOR_CATEGORIES.includes(v.category), `vendor ${v.id}: category "${v.category}" is not one of ${VENDOR_CATEGORIES.join(", ")}`);
+  });
+  check(new Set(graph.vendors.map((v) => v.id)).size === graph.vendors.length, `vendors: duplicate id`);
+
+  graph.vendorAssurance.forEach((a) => {
+    check(has(graph.vendorById, a.vendorId), `vendor assurance ${a.id}: vendorId "${a.vendorId}" is not a vendor`);
+    check(a.cadenceDays > 0, `vendor assurance ${a.id}: cadenceDays must be positive`);
+    check(!Number.isNaN(Date.parse(a.reassessedAt)), `vendor assurance ${a.id}: reassessedAt "${a.reassessedAt}" is not a parseable date`);
+    if (a.certificationId) {
+      check(graph.providerCertifications.some((c) => c.id === a.certificationId), `vendor assurance ${a.id}: certificationId "${a.certificationId}" is not a provider certification`);
+    }
+  });
+
+  graph.systemVendors.forEach((sv, i) => {
+    check(has(graph.systemById, sv.systemId), `systemVendors[${i}]: systemId "${sv.systemId}" is not a system`);
+    check(has(graph.vendorById, sv.vendorId), `systemVendors[${i}]: vendorId "${sv.vendorId}" is not a vendor`);
+    check(VENDOR_CRITICALITY.includes(sv.criticality), `systemVendors[${i}]: criticality "${sv.criticality}" is not one of ${VENDOR_CRITICALITY.join(", ")}`);
+    sv.dataAccessible.forEach((id) => check(has(graph.dataTypeById, id), `systemVendors[${i}]: dataAccessible id "${id}" is not a data type`));
+  });
+
+  // The tie between the narrow provider-certification mechanism and the
+  // broader vendor register: every system's hosting provider has to be a
+  // registered vendor, or the two registers have silently diverged about who
+  // a vendor is.
+  graph.systems.forEach((s) => {
+    check(graph.vendors.some((v) => v.name === s.provider), `system ${s.id}: provider "${s.provider}" does not match any registered vendor — add it to vendors.yaml`);
+  });
+
+  graph.sdlcPostures.forEach((p) => {
+    check(has(graph.systemById, p.systemId), `SDLC posture: systemId "${p.systemId}" is not a system`);
+    check(p.applicable || Boolean(p.notApplicableReason?.trim()), `SDLC posture ${p.systemId}: applicable is false but no notApplicableReason is given`);
+    check(p.lastThreatModelAt === undefined || !Number.isNaN(Date.parse(p.lastThreatModelAt)), `SDLC posture ${p.systemId}: lastThreatModelAt "${p.lastThreatModelAt}" is not a parseable date`);
+  });
+  const sdlcSystems = new Set<string>();
+  graph.sdlcPostures.forEach((p) => {
+    check(!sdlcSystems.has(p.systemId), `SDLC posture: more than one row for system ${p.systemId}`);
+    sdlcSystems.add(p.systemId);
   });
 
   if (problems.length > 0) {

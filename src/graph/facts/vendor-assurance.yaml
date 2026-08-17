@@ -1,0 +1,29 @@
+# certificationId cross-references provider-certifications.yaml where one
+# exists, so the UI can show what backs a vendor's assurance without merging
+# the two types.
+
+- id: "VENDASSR-VEND-AWS-2026"
+  vendorId: "VEND-AWS"
+  reassessedAt: "2026-02-14"
+  cadenceDays: 365
+  sharedResponsibilityReviewed: true
+  certificationId: "CERT-AWS-SOC2-2026"
+
+- id: "VENDASSR-VEND-WORKDAY-2026"
+  vendorId: "VEND-WORKDAY"
+  reassessedAt: "2026-03-02"
+  cadenceDays: 365
+  sharedResponsibilityReviewed: true
+  certificationId: "CERT-WORKDAY-SOC2-2026"
+
+- id: "VENDASSR-VEND-MODEL-PROVIDER-2025"
+  vendorId: "VEND-MODEL-PROVIDER"
+  reassessedAt: "2025-06-10"
+  cadenceDays: 365
+  sharedResponsibilityReviewed: false
+
+- id: "VENDASSR-VEND-PAYROLL-2026"
+  vendorId: "VEND-PAYROLL"
+  reassessedAt: "2026-01-20"
+  cadenceDays: 365
+  sharedResponsibilityReviewed: true

@@ -1,0 +1,32 @@
+# IR tabletop exercises. participatingFunctions is deliberately not padded
+# out to every function IR_FUNCTIONS names — which functions actually showed
+# up is itself the fact the cockpit's attention list reads (a legal/customer-
+# comms path never exercised is a real gap, not an omission to backfill).
+
+- id: "TTX-SYS-003-2026-01"
+  scope: "SYS-003"
+  conductedAt: "2026-06-03"
+  cadenceDays: 365
+  scenario: "Cross-tenant data exposure via a scoped-retrieval defect in the RAG service"
+  participantOrgIds:
+    - "ml-platform-team"
+    - "it-security"
+    - "grc"
+  participatingFunctions:
+    - "system-owner"
+    - "security"
+  issuesIdentified: 2
+
+- id: "TTX-program-2026-01"
+  scope: "program"
+  conductedAt: "2026-05-01"
+  cadenceDays: 365
+  scenario: "Ransomware affecting shared corporate infrastructure"
+  participantOrgIds:
+    - "it-security"
+    - "it"
+    - "grc"
+  participatingFunctions:
+    - "security"
+    - "executive"
+  issuesIdentified: 4

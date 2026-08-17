@@ -17,7 +17,7 @@ import { CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES } from "../graph/nodes/taxon
 import type { Engine } from "./create";
 
 export function validateDerivations(engine: Engine): void {
-  const { graph, classification, applicability, assessment, rollups } = engine;
+  const { graph, classification, applicability, assessment, rollups, findings } = engine;
   const problems: string[] = [];
   const check = (condition: boolean, message: string) => {
     if (!condition) problems.push(message);
@@ -312,6 +312,57 @@ export function validateDerivations(engine: Engine): void {
       assessedSomewhere,
       `risk ${rc.riskId} is held down by ${rc.controlId}, which no system assesses — the risk's residual position would rest on nothing`
     );
+  });
+
+  // ---- Cockpit exercises can't report unresolved findings that nothing
+  // tracks toward remediation --------------------------------------------------
+  // An exercise record's own counts (criticalFindingCount, issuesIdentified...)
+  // are a summary; the POA&M is where remediation actually gets tracked. If
+  // the summary says something is still open, at least one Finding sourced
+  // from that exercise type has to exist on the same system, or the number is
+  // an unbacked claim exactly like every other "plausible number naming no
+  // controls" this model exists to reject.
+  graph.systems.forEach((system) => {
+    const latestByType: Record<string, (typeof graph.securityTests)[number]> = {};
+    (graph.securityTestsBySystem[system.id] ?? []).forEach((t) => {
+      const existing = latestByType[t.type];
+      if (!existing || Date.parse(t.completedAt) > Date.parse(existing.completedAt)) latestByType[t.type] = t;
+    });
+    Object.values(latestByType).forEach((t) => {
+      if (t.criticalFindingCount === 0 && t.highFindingCount === 0) return;
+      const open = findings.openFindingsForSource(system.id, t.type as "penetration-test" | "red-team")
+        .filter((f) => f.severity === "critical" || f.severity === "high");
+      check(
+        open.length > 0,
+        `security test ${t.id}: reports ${t.criticalFindingCount} critical / ${t.highFindingCount} high findings, but no open critical/high finding on ${system.id} carries source "${t.type}" — nothing tracks it toward remediation`
+      );
+    });
+
+    const drTests = graph.drTestsBySystem[system.id] ?? [];
+    const latestDrTest = drTests.reduce<(typeof drTests)[number] | null>(
+      (latest, t) => (!latest || Date.parse(t.conductedAt) > Date.parse(latest.conductedAt) ? t : latest), null
+    );
+    if (latestDrTest && !latestDrTest.restoreSuccessful) {
+      const open = findings.openFindingsForSource(system.id, "dr-test");
+      check(
+        open.length > 0,
+        `DR test ${latestDrTest.id}: restoreSuccessful is false, but no open finding on ${system.id} carries source "dr-test"`
+      );
+    }
+
+    // System-scoped tabletops only — a "program" scope exercise has no single
+    // system to check an open finding against.
+    const systemTabletops = (graph.tabletopExercisesByScope[system.id] ?? []);
+    const latestTabletop = systemTabletops.reduce<(typeof systemTabletops)[number] | null>(
+      (latest, t) => (!latest || Date.parse(t.conductedAt) > Date.parse(latest.conductedAt) ? t : latest), null
+    );
+    if (latestTabletop && latestTabletop.issuesIdentified > 0) {
+      const open = findings.openFindingsForSource(system.id, "ir-tabletop");
+      check(
+        open.length > 0,
+        `tabletop exercise ${latestTabletop.id}: identified ${latestTabletop.issuesIdentified} issues, but no open finding on ${system.id} carries source "ir-tabletop"`
+      );
+    }
   });
 
   if (problems.length > 0) {

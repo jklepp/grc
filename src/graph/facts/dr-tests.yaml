@@ -1,0 +1,20 @@
+# Recovery test records. `issues` is required (non-empty) whenever
+# restoreSuccessful is false — a failed test has to say what went wrong.
+
+- id: "DRTEST-SYS-003-2026-01"
+  systemId: "SYS-003"
+  conductedAt: "2026-03-20"
+  cadenceDays: 180
+  scope: "Full regional failover of the vector store and metadata database"
+  restoreSuccessful: true
+  actualRpoMinutes: 45
+  actualRtoMinutes: 210
+
+- id: "DRTEST-SYS-042-2026-01"
+  systemId: "SYS-042"
+  conductedAt: "2026-01-15"
+  cadenceDays: 180
+  scope: "Vendor-run tenant restore, ACME-side integration reconnection verification"
+  restoreSuccessful: true
+  actualRpoMinutes: 1200
+  actualRtoMinutes: 1300

@@ -1,0 +1,12 @@
+# Accepted dangerous conditions, each with a required reason — same pattern
+# as applicability-exceptions.yaml. "Accepted" without a reason is
+# indistinguishable from "nobody looked."
+
+- id: "EXPEXC-SYS-003-01"
+  systemId: "SYS-003"
+  condition: "unmanaged-break-glass-access"
+  reason: "The two break-glass IAM roles bypass Okta by design, for AWS control-plane recovery when
+    Okta itself is unavailable. Credentials are sealed in a physical safe, usage pages IT Security,
+    and every use is reviewed within 24 hours per the incident response playbook."
+  approvedBy: "it-security"
+  expiresAt: "2027-01-01"

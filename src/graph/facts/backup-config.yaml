@@ -1,0 +1,18 @@
+# One row per system: the backup posture itself, separate from whether a
+# restore has ever been proven against it (dr-tests.yaml).
+
+- systemId: "SYS-003"
+  enabled: true
+  coveragePct: 100
+  immutable: true
+  crossRegion: true
+  rpoTargetMinutes: 60
+  rtoTargetMinutes: 240
+
+- systemId: "SYS-042"
+  enabled: true
+  coveragePct: 100
+  immutable: false
+  crossRegion: false
+  rpoTargetMinutes: 1440
+  rtoTargetMinutes: 1440

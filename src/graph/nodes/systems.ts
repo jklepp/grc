@@ -77,6 +77,25 @@ export interface SystemRole {
   note?: string;
 }
 
+// How much downtime this boundary can tolerate before it's a business
+// failure, not just an incident — the axis the Resilience section's RPO/RTO
+// targets get judged against.
+export const AVAILABILITY_TIERS = ["tier-1-critical", "tier-2-high", "tier-3-standard", "tier-4-low"] as const;
+export type AvailabilityTier = (typeof AVAILABILITY_TIERS)[number];
+
+export const DATA_SUBJECT_TYPES = ["customers", "end-users", "employees", "contractors"] as const;
+export type DataSubjectType = (typeof DATA_SUBJECT_TYPES)[number];
+
+// The system-level shape of "what does this boundary hold" — who it's about,
+// roughly how many records, and where. Distinct from DataType.sensitivity
+// (what kind of data), this is about scale and jurisdiction.
+export interface SystemDataProfile {
+  subjects: DataSubjectType[];
+  approxRecords: number;
+  retention: string;
+  residency: string[];
+}
+
 export interface System {
   id: SystemId;
   name: string;
@@ -92,4 +111,9 @@ export interface System {
   lastSynced: string;
   oktaEnforced: string;
   mfaEnforced: string;
+  internetFacing: boolean;
+  availabilityTier: AvailabilityTier;
+  userCount: number;
+  regions: string[];
+  dataProfile: SystemDataProfile;
 }

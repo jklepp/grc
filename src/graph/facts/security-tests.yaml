@@ -1,0 +1,37 @@
+# Penetration test and red-team exercise records. Open findings from an
+# exercise are tracked as ordinary Findings (source: "penetration-test" |
+# "red-team") — see findings.yaml — not duplicated as a count here;
+# engine/validateDerivations.ts checks the two stay consistent.
+
+- id: "SECTEST-SYS-003-2026-01"
+  systemId: "SYS-003"
+  type: "penetration-test"
+  vendor: "NCC Group"
+  scope: "Public API Gateway, RAG retrieval path, tenant isolation boundary"
+  completedAt: "2026-05-10"
+  cadenceDays: 365
+  criticalFindingCount: 0
+  highFindingCount: 1
+  reportRef: "NCC-2026-0512-ACME"
+- id: "SECTEST-SYS-003-2026-02"
+  systemId: "SYS-003"
+  type: "red-team"
+  vendor: "Bishop Fox"
+  scope: "Cross-tenant data exposure via a scoped-retrieval defect, full kill chain from public ingress"
+  completedAt: "2026-02-20"
+  cadenceDays: 365
+  criticalFindingCount: 0
+  highFindingCount: 0
+  objectiveAchieved: true
+  reportRef: "BF-RT-2026-0220-ACME"
+
+- id: "SECTEST-SYS-042-2026-01"
+  systemId: "SYS-042"
+  type: "penetration-test"
+  vendor: "NCC Group"
+  scope: "Workday tenant configuration, SSO integration, integration service accounts"
+  completedAt: "2026-06-01"
+  cadenceDays: 365
+  criticalFindingCount: 0
+  highFindingCount: 0
+  reportRef: "NCC-2026-0601-WD"

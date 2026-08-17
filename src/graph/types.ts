@@ -44,6 +44,14 @@ import type { ScheduledActivityRecord } from "./nodes/scheduledActivities";
 import type { PrismaLevelOverride } from "./edges/prismaOverrides";
 import type { RiskAsset, RiskControl } from "./edges/riskContributors";
 import type { AssuranceCategory, ClassificationTier, PrismaLevel, EvidenceType } from "./nodes/taxonomy";
+import type { IdentityPopulation, AccessReview } from "./nodes/identity";
+import type { ExposurePosture, ExternalService, ExposureException } from "./nodes/exposure";
+import type { VulnSnapshot } from "./nodes/vulnerabilities";
+import type { SecurityTestExercise } from "./nodes/securityTests";
+import type { BackupConfig, DrTest } from "./nodes/resilience";
+import type { IrPlanCurrency, TabletopExercise, ProductionIncident } from "./nodes/irExercises";
+import type { Vendor, VendorAssurance, SystemVendor } from "./nodes/vendors";
+import type { SdlcPosture } from "./nodes/sdlc";
 import type {
   AssetId, SystemId, ControlId, OrgId, RiskId, DataTypeId, EvidenceId,
   EvidenceSourceId, ActorId, SystemScope,
@@ -131,6 +139,30 @@ export interface GraphFacts {
   // What the inherited domains actually stand on. Not curated-to-be-checked
   // like the two above — these are primary facts about reports ACME holds.
   providerCertifications: ProviderCertification[];
+
+  // ---- System Register cockpit domains -----------------------------------
+  // Eight new fact domains backing the assurance-cockpit rework: identity
+  // population/coverage, attack surface, vulnerability posture, security
+  // testing, resilience, incident response, vendor assurance, and secure
+  // SDLC. Each follows the same rule as everything above — a number the
+  // cockpit shows traces to one of these rows, never to a hand-typed display
+  // value.
+  identityPopulations: IdentityPopulation[];
+  accessReviews: AccessReview[];
+  exposurePostures: ExposurePosture[];
+  externalServices: ExternalService[];
+  exposureExceptions: ExposureException[];
+  vulnSnapshots: VulnSnapshot[];
+  securityTests: SecurityTestExercise[];
+  backupConfigs: BackupConfig[];
+  drTests: DrTest[];
+  irPlanCurrency: IrPlanCurrency[];
+  tabletopExercises: TabletopExercise[];
+  productionIncidents: ProductionIncident[];
+  vendors: Vendor[];
+  vendorAssurance: VendorAssurance[];
+  systemVendors: SystemVendor[];
+  sdlcPostures: SdlcPosture[];
 }
 
 // ---- Control profile ---------------------------------------------------------
@@ -290,6 +322,41 @@ export interface Graph {
   // Raised during assembly rather than thrown, so graph/validate.ts can report
   // every problem at once instead of failing on the first.
   readonly sourceConflicts: readonly string[];
+
+  // ---- System Register cockpit domains -----------------------------------
+  readonly identityPopulations: readonly IdentityPopulation[];
+  readonly accessReviews: readonly AccessReview[];
+  readonly exposurePostures: readonly ExposurePosture[];
+  readonly externalServices: readonly ExternalService[];
+  readonly exposureExceptions: readonly ExposureException[];
+  readonly vulnSnapshots: readonly VulnSnapshot[];
+  readonly securityTests: readonly SecurityTestExercise[];
+  readonly backupConfigs: readonly BackupConfig[];
+  readonly drTests: readonly DrTest[];
+  readonly irPlanCurrency: readonly IrPlanCurrency[];
+  readonly tabletopExercises: readonly TabletopExercise[];
+  readonly productionIncidents: readonly ProductionIncident[];
+  readonly vendors: readonly Vendor[];
+  readonly vendorAssurance: readonly VendorAssurance[];
+  readonly systemVendors: readonly SystemVendor[];
+  readonly sdlcPostures: readonly SdlcPosture[];
+
+  readonly identityPopulationsBySystem: Readonly<Record<SystemId, readonly IdentityPopulation[]>>;
+  readonly accessReviewsBySystem: Readonly<Record<SystemId, readonly AccessReview[]>>;
+  readonly exposurePostureBySystem: Readonly<Record<SystemId, ExposurePosture>>;
+  readonly externalServicesBySystem: Readonly<Record<SystemId, readonly ExternalService[]>>;
+  readonly exposureExceptionsBySystem: Readonly<Record<SystemId, readonly ExposureException[]>>;
+  readonly vulnSnapshotBySystem: Readonly<Record<SystemId, VulnSnapshot>>;
+  readonly securityTestsBySystem: Readonly<Record<SystemId, readonly SecurityTestExercise[]>>;
+  readonly backupConfigBySystem: Readonly<Record<SystemId, BackupConfig>>;
+  readonly drTestsBySystem: Readonly<Record<SystemId, readonly DrTest[]>>;
+  readonly irPlanCurrencyByScope: Readonly<Record<string, IrPlanCurrency>>;
+  readonly tabletopExercisesByScope: Readonly<Record<string, readonly TabletopExercise[]>>;
+  readonly productionIncidentsBySystem: Readonly<Record<SystemId, readonly ProductionIncident[]>>;
+  readonly vendorById: Readonly<Record<string, Vendor>>;
+  readonly vendorAssuranceByVendor: Readonly<Record<string, readonly VendorAssurance[]>>;
+  readonly systemVendorsBySystem: Readonly<Record<SystemId, readonly SystemVendor[]>>;
+  readonly sdlcPostureBySystem: Readonly<Record<SystemId, SdlcPosture>>;
 }
 
 // The category-weight lookup, threaded rather than imported so a graph can

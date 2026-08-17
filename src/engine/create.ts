@@ -36,6 +36,15 @@ import { createCompliance } from "./compliance";
 import { createProfile } from "./profile";
 import { createSelectors } from "./selectors";
 import { validateDerivations } from "./validateDerivations";
+import { createIdentity } from "./identity";
+import { createExposure } from "./exposure";
+import { createVulnerabilities } from "./vulnerabilities";
+import { createSecurityTesting } from "./securityTesting";
+import { createResilience } from "./resilience";
+import { createIncidentResponse } from "./incidentResponse";
+import { createVendors } from "./vendors";
+import { createSdlc } from "./sdlc";
+import { createCockpit } from "./cockpit";
 
 export interface EngineOptions {
   ctx?: EngineContext;
@@ -64,10 +73,27 @@ export function createEngine(graph: Graph, options: EngineOptions = {}) {
     graph, classification, applicability, assessment, evidence, rollups, risk, compliance
   );
 
+  // System Register cockpit domains. Independent of each other except for
+  // findings (the shared POA&M mechanism) and cockpit, which composes them.
+  const identity = createIdentity(graph, ctx);
+  const exposure = createExposure(graph);
+  const vulnerabilities = createVulnerabilities(graph);
+  const securityTesting = createSecurityTesting(graph, ctx, findings);
+  const resilience = createResilience(graph, ctx);
+  const incidentResponse = createIncidentResponse(graph, ctx, findings);
+  const vendors = createVendors(graph, ctx);
+  const sdlc = createSdlc(graph);
+  const cockpit = createCockpit(
+    graph, rollups, profile, risk, findings,
+    identity, exposure, securityTesting, resilience, incidentResponse, vendors
+  );
+
   const engine = {
     graph, ctx,
     classification, applicability, findings, evidence, assessment,
     rollups, risk, compliance, profile, selectors,
+    identity, exposure, vulnerabilities, securityTesting, resilience,
+    incidentResponse, vendors, sdlc, cockpit,
   };
 
   // Structural integrity was already proved by loadGraph. This is the other

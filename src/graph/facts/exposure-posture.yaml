@@ -1,0 +1,16 @@
+# One row per system: integration counts and the enum postures that describe
+# how tightly egress, admin access, and the API surface are held.
+
+- systemId: "SYS-003"
+  inboundIntegrationCount: 4
+  outboundIntegrationCount: 3
+  egressPosture: "monitored-allow"
+  adminPosture: "vpn-required"
+  apiPosture: "gateway-enforced"
+
+- systemId: "SYS-042"
+  inboundIntegrationCount: 2
+  outboundIntegrationCount: 3
+  egressPosture: "default-deny"
+  adminPosture: "vpn-required"
+  apiPosture: "gateway-enforced"

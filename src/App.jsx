@@ -33,7 +33,7 @@ const LEGACY_ROUTES = {
   "procedure-library": { page: "governance", tab: "procedures" },
   "security-principles": { page: "governance", tab: "principles" },
   "activity-timeliness": { page: "governance", tab: "schedule" },
-  ssp: { page: "governance", tab: "ssp" },
+  ssp: { page: "governance", tab: "register" },
 };
 
 export default function App() {

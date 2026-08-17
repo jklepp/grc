@@ -1,0 +1,22 @@
+# The latest vulnerability/configuration observation per system — an
+# aggregate snapshot, not a per-CVE feed.
+
+- systemId: "SYS-003"
+  asOf: "2026-08-10"
+  criticalCount: 0
+  highCount: 2
+  pastSlaCount: 0
+  configFindingCount: 3
+  unsupportedComponentCount: 0
+  internetFacingCriticalCount: 0
+  patchSlaCompliancePct: 96
+
+- systemId: "SYS-042"
+  asOf: "2026-08-05"
+  criticalCount: 0
+  highCount: 0
+  pastSlaCount: 0
+  configFindingCount: 1
+  unsupportedComponentCount: 0
+  internetFacingCriticalCount: 0
+  patchSlaCompliancePct: 100

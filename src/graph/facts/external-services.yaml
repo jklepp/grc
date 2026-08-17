@@ -1,0 +1,37 @@
+# Named internet-facing services/APIs/admin interfaces per system.
+# externallyReachable is verified reachability, not just intent — validated
+# that a reachable service is also internet-facing.
+
+- id: "EXT-SYS-003-01"
+  systemId: "SYS-003"
+  name: "Public API Gateway"
+  kind: "public-api"
+  internetFacing: true
+  externallyReachable: true
+  authRequired: true
+  wafProtected: true
+- id: "EXT-SYS-003-02"
+  systemId: "SYS-003"
+  name: "Customer Web Console"
+  kind: "web-app"
+  internetFacing: true
+  externallyReachable: true
+  authRequired: true
+  wafProtected: true
+- id: "EXT-SYS-003-03"
+  systemId: "SYS-003"
+  name: "Platform Admin Console"
+  kind: "admin-interface"
+  internetFacing: false
+  externallyReachable: false
+  authRequired: true
+  wafProtected: false
+
+- id: "EXT-SYS-042-01"
+  systemId: "SYS-042"
+  name: "Workday Tenant Login"
+  kind: "web-app"
+  internetFacing: true
+  externallyReachable: true
+  authRequired: true
+  wafProtected: true

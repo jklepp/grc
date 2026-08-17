@@ -1,0 +1,11 @@
+# When the incident response plan was last reviewed — the enterprise-wide
+# plan every system falls back to (scope: "program"), plus per-system
+# playbook overrides where one exists.
+
+- scope: "program"
+  lastReviewedAt: "2026-03-01"
+  cadenceDays: 365
+
+- scope: "SYS-003"
+  lastReviewedAt: "2026-06-01"
+  cadenceDays: 365

@@ -11,7 +11,7 @@
 // convention that a record declares its own scope rather than being pointed at
 // from elsewhere.
 import type { Graph } from "../graph/types";
-import { FINDING_STATUSES, type Finding } from "../graph/nodes/findings";
+import { FINDING_STATUSES, type Finding, type FindingSource } from "../graph/nodes/findings";
 import type { EngineContext } from "./context";
 import type { AssetId, ControlId, SystemId, RiskId } from "../graph/ids";
 
@@ -23,6 +23,13 @@ export const FINDING_STATUS_META = {
   remediating: { label: "Remediating", color: "accent" },
   verified: { label: "Verified", color: "green" },
   closed: { label: "Closed", color: "muted" },
+};
+
+export const FINDING_SEVERITY_META = {
+  critical: { label: "Critical", color: "red" },
+  high: { label: "High", color: "amber" },
+  medium: { label: "Medium", color: "amber" },
+  low: { label: "Low", color: "muted" },
 };
 
 export function createFindings(graph: Graph, ctx: EngineContext) {
@@ -72,6 +79,12 @@ export function createFindings(graph: Graph, ctx: EngineContext) {
     findingsForSystem: (systemId: SystemId) => allFindings.filter((f) => f.systemId === systemId),
     findingsForAsset: (assetId: AssetId) => allFindings.filter((f) => f.assetId === assetId),
     findingsForRisk: (riskId: RiskId) => allFindings.filter((f) => f.riskIds.includes(riskId)),
+    // Open items raised by a specific domain (a pen test, a DR test, an IR
+    // tabletop...) rather than a routine control-gap review — what the
+    // cockpit's per-domain sections render instead of inventing their own
+    // remediation tracking.
+    openFindingsForSource: (systemId: SystemId, source: FindingSource) =>
+      allFindings.filter((f) => f.systemId === systemId && f.source === source && OPEN_STATUSES.has(f.status)),
   };
 }
 

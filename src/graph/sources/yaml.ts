@@ -155,4 +155,22 @@ export const YAML_FACTS: GraphFacts = {
   boardMaterialRiskIds: read("board-material-risks"),
   assessmentScopes: read("assessment-scope"),
   providerCertifications: read("provider-certifications"),
+
+  // System Register cockpit domains
+  identityPopulations: read("identity-populations"),
+  accessReviews: read("access-reviews"),
+  exposurePostures: read("exposure-posture"),
+  externalServices: read("external-services"),
+  exposureExceptions: read("exposure-exceptions"),
+  vulnSnapshots: read("vuln-snapshots"),
+  securityTests: read("security-tests"),
+  backupConfigs: read("backup-config"),
+  drTests: read("dr-tests"),
+  irPlanCurrency: read("ir-plan-currency"),
+  tabletopExercises: read("tabletop-exercises"),
+  productionIncidents: read("production-incidents"),
+  vendors: read("vendors"),
+  vendorAssurance: read("vendor-assurance"),
+  systemVendors: read("system-vendors"),
+  sdlcPostures: read("sdlc-posture"),
 };
