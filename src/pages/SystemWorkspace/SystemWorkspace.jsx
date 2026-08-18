@@ -19,6 +19,7 @@ import { SystemControls } from "./SystemControls";
 import { SystemRisk } from "./SystemRisk";
 import { SystemAssets } from "./SystemAssets";
 import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
+import AddSystemWizard from "../../components/AddSystemWizard";
 
 const SYSTEMS = getAllSystems();
 
@@ -32,6 +33,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   const setSystemId = onSelectSystem ?? setLocalSystemId;
   const [subTab, setSubTab] = useState(SUB_TABS.some((t) => t.id === initialSubTab) ? initialSubTab : SUB_TABS[0].id);
   const [selectedRow, setSelectedRow] = useState(null);
+  const [editorOpen, setEditorOpen] = useState(false);
 
   const system = SYSTEMS.find((s) => s.id === systemId);
   const matrix = useMemo(
@@ -93,7 +95,13 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
 
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <SystemHeader system={system} systems={SYSTEMS} systemId={systemId} onSelectSystem={selectSystem} />
+      <SystemHeader
+        system={system}
+        systems={SYSTEMS}
+        systemId={systemId}
+        onSelectSystem={selectSystem}
+        onEdit={() => setEditorOpen(true)}
+      />
 
       <TabBar tabs={SUB_TABS} active={subTab} onChange={setSubTab} variant="secondary" />
 
@@ -135,6 +143,8 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
       {subTab === "assets" && <SystemAssets systemId={systemId} />}
 
       {selectedRow && <ControlEvaluationPanel row={selectedRow} system={system} onClose={() => setSelectedRow(null)} />}
+
+      <AddSystemWizard open={editorOpen} onClose={() => setEditorOpen(false)} editingSystemId={systemId} />
     </div>
   );
 }

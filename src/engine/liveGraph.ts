@@ -66,17 +66,22 @@ export function emptyRuntimeFacts(): RuntimeFacts {
   };
 }
 
-// Appends the eight fact arrays/maps a runtime system can touch. Every other
-// fact domain — policies, findings, the other ~35 fact files — is untouched,
-// because nothing about creating or evaluating a runtime system authors any
-// of those.
+// Runtime system rows are upserts rather than append-only records. This keeps
+// user-created systems simple (there is no matching baseline row) while also
+// letting the system editor safely replace a YAML-authored boundary, its
+// assets, data mappings, and assessment scope after the candidate graph has
+// passed the same validation pipeline as every other change.
 export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts {
+  const overriddenSystemIds = new Set(runtime.systems.map((s) => s.id));
+  const overriddenBaseAssetIds = new Set(
+    base.assets.filter((a) => overriddenSystemIds.has(a.systemId)).map((a) => a.id)
+  );
   return {
     ...base,
-    systems: [...base.systems, ...runtime.systems],
-    assets: [...base.assets, ...runtime.assets],
-    assetDataTypes: [...base.assetDataTypes, ...runtime.assetDataTypes],
-    assessmentScopes: [...base.assessmentScopes, ...runtime.assessmentScopes],
+    systems: [...base.systems.filter((s) => !overriddenSystemIds.has(s.id)), ...runtime.systems],
+    assets: [...base.assets.filter((a) => !overriddenSystemIds.has(a.systemId)), ...runtime.assets],
+    assetDataTypes: [...base.assetDataTypes.filter((edge) => !overriddenBaseAssetIds.has(edge.assetId)), ...runtime.assetDataTypes],
+    assessmentScopes: [...base.assessmentScopes.filter((scope) => !overriddenSystemIds.has(scope.systemId)), ...runtime.assessmentScopes],
     expectedClassification: { ...base.expectedClassification, ...runtime.expectedClassification },
     implementationMechanisms: [...base.implementationMechanisms, ...runtime.implementationMechanisms],
     evidence: [...base.evidence, ...runtime.evidence],
