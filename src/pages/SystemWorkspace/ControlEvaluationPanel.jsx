@@ -8,7 +8,7 @@ import {
   FINDING_SEVERITY_META, FINDING_REMEDIATION_STATUS_META, FINDING_SEVERITIES, FINDING_SOURCES, REMEDIATION_STATUSES,
   INSTANCE_STATUS_META,
   EVIDENCE_TYPES, EVIDENCE_RESULTS, INDEPENDENCE_LEVELS,
-  getEvidence, resolveProgramApplicability, assetsForSystem, ORGS,
+  getEvidence, resolveProgramApplicability, assetsForSystem, getDataFlows, ORGS,
   evaluateControl, addPrismaOverride, updateEvidence, removeEvidence, addFinding,
 } from "../../engine";
 import { buildLiveEngine } from "../../engine/liveGraph";
@@ -27,6 +27,53 @@ import Modal, { ModalCloseButton } from "../../components/Modal";
 function worstLevelEntry(assessment) {
   if (!assessment?.assessed) return null;
   return PRISMA_LEVELS.map((level) => [level, assessment.levels[level]]).sort((a, b) => a[1].rating - b[1].rating)[0];
+}
+
+// Which architecture layer each asset sits in, reusing the exact same
+// request-path classification the Architecture tab's data-flow diagram
+// already derives (engine/rollups.ts's flowLayoutForSystem, via
+// getDataFlows) — not a second taxonomy invented for this panel. Labels
+// match DataMap.jsx's stageLabel()/section headers verbatim so a control's
+// coverage groups the same way an operator already reads the Architecture
+// tab.
+function assetLayerMap(systemId) {
+  const layout = getDataFlows(systemId);
+  const map = {};
+  layout.stages.forEach((s) => {
+    const label = s.depth === 0 ? "Web Ingress" : `Stage ${s.depth}`;
+    s.nodes.forEach((n) => { map[n.id] = label; });
+  });
+  layout.dataPlane.forEach((d) => { map[d.asset.id] = "Data Plane"; });
+  layout.egress.forEach((e) => { map[e.asset.id] = "Web Egress"; });
+  layout.softwareDeployment.forEach((s) => { map[s.asset.id] = "Software Deployment"; });
+  layout.workforceIngress.forEach((w) => { map[w.asset.id] = "Ingress - Workforce"; });
+  layout.branches.forEach((b) => { map[b.asset.id] = "Control Plane"; });
+  return map;
+}
+
+const LAYER_RANK = {
+  "Web Ingress": 0, "Data Plane": 1000, "Web Egress": 1001,
+  "Control Plane": 1002, "Software Deployment": 1003, "Ingress - Workforce": 1004,
+  Unmapped: 9999,
+};
+function layerRank(label) {
+  if (label in LAYER_RANK) return LAYER_RANK[label];
+  const stage = /^Stage (\d+)$/.exec(label);
+  return stage ? 1 + Number(stage[1]) : 9998;
+}
+
+// Groups a control's per-asset instances by architecture layer, sorted
+// Web Ingress -> Stage 1..N -> Data Plane -> Web Egress -> Control Plane ->
+// Software Deployment -> Ingress - Workforce -> Unmapped (assets with no
+// data-flow edges recorded, e.g. isolated stores) last rather than dropped.
+function groupInstancesByLayer(instances, systemId) {
+  const layerMap = assetLayerMap(systemId);
+  const groups = {};
+  instances.forEach((inst) => {
+    const label = layerMap[inst.assetId] ?? "Unmapped";
+    (groups[label] ??= []).push(inst);
+  });
+  return Object.entries(groups).sort(([a], [b]) => layerRank(a) - layerRank(b));
 }
 
 // Security Principles carry their own controlIds, derived from the SOP steps
@@ -582,24 +629,27 @@ export function ControlEvaluationPanel({ row, system, onClose }) {
                       Applies because: {applicabilityRationales[0]}
                     </div>
                   )}
-                  <div className="space-y-1.5">
-                    {row.instances.map((inst) => {
-                      const instMeta = INSTANCE_STATUS_META[inst.status];
-                      const label = inst.status === "undetermined" ? "Missing Evidence" : instMeta?.label ?? inst.status;
-                      return (
-                        <div key={`${inst.assetId}-${inst.controlId}`} className="rounded-lg px-3 py-2.5 flex items-center gap-2" style={{ background: C.panel2 }}>
-                          <span className="text-sm font-semibold flex-1" style={{ color: C.ink }}>{assetName(system, inst.assetId)}</span>
-                          <span className="text-[10px] font-semibold px-2 py-1 rounded shrink-0" style={{ background: C[`${instMeta?.color}Bg`] ?? C.panel, color: C[instMeta?.color] ?? C.muted }}>
-                            {label}
-                          </span>
+                  <div className="space-y-4">
+                    {groupInstancesByLayer(row.instances, system.id).map(([layerLabel, insts]) => (
+                      <div key={layerLabel}>
+                        <SectionLabel>{layerLabel}</SectionLabel>
+                        <div className="space-y-1.5">
+                          {insts.map((inst) => {
+                            const instMeta = INSTANCE_STATUS_META[inst.status];
+                            const label = inst.status === "undetermined" ? "Missing Evidence" : instMeta?.label ?? inst.status;
+                            return (
+                              <div key={`${inst.assetId}-${inst.controlId}`} className="rounded-lg px-3 py-2.5" style={{ background: C.panel2 }}>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-semibold flex-1" style={{ color: C.ink }}>{assetName(system, inst.assetId)}</span>
+                                  <span className="text-[10px] font-semibold px-2 py-1 rounded shrink-0" style={{ background: C[`${instMeta?.color}Bg`] ?? C.panel, color: C[instMeta?.color] ?? C.muted }}>
+                                    {label}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] mt-1 leading-snug" style={{ color: C.muted }}>{inst.statement}</div>
+                              </div>
+                            );
+                          })}
                         </div>
-                      );
-                    })}
-                  </div>
-                  <div className="mt-3 space-y-1.5">
-                    {row.instances.map((inst) => (
-                      <div key={`stmt-${inst.assetId}`} className="text-[11px] leading-snug" style={{ color: C.muted }}>
-                        <span style={{ color: C.ink }}>{assetName(system, inst.assetId)}</span> — {inst.statement}
                       </div>
                     ))}
                   </div>
