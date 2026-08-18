@@ -18,7 +18,7 @@ import { SystemTesting } from "./SystemTesting";
 import { SystemControls } from "./SystemControls";
 import { SystemRisk } from "./SystemRisk";
 import { SystemAssets } from "./SystemAssets";
-import { ControlDetailDrawer } from "./ControlDetailDrawer";
+import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
 
 const SYSTEMS = getAllSystems();
 
@@ -134,7 +134,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
 
       {subTab === "assets" && <SystemAssets systemId={systemId} />}
 
-      {selectedRow && <ControlDetailDrawer row={selectedRow} system={system} onClose={() => setSelectedRow(null)} />}
+      {selectedRow && <ControlEvaluationPanel row={selectedRow} system={system} onClose={() => setSelectedRow(null)} />}
     </div>
   );
 }

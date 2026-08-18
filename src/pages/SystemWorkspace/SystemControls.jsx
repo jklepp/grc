@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { RadioTower, Layers, AlertTriangle, ClipboardList, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
+import { RadioTower, Layers, AlertTriangle, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { C } from "../../theme";
 import { SectionHeading } from "../../components/Headings";
 import {
@@ -12,7 +12,7 @@ import { StatRing } from "./shared/StatRing";
 // operational read: what's weak, why, who owns it, what proves it, is there
 // an open finding. SCF #, governing policy and framework clause mappings are
 // still real data, just lower priority than these six answers, so they moved
-// into ControlDetailDrawer instead of occupying columns here.
+// into ControlEvaluationPanel instead of occupying columns here.
 const CONTROL_GRID = "2fr 130px 90px 160px 130px 80px";
 
 function SortIcon({ dir }) {
@@ -109,128 +109,184 @@ const ALL_SELECTION = { kind: "all", label: "All Applicable Controls" };
 // "attention-group" | "all", key, label } or null; clicking the active chip
 // again falls back to the default view rather than clearing to empty — this
 // table is never supposed to show nothing.
-function Chip({ meta, count, active, onClick }) {
+// No icon: this chip is always read alongside its own colored group (the
+// Control Status legend groups chips by the same color as their bar
+// segment), so the color already carries the meaning an icon would repeat.
+function Chip({ label, count, color, bg, active, onClick }) {
   // The neutral (panel2-backed) variants — Not Assessed, System Owned — sit
   // too close in value to the card behind them to read as a pill on their
   // own; give just those a border so they don't wash out.
-  const neutral = meta.bg === C.panel2;
+  const neutral = bg === C.panel2;
   return (
     <button
       onClick={onClick}
       className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded shrink-0 transition-colors"
       style={{
-        background: meta.bg,
-        color: meta.color,
+        background: bg,
+        color,
         border: neutral ? `1px solid ${C.borderStrong}` : "1px solid transparent",
-        boxShadow: active ? `0 0 0 1.5px ${meta.color}` : "none",
+        boxShadow: active ? `0 0 0 1.5px ${color}` : "none",
       }}
     >
-      <meta.Icon size={11} /> {count} {meta.label}
+      <span className="shrink-0" style={{ width: 6, height: 6, borderRadius: 999, background: color, display: "inline-block" }} />
+      {count} {label}
     </button>
   );
 }
 
-// One row of this tri-split: a fixed-width label, the row's own subtotal
-// (the number the chips beside it add up to), then the chips themselves. The
-// four subtotals — this row's, Outstanding's, Pending's, and Not Applicable's
-// — always sum to the system's full in-scope catalog; see TallyBar below.
-function TallyRow({ label, count, color, borderTop, highlight, icon: Icon, hint, onLabelClick, labelActive, children }) {
-  const Label = onLabelClick ? "button" : "span";
+// A matched posture tile for the KPI row. `primary` marks Assurance: same
+// tile shape as its neighbors, but the ring chart + accent color keep it the
+// visual anchor rather than an oversized card fighting two plain numbers.
+function PostureTile({ value, label, sublabel, primary }) {
   return (
     <div
-      className="flex items-center gap-3 py-1 px-2"
-      style={{
-        ...(borderTop ? { marginTop: 6, paddingTop: 7, borderTop: `1px solid ${C.border}` } : {}),
-      }}
+      className="rounded-xl p-5 flex items-center gap-4"
+      style={
+        primary
+          ? { background: `linear-gradient(135deg, ${C.accent} 0%, #4B3F99 100%)` }
+          : { background: C.panel, border: `1px solid ${C.border}` }
+      }
     >
-      <Label
-        onClick={onLabelClick}
-        className="text-[10px] uppercase tracking-wide font-semibold w-40 shrink-0 whitespace-nowrap text-left"
-        style={{
-          color: highlight ? color : C.muted,
-          cursor: onLabelClick ? "pointer" : "default",
-          textDecoration: labelActive ? "underline" : "none",
-        }}
-      >
-        {label}
-      </Label>
-      <span className="text-sm font-semibold w-8 shrink-0 tabular-nums" style={{ color, fontFamily: "'IBM Plex Mono', monospace" }}>{count}</span>
-      <div className="flex items-center gap-2 flex-nowrap overflow-x-auto">{children}</div>
-      {hint && (
-        <span className="text-[11px] ml-auto shrink-0 font-medium inline-flex items-center gap-1" style={{ color }}>
-          {Icon && <Icon size={12} />} {hint}
-        </span>
-      )}
+      {primary && <StatRing pct={value} color="#FFFFFF" trackColor="rgba(255,255,255,0.25)" size={44} />}
+      <div className="min-w-0">
+        <div className="text-3xl font-semibold" style={{ color: primary ? "#FFFFFF" : C.ink, fontFamily: "'Source Serif 4', serif" }}>{value}%</div>
+        <div className="text-[10px] font-semibold uppercase tracking-wide mt-1" style={{ color: primary ? "rgba(255,255,255,0.85)" : C.muted }}>{label}</div>
+        <div className="text-xs mt-0.5" style={{ color: primary ? "rgba(255,255,255,0.7)" : C.muted }}>{sublabel}</div>
+      </div>
     </div>
   );
 }
 
-function OutstandingControls({ statusCounts, count, selection, onToggle, borderTop }) {
+// The one tile that answers "does this system need action" on its own,
+// without reading the table below it. Same size as its neighbors so it
+// doesn't just look like the loudest thing on the page — the color does
+// that work. Clicking it (or clicking it again) toggles the same
+// attention-group selection the table already defaults to.
+function AttentionTile({ count, statusCounts, selection, onToggle }) {
   const active = selection?.kind === "attention-group";
+  const breakdown = OUTSTANDING_STATUSES
+    .map((s) => `${statusCounts[s] ?? 0} ${STATUS_META[s].label.toLowerCase()}`)
+    .join(" · ");
   return (
-    <TallyRow
-      label="Attention Required" count={count} color={C.amber} borderTop={borderTop} highlight icon={AlertTriangle} hint="Needs review"
-      onLabelClick={() => onToggle(DEFAULT_SELECTION)} labelActive={active}
+    <button
+      onClick={() => onToggle(DEFAULT_SELECTION)}
+      className="rounded-xl p-5 flex items-center gap-4 text-left transition-colors"
+      style={{ background: C.amberBg, border: `1px solid ${active ? C.amber : C.border}` }}
     >
-      {OUTSTANDING_STATUSES.map((status) => {
-        const meta = STATUS_META[status];
-        return (
-          <Chip
-            key={status}
-            meta={meta}
-            count={statusCounts[status]}
-            active={selection?.kind === "status" && selection.key === status}
-            onClick={() => onToggle({ kind: "status", key: status, label: `${meta.label} controls` })}
-          />
-        );
-      })}
-    </TallyRow>
+      <AlertTriangle size={28} color={C.amber} style={{ flexShrink: 0 }} />
+      <div className="min-w-0">
+        <div className="text-3xl font-semibold" style={{ color: C.amber, fontFamily: "'Source Serif 4', serif" }}>{count}</div>
+        <div className="text-[10px] font-semibold uppercase tracking-wide mt-1" style={{ color: C.amber }}>Attention Required</div>
+        <div className="text-xs mt-0.5 truncate" style={{ color: C.amber, opacity: 0.8 }}>{breakdown}</div>
+      </div>
+    </button>
   );
 }
 
-// Pending is deliberately not part of Attention Required. It means
-// applicability was never decided, not that a control was tried and failed
-// — conflating it with Deficient/Not Implemented would make an open review
-// question read as an implementation problem.
-function ApplicabilityReview({ pendingCount, selection, onToggle }) {
-  const meta = APPLICABILITY_META.pending;
-  return (
-    <TallyRow label="Applicability Review" count={pendingCount} color={C.ink} borderTop icon={ClipboardList} hint="Not yet decided">
-      <Chip
-        meta={meta}
-        count={pendingCount}
-        active={selection?.kind === "pending"}
-        onClick={() => onToggle({ kind: "pending", key: "pending", label: "Pending applicability" })}
-      />
-    </TallyRow>
-  );
-}
-
-// The stacked bar and equation that make the tri-split's arithmetic visible
-// rather than something a reader has to add up themselves.
-function TallyBar({ statusCount, outstandingCount, pendingCount, naCount, total }) {
+// One card replacing the four stacked tally rows + equation bar: a single
+// segmented bar (Satisfied / Attention / Pending / Not Applicable, the same
+// four buckets that always summed to the full catalog), a legend of every
+// individual status as a drill-down chip, and Responsibility demoted to a
+// quieter footer line — still clickable, just not a peer of implementation
+// status.
+function StatusStrip({ statusCounts, applicabilitySummary, pendingCount, resp, selection, onToggle }) {
+  const total = applicabilitySummary.total;
+  const controlStatusCount = RESOLVED_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
+  const outstandingCount = OUTSTANDING_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
   const segments = [
-    { count: statusCount, color: C.green, label: "Controls Satisfied" },
+    { count: controlStatusCount, color: C.green, label: "Controls Satisfied" },
     { count: outstandingCount, color: C.amber, label: "Attention Required" },
     { count: pendingCount, color: C.ink, label: "Applicability Review" },
-    { count: naCount, color: C.muted, label: "Not Applicable" },
+    { count: applicabilitySummary.notApplicable, color: C.muted, label: "Not Applicable" },
   ];
+  const responsibilityItems = [
+    { respKey: "internal", count: resp?.owned },
+    { respKey: "shared", count: resp?.shared },
+    { respKey: "enterprise", count: resp?.enterprise },
+    { respKey: "vendor", count: resp?.vendor },
+  ];
+
   return (
-    <div className="flex items-start gap-3 px-2 py-1" style={{ marginTop: 6, borderTop: `1px solid ${C.border}`, paddingTop: 7 }}>
-      <span className="text-[10px] uppercase tracking-wide font-semibold w-40 shrink-0 pt-0.5 whitespace-nowrap" style={{ color: C.muted }}>Control Catalog</span>
-      <div className="flex-1 min-w-0">
-        <div className="flex h-2 rounded-full overflow-hidden" style={{ background: C.panel2 }}>
-          {segments.map((s) => (
-            <div key={s.label} title={`${s.label}: ${s.count}`} style={{ width: `${total ? (s.count / total) * 100 : 0}%`, background: s.color }} />
-          ))}
+    <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+      <div className="flex items-baseline justify-between mb-3">
+        <span className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.muted }}>Control Status</span>
+        <span className="text-[11px]" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{total} applicable controls</span>
+      </div>
+
+      <div className="flex h-2.5 rounded-full overflow-hidden" style={{ background: C.panel2 }}>
+        {segments.map((s) => (
+          <div key={s.label} title={`${s.label}: ${s.count}`} style={{ width: `${total ? (s.count / total) * 100 : 0}%`, background: s.color }} />
+        ))}
+      </div>
+
+      {/* Chips grouped and ordered to match the bar's four segments left to
+          right — green (resolved) group, then amber (attention) group, then
+          the two standalone ink/muted chips — so color, not an icon, is what
+          ties a chip back to its slice of the bar. */}
+      <div className="flex items-center flex-wrap gap-x-5 gap-y-2 mt-3">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {RESOLVED_STATUSES.map((status) => {
+            const meta = STATUS_META[status];
+            return (
+              <Chip
+                key={status}
+                label={meta.label}
+                count={statusCounts[status]}
+                color={C.green}
+                bg={C.greenBg}
+                active={selection?.kind === "status" && selection.key === status}
+                onClick={() => onToggle({ kind: "status", key: status, label: `${meta.label} controls` })}
+              />
+            );
+          })}
         </div>
-        <div className="text-xs mt-2" style={{ color: C.muted }}>
-          <span className="font-semibold" style={{ color: C.green }}>{statusCount}</span> +{" "}
-          <span className="font-semibold" style={{ color: C.amber }}>{outstandingCount}</span> +{" "}
-          <span className="font-semibold" style={{ color: C.ink }}>{pendingCount}</span> +{" "}
-          <span className="font-semibold" style={{ color: C.ink }}>{naCount}</span> ={" "}
-          <span className="font-semibold" style={{ color: C.ink }}>{total}</span> total controls
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {OUTSTANDING_STATUSES.map((status) => {
+            const meta = STATUS_META[status];
+            return (
+              <Chip
+                key={status}
+                label={meta.label}
+                count={statusCounts[status]}
+                color={C.amber}
+                bg={C.amberBg}
+                active={selection?.kind === "status" && selection.key === status}
+                onClick={() => onToggle({ kind: "status", key: status, label: `${meta.label} controls` })}
+              />
+            );
+          })}
         </div>
+        <Chip
+          label={APPLICABILITY_META.pending.label}
+          count={pendingCount}
+          color={C.ink}
+          bg={C.panel2}
+          active={selection?.kind === "pending"}
+          onClick={() => onToggle({ kind: "pending", key: "pending", label: "Pending applicability" })}
+        />
+        <Chip
+          label={NOT_APPLICABLE_META.label}
+          count={applicabilitySummary.notApplicable}
+          color={C.muted}
+          bg={C.panel2}
+          active={selection?.kind === "not-applicable"}
+          onClick={() => onToggle({ kind: "not-applicable", key: "not-applicable", label: "Not Applicable controls" })}
+        />
+      </div>
+
+      <div className="flex items-center gap-3 flex-wrap" style={{ marginTop: 10, borderTop: `1px solid ${C.border}`, paddingTop: 9 }}>
+        <span className="text-[10px] uppercase tracking-wide font-semibold shrink-0" style={{ color: C.muted }}>Responsibility</span>
+        {responsibilityItems.map(({ respKey, count }) => (
+          <Chip
+            key={respKey}
+            label={RESPONSIBILITY_META[respKey].label}
+            count={count}
+            color={RESPONSIBILITY_META[respKey].color}
+            bg={RESPONSIBILITY_META[respKey].bg}
+            active={selection?.kind === "responsibility" && selection.key === respKey}
+            onClick={() => onToggle({ kind: "responsibility", key: respKey, label: `${RESPONSIBILITY_META[respKey].label} controls` })}
+          />
+        ))}
       </div>
     </div>
   );
@@ -403,11 +459,10 @@ function SelectedControlsTable({
 // Requirement → Control → Implementation → Evidence chain: the summary card's
 // chips are the requirement/applicability read, the table at the bottom
 // (opened by clicking a chip, and open by default on Attention Required) is
-// the drill-down, and ControlDetailDrawer (opened from a table row) is the
+// the drill-down, and ControlEvaluationPanel (opened from a table row) is the
 // full per-control detail.
 export function SystemControls({ matrix, statusCounts, applicabilitySummary, posture, findingsByControl = {}, onSelectRow }) {
   const resp = applicabilitySummary?.byResponsibility;
-  const controlStatusCount = RESOLVED_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
   const outstandingCount = OUTSTANDING_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
   const pendingCount = applicabilitySummary?.pending ?? 0;
   const [selection, setSelection] = useState(DEFAULT_SELECTION);
@@ -434,93 +489,24 @@ export function SystemControls({ matrix, statusCounts, applicabilitySummary, pos
     <div className="px-8 pb-10 space-y-6">
       <SectionHeading icon={Layers}>Controls</SectionHeading>
 
-      {applicabilitySummary && (
-        <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-          {posture && (
-            <div className="grid grid-cols-3 gap-6 pb-5 mb-4" style={{ borderBottom: `1px solid ${C.border}` }}>
-              <div
-                className="flex items-center gap-3 rounded-xl p-4"
-                style={{ background: `linear-gradient(135deg, ${C.accent} 0%, #4B3F99 100%)` }}
-              >
-                <StatRing pct={posture.assurance} color="#FFFFFF" trackColor="rgba(255,255,255,0.25)" size={44} />
-                <div>
-                  <div className="text-3xl font-semibold" style={{ color: "#FFFFFF", fontFamily: "'Source Serif 4', serif" }}>{posture.assurance}%</div>
-                  <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.75)" }}>Assurance — confidence controls operate effectively</div>
-                </div>
-              </div>
-              <div className="flex flex-col justify-center">
-                <div className="text-3xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{posture.compliance}%</div>
-                <div className="text-xs mt-1" style={{ color: C.muted }}>Compliance — are applicable controls implemented</div>
-              </div>
-              <div className="flex flex-col justify-center">
-                <div className="text-3xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{posture.coverage}%</div>
-                <div className="text-xs mt-1" style={{ color: C.muted }}>Assessment Coverage — have applicable controls been assessed</div>
-              </div>
-            </div>
-          )}
-
-          <OutstandingControls
-            statusCounts={statusCounts}
-            count={outstandingCount}
-            selection={selection}
-            onToggle={toggleSelection}
-            borderTop={false}
-          />
-
-          <TallyRow label="Controls Satisfied" count={controlStatusCount} color={C.green} borderTop>
-            {RESOLVED_STATUSES.map((status) => {
-              const meta = STATUS_META[status];
-              return (
-                <Chip
-                  key={status}
-                  meta={meta}
-                  count={statusCounts[status]}
-                  active={selection?.kind === "status" && selection.key === status}
-                  onClick={() => toggleSelection({ kind: "status", key: status, label: `${meta.label} controls` })}
-                />
-              );
-            })}
-          </TallyRow>
-
-          <ApplicabilityReview pendingCount={pendingCount} selection={selection} onToggle={toggleSelection} />
-
-          <TallyRow label="Controls Not Applicable" count={applicabilitySummary.notApplicable} color={C.ink} borderTop>
-            <Chip
-              meta={NOT_APPLICABLE_META}
-              count={applicabilitySummary.notApplicable}
-              active={selection?.kind === "not-applicable"}
-              onClick={() => toggleSelection({ kind: "not-applicable", key: "not-applicable", label: "Not Applicable controls" })}
-            />
-          </TallyRow>
-
-          <TallyBar
-            statusCount={controlStatusCount}
-            outstandingCount={outstandingCount}
-            pendingCount={pendingCount}
-            naCount={applicabilitySummary.notApplicable}
-            total={applicabilitySummary.total}
-          />
-
-          <div className="flex items-center gap-3 px-2 py-1" style={{ marginTop: 6, borderTop: `1px solid ${C.border}`, paddingTop: 7 }}>
-            <span className="text-[10px] uppercase tracking-wide font-semibold w-40 shrink-0 whitespace-nowrap" style={{ color: C.muted }}>Responsibility</span>
-            <div className="flex items-center gap-2 flex-wrap">
-              {[
-                { respKey: "internal", count: resp?.owned },
-                { respKey: "shared", count: resp?.shared },
-                { respKey: "enterprise", count: resp?.enterprise },
-                { respKey: "vendor", count: resp?.vendor },
-              ].map(({ respKey, count }) => (
-                <Chip
-                  key={respKey}
-                  meta={RESPONSIBILITY_META[respKey]}
-                  count={count}
-                  active={selection?.kind === "responsibility" && selection.key === respKey}
-                  onClick={() => toggleSelection({ kind: "responsibility", key: respKey, label: `${RESPONSIBILITY_META[respKey].label} controls` })}
-                />
-              ))}
-            </div>
-          </div>
+      {applicabilitySummary && posture && (
+        <div className="grid grid-cols-4 gap-4">
+          <PostureTile value={posture.assurance} label="Assurance" sublabel="Confidence controls operate effectively" primary />
+          <AttentionTile count={outstandingCount} statusCounts={statusCounts} selection={selection} onToggle={toggleSelection} />
+          <PostureTile value={posture.compliance} label="Compliance" sublabel="Applicable controls implemented" />
+          <PostureTile value={posture.coverage} label="Assessment Coverage" sublabel="Applicable controls assessed" />
         </div>
+      )}
+
+      {applicabilitySummary && (
+        <StatusStrip
+          statusCounts={statusCounts}
+          applicabilitySummary={applicabilitySummary}
+          pendingCount={pendingCount}
+          resp={resp}
+          selection={selection}
+          onToggle={toggleSelection}
+        />
       )}
 
       <SelectedControlsTable

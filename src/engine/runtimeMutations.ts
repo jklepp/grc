@@ -19,9 +19,10 @@
 // only function meant to be called directly for that reason: it always pairs
 // the scope entry with at least one supporting fact in the same call.
 import type { RuntimeFacts } from "./liveGraph";
-import type { AssetId, ControlId, SystemId } from "../graph/ids";
+import type { AssetId, ControlId, EvidenceId, SystemId } from "../graph/ids";
 import type { ImplementationMechanism, NotImplemented, Responsibility } from "../graph/edges/controlImplementations";
 import type { RawEvidence } from "../graph/nodes/evidence";
+import type { PrismaLevelOverride } from "../graph/edges/prismaOverrides";
 import { nextEvidenceId } from "./runtimeFactsStore";
 
 // Adds controlId to the given system's declared assessment scope, if it
@@ -66,6 +67,32 @@ export function addEvidence(runtime: RuntimeFacts, draft: EvidenceDraft): Runtim
     collectedAt: draft.collectedAt ?? new Date().toISOString().slice(0, 10),
   };
   return { ...runtime, evidence: [...runtime.evidence, evidence] };
+}
+
+// Evidence records are runtime-owned only when they live in runtime.evidence
+// (id prefix EVD-USR-, see nextEvidenceId) — YAML-authored evidence is never
+// part of RuntimeFacts, so these two functions are structurally incapable of
+// reaching it. That's the enforcement of "only what this panel added can be
+// edited or removed here," not a check callers have to remember to make.
+export function updateEvidence(runtime: RuntimeFacts, evidenceId: EvidenceId, patch: Partial<EvidenceDraft>): RuntimeFacts {
+  return {
+    ...runtime,
+    evidence: runtime.evidence.map((e) => (e.id === evidenceId ? { ...e, ...patch, id: e.id } : e)),
+  };
+}
+
+export function removeEvidence(runtime: RuntimeFacts, evidenceId: EvidenceId): RuntimeFacts {
+  return { ...runtime, evidence: runtime.evidence.filter((e) => e.id !== evidenceId) };
+}
+
+// Same replace-by-key semantics as upsertImplementationMechanism — validate.ts
+// rejects more than one override per (systemId, controlId, level), so a
+// second override for the same lane replaces the first rather than stacking.
+export function addPrismaOverride(runtime: RuntimeFacts, override: PrismaLevelOverride): RuntimeFacts {
+  const withoutExisting = runtime.prismaOverrides.filter(
+    (o) => !(o.systemId === override.systemId && o.controlId === override.controlId && o.level === override.level)
+  );
+  return { ...runtime, prismaOverrides: [...withoutExisting, override] };
 }
 
 // Same replace-by-pair semantics as upsertImplementationMechanism — a pair is

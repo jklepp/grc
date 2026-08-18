@@ -247,6 +247,7 @@ export default function AddSystemWizard({ open, onClose, onCreated }) {
       implementationMechanisms: [...existing.implementationMechanisms],
       evidence: [...existing.evidence],
       notImplemented: [...existing.notImplemented],
+      prismaOverrides: [...existing.prismaOverrides],
     };
 
     return { runtime, systemId };

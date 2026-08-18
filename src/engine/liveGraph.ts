@@ -38,6 +38,7 @@ import type { AssetDataType } from "../graph/edges/assetDataTypes";
 import type { AssessmentScope } from "../graph/nodes/assessmentScope";
 import type { ImplementationMechanism, NotImplemented } from "../graph/edges/controlImplementations";
 import type { RawEvidence } from "../graph/nodes/evidence";
+import type { PrismaLevelOverride } from "../graph/edges/prismaOverrides";
 import type { SystemId } from "../graph/ids";
 import type { ClassificationTier } from "../graph/nodes/taxonomy";
 
@@ -53,12 +54,13 @@ export interface RuntimeFacts {
   implementationMechanisms: ImplementationMechanism[];
   evidence: RawEvidence[];
   notImplemented: NotImplemented[];
+  prismaOverrides: PrismaLevelOverride[];
 }
 
 export function emptyRuntimeFacts(): RuntimeFacts {
   return {
     systems: [], assets: [], assetDataTypes: [], assessmentScopes: [], expectedClassification: {},
-    implementationMechanisms: [], evidence: [], notImplemented: [],
+    implementationMechanisms: [], evidence: [], notImplemented: [], prismaOverrides: [],
   };
 }
 
@@ -77,6 +79,7 @@ export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts 
     implementationMechanisms: [...base.implementationMechanisms, ...runtime.implementationMechanisms],
     evidence: [...base.evidence, ...runtime.evidence],
     notImplemented: [...base.notImplemented, ...runtime.notImplemented],
+    prismaOverrides: [...base.prismaOverrides, ...runtime.prismaOverrides],
   };
 }
 

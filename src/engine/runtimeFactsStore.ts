@@ -30,6 +30,7 @@ export function loadRuntimeFacts(): RuntimeFacts {
       implementationMechanisms: Array.isArray(parsed.implementationMechanisms) ? parsed.implementationMechanisms : empty.implementationMechanisms,
       evidence: Array.isArray(parsed.evidence) ? parsed.evidence : empty.evidence,
       notImplemented: Array.isArray(parsed.notImplemented) ? parsed.notImplemented : empty.notImplemented,
+      prismaOverrides: Array.isArray(parsed.prismaOverrides) ? parsed.prismaOverrides : empty.prismaOverrides,
     };
   } catch {
     return emptyRuntimeFacts();

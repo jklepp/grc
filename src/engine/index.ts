@@ -205,6 +205,13 @@ export {
   PRISMA_LEVELS, COMPLIANCE_RATINGS, COMPLIANCE_LABELS,
 } from "../graph/nodes/taxonomy";
 export { DATA_ROLE_META } from "../graph/edges/assetDataTypes";
+export { EVIDENCE_RESULTS, INDEPENDENCE_LEVELS } from "../graph/nodes/evidence";
+export {
+  evaluateControl, addPrismaOverride, updateEvidence, removeEvidence,
+  addControlToScope, upsertImplementationMechanism, addEvidence, declareNotImplemented,
+} from "./runtimeMutations";
+export type { EvidenceDraft, EvaluateControlInput } from "./runtimeMutations";
+export type { PrismaLevelOverride } from "../graph/edges/prismaOverrides";
 
 // Types pages reference
 export type { AssetRollup, SystemRollup } from "./rollups";
