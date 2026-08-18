@@ -207,11 +207,12 @@ export {
 export { DATA_ROLE_META } from "../graph/edges/assetDataTypes";
 export { EVIDENCE_RESULTS, INDEPENDENCE_LEVELS } from "../graph/nodes/evidence";
 export {
-  evaluateControl, addPrismaOverride, updateEvidence, removeEvidence,
+  evaluateControl, addPrismaOverride, updateEvidence, removeEvidence, addFinding,
   addControlToScope, upsertImplementationMechanism, addEvidence, declareNotImplemented,
 } from "./runtimeMutations";
-export type { EvidenceDraft, EvaluateControlInput } from "./runtimeMutations";
+export type { EvidenceDraft, EvaluateControlInput, FindingDraft } from "./runtimeMutations";
 export type { PrismaLevelOverride } from "../graph/edges/prismaOverrides";
+export type { Finding } from "../graph/nodes/findings";
 
 // Types pages reference
 export type { AssetRollup, SystemRollup } from "./rollups";

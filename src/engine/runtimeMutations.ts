@@ -23,7 +23,8 @@ import type { AssetId, ControlId, EvidenceId, SystemId } from "../graph/ids";
 import type { ImplementationMechanism, NotImplemented, Responsibility } from "../graph/edges/controlImplementations";
 import type { RawEvidence } from "../graph/nodes/evidence";
 import type { PrismaLevelOverride } from "../graph/edges/prismaOverrides";
-import { nextEvidenceId } from "./runtimeFactsStore";
+import type { Finding } from "../graph/nodes/findings";
+import { nextEvidenceId, nextFindingId } from "./runtimeFactsStore";
 
 // Adds controlId to the given system's declared assessment scope, if it
 // isn't there already. A no-op if the system has no runtime AssessmentScope
@@ -102,6 +103,16 @@ export function declareNotImplemented(runtime: RuntimeFacts, notImplemented: Not
     (n) => !(n.assetId === notImplemented.assetId && n.controlId === notImplemented.controlId)
   );
   return { ...runtime, notImplemented: [...withoutExisting, notImplemented] };
+}
+
+export type FindingDraft = Omit<Finding, "id">;
+
+// Assigns an id and appends — findings are never upserted-by-pair, a control
+// can accumulate more than one open finding over time same as evidence.
+export function addFinding(runtime: RuntimeFacts, draft: FindingDraft): RuntimeFacts {
+  const id = nextFindingId(runtime);
+  const finding: Finding = { ...draft, id: id as Finding["id"] };
+  return { ...runtime, findings: [...runtime.findings, finding] };
 }
 
 export interface EvaluateControlInput {

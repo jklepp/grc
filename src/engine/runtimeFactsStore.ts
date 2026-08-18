@@ -31,6 +31,7 @@ export function loadRuntimeFacts(): RuntimeFacts {
       evidence: Array.isArray(parsed.evidence) ? parsed.evidence : empty.evidence,
       notImplemented: Array.isArray(parsed.notImplemented) ? parsed.notImplemented : empty.notImplemented,
       prismaOverrides: Array.isArray(parsed.prismaOverrides) ? parsed.prismaOverrides : empty.prismaOverrides,
+      findings: Array.isArray(parsed.findings) ? parsed.findings : empty.findings,
     };
   } catch {
     return emptyRuntimeFacts();
@@ -41,8 +42,20 @@ export function saveRuntimeFacts(facts: RuntimeFacts): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(facts));
 }
 
+// True if there's anything at all for buildLiveEngine to merge in — not just
+// a runtime-created system. evaluateControl/addPrismaOverride/addFinding all
+// write facts against EXISTING (YAML-authored) systems with no accompanying
+// system record, so checking systems.length alone would silently discard
+// those facts on every reload the moment this only checked for new systems.
 export function hasRuntimeFacts(facts: RuntimeFacts): boolean {
-  return facts.systems.length > 0;
+  return (
+    facts.systems.length > 0 ||
+    facts.implementationMechanisms.length > 0 ||
+    facts.evidence.length > 0 ||
+    facts.notImplemented.length > 0 ||
+    facts.prismaOverrides.length > 0 ||
+    facts.findings.length > 0
+  );
 }
 
 // SYS-USR-<n> / AST-USR-<n>-<m>, distinct from the YAML source's SYS-0xx /
@@ -62,4 +75,11 @@ export function nextAssetId(systemId: string, index: number): string {
 export function nextEvidenceId(existing: RuntimeFacts): string {
   const n = existing.evidence.length + 1;
   return `EVD-USR-${n}`;
+}
+
+// FND-USR-<n>, distinct from the YAML source's SEC-<n> ids, same reasoning as
+// nextSystemId/nextAssetId above.
+export function nextFindingId(existing: RuntimeFacts): string {
+  const n = existing.findings.length + 1;
+  return `FND-USR-${n}`;
 }
