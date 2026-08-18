@@ -25,7 +25,10 @@ import {
   CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES, EVIDENCE_TYPES,
   PRISMA_LEVELS, COMPLIANCE_RATINGS, isComplianceRating,
 } from "./nodes/taxonomy";
-import { HOSTING_TYPES, INHERITED_DOMAINS, AVAILABILITY_TIERS, DATA_SUBJECT_TYPES } from "./nodes/systems";
+import {
+  HOSTING_TYPES, INHERITED_DOMAINS, AVAILABILITY_TIERS, DATA_SUBJECT_TYPES,
+  SYSTEM_REGULATORY_CONTEXTS, NETWORK_EXPOSURES,
+} from "./nodes/systems";
 import { ASSET_KINDS } from "./nodes/assets";
 import { REGULATORY_FLAGS } from "./nodes/dataTypes";
 import { DOMAINS, FRAMEWORKS } from "./nodes/controls";
@@ -83,6 +86,16 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
     check(Boolean(s.dataProfile.retention?.trim()), `system ${s.id}: dataProfile.retention needs a value`);
     s.dataProfile.subjects.forEach((subj) =>
       check(DATA_SUBJECT_TYPES.includes(subj), `system ${s.id}: dataProfile subject "${subj}" is not one of ${DATA_SUBJECT_TYPES.join(", ")}`)
+    );
+    s.regulatoryContext.forEach((r) =>
+      check(SYSTEM_REGULATORY_CONTEXTS.includes(r), `system ${s.id}: regulatoryContext entry "${r}" is not one of ${SYSTEM_REGULATORY_CONTEXTS.join(", ")}`)
+    );
+    check(!(s.aiUsage.autonomousActions && !s.aiUsage.usesAI), `system ${s.id}: aiUsage.autonomousActions is true but aiUsage.usesAI is false — autonomous action implies AI usage`);
+    s.onboardingProfile.identityTypes.forEach((t) =>
+      check(IDENTITY_TYPES.includes(t), `system ${s.id}: onboardingProfile.identityTypes entry "${t}" is not one of ${IDENTITY_TYPES.join(", ")}`)
+    );
+    s.onboardingProfile.networkExposure.forEach((n) =>
+      check(NETWORK_EXPOSURES.includes(n), `system ${s.id}: onboardingProfile.networkExposure entry "${n}" is not one of ${NETWORK_EXPOSURES.join(", ")}`)
     );
   });
 

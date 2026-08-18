@@ -9,6 +9,7 @@ import {
   ORGS, VENDORS, PROVIDER_CERTIFICATIONS, HOSTING_TYPES, INHERITED_DOMAINS,
   AVAILABILITY_TIERS, DATA_SUBJECT_TYPES, ASSET_TYPE_CATEGORIES, ASSET_TYPES,
   DATA_ROLE_META, getAllDataTypes, CLOUD_REGIONS, RETENTION_OPTIONS, RESIDENCY_OPTIONS,
+  SYSTEM_REGULATORY_CONTEXTS, IDENTITY_TYPES, NETWORK_EXPOSURES,
 } from "../engine";
 import { buildLiveEngine } from "../engine/liveGraph";
 import { YAML_FACTS } from "../graph/sources/yaml";
@@ -110,6 +111,13 @@ export default function AddSystemWizard({ open, onClose, onCreated }) {
   const [retention, setRetention] = useState(RETENTION_OPTIONS[0]);
   const [residency, setResidency] = useState(RESIDENCY_OPTIONS[0]);
   const [internetFacing, setInternetFacing] = useState(false);
+  const [usesAI, setUsesAI] = useState(false);
+  const [autonomousActions, setAutonomousActions] = useState(false);
+  const [regulatoryContext, setRegulatoryContext] = useState([]);
+  const [identityTypes, setIdentityTypes] = useState([]);
+  const [networkExposure, setNetworkExposure] = useState([]);
+  const [hasThirdPartyIntegration, setHasThirdPartyIntegration] = useState(false);
+  const [sdlcApplicable, setSdlcApplicable] = useState(false);
   const [ownerOrgId, setOwnerOrgId] = useState(ORGS[0]?.id ?? "");
   const [assessor, setAssessor] = useState("");
 
@@ -126,6 +134,8 @@ export default function AddSystemWizard({ open, onClose, onCreated }) {
     setStep(1); setHostingType("cloud"); setProvider(""); setName(""); setMission(""); setBoundary("");
     setAvailabilityTier(AVAILABILITY_TIERS[1]); setUserCount(0); setRegions([]); setSubjects([]);
     setApproxRecords(0); setRetention(RETENTION_OPTIONS[0]); setResidency(RESIDENCY_OPTIONS[0]); setInternetFacing(false);
+    setUsesAI(false); setAutonomousActions(false); setRegulatoryContext([]);
+    setIdentityTypes([]); setNetworkExposure([]); setHasThirdPartyIntegration(false); setSdlcApplicable(false);
     setOwnerOrgId(ORGS[0]?.id ?? ""); setAssessor(""); setAssets([blankAsset(0)]); setDryRun(null);
   }
 
@@ -191,6 +201,9 @@ export default function AddSystemWizard({ open, onClose, onCreated }) {
         retention,
         residency: residency ? [residency] : [],
       },
+      aiUsage: { usesAI, autonomousActions: usesAI && autonomousActions },
+      regulatoryContext,
+      onboardingProfile: { identityTypes, networkExposure, hasThirdPartyIntegration, sdlcApplicable },
     };
 
     const newAssets = assets.map((a, i) => ({
@@ -445,6 +458,88 @@ export default function AddSystemWizard({ open, onClose, onCreated }) {
                     {RESIDENCY_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
                   </Select>
                 </Field>
+
+              </div>
+
+              <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${C.border}` }}>
+                <div className="text-[13px] font-semibold mb-1" style={{ color: C.ink }}>Security characteristics</div>
+                <p className="text-xs mb-4 max-w-[60ch]" style={{ color: C.muted }}>
+                  What automatic control applicability keys on. Coarse and declared now — once identity, exposure,
+                  vendor, or SDLC posture is measured for this system, that measurement adds to (never replaces)
+                  what you declare here.
+                </p>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Identity types present" span2 note="Who or what can act as a principal against this boundary.">
+                    <div className="flex flex-wrap gap-3 pt-1">
+                      {IDENTITY_TYPES.map((t) => (
+                        <label key={t} className="flex items-center gap-1.5 text-sm capitalize" style={{ color: C.ink }}>
+                          <input
+                            type="checkbox"
+                            checked={identityTypes.includes(t)}
+                            onChange={(e) => setIdentityTypes((prev) => (e.target.checked ? [...prev, t] : prev.filter((x) => x !== t)))}
+                          />
+                          {t.replace(/-/g, " ")}
+                        </label>
+                      ))}
+                    </div>
+                  </Field>
+
+                  <Field label="Network exposure" span2 note="Every axis that applies — not just whether it's internet-facing.">
+                    <div className="flex flex-wrap gap-3 pt-1">
+                      {NETWORK_EXPOSURES.map((n) => (
+                        <label key={n} className="flex items-center gap-1.5 text-sm capitalize" style={{ color: C.ink }}>
+                          <input
+                            type="checkbox"
+                            checked={networkExposure.includes(n)}
+                            onChange={(e) => setNetworkExposure((prev) => (e.target.checked ? [...prev, n] : prev.filter((x) => x !== n)))}
+                          />
+                          {n.replace(/-/g, " ")}
+                        </label>
+                      ))}
+                    </div>
+                  </Field>
+
+                  <Field label="Third-party integration">
+                    <label className="flex items-center gap-2 text-sm py-2" style={{ color: C.ink }}>
+                      <input type="checkbox" checked={hasThirdPartyIntegration} onChange={(e) => setHasThirdPartyIntegration(e.target.checked)} />
+                      Sends data to, receives data from, or depends on a third party
+                    </label>
+                  </Field>
+                  <Field label="Custom software">
+                    <label className="flex items-center gap-2 text-sm py-2" style={{ color: C.ink }}>
+                      <input type="checkbox" checked={sdlcApplicable} onChange={(e) => setSdlcApplicable(e.target.checked)} />
+                      ACME develops code for this boundary (not pure COTS/SaaS/infra)
+                    </label>
+                  </Field>
+
+                  <Field label="AI usage">
+                    <label className="flex items-center gap-2 text-sm py-2" style={{ color: C.ink }}>
+                      <input type="checkbox" checked={usesAI} onChange={(e) => { setUsesAI(e.target.checked); if (!e.target.checked) setAutonomousActions(false); }} />
+                      Contains or calls an AI model, agent, or RAG pipeline
+                    </label>
+                    {usesAI && (
+                      <label className="flex items-center gap-2 text-sm py-1 pl-6" style={{ color: C.ink }}>
+                        <input type="checkbox" checked={autonomousActions} onChange={(e) => setAutonomousActions(e.target.checked)} />
+                        Can take autonomous action without a human in the loop
+                      </label>
+                    )}
+                  </Field>
+                  <Field label="Regulatory context" note="Business-context obligations beyond what the data itself implies.">
+                    <div className="flex flex-wrap gap-3 pt-1">
+                      {SYSTEM_REGULATORY_CONTEXTS.map((r) => (
+                        <label key={r} className="flex items-center gap-1.5 text-sm" style={{ color: C.ink }}>
+                          <input
+                            type="checkbox"
+                            checked={regulatoryContext.includes(r)}
+                            onChange={(e) => setRegulatoryContext((prev) => (e.target.checked ? [...prev, r] : prev.filter((x) => x !== r)))}
+                          />
+                          {r.replace(/-/g, " ")}
+                        </label>
+                      ))}
+                    </div>
+                  </Field>
+                </div>
               </div>
             </div>
           )}

@@ -52,9 +52,30 @@
     technology is actually in the boundary. Asserting it over a system with no model
     serving, retrieval, or agent tooling would claim coverage of a risk that isn't present."
 
+# Alternative to the rule above: a system can use AI through a vendor
+# dependency (a licensed model API, an embedded copilot) without owning any
+# AI-kind asset itself. usesAI is the fact for that case — an asset-kind
+# rule alone would miss it and read as "no AI here."
+- controlId: "AAT-01"
+  appliesWhen:
+    usesAI: true
+  rationale: "AI governance applies wherever the system uses AI, whether or not it hosts
+    the model-serving/RAG/agent infrastructure itself. A system consuming AI purely
+    through a vendor dependency still needs its use governed."
+
 - controlId: "TPM-04"
   appliesWhen:
     hasExternalActors: true
   rationale: "Mitigating third-party access risk requires third-party access to exist. A
     boundary no external actor reaches into or out of has no third-party surface for this
     to govern."
+
+# Alternative: hasExternalActors is derived from actor-access edges on assets
+# and can miss a boundary-level vendor dependency that touches no individual
+# asset directly (e.g. a SaaS platform vendor with tenant-wide access).
+- controlId: "TPM-04"
+  appliesWhen:
+    hasThirdPartyIntegration: true
+  rationale: "A recorded vendor dependency (vendors.ts SystemVendor) is itself third-party
+    surface to govern, independent of whether an individual asset's actor-access edges
+    also name it."

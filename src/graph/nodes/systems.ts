@@ -32,6 +32,7 @@
 // string on every call the way systemRegister.js's hostingType() did — the
 // substring match on "SaaS"/"on-prem" was doing inference where a field will do.
 import type { SystemId, OrgId } from "../ids";
+import type { IdentityType } from "./identity";
 
 export const HOSTING_TYPES = ["cloud", "saas", "on-prem"] as const;
 export type HostingType = (typeof HOSTING_TYPES)[number];
@@ -123,6 +124,60 @@ export interface SystemDataProfile {
   residency: string[];
 }
 
+// Regulatory or business-context obligations that don't reduce to a data
+// classification — SOX applies to a system in the financial-reporting
+// process regardless of what tier its data lands at, export-controlled and
+// ai-regulated are about the use case rather than the payload. Distinct from
+// dataTypes.ts's REGULATORY_FLAGS (PII/PHI/PCI/...), which tags individual
+// data types and already reaches the applicability engine via dataKinds —
+// this only adds what that path can't express.
+export const SYSTEM_REGULATORY_CONTEXTS = ["sox", "cui-government", "export-controlled", "ai-regulated"] as const;
+export type SystemRegulatoryContext = (typeof SYSTEM_REGULATORY_CONTEXTS)[number];
+
+// Deliberately narrow: RAG/vector-db/agent-tooling presence is already
+// derivable from assetKinds (see AAT-01's existing rule). This only adds
+// what asset kind can't express: AI usage via a vendor dependency with no
+// owned AI asset, and whether the system can act autonomously without a
+// human in the loop.
+export interface SystemAiUsage {
+  usesAI: boolean;
+  autonomousActions: boolean;
+}
+
+// Where a boundary's surface reaches, as axes rather than one internetFacing
+// bool — a workforce-only system and a partner-connected one both read
+// "internetFacing: false" but need different network controls.
+export const NETWORK_EXPOSURES = [
+  "public-inbound",
+  "workforce-only",
+  "private-internal",
+  "partner-connected",
+  "vpn-ztna",
+  "outbound-internet",
+  "inbound-apis",
+] as const;
+export type NetworkExposure = (typeof NETWORK_EXPOSURES)[number];
+
+// What onboarding declares before any evidence sync has run — the coarse
+// version of facts identity.ts / exposure.ts / vendors.ts / sdlc.ts (the
+// System Register cockpit domains) later measure precisely per system.
+// Applicability unions this with whatever measured posture already exists
+// (engine/applicability.ts systemContext()) rather than one overriding the
+// other, so a declaration never gets silently hidden by a stale or
+// not-yet-synced measurement, and a real measurement is never second-guessed
+// by what onboarding guessed. identityTypes reuses identity.ts's IdentityType
+// rather than a second vocabulary for the same concept.
+export interface OnboardingSecurityProfile {
+  identityTypes: IdentityType[];
+  networkExposure: NetworkExposure[];
+  hasThirdPartyIntegration: boolean;
+  // Custom software is developed for this boundary (as opposed to pure
+  // COTS/SaaS/infrastructure) — the SDLC-control trigger. Mirrors
+  // sdlc.ts SdlcPosture.applicable, which this is superseded by once that's
+  // recorded.
+  sdlcApplicable: boolean;
+}
+
 export interface System {
   id: SystemId;
   name: string;
@@ -143,4 +198,7 @@ export interface System {
   userCount: number;
   regions: string[];
   dataProfile: SystemDataProfile;
+  aiUsage: SystemAiUsage;
+  regulatoryContext: SystemRegulatoryContext[];
+  onboardingProfile: OnboardingSecurityProfile;
 }

@@ -61,6 +61,23 @@
     retention: "7 years post-contract-termination"
     residency:
       - "United States"
+  aiUsage:
+    usesAI: true
+    # The boundary includes a tool gateway and policy service gating "every
+    # agent action" per the asset register — this is agentic, not read-only RAG.
+    autonomousActions: true
+  regulatoryContext:
+    - "ai-regulated"
+  onboardingProfile:
+    # Already fully measured (see identity-populations.yaml) — nothing left
+    # for a declaration to add.
+    identityTypes: []
+    networkExposure:
+      - "public-inbound"
+      - "inbound-apis"
+      - "outbound-internet"
+    hasThirdPartyIntegration: true
+    sdlcApplicable: true
 - id: "SYS-042"
   name: "Workday"
   env: "Production — SaaS (Workday)"
@@ -107,3 +124,23 @@
     retention: "7 years post-employment, per ACME's HR records policy"
     residency:
       - "United States"
+  aiUsage:
+    usesAI: false
+    autonomousActions: false
+  regulatoryContext:
+    # Feeds the external payroll processor on the pay-cycle schedule per its
+    # boundary description — compensation expense flows from here into
+    # financial reporting.
+    - "sox"
+  onboardingProfile:
+    # Already fully measured for the types that apply here — nothing left
+    # for a declaration to add.
+    identityTypes: []
+    networkExposure:
+      - "workforce-only"
+      - "outbound-internet"
+      - "partner-connected"
+    hasThirdPartyIntegration: true
+    # Vendor-operated SaaS tenant — ACME writes no code into it, matching
+    # sdlc-posture.yaml's applicable: false for this system.
+    sdlcApplicable: false

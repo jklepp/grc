@@ -150,6 +150,36 @@ export interface ProgramApplicabilityRule {
     assetKinds?: string[];
     // The system has at least one actor reaching in or out across the boundary.
     hasExternalActors?: boolean;
+    // identity.ts IdentityPopulation.identityType values with totalCount > 0
+    // anywhere in the boundary (any-of) — e.g. "service-account", "vendor".
+    identityTypes?: string[];
+    // A privileged or break-glass identity population exists (totalCount > 0).
+    hasPrivilegedIdentity?: boolean;
+    // exposure.ts ExposurePosture.adminPosture, if recorded (any-of).
+    adminPostures?: string[];
+    // exposure.ts ExposurePosture.apiPosture, if recorded (any-of).
+    apiPostures?: string[];
+    // exposure.ts ExposurePosture.egressPosture, if recorded (any-of).
+    egressPostures?: string[];
+    // The system has at least one vendors.ts SystemVendor record, or
+    // declared one at onboarding (systems.ts OnboardingSecurityProfile).
+    hasThirdPartyIntegration?: boolean;
+    // vendors.ts Vendor.category for vendors this system depends on (any-of).
+    vendorCategories?: string[];
+    // sdlc.ts SdlcPosture.applicable, or declared at onboarding — the
+    // system runs software ACME builds.
+    sdlcApplicable?: boolean;
+    // systems.ts NetworkExposure axes declared present (any-of).
+    networkExposure?: string[];
+    // dataProfile.subjects names customers/end-users — a customer-facing
+    // principal population exists.
+    hasCustomerIdentities?: boolean;
+    // The system uses AI, independent of whether it owns an AI-kind asset.
+    usesAI?: boolean;
+    // The system can take autonomous action without a human in the loop.
+    autonomousActions?: boolean;
+    // systems.ts SystemRegulatoryContext values present (any-of).
+    regulatoryContext?: string[];
   };
   rationale: string;
 }

@@ -39,6 +39,16 @@ try {
     ["dangling asset.systemId", (f) => { f.assets[0].systemId = "SYS-NOPE"; }, /is not a system/],
     ["unknown asset kind", (f) => { f.assets[0].kind = "teapot"; }, /is not one of ASSET_KINDS/],
     ["duplicate node id", (f) => { f.assets[1].id = f.assets[0].id; }, /duplicate node id/],
+    ["system with bogus regulatoryContext entry", (f) => { f.systems[0].regulatoryContext = ["moon-treaty"]; }, /regulatoryContext entry/],
+    ["system claiming autonomous action without AI usage", (f) => {
+      f.systems[0].aiUsage = { usesAI: false, autonomousActions: true };
+    }, /autonomousActions is true but aiUsage.usesAI is false/],
+    ["system with bogus onboardingProfile.identityTypes entry", (f) => {
+      f.systems[0].onboardingProfile.identityTypes = ["astronaut"];
+    }, /onboardingProfile.identityTypes entry/],
+    ["system with bogus onboardingProfile.networkExposure entry", (f) => {
+      f.systems[0].onboardingProfile.networkExposure = ["deep-space"];
+    }, /onboardingProfile.networkExposure entry/],
     ["data type with bogus sensitivity", (f) => { f.dataTypes[0].sensitivity = "Spicy"; }, /is not a classification tier/],
     ["flow to a non-existent asset", (f) => { f.dataFlows[0].to = "AST-NOPE"; }, /is not an asset/],
     ["flow pointing at itself", (f) => { f.dataFlows[0].to = f.dataFlows[0].from; }, /connects an asset to itself/],

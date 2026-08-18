@@ -60,26 +60,14 @@ function AssetCard({ asset, selected, onSelect }) {
 // SelectSystem's SystemRow: the columns and click target (opens the slideout
 // here, navigates there) are different enough that sharing would mean a prop
 // escape hatch on both sides for no real reuse.
-const ASSET_COLUMNS = "2.2fr 130px 150px 150px";
-
-function AssetAvatar({ name }) {
-  const initial = name.trim().charAt(0).toUpperCase();
-  return (
-    <div
-      className="flex items-center justify-center rounded-lg shrink-0 font-semibold"
-      style={{ width: 34, height: 34, background: C.accentBg, color: C.accent, fontFamily: "'Source Serif 4', serif" }}
-    >
-      {initial}
-    </div>
-  );
-}
+const ASSET_COLUMNS = "110px 2.2fr 110px 130px 130px";
 
 function StatCell({ value, band }) {
-  const { color, bg } = colorFor(band.color);
+  const { color } = colorFor(band.color);
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-sm font-semibold tabular-nums" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{value}</span>
-      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color, background: bg }}>{band.label}</span>
+    <div className="flex items-baseline gap-1.5">
+      <span className="text-xs font-semibold tabular-nums" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{value}</span>
+      <span className="text-[10px]" style={{ color }}>{band.label}</span>
     </div>
   );
 }
@@ -88,25 +76,23 @@ function AssetRow({ asset, onSelect, selected, striped }) {
   return (
     <button
       onClick={() => onSelect(asset.id)}
-      className="w-full grid items-center gap-3 pl-3.5 pr-4 py-3.5 text-left transition-all group"
+      className="w-full grid items-center gap-3 pl-3.5 pr-4 py-2 text-left transition-colors"
       style={{
         gridTemplateColumns: ASSET_COLUMNS,
         borderBottom: `1px solid ${C.border}`,
-        borderLeft: `3px solid ${selected ? C.accent : "transparent"}`,
+        borderLeft: `2px solid ${selected ? C.accent : "transparent"}`,
         background: selected ? C.accentBg : striped ? C.panel2 : "transparent",
       }}
-      onMouseEnter={(e) => { if (!selected) { e.currentTarget.style.borderLeftColor = C.accent; e.currentTarget.style.background = C.accentBg; } }}
-      onMouseLeave={(e) => { if (!selected) { e.currentTarget.style.borderLeftColor = "transparent"; e.currentTarget.style.background = striped ? C.panel2 : "transparent"; } }}
+      onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = C.panel2; }}
+      onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = striped ? C.panel2 : "transparent"; }}
     >
-      <div className="flex items-center gap-3 min-w-0">
-        <AssetAvatar name={asset.name} />
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <div className="text-sm font-semibold truncate" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{asset.name}</div>
-            <ClassificationTag level={asset.classification} />
-          </div>
-          <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{asset.type} · {asset.provider}</div>
+      <span className="text-[11px] truncate" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{asset.id}</span>
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-xs truncate" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{asset.name}</span>
+          <ClassificationTag level={asset.classification} />
         </div>
+        <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{asset.type} · {asset.provider}</div>
       </div>
       <StatCell value={asset.criticality} band={asset.criticalityBand} />
       <StatCell value={`${asset.implementedCount}/${asset.applicableControlCount}`} band={verificationBand(asset)} />
@@ -117,11 +103,12 @@ function AssetRow({ asset, onSelect, selected, striped }) {
 
 function AssetTable({ assets, selectedId, onSelect }) {
   return (
-    <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}`, boxShadow: "0 6px 20px rgba(0,0,0,0.06)" }}>
+    <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
       <div
-        className="grid gap-3 pl-3.5 pr-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide"
-        style={{ gridTemplateColumns: ASSET_COLUMNS, background: C.panel2, color: C.muted, borderBottom: `2px solid ${C.accent}` }}
+        className="grid gap-3 pl-3.5 pr-4 py-2 text-[10px] font-semibold uppercase tracking-wide"
+        style={{ gridTemplateColumns: ASSET_COLUMNS, background: C.panel2, color: C.muted, borderBottom: `1px solid ${C.border}` }}
       >
+        <div>ID</div>
         <div>Asset</div>
         <div>Criticality</div>
         <div>Verified</div>

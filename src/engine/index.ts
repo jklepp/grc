@@ -185,7 +185,8 @@ export { VENDOR_CATEGORIES } from "../graph/nodes/vendors";
 export { REGULATORY_FLAGS } from "../graph/nodes/dataTypes";
 export {
   AVAILABILITY_TIERS, HOSTING_TYPES, INHERITED_DOMAINS, DATA_SUBJECT_TYPES,
-  CLOUD_REGIONS, RETENTION_OPTIONS, RESIDENCY_OPTIONS,
+  CLOUD_REGIONS, RETENTION_OPTIONS, RESIDENCY_OPTIONS, SYSTEM_REGULATORY_CONTEXTS,
+  NETWORK_EXPOSURES,
 } from "../graph/nodes/systems";
 export { RESPONSIBILITIES, SHARED_RESPONSIBILITY_DOMAINS } from "../graph/edges/controlImplementations";
 export type { Responsibility } from "../graph/edges/controlImplementations";

@@ -161,27 +161,91 @@ export function createApplicability(graph: Graph, classification: Classification
     dataKinds: string[];
     assetKinds: string[];
     hasExternalActors: boolean;
+    identityTypes: string[];
+    hasPrivilegedIdentity: boolean;
+    adminPosture: string | null;
+    apiPosture: string | null;
+    egressPosture: string | null;
+    hasThirdPartyIntegration: boolean;
+    vendorCategories: string[];
+    sdlcApplicable: boolean;
+    networkExposure: string[];
+    hasCustomerIdentities: boolean;
+    usesAI: boolean;
+    autonomousActions: boolean;
+    regulatoryContext: string[];
   }
 
   function systemContext(systemId: SystemId): SystemContext {
+    const system = graph.systemById[systemId];
     const assets = graph.assetsBySystem[systemId] ?? [];
     const assetIds = new Set(assets.map((a) => a.id));
+    const declared = system.onboardingProfile;
+
+    // Populations recorded against this boundary — see identity.ts. A
+    // population with totalCount 0 is a recorded absence, not a presence.
+    const identityPopulations = (graph.identityPopulationsBySystem[systemId] ?? []).filter((p) => p.totalCount > 0);
+    const exposure = graph.exposurePostureBySystem[systemId];
+    const vendors = graph.systemVendorsBySystem[systemId] ?? [];
+    const sdlc = graph.sdlcPostureBySystem[systemId];
+
+    // Measured identity/exposure/vendor/SDLC facts (identity.ts / exposure.ts
+    // / vendors.ts / sdlc.ts, the System Register cockpit domains) are unioned
+    // with what onboarding declared, never overridden by it — a declaration
+    // stays true even if a sync hasn't recorded the matching measurement yet,
+    // and a real measurement is never hidden by a stale or absent declaration.
+    const identityTypes = [...new Set([...identityPopulations.map((p) => p.identityType), ...declared.identityTypes])];
+
     return {
-      hostingType: graph.systemById[systemId].hostingType,
+      hostingType: system.hostingType,
       // Every data kind present anywhere in the boundary, which is what a
       // system-level obligation like PRI-05 actually attaches to.
       dataKinds: [...new Set(assets.flatMap((a) => classification.dataKindsForAsset(a.id)))],
       assetKinds: [...new Set(assets.map((a) => a.kind as string))],
       hasExternalActors: graph.actorAccess.some((a) => assetIds.has(a.assetId)),
+      identityTypes,
+      hasPrivilegedIdentity: identityTypes.includes("privileged") || identityTypes.includes("break-glass"),
+      adminPosture: exposure?.adminPosture ?? null,
+      apiPosture: exposure?.apiPosture ?? null,
+      egressPosture: exposure?.egressPosture ?? null,
+      hasThirdPartyIntegration: vendors.length > 0 || declared.hasThirdPartyIntegration,
+      vendorCategories: [...new Set(vendors.map((v) => graph.vendorById[v.vendorId]?.category).filter(Boolean))] as string[],
+      sdlcApplicable: (sdlc?.applicable ?? false) || declared.sdlcApplicable,
+      networkExposure: declared.networkExposure,
+      // dataProfile.subjects is a real, already-curated fact (see
+      // DATA_SUBJECT_TYPES) — reused here rather than asking the same
+      // question again under a new name.
+      hasCustomerIdentities: system.dataProfile.subjects.includes("customers") || system.dataProfile.subjects.includes("end-users"),
+      usesAI: system.aiUsage.usesAI,
+      autonomousActions: system.aiUsage.autonomousActions,
+      regulatoryContext: system.regulatoryContext,
     };
   }
 
   function programRuleMatches(rule: ProgramApplicabilityRule, context: SystemContext): boolean {
-    const { hostingTypes, dataKinds, assetKinds, hasExternalActors } = rule.appliesWhen;
+    const {
+      hostingTypes, dataKinds, assetKinds, hasExternalActors,
+      identityTypes, hasPrivilegedIdentity, adminPostures, apiPostures, egressPostures,
+      hasThirdPartyIntegration, vendorCategories, sdlcApplicable, networkExposure, hasCustomerIdentities,
+      usesAI, autonomousActions, regulatoryContext,
+    } = rule.appliesWhen;
     if (hostingTypes && !hostingTypes.includes(context.hostingType)) return false;
     if (dataKinds && !dataKinds.some((k) => context.dataKinds.includes(k))) return false;
     if (assetKinds && !assetKinds.some((k) => context.assetKinds.includes(k))) return false;
     if (hasExternalActors !== undefined && hasExternalActors !== context.hasExternalActors) return false;
+    if (identityTypes && !identityTypes.some((k) => context.identityTypes.includes(k))) return false;
+    if (hasPrivilegedIdentity !== undefined && hasPrivilegedIdentity !== context.hasPrivilegedIdentity) return false;
+    if (adminPostures && (context.adminPosture === null || !adminPostures.includes(context.adminPosture))) return false;
+    if (apiPostures && (context.apiPosture === null || !apiPostures.includes(context.apiPosture))) return false;
+    if (egressPostures && (context.egressPosture === null || !egressPostures.includes(context.egressPosture))) return false;
+    if (hasThirdPartyIntegration !== undefined && hasThirdPartyIntegration !== context.hasThirdPartyIntegration) return false;
+    if (vendorCategories && !vendorCategories.some((k) => context.vendorCategories.includes(k))) return false;
+    if (sdlcApplicable !== undefined && sdlcApplicable !== context.sdlcApplicable) return false;
+    if (networkExposure && !networkExposure.some((k) => context.networkExposure.includes(k))) return false;
+    if (hasCustomerIdentities !== undefined && hasCustomerIdentities !== context.hasCustomerIdentities) return false;
+    if (usesAI !== undefined && usesAI !== context.usesAI) return false;
+    if (autonomousActions !== undefined && autonomousActions !== context.autonomousActions) return false;
+    if (regulatoryContext && !regulatoryContext.some((k) => context.regulatoryContext.includes(k))) return false;
     return true;
   }
 
