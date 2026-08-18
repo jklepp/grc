@@ -61,6 +61,22 @@ export const ASSET_KINDS = [
 ] as const;
 export type AssetKind = (typeof ASSET_KINDS)[number];
 
+// Groups ASSET_KINDS for the Add System wizard's Type -> Kind cascade: Type
+// is the category a person picks first, Kind narrows to the specific
+// applicability-rule-bearing value from ASSET_KINDS above. Display-only — it
+// has no bearing on applicability itself, which keys on `kind` alone.
+export const ASSET_TYPE_CATEGORIES: Record<string, AssetKind[]> = {
+  "Network": ["api-gateway", "waf", "egress-gateway", "secure-web-gateway", "tool-gateway", "model-gateway"],
+  "Compute": ["compute-service", "cache"],
+  "Database & Storage": ["relational-db", "vector-db", "object-storage"],
+  "Identity & Access": ["iam", "identity-provider", "secrets-store", "key-management", "service-account"],
+  "SaaS": ["saas-tenant", "saas-api"],
+  "Integration": ["integration-endpoint", "export-endpoint", "log-feed"],
+  "Security & Monitoring": ["siem", "telemetry", "runtime-security", "policy-service"],
+  "CI/CD & Delivery": ["cicd-pipeline", "artifact-registry", "iac-pipeline"],
+};
+export const ASSET_TYPES = Object.keys(ASSET_TYPE_CATEGORIES);
+
 // The kinds that sit where data crosses into the boundary from outside. Used
 // to find the entry point of a system's request path without storing a layout:
 // the flow graph alone can't identify one, because a real request path cycles

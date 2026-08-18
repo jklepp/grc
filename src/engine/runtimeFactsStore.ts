@@ -27,6 +27,9 @@ export function loadRuntimeFacts(): RuntimeFacts {
         parsed.expectedClassification && typeof parsed.expectedClassification === "object"
           ? parsed.expectedClassification
           : empty.expectedClassification,
+      implementationMechanisms: Array.isArray(parsed.implementationMechanisms) ? parsed.implementationMechanisms : empty.implementationMechanisms,
+      evidence: Array.isArray(parsed.evidence) ? parsed.evidence : empty.evidence,
+      notImplemented: Array.isArray(parsed.notImplemented) ? parsed.notImplemented : empty.notImplemented,
     };
   } catch {
     return emptyRuntimeFacts();
@@ -51,4 +54,11 @@ export function nextSystemId(existing: RuntimeFacts): string {
 export function nextAssetId(systemId: string, index: number): string {
   const suffix = systemId.replace("SYS-USR-", "");
   return `AST-USR-${suffix}-${index + 1}`;
+}
+
+// EVD-USR-<n>, distinct from the YAML source's EVD-<domain>-<n> ids, same
+// reasoning as nextSystemId/nextAssetId above.
+export function nextEvidenceId(existing: RuntimeFacts): string {
+  const n = existing.evidence.length + 1;
+  return `EVD-USR-${n}`;
 }

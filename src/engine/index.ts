@@ -183,10 +183,13 @@ export { SECURITY_TEST_TYPES } from "../graph/nodes/securityTests";
 export { IR_FUNCTIONS } from "../graph/nodes/irExercises";
 export { VENDOR_CATEGORIES } from "../graph/nodes/vendors";
 export { REGULATORY_FLAGS } from "../graph/nodes/dataTypes";
-export { AVAILABILITY_TIERS, HOSTING_TYPES, INHERITED_DOMAINS, DATA_SUBJECT_TYPES } from "../graph/nodes/systems";
+export {
+  AVAILABILITY_TIERS, HOSTING_TYPES, INHERITED_DOMAINS, DATA_SUBJECT_TYPES,
+  CLOUD_REGIONS, RETENTION_OPTIONS, RESIDENCY_OPTIONS,
+} from "../graph/nodes/systems";
 export { RESPONSIBILITIES, SHARED_RESPONSIBILITY_DOMAINS } from "../graph/edges/controlImplementations";
 export type { Responsibility } from "../graph/edges/controlImplementations";
-export { ASSET_KINDS } from "../graph/nodes/assets";
+export { ASSET_KINDS, ASSET_TYPE_CATEGORIES, ASSET_TYPES } from "../graph/nodes/assets";
 export type { CockpitItem } from "./cockpit";
 export {
   SEVERITY_VALUE, LIKELIHOOD_VALUE, score, isMaterial,

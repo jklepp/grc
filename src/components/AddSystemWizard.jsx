@@ -7,7 +7,8 @@ import Modal, { ModalCloseButton } from "./Modal";
 import { ClassificationTag, AssuranceBadge } from "./SystemBadges";
 import {
   ORGS, VENDORS, PROVIDER_CERTIFICATIONS, HOSTING_TYPES, INHERITED_DOMAINS,
-  AVAILABILITY_TIERS, DATA_SUBJECT_TYPES, ASSET_KINDS, DATA_ROLE_META, getAllDataTypes,
+  AVAILABILITY_TIERS, DATA_SUBJECT_TYPES, ASSET_TYPE_CATEGORIES, ASSET_TYPES,
+  DATA_ROLE_META, getAllDataTypes, CLOUD_REGIONS, RETENTION_OPTIONS, RESIDENCY_OPTIONS,
 } from "../engine";
 import { buildLiveEngine } from "../engine/liveGraph";
 import { YAML_FACTS } from "../graph/sources/yaml";
@@ -25,10 +26,18 @@ const STEPS = [
 // else would leave the system with zero assessed controls, which the
 // validators treat as a build failure rather than a legitimate "just
 // onboarded" state — see the plan doc / liveGraph.ts comment.
+// A vendor whose certification happens to be a superset of a lighter hosting
+// type's required domains (Workday's SaaS cert covers cloud's two domains)
+// still isn't a real option for that hosting type — the vendor's own
+// category has to match what the hosting type actually is.
+const HOSTING_VENDOR_CATEGORY = { cloud: "cloud-infrastructure", saas: "saas" };
+
 function eligibleProviders(hostingType) {
   const required = INHERITED_DOMAINS[hostingType] || [];
   if (required.length === 0) return [];
+  const category = HOSTING_VENDOR_CATEGORY[hostingType];
   return VENDORS.filter((v) => {
+    if (category && v.category !== category) return false;
     const covered = new Set(
       PROVIDER_CERTIFICATIONS.filter((c) => c.provider === v.name).flatMap((c) => c.domains)
     );
@@ -37,11 +46,12 @@ function eligibleProviders(hostingType) {
 }
 
 function blankAsset(index) {
+  const assetType = ASSET_TYPES[0];
   return {
     key: `new-${index}-${Math.random().toString(36).slice(2, 8)}`,
     name: "",
-    type: "",
-    kind: ASSET_KINDS[0],
+    assetType,
+    kind: ASSET_TYPE_CATEGORIES[assetType][0],
     provider: "",
     criticalityFactors: {
       confidentiality: { score: 2, reason: "" },
@@ -94,11 +104,11 @@ export default function AddSystemWizard({ open, onClose, onCreated }) {
   const [boundary, setBoundary] = useState("");
   const [availabilityTier, setAvailabilityTier] = useState(AVAILABILITY_TIERS[1]);
   const [userCount, setUserCount] = useState(0);
-  const [regionsText, setRegionsText] = useState("");
+  const [regions, setRegions] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [approxRecords, setApproxRecords] = useState(0);
-  const [retention, setRetention] = useState("");
-  const [residencyText, setResidencyText] = useState("");
+  const [retention, setRetention] = useState(RETENTION_OPTIONS[0]);
+  const [residency, setResidency] = useState(RESIDENCY_OPTIONS[0]);
   const [internetFacing, setInternetFacing] = useState(false);
   const [ownerOrgId, setOwnerOrgId] = useState(ORGS[0]?.id ?? "");
   const [assessor, setAssessor] = useState("");
@@ -114,8 +124,8 @@ export default function AddSystemWizard({ open, onClose, onCreated }) {
 
   function reset() {
     setStep(1); setHostingType("cloud"); setProvider(""); setName(""); setMission(""); setBoundary("");
-    setAvailabilityTier(AVAILABILITY_TIERS[1]); setUserCount(0); setRegionsText(""); setSubjects([]);
-    setApproxRecords(0); setRetention(""); setResidencyText(""); setInternetFacing(false);
+    setAvailabilityTier(AVAILABILITY_TIERS[1]); setUserCount(0); setRegions([]); setSubjects([]);
+    setApproxRecords(0); setRetention(RETENTION_OPTIONS[0]); setResidency(RESIDENCY_OPTIONS[0]); setInternetFacing(false);
     setOwnerOrgId(ORGS[0]?.id ?? ""); setAssessor(""); setAssets([blankAsset(0)]); setDryRun(null);
   }
 
@@ -123,6 +133,9 @@ export default function AddSystemWizard({ open, onClose, onCreated }) {
 
   function updateAsset(key, patch) {
     setAssets((prev) => prev.map((a) => (a.key === key ? { ...a, ...patch } : a)));
+  }
+  function updateAssetType(key, assetType) {
+    setAssets((prev) => prev.map((a) => (a.key === key ? { ...a, assetType, kind: ASSET_TYPE_CATEGORIES[assetType][0] } : a)));
   }
   function updateCrit(key, factor, patch) {
     setAssets((prev) => prev.map((a) => (a.key === key
@@ -171,12 +184,12 @@ export default function AddSystemWizard({ open, onClose, onCreated }) {
       internetFacing,
       availabilityTier,
       userCount: Number(userCount) || 0,
-      regions: regionsText.split(",").map((r) => r.trim()).filter(Boolean),
+      regions,
       dataProfile: {
         subjects,
         approxRecords: Number(approxRecords) || 0,
-        retention: retention.trim(),
-        residency: residencyText.split(",").map((r) => r.trim()).filter(Boolean),
+        retention,
+        residency: residency ? [residency] : [],
       },
     };
 
@@ -184,7 +197,7 @@ export default function AddSystemWizard({ open, onClose, onCreated }) {
       id: nextAssetId(systemId, i),
       systemId,
       name: a.name.trim() || `Asset ${i + 1}`,
-      type: a.type.trim() || a.kind,
+      type: a.assetType,
       kind: a.kind,
       provider: a.provider.trim() || provider,
       code: `A${i + 1}`,
@@ -215,6 +228,12 @@ export default function AddSystemWizard({ open, onClose, onCreated }) {
       assetDataTypes: [...existing.assetDataTypes, ...newAssetDataTypes],
       assessmentScopes: [...existing.assessmentScopes, assessmentScope],
       expectedClassification: { ...existing.expectedClassification },
+      // This wizard only ever adds a system — it never evaluates a control —
+      // so these three just carry forward whatever runtimeMutations.ts has
+      // already recorded for earlier systems, unchanged.
+      implementationMechanisms: [...existing.implementationMechanisms],
+      evidence: [...existing.evidence],
+      notImplemented: [...existing.notImplemented],
     };
 
     return { runtime, systemId };
@@ -374,7 +393,20 @@ export default function AddSystemWizard({ open, onClose, onCreated }) {
                 </Field>
 
                 <Field label="Users"><TextInput type="number" min={0} value={userCount} onChange={(e) => setUserCount(e.target.value)} /></Field>
-                <Field label="Regions" note="Comma-separated"><TextInput value={regionsText} onChange={(e) => setRegionsText(e.target.value)} placeholder="us-east-1, us-west-2" /></Field>
+                <Field label="Regions">
+                  <div className="flex flex-wrap gap-3 pt-1">
+                    {CLOUD_REGIONS.map((r) => (
+                      <label key={r} className="flex items-center gap-1.5 text-sm font-mono" style={{ color: C.ink }}>
+                        <input
+                          type="checkbox"
+                          checked={regions.includes(r)}
+                          onChange={(e) => setRegions((prev) => (e.target.checked ? [...prev, r] : prev.filter((x) => x !== r)))}
+                        />
+                        {r}
+                      </label>
+                    ))}
+                  </div>
+                </Field>
 
                 <Field label="System owner">
                   <Select value={ownerOrgId} onChange={(e) => setOwnerOrgId(e.target.value)}>
@@ -403,8 +435,16 @@ export default function AddSystemWizard({ open, onClose, onCreated }) {
                   </div>
                 </Field>
                 <Field label="Approx. records"><TextInput type="number" min={0} value={approxRecords} onChange={(e) => setApproxRecords(e.target.value)} /></Field>
-                <Field label="Retention"><TextInput value={retention} onChange={(e) => setRetention(e.target.value)} placeholder="e.g. 7 years post-contract" /></Field>
-                <Field label="Residency" span2 note="Comma-separated"><TextInput value={residencyText} onChange={(e) => setResidencyText(e.target.value)} placeholder="United States" /></Field>
+                <Field label="Retention">
+                  <Select value={retention} onChange={(e) => setRetention(e.target.value)}>
+                    {RETENTION_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </Select>
+                </Field>
+                <Field label="Residency" span2>
+                  <Select value={residency} onChange={(e) => setResidency(e.target.value)}>
+                    {RESIDENCY_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </Select>
+                </Field>
               </div>
             </div>
           )}
@@ -460,11 +500,16 @@ export default function AddSystemWizard({ open, onClose, onCreated }) {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 mb-3.5">
+                  <div className="grid grid-cols-3 gap-3 mb-3.5">
                     <Field label="Name"><TextInput value={a.name} onChange={(e) => updateAsset(a.key, { name: e.target.value })} /></Field>
+                    <Field label="Type">
+                      <Select value={a.assetType} onChange={(e) => updateAssetType(a.key, e.target.value)}>
+                        {ASSET_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                      </Select>
+                    </Field>
                     <Field label="Kind">
                       <Select value={a.kind} onChange={(e) => updateAsset(a.key, { kind: e.target.value })}>
-                        {ASSET_KINDS.map((k) => <option key={k} value={k}>{k.replace(/-/g, " ")}</option>)}
+                        {ASSET_TYPE_CATEGORIES[a.assetType].map((k) => <option key={k} value={k}>{k.replace(/-/g, " ")}</option>)}
                       </Select>
                     </Field>
                   </div>
@@ -581,8 +626,12 @@ export default function AddSystemWizard({ open, onClose, onCreated }) {
                   </div>
                   <div className="flex flex-col gap-2">
                     {dryRun.problems.map((p, i) => (
-                      <div key={i} className="flex items-start gap-2.5 rounded-lg px-3 py-2.5 text-xs leading-relaxed" style={{ background: C.panel2, border: `1px solid ${C.border}`, color: C.ink }}>
-                        <AlertTriangle size={13} color={C.red} className="shrink-0 mt-0.5" />
+                      <div
+                        key={i}
+                        className="flex items-start gap-2.5 rounded-lg pl-3 pr-3.5 py-2.5 text-xs leading-relaxed"
+                        style={{ background: C.redBg, border: `1px solid ${C.border}`, borderLeftWidth: 3, borderLeftColor: C.red, color: C.ink }}
+                      >
+                        <AlertTriangle size={14} color={C.red} className="shrink-0 mt-0.5" />
                         <span className="flex-1">{p}</span>
                       </div>
                     ))}

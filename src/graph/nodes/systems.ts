@@ -86,6 +86,33 @@ export type AvailabilityTier = (typeof AVAILABILITY_TIERS)[number];
 export const DATA_SUBJECT_TYPES = ["customers", "end-users", "employees", "contractors"] as const;
 export type DataSubjectType = (typeof DATA_SUBJECT_TYPES)[number];
 
+// Curated region list for the Add System wizard — AWS and Azure regions ACME
+// actually operates in, rather than free text that could drift from what a
+// system's provider even offers.
+export const CLOUD_REGIONS = [
+  "us-east-1",
+  "us-west-2",
+  "eastus",
+  "westus2",
+] as const;
+
+// Curated retention periods for the Add System wizard. Kept short and
+// selectable rather than free text so a hand-typed rationale can't silently
+// stand in for a real policy-backed period.
+export const RETENTION_OPTIONS = [
+  "1 year",
+  "3 years",
+  "5 years",
+  "7 years post-contract termination",
+  "7 years post-employment",
+  "Indefinite (active use)",
+] as const;
+
+// Data residency options for the Add System wizard. Starts with the one
+// jurisdiction ACME's demo systems actually use — add to this list only as
+// real systems need it, not speculatively.
+export const RESIDENCY_OPTIONS = ["United States"] as const;
+
 // The system-level shape of "what does this boundary hold" — who it's about,
 // roughly how many records, and where. Distinct from DataType.sensitivity
 // (what kind of data), this is about scale and jurisdiction.
