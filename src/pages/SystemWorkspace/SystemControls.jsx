@@ -112,7 +112,7 @@ const ALL_SELECTION = { kind: "all", label: "All Applicable Controls" };
 // No icon: this chip is always read alongside its own colored group (the
 // Control Status legend groups chips by the same color as their bar
 // segment), so the color already carries the meaning an icon would repeat.
-function Chip({ label, count, color, bg, active, onClick }) {
+function Chip({ label, count, color, bg, active, onClick, flat }) {
   // The neutral (panel2-backed) variants — Not Assessed, System Owned — sit
   // too close in value to the card behind them to read as a pill on their
   // own; give just those a border so they don't wash out.
@@ -122,9 +122,9 @@ function Chip({ label, count, color, bg, active, onClick }) {
       onClick={onClick}
       className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded shrink-0 transition-colors"
       style={{
-        background: bg,
+        background: flat ? "transparent" : bg,
         color,
-        border: neutral ? `1px solid ${C.borderStrong}` : "1px solid transparent",
+        border: flat || !neutral ? "1px solid transparent" : `1px solid ${C.borderStrong}`,
         boxShadow: active ? `0 0 0 1.5px ${color}` : "none",
       }}
     >
@@ -191,6 +191,7 @@ function AttentionTile({ count, statusCounts, selection, onToggle }) {
 // status.
 function StatusStrip({ statusCounts, applicabilitySummary, pendingCount, resp, selection, onToggle }) {
   const total = applicabilitySummary.total;
+  const applicableTotal = total - applicabilitySummary.notApplicable;
   const controlStatusCount = RESOLVED_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
   const outstandingCount = OUTSTANDING_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
   const segments = [
@@ -208,9 +209,9 @@ function StatusStrip({ statusCounts, applicabilitySummary, pendingCount, resp, s
 
   return (
     <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-      <div className="flex items-baseline justify-between mb-3">
+      <div className="mb-3">
         <span className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.muted }}>Control Status</span>
-        <span className="text-[11px]" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{total} applicable controls</span>
+        <span className="text-[10px] uppercase tracking-wide" style={{ color: C.muted }}> — {applicableTotal} Applicable Controls</span>
       </div>
 
       <div className="flex h-2.5 rounded-full overflow-hidden" style={{ background: C.panel2 }}>
@@ -281,10 +282,11 @@ function StatusStrip({ statusCounts, applicabilitySummary, pendingCount, resp, s
             key={respKey}
             label={RESPONSIBILITY_META[respKey].label}
             count={count}
-            color={RESPONSIBILITY_META[respKey].color}
+            color={C.muted}
             bg={RESPONSIBILITY_META[respKey].bg}
             active={selection?.kind === "responsibility" && selection.key === respKey}
             onClick={() => onToggle({ kind: "responsibility", key: respKey, label: `${RESPONSIBILITY_META[respKey].label} controls` })}
+            flat
           />
         ))}
       </div>

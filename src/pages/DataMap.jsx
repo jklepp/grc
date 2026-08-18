@@ -188,7 +188,16 @@ function ActorRow({ actorAccess, title, hint, icon, isFirst }) {
 function StageRow({ stage, isFirst, flushTop, selectedKey, onSelectNode, rolesFor }) {
   return (
     <>
-      {!isFirst && <div className="-mx-6" style={{ marginTop: flushTop ? 0 : 12, marginBottom: 10, borderTop: `1px solid ${C.borderStrong}` }} />}
+      {!isFirst && (
+        <div
+          className="-mx-6"
+          style={{
+            marginTop: flushTop ? 0 : 12,
+            marginBottom: 10,
+            borderTop: flushTop ? `1px dotted ${C.green}` : `1px solid ${C.borderStrong}`,
+          }}
+        />
+      )}
       <div className="flex flex-col items-start w-full">
         <SectionLabel icon={Cpu}>{stageLabel(stage.depth)}</SectionLabel>
         <div className="flex flex-wrap items-start justify-center gap-3 w-full">
@@ -372,7 +381,7 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
         <div
           className="relative pt-6 px-6 pb-5 -mx-6 -mt-6 rounded-t-2xl"
           style={{
-            background: C.amberBg,
+            background: `color-mix(in srgb, ${C.amber} 6%, ${C.panel2})`,
             border: `1px dashed ${C.amber}`,
             borderBottom: "none",
           }}
@@ -410,7 +419,7 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }) {
               <div
                 className={`flex flex-col items-stretch -mx-6 px-6 ${lastBoundarySection === "actors" ? "rounded-b-2xl" : ""}`}
                 style={{
-                  background: C.greenBg,
+                  background: `color-mix(in srgb, ${C.green} 6%, ${C.panel2})`,
                   marginTop: firstBoundarySection === "actors" ? -24 : 0,
                   paddingTop: firstBoundarySection === "actors" ? 24 : 12,
                   marginBottom: lastBoundarySection === "actors" ? -24 : 0,

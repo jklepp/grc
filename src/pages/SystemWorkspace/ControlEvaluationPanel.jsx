@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   Link2, BookOpenText, Layers, FileCheck2, Wrench, Gauge, Plus, Pencil, Trash2, ChevronDown, ChevronRight,
+  ScrollText, Network,
 } from "lucide-react";
 import { C } from "../../theme";
 import {
@@ -16,7 +17,7 @@ import { loadRuntimeFacts, saveRuntimeFacts } from "../../engine/runtimeFactsSto
 import { YAML_FACTS } from "../../graph/sources/yaml";
 import { PRINCIPLE_DOMAINS, STATUS_META as PRINCIPLE_STATUS_META } from "../../data/securityPrinciples";
 import { STATUS_META, IMPLEMENTATION_META, RESPONSIBILITY_META, ratingColor, assetName, evidenceHealthForRow } from "./controlMeta";
-import { POLICY_BY_CONTROL } from "./policyLookup";
+import { POLICY_BY_CONTROL, PROCEDURE_BY_CONTROL } from "./policyLookup";
 import { BasisTag } from "../../components/BasisTag";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 
@@ -381,10 +382,9 @@ function FindingForm({ assetOptions, onCancel, onSubmit }) {
 }
 
 const STEPS = [
-  { id: "requirement", label: "Requirement", icon: BookOpenText },
+  { id: "requirement", label: "Control Overview", icon: BookOpenText },
   { id: "implementation", label: "Implementation Coverage", icon: Layers },
   { id: "evidence", label: "Evidence", icon: FileCheck2 },
-  { id: "assessment", label: "Assessment", icon: Gauge },
   { id: "findings", label: "Findings & Remediation", icon: Wrench },
 ];
 
@@ -401,7 +401,6 @@ export function ControlEvaluationPanel({ row, system, onClose }) {
   const [attachingEvidence, setAttachingEvidence] = useState(false);
   const [editingEvidenceId, setEditingEvidenceId] = useState(null);
   const [overridingLevel, setOverridingLevel] = useState(null);
-  const [showAssessmentForm, setShowAssessmentForm] = useState(false);
   const [showMaturityDetails, setShowMaturityDetails] = useState(false);
   const [creatingFinding, setCreatingFinding] = useState(false);
   const [saveError, setSaveError] = useState(null);
@@ -409,6 +408,7 @@ export function ControlEvaluationPanel({ row, system, onClose }) {
   if (!row) return null;
 
   const governingPolicy = POLICY_BY_CONTROL[row.control.id];
+  const governingProcedure = PROCEDURE_BY_CONTROL[row.control.id];
   const drawerClauses = row.control.frameworks.filter((f) => system.standards.includes(f.standard));
   const statusMeta = STATUS_META[row.status];
   const respMeta = RESPONSIBILITY_META[row.responsibility];
@@ -484,11 +484,13 @@ export function ControlEvaluationPanel({ row, system, onClose }) {
   return (
     <Modal open onClose={onClose} width={1180} height={840}>
       {/* ---- Header ---- */}
-      <div className="flex items-start justify-between px-6 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <div>
-          <div className="text-xs uppercase tracking-wide mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>{row.control.id} · {row.control.domain}</div>
-          <h2 className="text-xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>{row.control.name}</h2>
-          <div className="flex items-center gap-2 mt-3 flex-wrap">
+      <div className="flex items-start justify-between px-6 py-4 gap-4" style={{ borderBottom: `1px solid ${C.border}` }}>
+        <div className="flex items-center justify-between gap-4 flex-1 min-w-0">
+          <div className="min-w-0">
+            <div className="text-xs uppercase tracking-wide mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>{row.control.id} · {row.control.domain}</div>
+            <h2 className="text-xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>{row.control.name}</h2>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
             <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded" style={{ background: statusMeta.bg, color: statusMeta.color }}>
               <statusMeta.Icon size={12} /> {statusMeta.label}
             </span>
@@ -548,9 +550,51 @@ export function ControlEvaluationPanel({ row, system, onClose }) {
           {/* ===== Requirement ===== */}
           {activeStep === "requirement" && (
             <div className="space-y-4">
-              <div className="rounded-lg p-4" style={{ background: C.panel2 }}>
-                <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>SCF Control Description</div>
-                <div className="text-sm leading-relaxed" style={{ color: C.ink }}>{row.control.description}</div>
+              {row.assessment?.assessed && (
+                <div>
+                  <SectionLabel icon={Gauge}>Assurance Scoring</SectionLabel>
+                  <div className="grid grid-cols-5 gap-2">
+                    {PRISMA_LEVELS.map((level) => {
+                      const L = row.assessment.levels[level];
+                      const isOverriding = overridingLevel === level;
+                      return (
+                        <button
+                          key={level}
+                          onClick={() => setOverridingLevel(isOverriding ? null : level)}
+                          className="text-left rounded-lg p-2.5 transition-colors"
+                          style={{ background: C.panel2, border: `1px solid ${isOverriding ? C.accent : C.border}` }}
+                        >
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] font-semibold flex-1" style={{ color: C.muted }}>{level}</span>
+                            <Pencil size={9} color={C.muted} className="shrink-0" />
+                          </div>
+                          <div className="text-lg font-semibold tabular-nums mt-0.5" style={{ color: ratingColor(L.rating), fontFamily: "'IBM Plex Mono', monospace" }}>{L.rating}</div>
+                          <div className="text-[9.5px] mt-0.5 leading-tight" style={{ color: C.muted }}>{COMPLIANCE_LABELS[L.rating]}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {overridingLevel && (
+                    <div className="mt-2">
+                      <OverrideForm
+                        level={overridingLevel}
+                        current={row.assessment.levels[overridingLevel]}
+                        onCancel={() => setOverridingLevel(null)}
+                        onSubmit={(o) => { setOverridingLevel(null); handleOverride(overridingLevel, o); }}
+                      />
+                    </div>
+                  )}
+                  <div className="text-[10.5px] mt-1.5 leading-snug" style={{ color: C.muted }}>
+                    Click a lane above to override its assessor rating.
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <SectionLabel icon={BookOpenText}>Common Control Requirement</SectionLabel>
+                <div className="rounded-lg p-4" style={{ background: C.panel2 }}>
+                  <div className="text-sm leading-relaxed" style={{ color: C.ink }}>{row.control.description}</div>
+                </div>
               </div>
 
               {row.control.toolHint && (
@@ -559,30 +603,6 @@ export function ControlEvaluationPanel({ row, system, onClose }) {
                   <div className="text-sm" style={{ color: C.ink }}>{row.control.toolHint}</div>
                 </div>
               )}
-
-              {governingPolicy && (
-                <div className="rounded-lg p-3" style={{ border: `1px solid ${C.border}` }}>
-                  <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Governing Policy</div>
-                  <div className="text-sm" style={{ color: C.ink }}>{governingPolicy.code} · {governingPolicy.title}</div>
-                </div>
-              )}
-
-              <div>
-                <SectionLabel>Framework Clauses Satisfied ({system.standards.join(", ")})</SectionLabel>
-                <div className="rounded-lg" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                  <div className="px-3 py-1">
-                    {drawerClauses.length === 0 && (
-                      <div className="py-3 text-xs" style={{ color: C.muted }}>No direct clause mapping for this system's in-scope standards.</div>
-                    )}
-                    {drawerClauses.map((f, i) => (
-                      <div key={i} className="py-2.5" style={{ borderBottom: i < drawerClauses.length - 1 ? `1px solid ${C.border}` : "none" }}>
-                        <div className="text-xs font-medium mb-1" style={{ color: C.ink }}>{f.standard}</div>
-                        <div className="text-[11px]" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{f.clauses.join(", ")}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
 
               {linkedPrinciples.length > 0 && (
                 <div>
@@ -603,6 +623,118 @@ export function ControlEvaluationPanel({ row, system, onClose }) {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* ===== Assessment ===== */}
+              <div className="rounded-lg p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="inline-flex items-center gap-1 text-sm font-semibold px-2.5 py-1 rounded" style={{ background: statusMeta.bg, color: statusMeta.color }}>
+                    <statusMeta.Icon size={13} /> {statusMeta.label}
+                  </span>
+                  <span className="ml-auto"><BasisTag basis={row.basis} /></span>
+                </div>
+                <div>
+                  {fieldLabel("Assessment rationale")}
+                  <div className="text-sm leading-relaxed" style={{ color: C.ink }}>
+                    {worst ? worst.rationale : row.explanation}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4 mt-3">
+                  <div>
+                    {fieldLabel("Control owner")}
+                    <div className="text-xs" style={{ color: C.ink }}>{(row.assessment?.owners ?? []).length > 0 ? row.assessment.owners.map((o) => o.name).join(", ") : "Unassigned"}</div>
+                  </div>
+                  <div>
+                    {fieldLabel("Evidence confidence")}
+                    <div className="text-xs font-semibold" style={{ color: evidenceHealth.color }}>{evidenceHealth.label}</div>
+                  </div>
+                </div>
+              </div>
+
+              {(governingPolicy || governingProcedure) && (
+                <div>
+                  <SectionLabel icon={ScrollText}>Policies and Procedures</SectionLabel>
+                  <div className="space-y-2">
+                    {governingPolicy && (
+                      <div className="rounded-lg p-3" style={{ border: `1px solid ${C.border}` }}>
+                        <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Governing Policy</div>
+                        <div className="text-sm" style={{ color: C.ink }}>{governingPolicy.code} · {governingPolicy.title}</div>
+                      </div>
+                    )}
+
+                    {governingProcedure && (
+                      <div className="rounded-lg p-3" style={{ border: `1px solid ${C.border}` }}>
+                        <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Governing Procedure</div>
+                        <div className="text-sm" style={{ color: C.ink }}>{governingProcedure.procedure.code} · {governingProcedure.procedure.title}</div>
+                        {governingProcedure.step && (
+                          <div className="text-[11px] mt-1" style={{ color: C.muted }}>Step: {governingProcedure.step}</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <SectionLabel icon={Network}>Framework Clauses Satisfied ({system.standards.join(", ")})</SectionLabel>
+                <div className="rounded-lg" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+                  <div className="px-3 py-1">
+                    {drawerClauses.length === 0 && (
+                      <div className="py-3 text-xs" style={{ color: C.muted }}>No direct clause mapping for this system's in-scope standards.</div>
+                    )}
+                    {drawerClauses.map((f, i) => (
+                      <div key={i} className="py-2.5" style={{ borderBottom: i < drawerClauses.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                        <div className="text-xs font-medium mb-1" style={{ color: C.ink }}>{f.standard}</div>
+                        <div className="text-[11px]" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{f.clauses.join(", ")}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                className="flex items-center gap-1 text-[11px] font-semibold"
+                style={{ color: C.accent }}
+                onClick={() => setShowMaturityDetails((v) => !v)}
+              >
+                {showMaturityDetails ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                View maturity scoring details
+              </button>
+
+              {showMaturityDetails && row.assessment?.assessed && (
+                <div className="rounded-lg p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+                  <div className="space-y-2">
+                    {PRISMA_LEVELS.map((level) => {
+                      const L = row.assessment.levels[level];
+                      return (
+                        <div key={level} className="rounded p-2" style={{ background: C.panel }}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold w-24 shrink-0" style={{ color: C.ink }}>{level}</span>
+                            <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: C.border }}>
+                              <div className="h-full rounded-full" style={{ width: `${L.rating}%`, background: ratingColor(L.rating) }} />
+                            </div>
+                            <span className="text-[10px] w-28 shrink-0 text-right" style={{ color: C.muted }}>
+                              {COMPLIANCE_LABELS[L.rating]}
+                            </span>
+                            <span className="text-xs font-semibold tabular-nums w-14 shrink-0 text-right" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>
+                              {L.rating} ×{L.weight}
+                            </span>
+                            <BasisTag basis={L.basis} />
+                          </div>
+                          <div className="text-[11px] mt-1 leading-snug" style={{ color: C.muted }}>
+                            {L.rating !== L.derived && <span className="font-semibold" style={{ color: C.amber }}>Overridden from {L.derived}. </span>}
+                            {L.rationale}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {row.assessment.ladderInversions.length > 0 && (
+                    <div className="text-[11px] mt-2" style={{ color: C.amber }}>
+                      Rated above the level beneath it: {row.assessment.ladderInversions.join(", ")}.
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -718,138 +850,6 @@ export function ControlEvaluationPanel({ row, system, onClose }) {
                     onCancel={() => setAttachingEvidence(false)}
                     onSubmit={(draft) => handleAttachEvidence(draft)}
                   />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ===== Assessment ===== */}
-          {activeStep === "assessment" && (
-            <div className="space-y-4">
-              <div className="rounded-lg p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="inline-flex items-center gap-1 text-sm font-semibold px-2.5 py-1 rounded" style={{ background: statusMeta.bg, color: statusMeta.color }}>
-                    <statusMeta.Icon size={13} /> {statusMeta.label}
-                  </span>
-                  <span className="ml-auto"><BasisTag basis={row.basis} /></span>
-                </div>
-                <div>
-                  {fieldLabel("Assessment rationale")}
-                  <div className="text-sm leading-relaxed" style={{ color: C.ink }}>
-                    {worst ? worst.rationale : row.explanation}
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4 mt-3">
-                  <div>
-                    {fieldLabel("Control owner")}
-                    <div className="text-xs" style={{ color: C.ink }}>{(row.assessment?.owners ?? []).length > 0 ? row.assessment.owners.map((o) => o.name).join(", ") : "Unassigned"}</div>
-                  </div>
-                  <div>
-                    {fieldLabel("Evidence confidence")}
-                    <div className="text-xs font-semibold" style={{ color: evidenceHealth.color }}>{evidenceHealth.label}</div>
-                  </div>
-                </div>
-
-                {!showAssessmentForm ? (
-                  <button
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg mt-4"
-                    style={{ background: C.accent, color: "#fff" }}
-                    onClick={() => setShowAssessmentForm(true)}
-                  >
-                    Save Assessment
-                  </button>
-                ) : (
-                  <div className="mt-4">
-                    <OverrideForm
-                      level={null}
-                      current={worst}
-                      onCancel={() => setShowAssessmentForm(false)}
-                      onSubmit={(o) => { setShowAssessmentForm(false); handleOverride(worstEntry[0], o); }}
-                    />
-                    <div className="text-[10.5px] mt-1.5 leading-snug" style={{ color: C.muted }}>
-                      Applies to the {worstEntry?.[0]} lane — the one currently holding this control's score down.
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {row.assessment?.assessed && (
-                <div>
-                  <SectionLabel icon={Gauge}>PRISMA Scoring</SectionLabel>
-                  <div className="grid grid-cols-5 gap-2">
-                    {PRISMA_LEVELS.map((level) => {
-                      const L = row.assessment.levels[level];
-                      return (
-                        <div key={level} className="rounded-lg p-2.5" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                          <div className="text-[10px] font-semibold" style={{ color: C.muted }}>{level}</div>
-                          <div className="text-lg font-semibold tabular-nums mt-0.5" style={{ color: ratingColor(L.rating), fontFamily: "'IBM Plex Mono', monospace" }}>{L.rating}</div>
-                          <div className="text-[9.5px] mt-0.5 leading-tight" style={{ color: C.muted }}>{COMPLIANCE_LABELS[L.rating]}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              <button
-                className="flex items-center gap-1 text-[11px] font-semibold"
-                style={{ color: C.accent }}
-                onClick={() => setShowMaturityDetails((v) => !v)}
-              >
-                {showMaturityDetails ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                View maturity scoring details
-              </button>
-
-              {showMaturityDetails && row.assessment?.assessed && (
-                <div className="rounded-lg p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                  <div className="space-y-2">
-                    {PRISMA_LEVELS.map((level) => {
-                      const L = row.assessment.levels[level];
-                      return (
-                        <div key={level} className="rounded p-2" style={{ background: C.panel }}>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold w-24 shrink-0" style={{ color: C.ink }}>{level}</span>
-                            <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: C.border }}>
-                              <div className="h-full rounded-full" style={{ width: `${L.rating}%`, background: ratingColor(L.rating) }} />
-                            </div>
-                            <span className="text-[10px] w-28 shrink-0 text-right" style={{ color: C.muted }}>
-                              {COMPLIANCE_LABELS[L.rating]}
-                            </span>
-                            <span className="text-xs font-semibold tabular-nums w-14 shrink-0 text-right" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>
-                              {L.rating} ×{L.weight}
-                            </span>
-                            <BasisTag basis={L.basis} />
-                            {overridingLevel !== level && (
-                              <button
-                                className="text-[10px] font-semibold px-2 py-1 rounded-lg shrink-0"
-                                style={{ background: C.accentBg, color: C.accent }}
-                                onClick={() => setOverridingLevel(level)}
-                              >
-                                Override
-                              </button>
-                            )}
-                          </div>
-                          <div className="text-[11px] mt-1 leading-snug" style={{ color: C.muted }}>
-                            {L.rating !== L.derived && <span className="font-semibold" style={{ color: C.amber }}>Overridden from {L.derived}. </span>}
-                            {L.rationale}
-                          </div>
-                          {overridingLevel === level && (
-                            <OverrideForm
-                              level={level}
-                              current={L}
-                              onCancel={() => setOverridingLevel(null)}
-                              onSubmit={(o) => handleOverride(level, o)}
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {row.assessment.ladderInversions.length > 0 && (
-                    <div className="text-[11px] mt-2" style={{ color: C.amber }}>
-                      Rated above the level beneath it: {row.assessment.ladderInversions.join(", ")}.
-                    </div>
-                  )}
                 </div>
               )}
             </div>
