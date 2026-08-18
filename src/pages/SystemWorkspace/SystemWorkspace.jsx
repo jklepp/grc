@@ -78,7 +78,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   const findingsByControl = useMemo(() => {
     const counts = {};
     findings.forEach((f) => {
-      if (f.status === "open" || f.status === "accepted" || f.status === "remediating") {
+      if (f.open) {
         counts[f.controlId] = (counts[f.controlId] ?? 0) + 1;
       }
     });

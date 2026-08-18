@@ -38,7 +38,7 @@ import { DATA_ROLE_META } from "./edges/assetDataTypes";
 import { FLOW_KINDS } from "./edges/dataFlows";
 import { CONTRIBUTOR_ROLES } from "./edges/riskContributors";
 import { ORG_KINDS } from "./nodes/orgs";
-import { FINDING_STATUSES, FINDING_SEVERITIES, FINDING_SOURCES } from "./nodes/findings";
+import { REMEDIATION_STATUSES, FINDING_SEVERITIES, FINDING_SOURCES } from "./nodes/findings";
 import { ACTOR_KINDS } from "./nodes/actors";
 import { ACTOR_DIRECTIONS } from "./edges/actorAccess";
 import { IDENTITY_TYPES } from "./nodes/identity";
@@ -303,11 +303,22 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
     check(has(graph.assetById, f.assetId), `finding ${f.id}: assetId "${f.assetId}" is not an asset`);
     check(has(graph.keyControlById, f.controlId), `finding ${f.id}: controlId "${f.controlId}" is not a key control`);
     check(has(graph.orgById, f.ownerId), `finding ${f.id}: ownerId "${f.ownerId}" is not an org`);
-    check(FINDING_STATUSES.includes(f.status), `finding ${f.id}: status "${f.status}" is not one of ${FINDING_STATUSES.join(", ")}`);
+    check(REMEDIATION_STATUSES.includes(f.remediationStatus), `finding ${f.id}: remediationStatus "${f.remediationStatus}" is not one of ${REMEDIATION_STATUSES.join(", ")}`);
     check(!Number.isNaN(new Date(f.due).getTime()), `finding ${f.id}: due "${f.due}" is not a parseable date`);
     check(Boolean(f.title?.trim()), `finding ${f.id}: needs a title`);
     check(!f.severity || FINDING_SEVERITIES.includes(f.severity), `finding ${f.id}: severity "${f.severity}" is not one of ${FINDING_SEVERITIES.join(", ")}`);
     check(!f.source || FINDING_SOURCES.includes(f.source), `finding ${f.id}: source "${f.source}" is not one of ${FINDING_SOURCES.join(", ")}`);
+
+    check(!f.remediationOwnerId || has(graph.orgById, f.remediationOwnerId), `finding ${f.id}: remediationOwnerId "${f.remediationOwnerId}" is not an org`);
+    check(!f.targetDate || !Number.isNaN(new Date(f.targetDate).getTime()), `finding ${f.id}: targetDate "${f.targetDate}" is not a parseable date`);
+    check(!f.closedDate || !Number.isNaN(new Date(f.closedDate).getTime()), `finding ${f.id}: closedDate "${f.closedDate}" is not a parseable date`);
+    (f.closureEvidenceIds ?? []).forEach((id) => {
+      check(has(graph.evidenceById, id), `finding ${f.id}: closureEvidenceIds references "${id}", which is not an evidence record`);
+    });
+    check(
+      f.remediationStatus !== "Complete" || Boolean(f.closedDate),
+      `finding ${f.id}: remediationStatus is Complete but closedDate is missing`
+    );
   });
   check(new Set(graph.findings.map((f) => f.id)).size === graph.findings.length, `findings: duplicate id`);
 

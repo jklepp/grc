@@ -45,7 +45,7 @@ export function createCockpit(
     const topRisks = risk.topRisksForSystem(systemId, 5);
     const openHighSeverity = findings
       .findingsForSystem(systemId)
-      .filter((f) => (f.severity === "critical" || f.severity === "high") && ["open", "accepted", "remediating"].includes(f.status));
+      .filter((f) => (f.severity === "critical" || f.severity === "high") && f.open);
 
     const idPosture = identity.identityPostureForSystem(systemId);
     const exp = exposure.exposureForSystem(systemId);

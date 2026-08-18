@@ -5,6 +5,7 @@ import Systems from "./pages/Systems";
 import Governance from "./pages/Governance";
 import Overview from "./pages/Overview";
 import GraphExplorer from "./pages/GraphExplorer";
+import Login from "./pages/Login";
 import { C, applyTheme, FONT_IMPORT } from "./theme";
 
 // Map nav item ids (defined in Sidebar.jsx) to the page component to render.
@@ -41,6 +42,8 @@ export default function App() {
   const [initialTab, setInitialTab] = useState(undefined);
   const [expanded, setExpanded] = useState(false);
   const [mode, setMode] = useState("light");
+  // No real auth is wired up yet — this just gates the UI behind the login screen.
+  const [authenticated, setAuthenticated] = useState(false);
 
   // Mutates the shared C / CLASS_META objects in theme.js in place, before this
   // render reads any of their properties. Every page imports those same objects,
@@ -54,6 +57,15 @@ export default function App() {
   }
 
   const ActivePage = PAGES[active];
+
+  if (!authenticated) {
+    return (
+      <>
+        <style>{FONT_IMPORT}</style>
+        <Login onLogin={() => setAuthenticated(true)} />
+      </>
+    );
+  }
 
   return (
     <div className="flex" style={{ background: C.bg, minHeight: "100vh" }}>

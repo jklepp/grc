@@ -473,7 +473,7 @@ export function createAssessment(
 
       const openPastDue = findings
         .findingsForSystem(systemId)
-        .filter((f) => f.controlId === controlId && f.status !== "closed" && Date.parse(f.due) < ctx.now.getTime())
+        .filter((f) => f.controlId === controlId && f.open && Date.parse(f.due) < ctx.now.getTime())
         .map((f) => ({ id: f.id, due: f.due }));
 
       managedLevel = rateManaged({

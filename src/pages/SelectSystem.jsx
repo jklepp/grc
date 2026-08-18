@@ -29,7 +29,7 @@ function SystemAvatar({ name }) {
 }
 
 function SystemRow({ system, onSelect, striped }) {
-  const openFindings = system.findings.filter((f) => f.status !== "closed" && f.status !== "verified").length;
+  const openFindings = system.findings.filter((f) => f.open).length;
   return (
     <button
       onClick={() => onSelect(system.id)}

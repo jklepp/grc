@@ -26,10 +26,13 @@
 // an owner, a due date, a ticket. A documented gap without those (e.g. the
 // MON-03 note on AST-003-03) stays a plain override note rather than being
 // forced into a Finding with an invented owner.
-import type { FindingId, AssetId, ControlId, OrgId } from "../ids";
+import type { FindingId, AssetId, ControlId, OrgId, EvidenceId } from "../ids";
 
-export const FINDING_STATUSES = ["open", "accepted", "remediating", "verified", "closed"] as const;
-export type FindingStatus = (typeof FINDING_STATUSES)[number];
+// Remediation status is the finding's single lifecycle field — see
+// engine/findings.ts for how "still open" is derived from it (anything
+// short of Complete).
+export const REMEDIATION_STATUSES = ["Planned", "In Progress", "Blocked", "Complete"] as const;
+export type RemediationStatus = (typeof REMEDIATION_STATUSES)[number];
 
 // What raised this finding, beyond a routine control-gap review. Optional and
 // absent-means-"control-gap" so the pre-existing population needs no
@@ -52,9 +55,18 @@ export interface Finding {
   detail: string;
   assetId: AssetId;
   controlId: ControlId;
-  status: FindingStatus;
+  remediationStatus: RemediationStatus;
   ownerId: OrgId;
   due: string;
   severity?: FindingSeverity;
   source?: FindingSource;
+  // Remediation tracking — who's fixing it, what the plan is, and what
+  // proves it's actually done. remediationOwnerId is deliberately distinct
+  // from ownerId: the team/person accountable for the finding isn't always
+  // the team/person doing the fix.
+  remediationPlan?: string;
+  remediationOwnerId?: OrgId;
+  targetDate?: string;
+  closedDate?: string;
+  closureEvidenceIds?: EvidenceId[];
 }

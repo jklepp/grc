@@ -1,13 +1,75 @@
 import React from "react";
-import { X, Link2 } from "lucide-react";
+import { X, Link2, AlertTriangle, MapPin, FileCheck2, Wrench, Gauge } from "lucide-react";
 import { C } from "../../theme";
-import { PRISMA_LEVELS, COMPLIANCE_LABELS, INSTANCE_STATUS_META, findingsForSystem, FINDING_STATUS_META, FINDING_SEVERITY_META } from "../../engine";
-import { STATUS_META, IMPLEMENTATION_META, RESPONSIBILITY_META, ratingColor, assetName } from "./controlMeta";
+import {
+  PRISMA_LEVELS, COMPLIANCE_LABELS, findingsForSystem,
+  FINDING_SEVERITY_META, FINDING_REMEDIATION_STATUS_META, BASIS_META,
+  getEvidence, resolveProgramApplicability,
+} from "../../engine";
+import { STATUS_META, IMPLEMENTATION_META, RESPONSIBILITY_META, ratingColor, assetName, evidenceHealthForRow } from "./controlMeta";
 import { POLICY_BY_CONTROL } from "./policyLookup";
+import { BasisTag } from "../../components/BasisTag";
 
-// Right-side slide-over for a single control row's full detail — the primary
-// drill-down experience for Controls: requirement, applicability,
-// implementation, evidence, and framework mappings in one place.
+// Worst-rated PRISMA level for a control's assessment — the single sentence
+// that best answers "what's wrong" or "what to improve" when no finding has
+// been filed yet to answer it more concretely.
+function worstLevel(assessment) {
+  if (!assessment?.assessed) return null;
+  return PRISMA_LEVELS.map((level) => assessment.levels[level]).sort((a, b) => a.rating - b.rating)[0];
+}
+
+// The single most urgent remediation status across a control's findings —
+// Blocked beats In Progress beats Planned beats Complete — so the glance
+// strip can show one badge instead of forcing a scroll to find out.
+const REMEDIATION_URGENCY = ["Blocked", "In Progress", "Planned", "Complete"];
+function mostUrgentRemediation(findings) {
+  if (findings.length === 0) return null;
+  return REMEDIATION_URGENCY.find((s) => findings.some((f) => f.remediationStatus === s)) ?? findings[0].remediationStatus;
+}
+
+function remediationBadgeStyle(colorKey) {
+  return { background: C[`${colorKey}Bg`] ?? C.panel2, color: C[colorKey] ?? C.muted };
+}
+
+function GlancePill({ Icon, label, value, color }) {
+  return (
+    <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+      <Icon size={12} color={C.muted} className="shrink-0" />
+      <span className="text-[9.5px] uppercase tracking-wide" style={{ color: C.muted }}>{label}</span>
+      <span className="text-[11px] font-semibold" style={{ color: color ?? C.ink }}>{value}</span>
+    </div>
+  );
+}
+
+function SectionLabel({ icon: Icon, children }) {
+  return (
+    <div className="flex items-center gap-1.5 mb-2">
+      {Icon && <Icon size={13} color={C.accent} />}
+      <div className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.accent }}>{children}</div>
+    </div>
+  );
+}
+
+function EvidenceRow({ e, assetLabel, governing }) {
+  return (
+    <div className="flex items-center gap-2 mt-1 text-[11px]" style={{ color: C.muted }}>
+      <Link2 size={10} className="shrink-0" />
+      <span className="min-w-0 truncate">
+        {assetLabel && <span style={{ color: C.ink }}>{assetLabel} · </span>}
+        {e.source} · {e.result.toUpperCase()}
+        {e.exceptionRate != null && ` (${e.exceptions}/${e.population})`} · {e.coveragePct}%
+      </span>
+      <span className="shrink-0">{e.ageDays === 0 ? "today" : `${e.ageDays}d ago`}</span>
+      {e.stale && <span className="font-semibold px-1.5 py-0.5 rounded shrink-0" style={{ background: C.amberBg, color: C.amber }}>STALE</span>}
+      {governing && <span className="font-semibold px-1.5 py-0.5 rounded shrink-0" style={{ background: C.accentBg, color: C.accent }}>GOVERNING</span>}
+    </div>
+  );
+}
+
+// Right-side slide-over for a single control row's full detail. Organized as
+// one narrative — What's wrong -> Where it's wrong -> What evidence proves it
+// -> What should we improve -> How was it scored — followed by a reference
+// block (description, policy, framework mappings) for what the control is.
 export function ControlDetailDrawer({ row, system, onClose }) {
   if (!row) return null;
 
@@ -17,6 +79,18 @@ export function ControlDetailDrawer({ row, system, onClose }) {
   const respMeta = RESPONSIBILITY_META[row.responsibility];
   const implMeta = IMPLEMENTATION_META.find((m) => m.type === row.control.implementationType);
   const controlFindings = findingsForSystem(system.id).filter((f) => f.controlId === row.control.id);
+  const urgentRemediation = mostUrgentRemediation(controlFindings);
+  const worst = worstLevel(row.assessment);
+  const isProgramScoped = row.keyControl?.scope === "program";
+  const programApplicability = isProgramScoped ? resolveProgramApplicability(system.id, row.control.id) : null;
+  const evidenceHealth = evidenceHealthForRow(row);
+
+  // Every instance's applicability reasons are usually identical (the same
+  // rule matched every asset the same way) — say it once at the section
+  // level instead of repeating the same sentence per asset.
+  const applicabilityRationales = [...new Set(
+    row.instances.flatMap((inst) => (inst.applicability?.reasons ?? []).map((r) => r.rationale))
+  )];
 
   return (
     <div className="fixed inset-0 z-20 flex justify-end">
@@ -45,35 +119,178 @@ export function ControlDetailDrawer({ row, system, onClose }) {
               </span>
             )}
           </div>
+
+          {/* Glance strip — the answer to all five questions in one row,
+              before reading a word of prose below. */}
+          <div className="flex items-center gap-2 mt-3 flex-wrap">
+            <GlancePill Icon={FileCheck2} label="Evidence" value={evidenceHealth.label} color={evidenceHealth.color} />
+            {urgentRemediation && (
+              <GlancePill
+                Icon={Wrench}
+                label="Remediation"
+                value={urgentRemediation}
+                color={C[FINDING_REMEDIATION_STATUS_META[urgentRemediation]?.color] ?? C.ink}
+              />
+            )}
+            {row.assessment?.assessed && (
+              <GlancePill Icon={Gauge} label="Basis" value={BASIS_META[row.basis]?.label ?? row.basis} />
+            )}
+          </div>
         </div>
 
         <div className="p-6">
-          <div className="rounded-lg p-3 mb-6" style={{ background: C.panel2 }}>
-            <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>SCF Control Description</div>
-            <div className="text-sm leading-relaxed" style={{ color: C.ink }}>{row.control.description}</div>
+          {/* 1. What's wrong */}
+          <div className="rounded-lg p-4 mb-6" style={{ background: controlFindings.length > 0 ? C.redBg : C.panel2, border: controlFindings.length > 0 ? `1px solid ${C.red}4D` : `1px solid ${C.border}` }}>
+            <SectionLabel icon={AlertTriangle}>What's wrong</SectionLabel>
+            {controlFindings.length > 0 ? (
+              <div className="space-y-2">
+                {controlFindings.map((f) => {
+                  const severityMetaF = FINDING_SEVERITY_META[f.severity];
+                  return (
+                    <div key={f.id} className="rounded p-2" style={{ background: C.panel }}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold flex-1 min-w-0 truncate" style={{ color: C.ink }}>{f.title}</span>
+                        {severityMetaF && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0" style={{ background: C.panel2, color: C.muted }}>{severityMetaF.label}</span>
+                        )}
+                      </div>
+                      <div className="text-[11px] mt-1 leading-snug" style={{ color: C.muted }}>{f.detail}</div>
+                      <div className="text-[11px] mt-1" style={{ color: C.muted }}>
+                        {assetName(system, f.assetId)}
+                        {f.source && f.source !== "control-gap" && ` · Source: ${f.source.replace(/-/g, " ")}`}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : worst && worst.rating < 100 ? (
+              <div className="text-sm leading-relaxed" style={{ color: C.ink }}>
+                No finding has been filed yet. The assessment shows: {worst.rationale}
+              </div>
+            ) : (
+              <div className="text-sm leading-relaxed" style={{ color: C.ink }}>{row.explanation}</div>
+            )}
           </div>
 
-          {row.control.toolHint && (
-            <div className="rounded-lg p-3 mb-6" style={{ border: `1px solid ${C.border}` }}>
-              <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Enforced By</div>
-              <div className="text-sm" style={{ color: C.ink }}>{row.control.toolHint}</div>
+          {/* 2. Where it's wrong */}
+          <div className="rounded-lg p-4 mb-6" style={{ border: `1px solid ${C.border}` }}>
+            <SectionLabel icon={MapPin}>Where it's wrong</SectionLabel>
+            {isProgramScoped ? (
+              <div>
+                <div className="text-sm leading-relaxed" style={{ color: C.ink }}>
+                  Program-scoped — evaluated once for the whole {system.name} boundary, not per asset.
+                </div>
+                {programApplicability?.reasons?.length > 0 && (
+                  <div className="text-[11px] mt-1 leading-snug" style={{ color: C.muted }}>
+                    {programApplicability.reasons.map((r) => r.rationale).join(" ")}
+                  </div>
+                )}
+              </div>
+            ) : row.instances.length > 0 ? (
+              <div>
+                {applicabilityRationales.length === 1 && (
+                  <div className="text-[11px] mb-2 leading-snug" style={{ color: C.muted }}>
+                    Applies because: {applicabilityRationales[0]}
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  {row.instances.map((inst) => (
+                    <div key={`${inst.assetId}-${inst.controlId}`} className="rounded px-2.5 py-1.5" style={{ background: C.panel2 }}>
+                      <span className="text-xs font-semibold" style={{ color: C.ink }}>{assetName(system, inst.assetId)}</span>
+                      <span className="text-[11px] leading-snug" style={{ color: C.muted }}> — {inst.statement}</span>
+                    </div>
+                  ))}
+                </div>
+                {applicabilityRationales.length > 1 && (
+                  <div className="text-[11px] mt-2 leading-snug" style={{ color: C.muted }}>
+                    Applies for different reasons per asset: {applicabilityRationales.join(" · ")}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-sm" style={{ color: C.muted }}>No in-scope assets carry this control.</div>
+            )}
+          </div>
+
+          {/* 3. What evidence proves it */}
+          <div className="rounded-lg p-4 mb-6" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+            <div className="flex items-center gap-2 mb-2">
+              <SectionLabel icon={FileCheck2}>What evidence proves it</SectionLabel>
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ml-auto" style={{ background: evidenceHealth.bg, color: evidenceHealth.color }}>
+                {evidenceHealth.label}
+              </span>
             </div>
-          )}
-
-          <div className="rounded-lg p-3 mb-6" style={{ border: `1px solid ${C.border}` }}>
-            <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Why this status</div>
-            <div className="text-sm leading-relaxed" style={{ color: C.ink }}>{row.explanation}</div>
+            {row.instances.some((i) => i.evidence.length > 0) ? (
+              <div className="space-y-1">
+                {row.instances.flatMap((inst) =>
+                  inst.evidence.map((e) => (
+                    <EvidenceRow
+                      key={e.id}
+                      e={e}
+                      assetLabel={assetName(system, inst.assetId)}
+                      governing={inst.governing?.id === e.id}
+                    />
+                  ))
+                )}
+              </div>
+            ) : (
+              <div className="text-sm" style={{ color: C.muted }}>No evidence records are on file for this control.</div>
+            )}
           </div>
 
+          {/* 4. What should we improve */}
+          <div className="rounded-lg p-4 mb-6" style={{ border: `1px solid ${C.border}` }}>
+            <SectionLabel icon={Wrench}>What should we improve</SectionLabel>
+            {controlFindings.length > 0 ? (
+              <div className="space-y-3">
+                {controlFindings.map((f) => {
+                  const remMeta = FINDING_REMEDIATION_STATUS_META[f.remediationStatus];
+                  return (
+                    <div key={f.id} className="rounded p-2" style={{ background: C.panel2 }}>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold flex-1 min-w-0 truncate" style={{ color: C.ink }}>{f.title}</span>
+                        {remMeta && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0" style={remediationBadgeStyle(remMeta.color)}>{remMeta.label}</span>
+                        )}
+                      </div>
+                      {f.remediationPlan && (
+                        <div className="text-[11px] mt-1 leading-snug" style={{ color: C.ink }}>{f.remediationPlan}</div>
+                      )}
+                      <div className="text-[11px] mt-1" style={{ color: C.muted }}>
+                        {f.remediationOwnerName ?? f.ownerName} · target {f.targetDate ?? f.due}{f.overdue && " · OVERDUE"}
+                      </div>
+                      {f.remediationStatus === "Complete" && (
+                        <div className="text-[11px] mt-1" style={{ color: C.green }}>
+                          Closed {f.closedDate}
+                          {(f.closureEvidenceIds ?? []).length > 0 && (
+                            <div className="mt-1">
+                              {f.closureEvidenceIds.map((id) => {
+                                const ev = getEvidence(id);
+                                return ev ? <EvidenceRow key={id} e={ev} /> : null;
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : worst && worst.rating < 100 ? (
+              <div className="text-sm leading-relaxed" style={{ color: C.ink }}>
+                No remediation plan has been filed yet. Based on the assessment: {worst.rationale}
+              </div>
+            ) : (
+              <div className="text-sm" style={{ color: C.muted }}>No outstanding remediation.</div>
+            )}
+          </div>
+
+          {/* 5. How was it scored */}
           {row.assessment?.assessed && (
             <div className="rounded-lg p-4 mb-6" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
               <div className="flex items-center gap-2 mb-3">
-                <div className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.accent }}>
-                  Maturity Assessment
-                </div>
-                <span className="text-[10px] ml-auto" style={{ color: C.muted }}>
-                  {row.assessment.inherited ? "Inherited from provider" : "Assessed by ACME"}
-                </span>
+                <SectionLabel icon={Gauge}>How was it scored</SectionLabel>
+                <span className="ml-auto"><BasisTag basis={row.basis} /></span>
               </div>
               <div className="space-y-2">
                 {PRISMA_LEVELS.map((level) => {
@@ -91,6 +308,7 @@ export function ControlDetailDrawer({ row, system, onClose }) {
                         <span className="text-xs font-semibold tabular-nums w-14 shrink-0 text-right" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>
                           {L.rating} ×{L.weight}
                         </span>
+                        <BasisTag basis={L.basis} />
                       </div>
                       <div className="text-[11px] mt-1 leading-snug" style={{ color: C.muted }}>
                         {L.rating !== L.derived && <span className="font-semibold" style={{ color: C.amber }}>Overridden from {L.derived}. </span>}
@@ -108,72 +326,25 @@ export function ControlDetailDrawer({ row, system, onClose }) {
             </div>
           )}
 
-          {row.instances.length > 0 && (
-            <div className="rounded-lg p-4 mb-6" style={{ background: C.accentBg, border: `1px solid ${C.accent}4D` }}>
-              <div className="text-[10px] uppercase tracking-wide mb-2 font-semibold" style={{ color: C.accent }}>
-                Sampled assets — {row.keyControl?.friendlyName ?? row.control.name}
-              </div>
-              <div className="space-y-2">
-                {row.instances.map((inst) => (
-                  <div key={`${inst.assetId}-${inst.controlId}`} className="rounded p-2" style={{ background: C.panel }}>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs flex-1 min-w-0 truncate" style={{ color: C.ink }}>
-                        {assetName(system, inst.assetId)}
-                      </span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0" style={{ background: C.panel2, color: C.muted }}>
-                        {INSTANCE_STATUS_META[inst.status]?.label ?? inst.status}
-                      </span>
-                    </div>
-                    <div className="text-[11px] mt-1 leading-snug" style={{ color: C.muted }}>{inst.statement}</div>
-                    {inst.evidence.map((e) => (
-                      <div key={e.id} className="flex items-center gap-2 mt-1 text-[11px]" style={{ color: C.muted }}>
-                        <Link2 size={10} />
-                        <span className="min-w-0 truncate">
-                          {e.source} · {e.result.toUpperCase()}
-                          {e.exceptionRate != null && ` (${e.exceptions}/${e.population})`} · {e.coveragePct}%
-                        </span>
-                        <span className="shrink-0">{e.ageDays === 0 ? "today" : `${e.ageDays}d ago`}</span>
-                        {e.stale && <span className="font-semibold px-1.5 py-0.5 rounded shrink-0" style={{ background: C.amberBg, color: C.amber }}>STALE</span>}
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Reference: what this control is, not part of the narrative above */}
+          <div className="text-[10px] uppercase tracking-wide mb-3 mt-8 pt-4" style={{ color: C.muted, borderTop: `1px solid ${C.border}` }}>
+            Control Reference
+          </div>
 
-          {controlFindings.length > 0 && (
-            <div className="rounded-lg p-4 mb-6" style={{ background: C.redBg, border: `1px solid ${C.red}4D` }}>
-              <div className="text-[10px] uppercase tracking-wide mb-2 font-semibold" style={{ color: C.red }}>
-                Findings — {row.control.id}
-              </div>
-              <div className="space-y-2">
-                {controlFindings.map((f) => {
-                  const statusMetaF = FINDING_STATUS_META[f.status];
-                  const severityMetaF = FINDING_SEVERITY_META[f.severity];
-                  return (
-                    <div key={f.id} className="rounded p-2" style={{ background: C.panel }}>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs flex-1 min-w-0 truncate" style={{ color: C.ink }}>{f.title}</span>
-                        {severityMetaF && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0" style={{ background: C.panel2, color: C.muted }}>{severityMetaF.label}</span>
-                        )}
-                        {statusMetaF && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0" style={{ background: C.panel2, color: C.muted }}>{statusMetaF.label}</span>
-                        )}
-                      </div>
-                      <div className="text-[11px] mt-1 leading-snug" style={{ color: C.muted }}>
-                        {assetName(system, f.assetId)} · owner {f.ownerName} · due {f.due}{f.overdue && " · OVERDUE"}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+          <div className="rounded-lg p-3 mb-4" style={{ background: C.panel2 }}>
+            <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>SCF Control Description</div>
+            <div className="text-sm leading-relaxed" style={{ color: C.ink }}>{row.control.description}</div>
+          </div>
+
+          {row.control.toolHint && (
+            <div className="rounded-lg p-3 mb-4" style={{ border: `1px solid ${C.border}` }}>
+              <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Enforced By</div>
+              <div className="text-sm" style={{ color: C.ink }}>{row.control.toolHint}</div>
             </div>
           )}
 
           {governingPolicy && (
-            <div className="rounded-lg p-3 mb-6" style={{ border: `1px solid ${C.border}` }}>
+            <div className="rounded-lg p-3 mb-4" style={{ border: `1px solid ${C.border}` }}>
               <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Governing Policy</div>
               <div className="text-sm" style={{ color: C.ink }}>{governingPolicy.code} · {governingPolicy.title}</div>
             </div>

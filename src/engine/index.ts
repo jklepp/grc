@@ -119,6 +119,7 @@ export const responsibilityForControl = compliance.responsibilityForControl;
 export const notApplicableControlsForSystem = compliance.notApplicableControlsForSystem;
 export const controlApplicabilitySummary = compliance.controlApplicabilitySummary;
 export const pendingControlsForSystem = engine.applicability.pendingControlsForSystem;
+export const resolveProgramApplicability = engine.applicability.resolveProgramApplicability;
 export { STATUS_RANK } from "./compliance";
 
 // Profile
@@ -174,7 +175,7 @@ export * from "./assurance";
 export { effectivenessFactor, composeEvidenceConfidence } from "./evidence";
 export { INSTANCE_STATUS_META } from "./assessment";
 export { COVERAGE_STATUS_META, COVERAGE_STATES } from "./compliance";
-export { FINDING_STATUS_META, FINDING_STATUSES, FINDING_SEVERITY_META } from "./findings";
+export { FINDING_REMEDIATION_STATUS_META, REMEDIATION_STATUSES, FINDING_SEVERITY_META } from "./findings";
 export { FINDING_SEVERITIES, FINDING_SOURCES } from "../graph/nodes/findings";
 export { IDENTITY_TYPES } from "../graph/nodes/identity";
 export { EGRESS_POSTURE, ADMIN_POSTURE, API_POSTURE } from "../graph/nodes/exposure";

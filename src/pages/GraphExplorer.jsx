@@ -2,10 +2,11 @@ import React, { useState, useMemo } from "react";
 import { Share2, ArrowRight, Activity, Layers, Boxes, Database, ShieldCheck, AlertTriangle, FileCheck2, ChevronRight, Stethoscope } from "lucide-react";
 import { C, CLASS_META } from "../theme";
 import { PageHeader, SectionHeading } from "../components/Headings";
+import { BasisTag } from "../components/BasisTag";
 import {
   getAllSystems, getAllAssets, getAllKeyControls, getAllDataTypes, getAllRisks, getAllEvidence,
   getSystem, getAsset, getControl, getDataType, getRisk, getEvidence,
-  getNeighbors, explain, modelHealth, getEnterprise, BASIS_META,
+  getNeighbors, explain, modelHealth, getEnterprise,
 } from "../engine";
 
 // The graph is navigable, so the page needs one place that knows how to render
@@ -64,20 +65,6 @@ function nodeScore(type, node) {
   return null;
 }
 
-function BasisTag({ basis }) {
-  if (!basis) return null;
-  const meta = BASIS_META[basis];
-  const key = basis === "measured" ? "green" : basis === "inherited" ? "accent" : basis === "assessed" ? "amber" : "na";
-  return (
-    <span
-      className="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0"
-      title={meta?.detail}
-      style={{ color: key === "na" ? C.muted : C[key], background: key === "na" ? "transparent" : C[`${key}Bg`], border: key === "na" ? `1px solid ${C.border}` : "none" }}
-    >
-      {meta?.label ?? basis}
-    </span>
-  );
-}
 
 function ScorePill({ value }) {
   if (value == null) return <span className="text-[11px]" style={{ color: C.muted }}>—</span>;

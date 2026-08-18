@@ -11,7 +11,7 @@ import {
   getAllRisks, ABOVE_APPETITE_COUNT, MATERIAL_RISKS, MATERIAL_RISK_EXPOSURE, QUANTIFIED_EXPOSURE,
   getAllAssets, getAllSystems, getAllDataTypes, getAllEvidence, ALL_FINDINGS, IN_SCOPE_CONTROLS,
   getCategoryAverages, getEnterprise, ENTERPRISE_COVERAGE, ASSURANCE_TARGET, ADEQUATE_THRESHOLD,
-  assuranceBand, profileSummary, modelHealth, FINDING_STATUS_META,
+  assuranceBand, profileSummary, modelHealth, FINDING_REMEDIATION_STATUS_META,
 } from "../engine";
 
 const RISKS = getAllRisks();
@@ -129,7 +129,7 @@ const PRIORITIZED_FINDINGS = [...ALL_FINDINGS]
 function findingPriority(f) {
   if (f.overdue) return { label: "Overdue", color: C.red, bg: C.redBg };
   if (f.material) return { label: "Material Risk", color: C.red, bg: C.redBg };
-  const meta = FINDING_STATUS_META[f.status] ?? { label: f.status, color: "muted" };
+  const meta = FINDING_REMEDIATION_STATUS_META[f.remediationStatus] ?? { label: f.remediationStatus, color: "muted" };
   return { label: meta.label, color: C[meta.color] ?? C.muted, bg: C[`${meta.color}Bg`] ?? C.panel2 };
 }
 

@@ -1,18 +1,11 @@
 import React from "react";
 import { AlertCircle, Circle, Clock, Link2, User } from "lucide-react";
 import { C } from "../../../theme";
-import { FINDING_SEVERITY_META } from "../../../engine";
-
-function ticketMeta(status) {
-  if (status === "closed") return { color: C.green, label: "Closed" };
-  if (status === "verified") return { color: C.green, label: "Verified" };
-  if (status === "remediating") return { color: C.accent, label: "Remediating" };
-  if (status === "accepted") return { color: C.amber, label: "Accepted" };
-  return { color: C.red, label: "Open" };
-}
+import { FINDING_SEVERITY_META, FINDING_REMEDIATION_STATUS_META } from "../../../engine";
 
 export function POAMRow({ item }) {
-  const meta = ticketMeta(item.status);
+  const statusMeta = FINDING_REMEDIATION_STATUS_META[item.remediationStatus];
+  const meta = { color: C[statusMeta?.color] ?? C.muted, label: statusMeta?.label ?? item.remediationStatus };
   const sevMeta = item.severity ? FINDING_SEVERITY_META[item.severity] : null;
   return (
     <div className="rounded-lg p-4 mb-2" style={{ background: C.panel, border: `1px solid ${C.border}` }}>

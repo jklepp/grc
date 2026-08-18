@@ -9,20 +9,20 @@
 // already applies in the other direction (risk -> assurance). evidenceIds are
 // read off evidence records that declare `findingId` themselves, matching the
 // convention that a record declares its own scope rather than being pointed at
-// from elsewhere.
+// from elsewhere. closureEvidenceIds is the one place a Finding does hold its
+// own forward pointer to Evidence — it's a hand-picked subset ("this is what
+// proves it's closed"), not a rediscovery of the same evidenceIds reverse
+// link, so it doesn't collapse into the convention above.
 import type { Graph } from "../graph/types";
-import { FINDING_STATUSES, type Finding, type FindingSource } from "../graph/nodes/findings";
+import { REMEDIATION_STATUSES, type Finding, type FindingSource } from "../graph/nodes/findings";
 import type { EngineContext } from "./context";
 import type { AssetId, ControlId, SystemId, RiskId } from "../graph/ids";
 
-const OPEN_STATUSES = new Set(["open", "accepted", "remediating"]);
-
-export const FINDING_STATUS_META = {
-  open: { label: "Open", color: "red" },
-  accepted: { label: "Accepted", color: "amber" },
-  remediating: { label: "Remediating", color: "accent" },
-  verified: { label: "Verified", color: "green" },
-  closed: { label: "Closed", color: "muted" },
+export const FINDING_REMEDIATION_STATUS_META = {
+  Planned: { label: "Planned", color: "na" },
+  "In Progress": { label: "In Progress", color: "accent" },
+  Blocked: { label: "Blocked", color: "red" },
+  Complete: { label: "Complete", color: "green" },
 };
 
 export const FINDING_SEVERITY_META = {
@@ -47,24 +47,32 @@ export function createFindings(graph: Graph, ctx: EngineContext) {
     const asset = graph.assetById[f.assetId];
     const control = graph.keyControlById[f.controlId];
     const owner = graph.orgById[f.ownerId];
+    const remediationOwner = f.remediationOwnerId ? graph.orgById[f.remediationOwnerId] : null;
     const evidenceIds = graph.evidence.filter((e) => e.findingId === f.id).map((e) => e.id);
     const riskIds = riskIdsFor(f.assetId, f.controlId);
-    const overdue = OPEN_STATUSES.has(f.status) && new Date(f.due) < ctx.now;
+    // "Open" means anything short of Complete — the single predicate every
+    // consumer (overdue, cockpit counts, the Managed-level penalty) should
+    // read instead of re-deriving its own status check.
+    const open = f.remediationStatus !== "Complete";
+    const overdue = open && new Date(f.due) < ctx.now;
 
     return {
       ...f,
       asset,
       control,
       owner,
+      remediationOwner,
       systemId: asset.systemId,
       evidenceIds,
       riskIds,
+      open,
       overdue,
       ticket: f.id,
       jira: f.id,
       // Display strings alongside the resolved `owner`/`control` objects above —
       // POAM-style rendering wants a name and a label, not an object.
       ownerName: owner?.name ?? f.ownerId,
+      remediationOwnerName: remediationOwner?.name ?? f.remediationOwnerId ?? null,
       controlName: control?.friendlyName ?? f.controlId,
     };
   }
@@ -84,11 +92,11 @@ export function createFindings(graph: Graph, ctx: EngineContext) {
     // cockpit's per-domain sections render instead of inventing their own
     // remediation tracking.
     openFindingsForSource: (systemId: SystemId, source: FindingSource) =>
-      allFindings.filter((f) => f.systemId === systemId && f.source === source && OPEN_STATUSES.has(f.status)),
+      allFindings.filter((f) => f.systemId === systemId && f.source === source && f.open),
   };
 }
 
 export type FindingsApi = ReturnType<typeof createFindings>;
 export type EngineFinding = FindingsApi["ALL_FINDINGS"][number];
 
-export { FINDING_STATUSES };
+export { REMEDIATION_STATUSES };
