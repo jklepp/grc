@@ -134,6 +134,8 @@
       - "compute-service"
       - "integration-endpoint"
       - "export-endpoint"
+      - "waf"
+      - "egress-gateway"
   rationale: "Sits on a trust boundary where traffic crosses into or out of the system."
   source: "Asset type"
 - controlId: "NET-17"

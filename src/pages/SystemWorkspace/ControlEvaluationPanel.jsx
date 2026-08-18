@@ -815,29 +815,76 @@ export function ControlEvaluationPanel({ row, system, onClose }) {
                 )}
               </div>
               {allEvidence.length > 0 ? (
-                <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
-                  {allEvidence.map((e) => (
-                    editingEvidenceId === e.id ? (
-                      <div key={e.key} style={{ gridColumn: "1 / -1" }}>
-                        <EvidenceForm
-                          initial={{ ...e, exceptions: e.exceptions ?? "", population: e.population ?? "" }}
-                          assetOptions={assetOptions}
-                          isProgramScoped={isProgramScoped}
-                          onCancel={() => setEditingEvidenceId(null)}
-                          onSubmit={(patch) => handleUpdateEvidence(e.id, patch)}
-                        />
-                      </div>
-                    ) : (
-                      <EvidenceCard
-                        key={e.key}
-                        e={e}
-                        assetLabel={e.assetLabel}
-                        governing={e.governing}
-                        onEdit={(ev) => { setEditingEvidenceId(ev.id); setAttachingEvidence(false); }}
-                        onDelete={(ev) => handleDeleteEvidence(ev.id)}
-                      />
-                    )
-                  ))}
+                <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
+                  <table className="w-full text-left" style={{ borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ background: C.panel2 }}>
+                        {["Source", "Asset", "Result", "Coverage", "Collected", "Independence", "", ""].map((h) => (
+                          <th key={h} className="text-[9.5px] uppercase tracking-wide px-2.5 py-2" style={{ color: C.muted }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allEvidence.map((e) => {
+                        if (editingEvidenceId === e.id) {
+                          return (
+                            <tr key={e.key}>
+                              <td colSpan={8} className="p-2.5" style={{ borderTop: `1px solid ${C.border}` }}>
+                                <EvidenceForm
+                                  initial={{ ...e, exceptions: e.exceptions ?? "", population: e.population ?? "" }}
+                                  assetOptions={assetOptions}
+                                  isProgramScoped={isProgramScoped}
+                                  onCancel={() => setEditingEvidenceId(null)}
+                                  onSubmit={(patch) => handleUpdateEvidence(e.id, patch)}
+                                />
+                              </td>
+                            </tr>
+                          );
+                        }
+                        const editable = isRuntimeEvidence(e.id);
+                        return (
+                          <tr key={e.key} style={{ borderTop: `1px solid ${C.border}` }}>
+                            <td className="px-2.5 py-2">
+                              <div className="flex items-center gap-1.5">
+                                <Link2 size={11} color={C.muted} className="shrink-0" />
+                                <span className="text-xs font-semibold" style={{ color: C.ink }}>{e.source}</span>
+                                {e.governing && <span className="font-semibold px-1.5 py-0.5 rounded shrink-0 text-[9px]" style={{ background: C.accentBg, color: C.accent }}>GOVERNING</span>}
+                              </div>
+                            </td>
+                            <td className="px-2.5 py-2 text-[11px]" style={{ color: C.muted }}>{e.assetLabel ?? "—"}</td>
+                            <td className="px-2.5 py-2">
+                              <span
+                                className="text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase"
+                                style={{ background: e.result === "pass" ? C.greenBg : e.result === "partial" ? C.amberBg : C.redBg, color: e.result === "pass" ? C.green : e.result === "partial" ? C.amber : C.red }}
+                              >
+                                {e.result}
+                              </span>
+                            </td>
+                            <td className="px-2.5 py-2 text-[11px]" style={{ color: C.muted }}>
+                              {e.coveragePct}%{e.exceptionRate != null && ` (${e.exceptions}/${e.population})`}
+                            </td>
+                            <td className="px-2.5 py-2 text-[11px]" style={{ color: C.muted }}>
+                              {e.ageDays === 0 ? "Today" : `${e.ageDays}d ago`}{e.stale && <span className="font-semibold ml-1" style={{ color: C.amber }}>STALE</span>}
+                            </td>
+                            <td className="px-2.5 py-2 text-[11px] capitalize" style={{ color: C.muted }}>{e.independence}</td>
+                            <td className="px-2.5 py-2">
+                              {!editable && (
+                                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded inline-block" style={{ background: C.panel2, color: C.muted }}>REFERENCE</span>
+                              )}
+                            </td>
+                            <td className="px-2.5 py-2">
+                              {editable && (
+                                <div className="flex items-center gap-2.5 justify-end">
+                                  <button className="flex items-center gap-1 text-[10.5px]" style={{ color: C.muted }} onClick={() => { setEditingEvidenceId(e.id); setAttachingEvidence(false); }}><Pencil size={10} /> Edit</button>
+                                  <button className="flex items-center gap-1 text-[10.5px]" style={{ color: C.red }} onClick={() => handleDeleteEvidence(e.id)}><Trash2 size={10} /> Delete</button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               ) : (
                 <div className="text-sm" style={{ color: C.muted }}>No evidence records are on file for this control.</div>
