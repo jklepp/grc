@@ -28,7 +28,7 @@ import type { Graph } from "../graph/types";
 import type { Asset } from "../graph/nodes/assets";
 import type { DataType } from "../graph/nodes/dataTypes";
 import type { AssetDataType } from "../graph/edges/assetDataTypes";
-import { highestTier, CLASSIFICATION_TIERS } from "../graph/nodes/taxonomy";
+import { highestTier, CLASSIFICATION_TIERS, type ClassificationTier } from "../graph/nodes/taxonomy";
 import type { AssetId, SystemId, DataTypeId } from "../graph/ids";
 
 export interface AssetDataHolding extends AssetDataType {
@@ -36,7 +36,7 @@ export interface AssetDataHolding extends AssetDataType {
 }
 
 interface AssetClassificationEntry {
-  tier: string | null;
+  tier: ClassificationTier | null;
   drivenBy: AssetDataHolding[];
 }
 
@@ -63,7 +63,7 @@ export function createClassification(graph: Graph) {
     };
   });
 
-  function assetClassification(assetId: AssetId): string | null {
+  function assetClassification(assetId: AssetId): ClassificationTier | null {
     return assetClassifications[assetId]?.tier ?? null;
   }
 
@@ -75,12 +75,12 @@ export function createClassification(graph: Graph) {
     return graph.assetsBySystem[systemId] ?? [];
   }
 
-  function systemClassification(systemId: SystemId): string | null {
+  function systemClassification(systemId: SystemId): ClassificationTier | null {
     const assets = assetsForSystem(systemId);
-    return highestTier(assets.map((a) => assetClassification(a.id)).filter((t): t is string => Boolean(t)));
+    return highestTier(assets.map((a) => assetClassification(a.id)).filter((t): t is ClassificationTier => Boolean(t)));
   }
 
-  function systemClassificationDetail(systemId: SystemId): { tier: string | null; drivenBy: Asset[] } {
+  function systemClassificationDetail(systemId: SystemId): { tier: ClassificationTier | null; drivenBy: Asset[] } {
     const tier = systemClassification(systemId);
     return {
       tier,

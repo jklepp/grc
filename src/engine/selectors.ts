@@ -10,7 +10,7 @@
 // that can't answer "why does it say that" is asking to be trusted, and this
 // one shouldn't have to be.
 import type { Graph } from "../graph/types";
-import { BASIS, BASIS_META, ASSURANCE_CATEGORIES, PRISMA_LEVELS, COMPLIANCE_LABELS } from "../graph/nodes/taxonomy";
+import { BASIS, BASIS_META, ASSURANCE_CATEGORIES, PRISMA_LEVELS, COMPLIANCE_LABELS, type Basis } from "../graph/nodes/taxonomy";
 import { INSTANCE_STATUS_META } from "./assessment";
 import type { ClassificationApi } from "./classification";
 import type { ApplicabilityApi } from "./applicability";
@@ -31,7 +31,7 @@ interface ExplainStep {
   label: string;
   value: unknown;
   weight?: number;
-  basis?: string | null;
+  basis?: Basis | null;
   detail?: string | null;
   next?: { type: string; id: string } | null;
 }
@@ -39,7 +39,7 @@ interface ExplainStep {
 interface Explanation {
   label: string;
   value: unknown;
-  basis: string | null;
+  basis: Basis | null;
   formula: string;
   steps: ExplainStep[];
 }
@@ -387,6 +387,15 @@ export function createSelectors(
       };
     });
 
+    const basisOrder: Basis[] = [BASIS.MEASURED, BASIS.ASSESSED, BASIS.INHERITED, BASIS.UNASSESSED];
+    const basisCounts: Record<Basis, number> = {
+      [BASIS.MEASURED]: 0,
+      [BASIS.ASSESSED]: 0,
+      [BASIS.INHERITED]: 0,
+      [BASIS.UNASSESSED]: 0,
+    };
+    allAssessments.forEach((assessment) => { basisCounts[assessment.basis] += 1; });
+
     return {
       counts: {
         systems: graph.systems.length,
@@ -421,12 +430,9 @@ export function createSelectors(
         risksWithoutAssets: risk.riskRollups.filter((r) => r.contributingAssets.length === 0),
         risksWithoutControls: risk.riskRollups.filter((r) => r.linkedControls.length === 0),
       },
-      basisDistribution: Object.entries(
-        allAssessments.reduce((acc: Record<string, number>, a) => {
-          acc[a.basis] = (acc[a.basis] || 0) + 1;
-          return acc;
-        }, {})
-      ).map(([basis, count]) => ({ basis, count, ...BASIS_META[basis as keyof typeof BASIS_META] })),
+      basisDistribution: basisOrder
+        .filter((basis) => basisCounts[basis] > 0)
+        .map((basis) => ({ basis, count: basisCounts[basis], ...BASIS_META[basis] })),
       evidenceCoverageByAsset: assets
         .map((a) => ({
           id: a.id, name: a.name, pct: a.evidenceCoveragePct,

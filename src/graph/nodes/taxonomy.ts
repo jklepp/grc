@@ -32,9 +32,10 @@ export function tierRank(tier: string): number {
 // The high-water mark across a set of tiers — the operation behind both
 // "an asset is as sensitive as the most sensitive data it holds" and
 // "a system is as sensitive as its most sensitive asset."
-export function highestTier(tiers: string[]): string | null {
+export function highestTier(tiers: readonly string[]): ClassificationTier | null {
   if (tiers.length === 0) return null;
-  return tiers.reduce((a, b) => (tierRank(b) > tierRank(a) ? b : a));
+  const highest = tiers.reduce((a, b) => (tierRank(b) > tierRank(a) ? b : a));
+  return CLASSIFICATION_TIERS.includes(highest as ClassificationTier) ? highest as ClassificationTier : null;
 }
 
 // ---- Evidence vocabulary --------------------------------------------------------

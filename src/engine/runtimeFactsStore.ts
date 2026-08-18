@@ -9,6 +9,7 @@
 // dataset, never break the app on load.
 import type { RuntimeFacts } from "./liveGraph";
 import { emptyRuntimeFacts } from "./liveGraph";
+import type { AssetId, EvidenceId, FindingId, SystemId } from "../graph/ids";
 
 const STORAGE_KEY = "grc-runtime-facts";
 
@@ -60,26 +61,26 @@ export function hasRuntimeFacts(facts: RuntimeFacts): boolean {
 
 // SYS-USR-<n> / AST-USR-<n>-<m>, distinct from the YAML source's SYS-0xx /
 // AST-0xx-xx ids so a runtime id can never collide with an authored one.
-export function nextSystemId(existing: RuntimeFacts): string {
+export function nextSystemId(existing: RuntimeFacts): SystemId {
   const n = existing.systems.length + 1;
-  return `SYS-USR-${n}`;
+  return `SYS-USR-${n}` as SystemId;
 }
 
-export function nextAssetId(systemId: string, index: number): string {
+export function nextAssetId(systemId: SystemId, index: number): AssetId {
   const suffix = systemId.replace("SYS-USR-", "");
-  return `AST-USR-${suffix}-${index + 1}`;
+  return `AST-USR-${suffix}-${index + 1}` as AssetId;
 }
 
 // EVD-USR-<n>, distinct from the YAML source's EVD-<domain>-<n> ids, same
 // reasoning as nextSystemId/nextAssetId above.
-export function nextEvidenceId(existing: RuntimeFacts): string {
+export function nextEvidenceId(existing: RuntimeFacts): EvidenceId {
   const n = existing.evidence.length + 1;
-  return `EVD-USR-${n}`;
+  return `EVD-USR-${n}` as EvidenceId;
 }
 
 // FND-USR-<n>, distinct from the YAML source's SEC-<n> ids, same reasoning as
 // nextSystemId/nextAssetId above.
-export function nextFindingId(existing: RuntimeFacts): string {
+export function nextFindingId(existing: RuntimeFacts): FindingId {
   const n = existing.findings.length + 1;
-  return `FND-USR-${n}`;
+  return `FND-USR-${n}` as FindingId;
 }

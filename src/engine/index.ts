@@ -210,7 +210,7 @@ export {
   evaluateControl, addPrismaOverride, updateEvidence, removeEvidence, addFinding,
   addControlToScope, upsertImplementationMechanism, addEvidence, declareNotImplemented,
 } from "./runtimeMutations";
-export type { EvidenceDraft, EvaluateControlInput, FindingDraft } from "./runtimeMutations";
+export type { ControlEvidenceDraft, EvidenceDraft, EvaluateControlInput, FindingDraft } from "./runtimeMutations";
 export type { PrismaLevelOverride } from "../graph/edges/prismaOverrides";
 export type { Finding } from "../graph/nodes/findings";
 

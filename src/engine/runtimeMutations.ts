@@ -57,6 +57,8 @@ export interface EvidenceDraft extends Omit<RawEvidence, "id" | "collectedAt"> {
   collectedAt?: string;
 }
 
+export type ControlEvidenceDraft = Omit<EvidenceDraft, "controlId">;
+
 // Assigns an id and defaults collectedAt to today, then appends. Evidence
 // records are never upserted-by-pair like a mechanism — a control can (and
 // usually does) accumulate more than one evidence record over time.
@@ -119,7 +121,7 @@ export interface EvaluateControlInput {
   systemId: SystemId;
   controlId: ControlId;
   mechanism?: { assetId: AssetId; mechanism: string; responsibility?: Responsibility; provider?: string };
-  evidenceEntries?: EvidenceDraft[];
+  evidenceEntries?: ControlEvidenceDraft[];
   notImplemented?: { assetId: AssetId; reason: string };
 }
 

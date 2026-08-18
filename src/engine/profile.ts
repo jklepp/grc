@@ -27,6 +27,9 @@ import {
 import { PRISMA_LEVEL_WEIGHTS, meetsLevel, display } from "./assurance";
 import type { RollupsApi } from "./rollups";
 import type { SystemId } from "../graph/ids";
+import type { ControlAssessment } from "./assessment";
+
+export type ProfileEvaluationStatus = "met" | "partial" | "gap";
 
 export function createProfile(graph: Graph, rollups: RollupsApi) {
   const profiles = graph.controlProfiles;
@@ -90,7 +93,7 @@ export function createProfile(graph: Graph, rollups: RollupsApi) {
     const profile = profiles[tier];
 
     const result = {} as Record<string, {
-      status: string;
+      status: ProfileEvaluationStatus;
       required: (typeof profile)[keyof typeof profile];
       weight: number;
       contribution: number;
@@ -99,7 +102,7 @@ export function createProfile(graph: Graph, rollups: RollupsApi) {
       coverage: (typeof system.categories)[AssuranceCategory]["coverage"];
       levelAverages: Record<PrismaLevel, number | null>;
       requiredLevel: PrismaLevel;
-      failingControls: unknown[];
+      failingControls: ControlAssessment[];
     }>;
 
     ASSURANCE_CATEGORIES.forEach((category) => {
@@ -123,7 +126,7 @@ export function createProfile(graph: Graph, rollups: RollupsApi) {
         rungs.some((level) => a.levels[level].rating <= 25)
       );
 
-      const status = scored.length === 0 ? "gap" : allFull ? "met" : mostlyThere ? "partial" : "gap";
+      const status: ProfileEvaluationStatus = scored.length === 0 ? "gap" : allFull ? "met" : mostlyThere ? "partial" : "gap";
 
       result[category] = {
         status,

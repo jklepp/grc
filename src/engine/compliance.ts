@@ -69,6 +69,8 @@ export const STATUS_RANK: Record<string, number> = {
   "not-implemented": 0, deficient: 1, partial: 2, unassessed: 3, inherited: 4, satisfied: 5,
 };
 
+export type CoverageStatus = "inherited" | "satisfied" | "partial" | "deficient" | "not-implemented" | "unassessed";
+
 export function createCompliance(
   graph: Graph,
   assessment: AssessmentApi,
@@ -110,7 +112,7 @@ export function createCompliance(
   // individually, but its category was judged," and that fallback died with the
   // category assessments. A control nobody assessed is now unassessed, which is
   // the same fact stated honestly.
-  function coverageStatus(a: ControlAssessment): string {
+  function coverageStatus(a: ControlAssessment): CoverageStatus {
     if (!a.assessed) return "unassessed";
     if (a.inherited) return "inherited";
     const implemented = a.levels.Implemented.rating;
@@ -127,8 +129,9 @@ export function createCompliance(
     const a = assessment.assessmentFor(systemId, controlId);
 
     if (a === null) {
+      const status: CoverageStatus = "unassessed";
       return {
-        controlId, control, systemId, status: "unassessed", basis: BASIS.UNASSESSED,
+        controlId, control, systemId, status, basis: BASIS.UNASSESSED,
         score: null as number | null, assessment: null as ControlAssessment | null,
         instances: [] as ControlAssessment["instances"],
         explanation: `${controlId} does not apply to this system.`,
