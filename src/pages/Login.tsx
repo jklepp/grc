@@ -48,7 +48,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
                 className="text-[15px] font-bold tracking-[0.14em]"
                 style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}
               >
-                ACME GRC
+                ACME ASSURE
               </span>
             </div>
             <span

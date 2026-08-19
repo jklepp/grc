@@ -1,5 +1,5 @@
 # Project
-ACME GRC: security assurance and visibility platform (prototype; demo systems).
+ACME ASSURE: security assurance and visibility platform (prototype; demo systems).
 Not a compliance checklist tool. Risk supports assurance; it is not the primary product model.
 
 ## Assessment model

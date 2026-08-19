@@ -1,4 +1,4 @@
-# ACME GRC project instructions
+# ACME ASSURE project instructions
 
 ## Product model
 

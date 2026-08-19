@@ -74,8 +74,8 @@ export default function Sidebar({ expanded, onToggle, active, onSelect, mode, on
         </button>
         {expanded && (
           <div className="min-w-0">
-            <div className="text-sm font-semibold truncate" style={{ color: SB.ink }}>ACME GRC</div>
-            <div className="text-[9px] uppercase tracking-widest" style={{ color: SB.muted }}>Command Center</div>
+            <div className="text-sm font-semibold truncate" style={{ color: SB.ink }}>ACME ASSURE</div>
+            <div className="text-[9px] uppercase tracking-widest" style={{ color: SB.muted }}>Enterprise Trust</div>
           </div>
         )}
         {expanded && (

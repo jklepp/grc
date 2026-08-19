@@ -1,4 +1,4 @@
-# ACME GRC
+# ACME ASSURE
 
 An enterprise security system of record that connects systems, identities, assets, data, controls, evidence, risks and operational decisions into one continuously derived model.
 
