@@ -161,6 +161,7 @@ export const YAML_FACTS: GraphFacts = {
   // System Register cockpit domains
   identityPopulations: read("identity-populations"),
   accessReviews: read("access-reviews"),
+  agenticIdentities: read("agentic-identities"),
   exposurePostures: read("exposure-posture"),
   externalServices: read("external-services"),
   exposureExceptions: read("exposure-exceptions"),

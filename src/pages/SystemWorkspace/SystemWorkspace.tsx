@@ -13,6 +13,7 @@ import { SystemHeader } from "./SystemHeader";
 import { SystemOverview } from "./SystemOverview";
 import { SystemArchitecture } from "./SystemArchitecture";
 import { SystemData } from "./SystemData";
+import { SystemIdentity } from "./SystemIdentity";
 import { SystemSecurity } from "./SystemSecurity";
 import { SystemTesting } from "./SystemTesting";
 import { SystemControls } from "./SystemControls";
@@ -133,8 +134,10 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
 
       {subTab === "data" && <SystemData system={system} dataTypes={dataTypes} />}
 
+      {subTab === "identity" && <SystemIdentity identity={identity} exposure={exposure} />}
+
       {subTab === "security" && (
-        <SystemSecurity system={system} identity={identity} exposure={exposure} sdlc={sdlc} vendors={vendors} />
+        <SystemSecurity exposure={exposure} sdlc={sdlc} vendors={vendors} />
       )}
 
       {subTab === "testing" && (

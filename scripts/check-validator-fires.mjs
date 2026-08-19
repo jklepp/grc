@@ -99,6 +99,16 @@ try {
       f.risksWithoutAssets[linked] = "stale explanation";
     }, /remove the stale explanation/],
     ["actor access to a non-existent actor", (f) => { f.actorAccess[0].actorId = "ACT-NOPE"; }, /is not an actor/],
+    ["agentic identity with an unknown autonomy level", (f) => {
+      f.agenticIdentities[0].autonomyLevel = "unbounded";
+    }, /autonomyLevel .* is not one of/],
+    ["approval-gated agent without human approval", (f) => {
+      const agent = f.agenticIdentities.find((a) => a.autonomyLevel === "approval-gated");
+      agent.humanApprovalRequired = false;
+    }, /approval-gated agent must require human approval/],
+    ["agentic identity owned by a non-org", (f) => {
+      f.agenticIdentities[0].ownerOrgId = "nobody";
+    }, /ownerOrgId .* is not an org/],
 
     // ---- Program artifacts. These three checks used to live in procedures.js as
     // a module-load side effect and could not be fault-injected at all, because

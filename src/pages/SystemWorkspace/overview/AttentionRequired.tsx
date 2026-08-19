@@ -16,7 +16,7 @@ const DOMAIN_TO_TAB: Partial<Record<string, SystemWorkspaceTab>> = {
   Resilience: "testing",
   "Incident Response": "testing",
   "Vendor Assurance": "testing",
-  "Identity & Access": "security",
+  "Identity & Access": "identity",
   Vulnerability: "security",
   Exposure: "security",
   Findings: "risk",

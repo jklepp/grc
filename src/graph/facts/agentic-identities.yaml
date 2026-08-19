@@ -1,0 +1,91 @@
+# Authenticated AI agents operating inside a system boundary. These are not
+# model endpoints and not generic workload totals: each row is an agent with
+# an action scope, service principal, credential posture, and accountable owner.
+
+- id: "AGENT-003-SUPPORT"
+  systemId: "SYS-003"
+  name: "Customer Support Resolution Agent"
+  purpose: "Retrieves approved customer context and drafts support resolutions for human approval."
+  ownerOrgId: "product-security"
+  servicePrincipal: "spn://prod-ai/support-resolution-agent"
+  autonomyLevel: "approval-gated"
+  humanApprovalRequired: true
+  externalActions: false
+  canImpersonateUser: false
+  privilegeLevel: "standard"
+  credentialType: "workload-identity"
+  credentialCreatedAt: "2025-11-12"
+  lastUsedAt: "2026-08-17"
+  loggingEnabled: true
+  revocationMechanism: "automated"
+  tools:
+    - "Knowledge Search"
+    - "Case Drafting"
+  active: true
+
+- id: "AGENT-003-RECONCILE"
+  systemId: "SYS-003"
+  name: "Data Reconciliation Agent"
+  purpose: "Reconciles ingestion failures and retries approved data-processing jobs without human intervention."
+  ownerOrgId: "data-platform"
+  servicePrincipal: "spn://prod-ai/data-reconciliation-agent"
+  autonomyLevel: "autonomous"
+  humanApprovalRequired: false
+  externalActions: true
+  canImpersonateUser: false
+  privilegeLevel: "privileged"
+  credentialType: "aws-access-key"
+  credentialCreatedAt: "2025-09-18"
+  lastRotatedAt: "2026-01-05"
+  lastUsedAt: "2026-08-18"
+  loggingEnabled: true
+  revocationMechanism: "manual"
+  tools:
+    - "Ingestion Queue"
+    - "Object Storage"
+    - "Job Scheduler"
+  active: true
+
+- id: "AGENT-003-TRIAGE"
+  systemId: "SYS-003"
+  name: "Security Triage Agent"
+  purpose: "Enriches security events and recommends investigation priority without taking response actions."
+  servicePrincipal: "spn://prod-ai/security-triage-agent"
+  autonomyLevel: "recommend"
+  humanApprovalRequired: true
+  externalActions: false
+  canImpersonateUser: false
+  privilegeLevel: "read-only"
+  credentialType: "api-key"
+  credentialCreatedAt: "2025-10-22"
+  lastRotatedAt: "2026-02-01"
+  lastUsedAt: "2026-08-16"
+  loggingEnabled: true
+  revocationMechanism: "manual"
+  tools:
+    - "Security Event Search"
+    - "Threat Intelligence"
+  active: true
+
+- id: "AGENT-003-REMEDIATE"
+  systemId: "SYS-003"
+  name: "Deployment Remediation Agent"
+  purpose: "Prepares and executes approved rollback or configuration-remediation actions in production."
+  ownerOrgId: "platform-eng"
+  servicePrincipal: "spn://prod-ai/deployment-remediation-agent"
+  autonomyLevel: "approval-gated"
+  humanApprovalRequired: true
+  externalActions: true
+  canImpersonateUser: false
+  privilegeLevel: "administrative"
+  credentialType: "client-secret"
+  credentialCreatedAt: "2026-05-20"
+  lastRotatedAt: "2026-07-10"
+  credentialExpiresAt: "2026-10-08"
+  lastUsedAt: "2026-08-12"
+  loggingEnabled: false
+  revocationMechanism: "automated"
+  tools:
+    - "Deployment Controller"
+    - "Configuration Manager"
+  active: true

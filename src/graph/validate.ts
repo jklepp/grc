@@ -45,6 +45,12 @@ import { REMEDIATION_STATUSES, FINDING_SEVERITIES, FINDING_SOURCES } from "./nod
 import { ACTOR_KINDS } from "./nodes/actors";
 import { ACTOR_DIRECTIONS } from "./edges/actorAccess";
 import { IDENTITY_TYPES } from "./nodes/identity";
+import {
+  AGENT_AUTONOMY_LEVELS,
+  AGENT_CREDENTIAL_TYPES,
+  AGENT_PRIVILEGE_LEVELS,
+  AGENT_REVOCATION_MECHANISMS,
+} from "./nodes/agenticIdentities";
 import { EGRESS_POSTURE, ADMIN_POSTURE, API_POSTURE, EXTERNAL_SERVICE_KINDS, DANGEROUS_CONDITIONS } from "./nodes/exposure";
 import { SECURITY_TEST_TYPES } from "./nodes/securityTests";
 import { IR_FUNCTIONS } from "./nodes/irExercises";
@@ -62,7 +68,7 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
 
   // ---- Nodes -----------------------------------------------------------------
   const idsSeen = new Set<string>();
-  [...graph.systems, ...graph.assets, ...graph.dataTypes, ...graph.evidence, ...graph.risks, ...graph.dataFlows]
+  [...graph.systems, ...graph.assets, ...graph.dataTypes, ...graph.evidence, ...graph.risks, ...graph.dataFlows, ...graph.agenticIdentities]
     .forEach((n) => {
       check(!idsSeen.has(n.id), `duplicate node id "${n.id}" — ids must be unique across the whole graph`);
       idsSeen.add(n.id);
@@ -627,6 +633,33 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
     check(r.reviewedCount <= r.totalCount, `access review ${r.id}: reviewedCount (${r.reviewedCount}) exceeds totalCount (${r.totalCount})`);
     check(r.exceptionsOpen <= r.exceptionsIdentified, `access review ${r.id}: exceptionsOpen (${r.exceptionsOpen}) exceeds exceptionsIdentified (${r.exceptionsIdentified})`);
     check(!Number.isNaN(Date.parse(r.reviewedAt)), `access review ${r.id}: reviewedAt "${r.reviewedAt}" is not a parseable date`);
+  });
+
+  const agentPrincipalKeys = new Set<string>();
+  graph.agenticIdentities.forEach((agent) => {
+    check(has(graph.systemById, agent.systemId), `agentic identity ${agent.id}: systemId "${agent.systemId}" is not a system`);
+    check(Boolean(agent.name.trim()), `agentic identity ${agent.id}: name is required`);
+    check(Boolean(agent.purpose.trim()), `agentic identity ${agent.id}: purpose is required`);
+    check(Boolean(agent.servicePrincipal.trim()), `agentic identity ${agent.id}: servicePrincipal is required`);
+    check(AGENT_AUTONOMY_LEVELS.includes(agent.autonomyLevel), `agentic identity ${agent.id}: autonomyLevel "${agent.autonomyLevel}" is not one of ${AGENT_AUTONOMY_LEVELS.join(", ")}`);
+    check(AGENT_CREDENTIAL_TYPES.includes(agent.credentialType), `agentic identity ${agent.id}: credentialType "${agent.credentialType}" is not one of ${AGENT_CREDENTIAL_TYPES.join(", ")}`);
+    check(AGENT_PRIVILEGE_LEVELS.includes(agent.privilegeLevel), `agentic identity ${agent.id}: privilegeLevel "${agent.privilegeLevel}" is not one of ${AGENT_PRIVILEGE_LEVELS.join(", ")}`);
+    check(AGENT_REVOCATION_MECHANISMS.includes(agent.revocationMechanism), `agentic identity ${agent.id}: revocationMechanism "${agent.revocationMechanism}" is not one of ${AGENT_REVOCATION_MECHANISMS.join(", ")}`);
+    if (agent.ownerOrgId) check(has(graph.orgById, agent.ownerOrgId), `agentic identity ${agent.id}: ownerOrgId "${agent.ownerOrgId}" is not an org`);
+    const system = graph.systemById[agent.systemId];
+    check(Boolean(system?.aiUsage.usesAI), `agentic identity ${agent.id}: system ${agent.systemId} does not declare AI usage`);
+    check(agent.autonomyLevel !== "autonomous" || Boolean(system?.aiUsage.autonomousActions), `agentic identity ${agent.id}: autonomous agent belongs to a system that does not declare autonomous actions`);
+    check(agent.autonomyLevel !== "recommend" || !agent.externalActions, `agentic identity ${agent.id}: recommendation-only agent cannot perform external actions`);
+    check(agent.autonomyLevel !== "approval-gated" || agent.humanApprovalRequired, `agentic identity ${agent.id}: approval-gated agent must require human approval`);
+    check(agent.autonomyLevel !== "autonomous" || !agent.humanApprovalRequired, `agentic identity ${agent.id}: autonomous agent cannot also require human approval`);
+    check(agent.tools.length > 0, `agentic identity ${agent.id}: must name at least one accessible tool or resource`);
+    const principalKey = `${agent.systemId}::${agent.servicePrincipal}`;
+    check(!agentPrincipalKeys.has(principalKey), `agentic identity ${agent.id}: duplicate service principal "${agent.servicePrincipal}" in system ${agent.systemId}`);
+    agentPrincipalKeys.add(principalKey);
+    (["credentialCreatedAt", "lastRotatedAt", "credentialExpiresAt", "lastUsedAt"] as const).forEach((field) => {
+      const value = agent[field];
+      if (value) check(!Number.isNaN(Date.parse(value)), `agentic identity ${agent.id}: ${field} "${value}" is not a parseable date`);
+    });
   });
 
   graph.exposurePostures.forEach((p) => {

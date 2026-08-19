@@ -1,158 +1,257 @@
 import React from "react";
-import { Fingerprint, Globe, GitBranch, Building2, Crosshair, CheckCircle2, Circle, AlertTriangle, Users2 } from "lucide-react";
+import type { ReactNode } from "react";
+import {
+  AlertTriangle,
+  Building2,
+  CheckCircle2,
+  Circle,
+  Crosshair,
+  GitBranch,
+  Globe,
+  ShieldCheck,
+} from "lucide-react";
 import { C } from "../../theme";
-import { SectionHeading } from "../../components/Headings";
 import { Panel } from "./shared/Panel";
 import { IdentificationField } from "./shared/IdentificationField";
-import { CadenceBadge } from "./shared/CadenceBadge";
-import { CoverageBar } from "./shared/CoverageBar";
-import type { ExposurePosture, IdentityPosture, SdlcPosture, VendorPosture, WorkspaceSystem } from "./types";
+import type { ExposurePosture, SdlcPosture, VendorPosture } from "./types";
 
-// How can something access or attack this system? Identity, exposure, and
-// secure-development posture, grouped as cards rather than numbered SSP
-// sections. Whether those protections actually work (vulnerability scanning,
-// penetration testing, ...) lives in the Testing tab instead.
 interface SystemSecurityProps {
-  system: WorkspaceSystem;
-  identity: IdentityPosture;
   exposure: ExposurePosture;
   sdlc: SdlcPosture;
   vendors: VendorPosture;
 }
 
-export function SystemSecurity({ system, identity, exposure, sdlc, vendors }: SystemSecurityProps) {
-  return (
-    <div className="px-8 pb-10 space-y-8">
-      <div>
-        <SectionHeading icon={Fingerprint}>Identity & Access</SectionHeading>
-        <Panel>
-          <div className="grid overflow-x-auto">
-            <div className="grid text-[11px] font-medium pb-2 mb-2" style={{ gridTemplateColumns: "1.2fr 90px 1fr 1fr 1fr 90px", borderBottom: `1px solid ${C.border}`, color: C.muted }}>
-              <div>Identity Type</div>
-              <div className="text-right">Total</div>
-              <div>SSO</div>
-              <div>MFA</div>
-              <div>Strong MFA</div>
-              <div className="text-right">Dormant</div>
-            </div>
-            {identity.populations.map((p) => (
-              <div key={p.id} className="grid items-center py-1.5" style={{ gridTemplateColumns: "1.2fr 90px 1fr 1fr 1fr 90px" }}>
-                <div className="text-sm capitalize" style={{ color: C.ink }}>{p.identityType.replace(/-/g, " ")}</div>
-                <div className="text-sm text-right tabular-nums" style={{ color: C.ink }}>{p.totalCount}</div>
-                <div><CoverageBar pct={p.ssoCoveragePct} color={C.accent} /></div>
-                <div><CoverageBar pct={p.mfaCoveragePct} color={C.amber} /></div>
-                <div><CoverageBar pct={p.strongMfaCoveragePct} color={C.green} /></div>
-                <div className="text-sm text-right tabular-nums" style={{ color: p.dormantCount > 0 ? C.amber : C.muted }}>{p.dormantCount}</div>
-              </div>
-            ))}
-            {identity.populations.length === 0 && <div className="text-sm py-4" style={{ color: C.muted }}>No identity population is tracked for this system.</div>}
-          </div>
-          <div className="grid grid-cols-4 gap-4 mt-5 pt-4" style={{ borderTop: `1px solid ${C.border}` }}>
-            <IdentificationField label="Shared Accounts" value={identity.totals.shared} />
-            <IdentificationField label="Local Accounts Bypassing SSO" value={identity.totals.localBypass} />
-            <IdentificationField label="Accounts Awaiting Termination" value={identity.totals.awaitingTermination} />
-            <div>
-              <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Last Access Review</div>
-              {identity.review ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm" style={{ color: C.ink }}>{identity.review.reviewedAt} · {identity.review.reviewedCount}/{identity.review.totalCount}</span>
-                  <CadenceBadge cadence={identity.review.cadence} />
-                </div>
-              ) : <span className="text-sm" style={{ color: C.muted }}>None on record</span>}
-            </div>
-          </div>
-        </Panel>
-      </div>
+interface SdlcSafeguard {
+  label: string;
+  enabled: boolean;
+}
 
-      <div>
-        <SectionHeading icon={Globe}>Exposure / Attack Surface</SectionHeading>
-        <Panel>
-          <div className="grid grid-cols-5 gap-5 mb-5">
-            <IdentificationField label="Internet-Facing Services" value={exposure.externalServices.filter((s) => s.internetFacing).length} />
-            <IdentificationField label="Externally Reachable" value={exposure.externallyReachableCount} />
-            <IdentificationField label="Inbound Integrations" value={exposure.posture?.inboundIntegrationCount ?? "—"} />
-            <IdentificationField label="Outbound Integrations" value={exposure.posture?.outboundIntegrationCount ?? "—"} />
-            <IdentificationField label="Connected Vendors" value={vendors.vendors.length} />
-          </div>
-          <div className="grid grid-cols-3 gap-5 mb-5">
-            <IdentificationField label="Egress Posture" value={exposure.posture?.egressPosture.replace(/-/g, " ") ?? "—"} />
-            <IdentificationField label="Admin Posture" value={exposure.posture?.adminPosture.replace(/-/g, " ") ?? "—"} />
-            <IdentificationField label="API Posture" value={exposure.posture?.apiPosture.replace(/-/g, " ") ?? "—"} />
-          </div>
-          <div className="space-y-1.5 mb-4">
-            {exposure.externalServices.map((s) => (
-              <div key={s.id} className="flex items-center gap-2 text-sm" style={{ color: C.ink }}>
-                {s.kind === "admin-interface" ? <Crosshair size={12} color={C.muted} /> : <Globe size={12} color={C.muted} />}
-                {s.name}
-                <span className="text-xs" style={{ color: C.muted }}>({s.kind.replace(/-/g, " ")}{s.internetFacing ? ", internet-facing" : ", private"})</span>
-                {!s.wafProtected && s.internetFacing && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: C.amberBg, color: C.amber }}>No WAF</span>}
+interface SdlcGroup {
+  label: string;
+  description: string;
+  safeguards: SdlcSafeguard[];
+}
+
+function CardHeader({ icon, title, description, aside }: { icon: ReactNode; title: string; description: string; aside?: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4 mb-4">
+      <div className="flex items-start gap-2.5">
+        <span className="mt-0.5" style={{ color: C.accent }}>{icon}</span>
+        <div>
+          <div className="text-sm font-semibold" style={{ color: C.ink }}>{title}</div>
+          <div className="text-xs mt-0.5" style={{ color: C.muted }}>{description}</div>
+        </div>
+      </div>
+      {aside}
+    </div>
+  );
+}
+
+function CountBadge({ children, tone = "accent" }: { children: ReactNode; tone?: "accent" | "good" | "attention" }) {
+  const color = tone === "good" ? C.green : tone === "attention" ? C.red : C.accent;
+  const background = tone === "good" ? C.greenBg : tone === "attention" ? C.redBg : C.accentBg;
+  return <span className="shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold" style={{ color, background }}>{children}</span>;
+}
+
+function SecurityMetric({ label, value, detail, tone = "accent" }: { label: string; value: ReactNode; detail: string; tone?: "accent" | "good" | "attention" }) {
+  const color = tone === "good" ? C.green : tone === "attention" ? C.red : C.accent;
+  const background = tone === "good" ? C.greenBg : tone === "attention" ? C.redBg : C.accentBg;
+  return (
+    <div className="rounded-lg p-3.5" style={{ background }}>
+      <div className="text-[10px] uppercase tracking-wide font-medium" style={{ color: C.muted }}>{label}</div>
+      <div className="text-xl font-semibold mt-1 tabular-nums" style={{ color }}>{value}</div>
+      <div className="text-[11px] mt-1 leading-relaxed" style={{ color: C.muted }}>{detail}</div>
+    </div>
+  );
+}
+
+export function SystemSecurity({ exposure, sdlc, vendors }: SystemSecurityProps) {
+  const sdlcGroups: SdlcGroup[] = sdlc?.applicable ? [
+    {
+      label: "Source",
+      description: "Repository and change controls",
+      safeguards: [
+        { label: "Branch Protection", enabled: sdlc.repoBranchProtection },
+        { label: "PR Review Required", enabled: sdlc.prReviewRequired },
+        { label: "Secret Scanning", enabled: sdlc.secretScanningEnabled },
+      ],
+    },
+    {
+      label: "Build & Test",
+      description: "Automated security analysis",
+      safeguards: [
+        { label: "SAST", enabled: sdlc.sastEnabled },
+        { label: "SCA", enabled: sdlc.scaEnabled },
+        { label: "DAST", enabled: sdlc.dastEnabled },
+        { label: "Container Scanning", enabled: sdlc.containerScanningEnabled },
+        { label: "IaC Scanning", enabled: sdlc.iacScanningEnabled },
+      ],
+    },
+    {
+      label: "Release",
+      description: "Deployment safeguards",
+      safeguards: [
+        { label: "CI/CD Identity Hardened", enabled: sdlc.cicdIdentityHardened },
+        { label: "Deploy Approval Required", enabled: sdlc.deployApprovalRequired },
+      ],
+    },
+  ] : [];
+  const sdlcSafeguards = sdlcGroups.flatMap((group) => group.safeguards);
+  const enabledSdlcCount = sdlcSafeguards.filter((safeguard) => safeguard.enabled).length;
+  const missingSdlcCount = sdlcSafeguards.length - enabledSdlcCount;
+  const internetFacingCount = exposure.externalServices.filter((service) => service.internetFacing).length;
+  const servicesWithoutWaf = exposure.externalServices.filter((service) => service.internetFacing && !service.wafProtected).length;
+
+  return (
+    <div className="px-8 pb-10 space-y-5">
+      <Panel>
+        <CardHeader
+          icon={<ShieldCheck size={16} />}
+          title="Security Posture"
+          description="The exposure, exception, and development signals most likely to require action."
+        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <SecurityMetric
+            label="Externally Reachable"
+            value={exposure.externallyReachableCount}
+            detail={`${exposure.externalServices.length} service${exposure.externalServices.length === 1 ? "" : "s"} inventoried`}
+            tone={exposure.externallyReachableCount === 0 ? "good" : "accent"}
+          />
+          <SecurityMetric
+            label="Internet Services Without WAF"
+            value={servicesWithoutWaf}
+            detail={`${internetFacingCount} internet-facing service${internetFacingCount === 1 ? "" : "s"}`}
+            tone={servicesWithoutWaf === 0 ? "good" : "attention"}
+          />
+          <SecurityMetric
+            label="SDLC Safeguards"
+            value={sdlc?.applicable ? `${enabledSdlcCount}/${sdlcSafeguards.length}` : "N/A"}
+            detail={sdlc?.applicable ? `${missingSdlcCount} safeguard${missingSdlcCount === 1 ? "" : "s"} not enabled` : "Secure development is not applicable"}
+            tone={!sdlc?.applicable || missingSdlcCount === 0 ? "good" : "attention"}
+          />
+          <SecurityMetric
+            label="Exposure Exceptions"
+            value={exposure.exceptions.length}
+            detail={`${exposure.dangerousConditionsUnmitigated.length} dangerous condition${exposure.dangerousConditionsUnmitigated.length === 1 ? "" : "s"} unmitigated`}
+            tone={exposure.dangerousConditionsUnmitigated.length > 0 ? "attention" : exposure.exceptions.length > 0 ? "accent" : "good"}
+          />
+        </div>
+      </Panel>
+
+      <Panel>
+        <CardHeader
+          icon={<Globe size={16} />}
+          title="Exposure / Attack Surface"
+          description="Public reachability, integration paths, administrative access, and approved exposure exceptions."
+          aside={<CountBadge tone={exposure.dangerousConditionsUnmitigated.length > 0 ? "attention" : "accent"}>{exposure.externallyReachableCount} reachable</CountBadge>}
+        />
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-5 mb-5">
+          <IdentificationField label="Internet-Facing Services" value={internetFacingCount} />
+          <IdentificationField label="Externally Reachable" value={exposure.externallyReachableCount} />
+          <IdentificationField label="Inbound Integrations" value={exposure.posture?.inboundIntegrationCount ?? "—"} />
+          <IdentificationField label="Outbound Integrations" value={exposure.posture?.outboundIntegrationCount ?? "—"} />
+          <IdentificationField label="Connected Vendors" value={vendors.vendors.length} />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
+          <IdentificationField label="Egress Posture" value={exposure.posture?.egressPosture.replace(/-/g, " ") ?? "—"} />
+          <IdentificationField label="Admin Posture" value={exposure.posture?.adminPosture.replace(/-/g, " ") ?? "—"} />
+          <IdentificationField label="API Posture" value={exposure.posture?.apiPosture.replace(/-/g, " ") ?? "—"} />
+        </div>
+
+        <div className="text-[10px] uppercase tracking-wide font-semibold mb-2" style={{ color: C.muted }}>Service Exposure</div>
+        <div className="divide-y" style={{ borderColor: C.border }}>
+          {exposure.externalServices.map((service) => (
+            <div key={service.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+              <div className="flex items-center gap-2 text-sm" style={{ color: C.ink }}>
+                {service.kind === "admin-interface" ? <Crosshair size={13} color={C.muted} /> : <Globe size={13} color={C.muted} />}
+                <span className="font-medium">{service.name}</span>
+                <span className="text-xs" style={{ color: C.muted }}>{service.kind.replace(/-/g, " ")}</span>
               </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <CountBadge tone={service.internetFacing ? "attention" : "good"}>{service.internetFacing ? "Internet-facing" : "Private"}</CountBadge>
+                <CountBadge tone={service.authRequired ? "good" : "attention"}>{service.authRequired ? "Auth required" : "No authentication"}</CountBadge>
+                {service.internetFacing && <CountBadge tone={service.wafProtected ? "good" : "attention"}>{service.wafProtected ? "WAF protected" : "No WAF"}</CountBadge>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {exposure.dangerousConditionsUnmitigated.length > 0 && (
+          <div className="rounded-lg p-3 mt-4 space-y-1.5" style={{ background: C.redBg }}>
+            <div className="text-xs font-semibold" style={{ color: C.red }}>Unmitigated Conditions</div>
+            {exposure.dangerousConditionsUnmitigated.map((condition) => (
+              <div key={condition} className="flex items-center gap-2 text-sm" style={{ color: C.red }}><AlertTriangle size={13} /> {condition.replace(/-/g, " ")}</div>
             ))}
           </div>
-          {exposure.dangerousConditionsUnmitigated.length > 0 && (
-            <div className="space-y-1 mb-3">
-              {exposure.dangerousConditionsUnmitigated.map((c) => (
-                <div key={c} className="flex items-center gap-2 text-sm" style={{ color: C.red }}><AlertTriangle size={12} /> {c.replace(/-/g, " ")}</div>
+        )}
+
+        {exposure.exceptions.length > 0 && (
+          <div className="mt-4">
+            <div className="text-[10px] uppercase tracking-wide font-semibold mb-2" style={{ color: C.muted }}>Accepted Exceptions</div>
+            <div className="space-y-2">
+              {exposure.exceptions.map((exception) => (
+                <div key={exception.id} className="rounded-lg p-3" style={{ background: C.greenBg }}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-sm font-medium" style={{ color: C.green }}><CheckCircle2 size={13} /> {exception.condition.replace(/-/g, " ")} — accepted</div>
+                    <div className="text-[11px]" style={{ color: C.muted }}>
+                      Approved by {exception.approvedBy}{exception.expiresAt ? ` · expires ${exception.expiresAt}` : " · no expiration recorded"}
+                    </div>
+                  </div>
+                  <div className="text-xs mt-1 leading-relaxed" style={{ color: C.muted }}>{exception.reason}</div>
+                </div>
               ))}
             </div>
-          )}
-          {exposure.exceptions.map((e) => (
-            <div key={e.id} className="rounded-lg p-3 mt-2" style={{ background: C.greenBg }}>
-              <div className="flex items-center gap-2 text-sm font-medium" style={{ color: C.green }}><CheckCircle2 size={12} /> {e.condition.replace(/-/g, " ")} — accepted</div>
-              <div className="text-xs mt-1 leading-relaxed" style={{ color: C.muted }}>{e.reason}</div>
-            </div>
-          ))}
-        </Panel>
-      </div>
+          </div>
+        )}
+      </Panel>
 
-      <div>
-        <SectionHeading icon={GitBranch}>Secure Development</SectionHeading>
+      <Panel>
+        <CardHeader
+          icon={<GitBranch size={16} />}
+          title="Secure Development"
+          description="Preventive and detective safeguards applied from source control through production deployment."
+          aside={sdlc?.applicable ? <CountBadge tone={missingSdlcCount === 0 ? "good" : "attention"}>{enabledSdlcCount} of {sdlcSafeguards.length} enabled</CountBadge> : <CountBadge>N/A</CountBadge>}
+        />
         {sdlc?.applicable ? (
-          <Panel className="grid grid-cols-4 gap-4">
-            {([
-              ["Branch Protection", sdlc.repoBranchProtection], ["PR Review Required", sdlc.prReviewRequired],
-              ["SAST", sdlc.sastEnabled], ["SCA", sdlc.scaEnabled],
-              ["DAST", sdlc.dastEnabled], ["Container Scanning", sdlc.containerScanningEnabled],
-              ["Secret Scanning", sdlc.secretScanningEnabled], ["IaC Scanning", sdlc.iacScanningEnabled],
-              ["CI/CD Identity Hardened", sdlc.cicdIdentityHardened], ["Deploy Approval Required", sdlc.deployApprovalRequired],
-            ] satisfies Array<[string, boolean]>).map(([label, val]) => (
-              <div key={label} className="flex items-center gap-2">
-                {val ? <CheckCircle2 size={13} color={C.green} /> : <Circle size={13} color={C.red} />}
-                <span className="text-sm" style={{ color: C.ink }}>{label}</span>
-              </div>
-            ))}
-            <div className="col-span-4 pt-2" style={{ borderTop: `1px solid ${C.border}` }}>
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+              {sdlcGroups.map((group) => (
+                <div key={group.label} className="rounded-lg p-3.5" style={{ background: C.panel2 }}>
+                  <div className="text-sm font-semibold" style={{ color: C.ink }}>{group.label}</div>
+                  <div className="text-[11px] mt-0.5 mb-3" style={{ color: C.muted }}>{group.description}</div>
+                  <div className="space-y-2">
+                    {group.safeguards.map((safeguard) => (
+                      <div key={safeguard.label} className="flex items-center gap-2">
+                        {safeguard.enabled ? <CheckCircle2 size={13} color={C.green} /> : <Circle size={13} color={C.red} />}
+                        <span className="text-sm" style={{ color: safeguard.enabled ? C.ink : C.red }}>{safeguard.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
               <IdentificationField label="Last Threat Model" value={sdlc.lastThreatModelAt ?? "None on record"} />
             </div>
-          </Panel>
+          </>
         ) : sdlc ? (
           <div className="text-sm p-4 rounded-lg" style={{ background: C.panel2, color: C.muted }}>Not applicable — {sdlc.notApplicableReason}</div>
-        ) : null}
-      </div>
+        ) : (
+          <div className="text-sm p-4 rounded-lg" style={{ background: C.panel2, color: C.muted }}>No secure-development posture is recorded for this system.</div>
+        )}
+      </Panel>
 
-      <div>
-        <SectionHeading icon={Users2}>Roles & Responsibilities</SectionHeading>
-        <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-          {system.roles.map((r, i) => (
-            <div
-              key={i}
-              className="grid px-4 py-3"
-              style={{ gridTemplateColumns: "220px 1fr", borderTop: i > 0 ? `1px solid ${C.border}` : "none", background: i % 2 ? "transparent" : C.panel2 }}
-            >
-              <div className="text-sm font-semibold" style={{ color: C.ink }}>{r.role}</div>
-              <div className="text-sm" style={{ color: C.muted }}>{r.assignment}</div>
-            </div>
-          ))}
+      <Panel>
+        <CardHeader
+          icon={<Building2 size={16} />}
+          title="Physical / Environmental"
+          description="How facility-level safeguards are provided for this system."
+          aside={<CountBadge tone="good">Inherited</CountBadge>}
+        />
+        <div className="text-sm p-4 rounded-lg leading-relaxed" style={{ background: C.panel2, color: C.ink }}>
+          Physical and environmental controls are inherited from the hosting provider&apos;s own certification. Testing&apos;s Vendor / Dependency Assurance section records the evidence supporting that inheritance. No ACME-operated facility is in scope for this system.
         </div>
-      </div>
-
-      <div>
-        <SectionHeading icon={Building2}>Physical / Environmental</SectionHeading>
-        <div className="text-sm p-4 rounded-lg" style={{ background: C.panel2, color: C.ink }}>
-          Physical and environmental controls are inherited from the hosting provider's own certification —
-          see Testing's Vendor / Dependency Assurance section for what backs that claim. No ACME-operated facility is in scope for this system.
-        </div>
-      </div>
+      </Panel>
     </div>
   );
 }

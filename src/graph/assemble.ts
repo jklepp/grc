@@ -344,6 +344,7 @@ export function assembleGraph(facts: GraphFacts): Graph {
     // ---- System Register cockpit domains ---------------------------------
     identityPopulations: facts.identityPopulations,
     accessReviews: facts.accessReviews,
+    agenticIdentities: facts.agenticIdentities,
     exposurePostures: facts.exposurePostures,
     externalServices: facts.externalServices,
     exposureExceptions: facts.exposureExceptions,
@@ -361,6 +362,7 @@ export function assembleGraph(facts: GraphFacts): Graph {
 
     identityPopulationsBySystem: groupBy(facts.identityPopulations, (p) => p.systemId),
     accessReviewsBySystem: groupBy(facts.accessReviews, (r) => r.systemId),
+    agenticIdentitiesBySystem: groupBy(facts.agenticIdentities, (a) => a.systemId),
     exposurePostureBySystem: keyBy(facts.exposurePostures, (p) => p.systemId),
     externalServicesBySystem: groupBy(facts.externalServices, (e) => e.systemId),
     exposureExceptionsBySystem: groupBy(facts.exposureExceptions, (e) => e.systemId),

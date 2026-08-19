@@ -47,6 +47,7 @@ import type { PrismaLevelOverride } from "./edges/prismaOverrides";
 import type { RiskAsset, RiskControl } from "./edges/riskContributors";
 import type { AssuranceCategory, ClassificationTier, PrismaLevel, EvidenceType } from "./nodes/taxonomy";
 import type { IdentityPopulation, AccessReview } from "./nodes/identity";
+import type { AgenticIdentity } from "./nodes/agenticIdentities";
 import type { ExposurePosture, ExternalService, ExposureException } from "./nodes/exposure";
 import type { VulnSnapshot } from "./nodes/vulnerabilities";
 import type { SecurityTestExercise } from "./nodes/securityTests";
@@ -162,6 +163,7 @@ export interface GraphFacts {
   // value.
   identityPopulations: IdentityPopulation[];
   accessReviews: AccessReview[];
+  agenticIdentities: AgenticIdentity[];
   exposurePostures: ExposurePosture[];
   externalServices: ExternalService[];
   exposureExceptions: ExposureException[];
@@ -349,6 +351,7 @@ export interface Graph {
   // ---- System Register cockpit domains -----------------------------------
   readonly identityPopulations: readonly IdentityPopulation[];
   readonly accessReviews: readonly AccessReview[];
+  readonly agenticIdentities: readonly AgenticIdentity[];
   readonly exposurePostures: readonly ExposurePosture[];
   readonly externalServices: readonly ExternalService[];
   readonly exposureExceptions: readonly ExposureException[];
@@ -366,6 +369,7 @@ export interface Graph {
 
   readonly identityPopulationsBySystem: Readonly<Record<SystemId, readonly IdentityPopulation[]>>;
   readonly accessReviewsBySystem: Readonly<Record<SystemId, readonly AccessReview[]>>;
+  readonly agenticIdentitiesBySystem: Readonly<Record<SystemId, readonly AgenticIdentity[]>>;
   readonly exposurePostureBySystem: Readonly<Record<SystemId, ExposurePosture>>;
   readonly externalServicesBySystem: Readonly<Record<SystemId, readonly ExternalService[]>>;
   readonly exposureExceptionsBySystem: Readonly<Record<SystemId, readonly ExposureException[]>>;
