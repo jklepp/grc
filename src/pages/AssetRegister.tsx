@@ -1,10 +1,10 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { X, Boxes } from "lucide-react";
+import { X, Boxes, Search, Rows3, Waypoints } from "lucide-react";
 import { C } from "../theme";
 import { PageHeader, SectionHeading } from "../components/Headings";
 import { ClassificationTag } from "../components/SystemBadges";
-import { getAllAssets, getControl, INSTANCE_STATUS_META } from "../engine";
+import { getAllAssets, getControl, getDataFlows, INSTANCE_STATUS_META } from "../engine";
 import type { AssetRollup } from "../engine/rollups";
 import type { AssetId, SystemId } from "../graph/ids";
 
@@ -13,6 +13,25 @@ const ASSETS = getAllAssets();
 interface DisplayBand {
   label: string;
   color: string;
+}
+
+const ARCHITECTURE_LANES = [
+  { id: "web-ingress", label: "Web Ingress" },
+  { id: "web-egress", label: "Web Egress" },
+  { id: "workforce-access", label: "Workforce Access" },
+  { id: "processing-path", label: "Processing Path" },
+  { id: "data-plane", label: "Data Plane" },
+  { id: "control-plane", label: "Control Plane" },
+  { id: "software-deployment", label: "Software Deployment" },
+  { id: "unmapped", label: "Other / Unmapped" },
+] as const;
+
+type ArchitectureLaneId = (typeof ARCHITECTURE_LANES)[number]["id"];
+
+interface AssetLaneGroup {
+  id: ArchitectureLaneId;
+  label: string;
+  assets: AssetRollup[];
 }
 
 function colorFor(key: string): { color: string; bg: string } {
@@ -55,7 +74,7 @@ function AssetCard({ asset, selected, onSelect }: AssetSelectProps) {
     >
       <div className="flex items-start justify-between gap-2 mb-1">
         <div className="min-w-0">
-          <div className="text-sm font-semibold truncate" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{asset.name}</div>
+          <div className="text-sm font-semibold truncate" style={{ color: C.ink }}>{asset.name}</div>
           <div className="text-xs mt-0.5" style={{ color: C.muted }}>{asset.type} · {asset.provider}</div>
         </div>
         {asset.classification && <ClassificationTag level={asset.classification} />}
@@ -94,7 +113,7 @@ function StatCell({ value, band }: { value: ReactNode; band: DisplayBand }) {
   );
 }
 
-function AssetRow({ asset, onSelect, selected, striped }: AssetSelectProps & { striped: boolean }) {
+function AssetRow({ asset, onSelect, selected }: AssetSelectProps) {
   return (
     <button
       onClick={() => onSelect(asset.id)}
@@ -103,15 +122,15 @@ function AssetRow({ asset, onSelect, selected, striped }: AssetSelectProps & { s
         gridTemplateColumns: ASSET_COLUMNS,
         borderBottom: `1px solid ${C.border}`,
         borderLeft: `2px solid ${selected ? C.accent : "transparent"}`,
-        background: selected ? C.accentBg : striped ? C.panel2 : "transparent",
+        background: selected ? C.accentBg : "transparent",
       }}
       onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = C.panel2; }}
-      onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = striped ? C.panel2 : "transparent"; }}
+      onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = "transparent"; }}
     >
       <span className="text-[11px] truncate" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{asset.id}</span>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-xs truncate" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{asset.name}</span>
+          <span className="text-xs truncate" style={{ color: C.ink }}>{asset.name}</span>
           {asset.classification && <ClassificationTag level={asset.classification} />}
         </div>
         <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{asset.type} · {asset.provider}</div>
@@ -123,7 +142,8 @@ function AssetRow({ asset, onSelect, selected, striped }: AssetSelectProps & { s
   );
 }
 
-function AssetTable({ assets, selectedId, onSelect }: { assets: AssetRollup[]; selectedId: AssetId | null; onSelect: (id: AssetId) => void }) {
+function AssetTable({ assets, groups, selectedId, onSelect }: { assets: AssetRollup[]; groups?: AssetLaneGroup[]; selectedId: AssetId | null; onSelect: (id: AssetId) => void }) {
+  const rowGroups = groups ?? [{ id: "unmapped" as const, label: "", assets }];
   return (
     <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
       <div
@@ -142,8 +162,18 @@ function AssetTable({ assets, selectedId, onSelect }: { assets: AssetRollup[]; s
         </div>
       ) : (
         <div style={{ background: C.panel }}>
-          {assets.map((asset, i) => (
-            <AssetRow key={asset.id} asset={asset} selected={asset.id === selectedId} onSelect={onSelect} striped={i % 2 === 1} />
+          {rowGroups.map((group) => (
+            <React.Fragment key={group.id}>
+              {group.label && (
+                <div className="flex items-center justify-between px-3.5 py-2" style={{ background: C.amberBg, borderBottom: `1px solid ${C.border}`, borderTop: `1px solid ${C.border}` }}>
+                  <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: C.amber }}>{group.label}</span>
+                  <span className="text-[10px] font-medium" style={{ color: C.amber }}>{group.assets.length} asset{group.assets.length === 1 ? "" : "s"}</span>
+                </div>
+              )}
+              {group.assets.map((asset) => (
+                <AssetRow key={asset.id} asset={asset} selected={asset.id === selectedId} onSelect={onSelect} />
+              ))}
+            </React.Fragment>
           ))}
         </div>
       )}
@@ -242,6 +272,7 @@ function RiskCard({ title, risk }: { title: string; risk: AssetRollup["inherentR
 }
 
 function AssetDetailPanel({ asset, onClose }: { asset: AssetRollup; onClose: () => void }) {
+  const [showAllControls, setShowAllControls] = useState(false);
   const factorLabels: Record<keyof AssetRollup["criticalityFactors"], string> = {
     confidentiality: "Confidentiality",
     integrity: "Integrity",
@@ -249,12 +280,15 @@ function AssetDetailPanel({ asset, onClose }: { asset: AssetRollup; onClose: () 
     regulatory: "Regulatory Sensitivity",
     businessDependency: "Business Dependency",
   };
+  const sortedControls = [...asset.controls]
+    .sort((a, b) => INSTANCE_ORDER.indexOf(a.status) - INSTANCE_ORDER.indexOf(b.status));
+  const visibleControls = showAllControls ? sortedControls : sortedControls.slice(0, 5);
 
   return (
     <div className="shrink-0 flex flex-col" style={{ width: 360, borderLeft: `1px solid ${C.border}`, background: C.panel, position: "sticky", top: 0, maxHeight: "100vh", overflowY: "auto" }}>
       <div className="flex items-start justify-between gap-2 px-5 pt-5 pb-4" style={{ borderBottom: `1px solid ${C.border}` }}>
         <div className="min-w-0">
-          <div className="text-sm font-semibold" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{asset.name}</div>
+          <div className="text-sm font-semibold" style={{ color: C.ink }}>{asset.name}</div>
           <div className="text-xs mt-1" style={{ color: C.muted }}>{asset.type} · {asset.provider}</div>
           <div className="text-xs mt-0.5" style={{ color: C.muted }}>{asset.system.name} ({asset.system.id})</div>
           <div className="mt-2">{asset.classification && <ClassificationTag level={asset.classification} />}</div>
@@ -285,22 +319,18 @@ function AssetDetailPanel({ asset, onClose }: { asset: AssetRollup; onClose: () 
       </div>
 
       <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>
-          Controls sampled here — {asset.implementedCount} verified, {asset.partialCount} partial,
+        <div className="text-[10px] uppercase tracking-wide" style={{ color: C.muted }}>
+          Controls on this asset — {asset.implementedCount} verified, {asset.partialCount} partial,
           {" "}{asset.notImplementedCount} not implemented, {asset.undeterminedCount} uncollected
         </div>
-        <div className="text-[11px] mb-3 leading-relaxed" style={{ color: C.muted }}>
-          Every control that applies to this asset, and what it showed here. These are the same
-          instances the system-level assessment sampled to rate its Implemented level, reached from
-          the other end — so this view and the control&apos;s own view cannot disagree.
+        <div className="space-y-1.5 mt-3">
+          {visibleControls.map((inst) => <InstanceRow key={inst.controlId} inst={inst} />)}
         </div>
-        <div className="space-y-1.5">
-          {[...asset.controls]
-            .sort((a, b) => INSTANCE_ORDER.indexOf(a.status) - INSTANCE_ORDER.indexOf(b.status))
-            .map((inst) => (
-              <InstanceRow key={inst.controlId} inst={inst} />
-            ))}
-        </div>
+        {sortedControls.length > 5 && (
+          <button type="button" onClick={() => setShowAllControls((current) => !current)} className="w-full mt-2 py-2 rounded-lg text-xs font-semibold" style={{ color: C.accent, background: C.accentBg }}>
+            {showAllControls ? "Show fewer controls" : `Show all ${sortedControls.length} controls`}
+          </button>
+        )}
       </div>
 
       <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
@@ -335,11 +365,36 @@ interface AssetGroup {
 
 export default function AssetRegister({ systemId }: { systemId?: SystemId }) {
   const assets = systemId ? ASSETS.filter((a) => a.system.id === systemId) : ASSETS;
-  const [selectedId, setSelectedId] = useState<AssetId | null>(assets[0]?.id ?? null);
+  const [selectedId, setSelectedId] = useState<AssetId | null>(null);
+  const [search, setSearch] = useState("");
+  const [assetView, setAssetView] = useState<"lanes" | "flat">(systemId ? "lanes" : "flat");
   const selected = assets.find((a) => a.id === selectedId) || null;
+  const filteredAssets = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return assets;
+    return assets.filter((asset) => [asset.id, asset.name, asset.type, asset.provider]
+      .some((value) => value.toLowerCase().includes(query)));
+  }, [assets, search]);
+  const criticalCount = assets.filter((asset) => asset.criticalityBand.label === "Critical").length;
+  const sparseVerificationCount = assets.filter((asset) => verificationBand(asset).label === "Sparse").length;
+  const laneByAsset = useMemo(() => {
+    const lanes = new Map<AssetId, ArchitectureLaneId>();
+    if (!systemId) return lanes;
+    const layout = getDataFlows(systemId);
+    layout.stages.forEach((stage) => stage.nodes.forEach((asset) => lanes.set(asset.id, stage.depth === 0 ? "web-ingress" : "processing-path")));
+    layout.egress.forEach(({ asset }) => lanes.set(asset.id, "web-egress"));
+    layout.workforceIngress.forEach(({ asset }) => lanes.set(asset.id, "workforce-access"));
+    layout.dataPlane.forEach(({ asset }) => lanes.set(asset.id, "data-plane"));
+    layout.branches.forEach(({ asset }) => lanes.set(asset.id, "control-plane"));
+    layout.softwareDeployment.forEach(({ asset }) => lanes.set(asset.id, "software-deployment"));
+    return lanes;
+  }, [systemId]);
+  const laneGroups = useMemo<AssetLaneGroup[]>(() => ARCHITECTURE_LANES
+    .map((lane) => ({ ...lane, assets: filteredAssets.filter((asset) => (laneByAsset.get(asset.id) ?? "unmapped") === lane.id) }))
+    .filter((lane) => lane.assets.length > 0), [filteredAssets, laneByAsset]);
 
   const groups: AssetGroup[] = [];
-  assets.forEach((asset) => {
+  filteredAssets.forEach((asset) => {
     let group = groups.find((g) => g.system.id === asset.system.id);
     if (!group) {
       group = { system: asset.system, assets: [] };
@@ -364,9 +419,38 @@ export default function AssetRegister({ systemId }: { systemId?: SystemId }) {
           />
         )}
 
-        <div className="px-8 py-6 space-y-8">
+        <div className="px-8 py-6 space-y-4">
+          <div className="flex items-center justify-between gap-4 flex-wrap rounded-lg px-4 py-3" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+            <div className="flex items-center gap-4 text-xs" style={{ color: C.muted }}>
+              <span><b style={{ color: C.ink }}>{assets.length}</b> assets</span>
+              <span><b style={{ color: C.ink }}>{criticalCount}</b> critical</span>
+              <span><b style={{ color: C.ink }}>{sparseVerificationCount}</b> sparse verification</span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {systemId && (
+                <div className="flex items-center rounded-lg p-0.5" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+                  <button type="button" onClick={() => setAssetView("lanes")} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium" style={{ background: assetView === "lanes" ? C.panel : "transparent", color: assetView === "lanes" ? C.ink : C.muted }}>
+                    <Waypoints size={12} /> Architecture lanes
+                  </button>
+                  <button type="button" onClick={() => setAssetView("flat")} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium" style={{ background: assetView === "flat" ? C.panel : "transparent", color: assetView === "flat" ? C.ink : C.muted }}>
+                    <Rows3 size={12} /> Flat view
+                  </button>
+                </div>
+              )}
+              <label className="flex items-center gap-2 rounded-lg px-3 py-2 min-w-64" style={{ background: C.panel2, border: `1px solid ${C.border}`, color: C.muted }}>
+                <Search size={14} />
+                <input
+                  value={search}
+                  onChange={(event) => { setSearch(event.target.value); setSelectedId(null); }}
+                  placeholder="Search assets…"
+                  className="w-full bg-transparent outline-none text-xs"
+                  style={{ color: C.ink }}
+                />
+              </label>
+            </div>
+          </div>
           {systemId ? (
-            <AssetTable assets={assets} selectedId={selectedId} onSelect={setSelectedId} />
+            <AssetTable assets={filteredAssets} groups={assetView === "lanes" ? laneGroups : undefined} selectedId={selectedId} onSelect={setSelectedId} />
           ) : (
             groups.map((group) => (
               <div key={group.system.id}>

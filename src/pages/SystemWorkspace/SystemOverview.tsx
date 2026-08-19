@@ -2,7 +2,6 @@ import React from "react";
 import { AssuranceCockpit } from "./overview/AssuranceCockpit";
 import { AttentionRequired } from "./overview/AttentionRequired";
 import { SystemSnapshot } from "./overview/SystemSnapshot";
-import { DataSnapshot } from "./overview/DataSnapshot";
 import { RecentSystemActivity } from "./overview/RecentSystemActivity";
 import type {
   CockpitSummary, ExposurePosture, IdentityPosture, IncidentResponsePosture,
@@ -33,8 +32,6 @@ export function SystemOverview(props: SystemOverviewProps) {
         <SystemSnapshot system={system} exposure={exposure} dataTypes={dataTypes} />
         <AttentionRequired cockpit={cockpit} onNavigate={onNavigate} />
       </div>
-
-      <DataSnapshot dataTypes={dataTypes} onNavigate={onNavigate} />
 
       <RecentSystemActivity identity={identity} resilience={resilience} secTests={secTests} ir={ir} vendors={vendors} />
     </div>

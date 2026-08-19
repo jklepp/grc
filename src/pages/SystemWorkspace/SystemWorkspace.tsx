@@ -128,7 +128,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
       )}
 
       {subTab === "architecture" && (
-        <SystemArchitecture systemId={systemId} system={system} onSelectSystem={selectSystem} />
+        <SystemArchitecture systemId={systemId} onSelectSystem={selectSystem} />
       )}
 
       {subTab === "data" && <SystemData system={system} dataTypes={dataTypes} />}

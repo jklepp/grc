@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import { RadioTower, Layers, AlertTriangle, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
+import { RadioTower, Layers, AlertTriangle, ChevronUp, ChevronDown, ChevronsUpDown, ClipboardCheck, ListChecks } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { C } from "../../theme";
 import { SectionHeading } from "../../components/Headings";
 import {
@@ -15,7 +16,7 @@ import type { EvidenceHealthLevel } from "./controlMeta";
 import type { Control } from "../../graph/nodes/controls";
 
 type ControlStatus = ControlMatrixRow["status"];
-type SelectionKind = "status" | "responsibility" | "not-applicable" | "pending" | "attention-group" | "all";
+type SelectionKind = "status" | "responsibility" | "not-applicable" | "pending" | "remediation-group" | "assessment-group" | "all";
 
 interface ControlSelection {
   kind: SelectionKind;
@@ -133,17 +134,19 @@ const NOT_APPLICABLE_META = APPLICABILITY_META["not-applicable"];
 // not yet at a resolved good state (Inherited/Satisfied). Pending applicability
 // calls are a separate concern — see APPLICABILITY REVIEW below — because
 // "nobody decided if this applies" is not the same claim as "this failed."
-const OUTSTANDING_STATUSES = ["partial", "deficient", "not-implemented", "unassessed"] as const satisfies readonly ControlStatus[];
-const OUTSTANDING_STATUS_SET: ReadonlySet<ControlStatus> = new Set(OUTSTANDING_STATUSES);
+const REMEDIATION_STATUSES = ["partial", "deficient", "not-implemented"] as const satisfies readonly ControlStatus[];
+const REMEDIATION_STATUS_SET: ReadonlySet<ControlStatus> = new Set(REMEDIATION_STATUSES);
 
 // The default table view and its escape hatch. Landing on "everything that's
 // wrong" beats landing on an empty table or a 162-row unfiltered dump.
-const DEFAULT_SELECTION: ControlSelection = { kind: "attention-group", label: "Attention Required" };
+const DEFAULT_SELECTION: ControlSelection = { kind: "remediation-group", label: "Remediation Required" };
+const ASSESSMENT_SELECTION: ControlSelection = { kind: "assessment-group", label: "Assessment Required" };
+const SCOPE_SELECTION: ControlSelection = { kind: "pending", key: "pending", label: "Applicability Review" };
 const ALL_SELECTION: ControlSelection = { kind: "all", label: "All Applicable Controls" };
 
 // Every chip on the summary card is a drill-down trigger. `selection` is
 // { kind: "status" | "responsibility" | "not-applicable" | "pending" |
-// "attention-group" | "all", key, label } or null; clicking the active chip
+// "remediation-group" | "assessment-group" | "all", key, label } or null; clicking the active chip
 // again falls back to the default view rather than clearing to empty — this
 // table is never supposed to show nothing.
 // No icon: this chip is always read alongside its own colored group (the
@@ -184,21 +187,32 @@ function Chip({ label, count, color, bg, active, onClick, flat = false }: ChipPr
 // A matched posture tile for the KPI row. `primary` marks Assurance: same
 // tile shape as its neighbors, but the ring chart + accent color keep it the
 // visual anchor rather than an oversized card fighting two plain numbers.
-function PostureTile({ value, label, sublabel, primary = false }: { value: number | null; label: string; sublabel: string; primary?: boolean }) {
+function ControlPostureCard({ assurance, compliance, coverage }: { assurance: number | null; compliance: number; coverage: number }) {
   return (
     <div
-      className="rounded-xl p-5 flex items-center gap-4"
-      style={
-        primary
-          ? { background: `linear-gradient(135deg, ${C.accent} 0%, #4B3F99 100%)` }
-          : { background: C.panel, border: `1px solid ${C.border}` }
-      }
+      className="rounded-xl p-5 flex items-center gap-6 md:col-span-3 xl:col-span-2"
+      style={{ background: `linear-gradient(135deg, ${C.accent} 0%, #4B3F99 100%)` }}
     >
-      {primary && value != null && <StatRing pct={value} color="#FFFFFF" trackColor="rgba(255,255,255,0.25)" size={44} />}
-      <div className="min-w-0">
-        <div className="text-3xl font-semibold" style={{ color: primary ? "#FFFFFF" : C.ink, fontFamily: "'Source Serif 4', serif" }}>{value == null ? "—" : `${value}%`}</div>
-        <div className="text-[10px] font-semibold uppercase tracking-wide mt-1" style={{ color: primary ? "rgba(255,255,255,0.85)" : C.muted }}>{label}</div>
-        <div className="text-xs mt-0.5" style={{ color: primary ? "rgba(255,255,255,0.7)" : C.muted }}>{sublabel}</div>
+      <div className="flex items-center gap-3 shrink-0">
+        {assurance != null && <StatRing pct={assurance} color="#FFFFFF" trackColor="rgba(255,255,255,0.25)" size={44} />}
+        <div>
+          <div className="text-3xl font-semibold text-white" style={{ fontFamily: "'Source Serif 4', serif" }}>{assurance == null ? "—" : `${assurance}%`}</div>
+          <div className="text-[10px] font-semibold uppercase tracking-wide mt-1 text-white/85">Assurance</div>
+          <div className="text-[11px] mt-0.5 text-white/70">Operating confidence</div>
+        </div>
+      </div>
+      <div className="h-14 w-px shrink-0" style={{ background: "rgba(255,255,255,0.22)" }} />
+      <div className="grid grid-cols-2 gap-6 flex-1 min-w-0">
+        <div>
+          <div className="text-2xl font-semibold text-white" style={{ fontFamily: "'Source Serif 4', serif" }}>{compliance}%</div>
+          <div className="text-[10px] font-semibold uppercase tracking-wide mt-1 text-white/80">Compliance</div>
+          <div className="text-[11px] mt-0.5 text-white/65">Implemented</div>
+        </div>
+        <div>
+          <div className="text-2xl font-semibold text-white" style={{ fontFamily: "'Source Serif 4', serif" }}>{coverage}%</div>
+          <div className="text-[10px] font-semibold uppercase tracking-wide mt-1 text-white/80">Coverage</div>
+          <div className="text-[11px] mt-0.5 text-white/65">Assessed</div>
+        </div>
       </div>
     </div>
   );
@@ -208,28 +222,30 @@ function PostureTile({ value, label, sublabel, primary = false }: { value: numbe
 // without reading the table below it. Same size as its neighbors so it
 // doesn't just look like the loudest thing on the page — the color does
 // that work. Clicking it (or clicking it again) toggles the same
-// attention-group selection the table already defaults to.
-function AttentionTile({ count, statusCounts, selection, onToggle }: {
+// queue selection the table already defaults to.
+function WorkQueueTile({ count, label, sublabel, icon: Icon, color, background, target, selection, onToggle }: {
   count: number;
-  statusCounts: Record<ControlStatus, number>;
+  label: string;
+  sublabel: string;
+  icon: LucideIcon;
+  color: string;
+  background: string;
+  target: ControlSelection;
   selection: ControlSelection;
   onToggle: (selection: ControlSelection) => void;
 }) {
-  const active = selection?.kind === "attention-group";
-  const breakdown = OUTSTANDING_STATUSES
-    .map((s) => `${statusCounts[s] ?? 0} ${STATUS_META[s].label.toLowerCase()}`)
-    .join(" · ");
+  const active = selection.kind === target.kind && selection.key === target.key;
   return (
     <button
-      onClick={() => onToggle(DEFAULT_SELECTION)}
+      onClick={() => onToggle(target)}
       className="rounded-xl p-5 flex items-center gap-4 text-left transition-colors"
-      style={{ background: C.amberBg, border: `1px solid ${active ? C.amber : C.border}` }}
+      style={{ background, border: `1px solid ${active ? color : C.border}` }}
     >
-      <AlertTriangle size={28} color={C.amber} style={{ flexShrink: 0 }} />
+      <Icon size={25} color={color} style={{ flexShrink: 0 }} />
       <div className="min-w-0">
-        <div className="text-3xl font-semibold" style={{ color: C.amber, fontFamily: "'Source Serif 4', serif" }}>{count}</div>
-        <div className="text-[10px] font-semibold uppercase tracking-wide mt-1" style={{ color: C.amber }}>Attention Required</div>
-        <div className="text-xs mt-0.5 truncate" style={{ color: C.amber, opacity: 0.8 }}>{breakdown}</div>
+        <div className="text-3xl font-semibold" style={{ color, fontFamily: "'Source Serif 4', serif" }}>{count}</div>
+        <div className="text-[10px] font-semibold uppercase tracking-wide mt-1" style={{ color }}>{label}</div>
+        <div className="text-xs mt-0.5 truncate" style={{ color, opacity: 0.8 }}>{sublabel}</div>
       </div>
     </button>
   );
@@ -252,10 +268,12 @@ function StatusStrip({ statusCounts, applicabilitySummary, pendingCount, resp, s
   const total = applicabilitySummary.total;
   const applicableTotal = total - applicabilitySummary.notApplicable;
   const controlStatusCount = RESOLVED_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
-  const outstandingCount = OUTSTANDING_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
+  const remediationCount = REMEDIATION_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
+  const assessmentCount = statusCounts.unassessed ?? 0;
   const segments = [
     { count: controlStatusCount, color: C.green, label: "Controls Satisfied" },
-    { count: outstandingCount, color: C.amber, label: "Attention Required" },
+    { count: remediationCount, color: C.amber, label: "Remediation Required" },
+    { count: assessmentCount, color: C.accent, label: "Assessment Required" },
     { count: pendingCount, color: C.ink, label: "Applicability Review" },
     { count: applicabilitySummary.notApplicable, color: C.muted, label: "Not Applicable" },
   ];
@@ -301,7 +319,7 @@ function StatusStrip({ statusCounts, applicabilitySummary, pendingCount, resp, s
           })}
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
-          {OUTSTANDING_STATUSES.map((status) => {
+          {REMEDIATION_STATUSES.map((status) => {
             const meta = STATUS_META[status];
             return (
               <Chip
@@ -317,12 +335,20 @@ function StatusStrip({ statusCounts, applicabilitySummary, pendingCount, resp, s
           })}
         </div>
         <Chip
+          label={STATUS_META.unassessed.label}
+          count={assessmentCount}
+          color={C.accent}
+          bg={C.accentBg}
+          active={selection.kind === "assessment-group"}
+          onClick={() => onToggle(ASSESSMENT_SELECTION)}
+        />
+        <Chip
           label={APPLICABILITY_META.pending.label}
           count={pendingCount}
           color={C.ink}
           bg={C.panel2}
           active={selection?.kind === "pending"}
-          onClick={() => onToggle({ kind: "pending", key: "pending", label: "Pending applicability" })}
+          onClick={() => onToggle(SCOPE_SELECTION)}
         />
         <Chip
           label={NOT_APPLICABLE_META.label}
@@ -494,7 +520,8 @@ function SelectedControlsTable({
     : [];
   const baseRows: ControlMatrixRow[] = selection.kind === "status" ? matrix.filter((r) => r.status === selection.key)
     : selection.kind === "responsibility" ? matrix.filter((r) => r.responsibility === selection.key)
-    : selection.kind === "attention-group" ? matrix.filter((r) => OUTSTANDING_STATUS_SET.has(r.status))
+    : selection.kind === "remediation-group" ? matrix.filter((r) => REMEDIATION_STATUS_SET.has(r.status))
+    : selection.kind === "assessment-group" ? matrix.filter((r) => r.status === "unassessed")
     : selection.kind === "all" ? matrix
     : [];
 
@@ -503,7 +530,7 @@ function SelectedControlsTable({
   // Attention Required's whole point is not burying real deficiencies under
   // a pile of Not Assessed rows — default to worst-first unless the user
   // picked a column to sort by instead.
-  const defaultSorted = selection.kind === "attention-group" && !sort
+  const defaultSorted = selection.kind === "remediation-group" && !sort
     ? [...filtered].sort((a, b) => (STATUS_RANK[a.status] ?? 99) - (STATUS_RANK[b.status] ?? 99))
     : filtered;
   const rows = sortRows(defaultSorted, sort, findingsByControl);
@@ -562,7 +589,7 @@ function SelectedControlsTable({
 // What controls should exist, are they implemented, and can we prove them?
 // Requirement → Control → Implementation → Evidence chain: the summary card's
 // chips are the requirement/applicability read, the table at the bottom
-// (opened by clicking a chip, and open by default on Attention Required) is
+// (opened by clicking a chip, and open by default on Remediation Required) is
 // the drill-down, and ControlEvaluationPanel (opened from a table row) is the
 // full per-control detail.
 interface SystemControlsProps {
@@ -576,7 +603,8 @@ interface SystemControlsProps {
 
 export function SystemControls({ matrix, statusCounts, applicabilitySummary, posture, findingsByControl = {}, onSelectRow }: SystemControlsProps) {
   const resp = applicabilitySummary?.byResponsibility;
-  const outstandingCount = OUTSTANDING_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
+  const remediationCount = REMEDIATION_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
+  const assessmentCount = statusCounts.unassessed ?? 0;
   const pendingCount = applicabilitySummary?.pending ?? 0;
   const [selection, setSelection] = useState<ControlSelection>(DEFAULT_SELECTION);
   const [filters, setFilters] = useState<ControlFilters>({ domain: null, framework: null, status: null, responsibility: null, evidenceHealth: null });
@@ -589,7 +617,7 @@ export function SystemControls({ matrix, statusCounts, applicabilitySummary, pos
     setSelection((prev) => {
       const isActive = prev && prev.kind === next.kind && prev.key === next.key;
       if (!isActive) return next;
-      return next.kind === "attention-group" ? ALL_SELECTION : DEFAULT_SELECTION;
+      return next.kind === "remediation-group" ? ALL_SELECTION : DEFAULT_SELECTION;
     });
     setSort(null);
   }
@@ -603,11 +631,11 @@ export function SystemControls({ matrix, statusCounts, applicabilitySummary, pos
       <SectionHeading icon={Layers}>Controls</SectionHeading>
 
       {applicabilitySummary && posture && (
-        <div className="grid grid-cols-4 gap-4">
-          <PostureTile value={posture.assurance} label="Assurance" sublabel="Confidence controls operate effectively" primary />
-          <AttentionTile count={outstandingCount} statusCounts={statusCounts} selection={selection} onToggle={toggleSelection} />
-          <PostureTile value={posture.compliance} label="Compliance" sublabel="Applicable controls implemented" />
-          <PostureTile value={posture.coverage} label="Assessment Coverage" sublabel="Applicable controls assessed" />
+        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
+          <ControlPostureCard assurance={posture.assurance} compliance={posture.compliance} coverage={posture.coverage} />
+          <WorkQueueTile count={remediationCount} label="Remediate" sublabel={`${statusCounts.deficient} deficient · ${statusCounts.partial} partial`} icon={AlertTriangle} color={C.amber} background={C.amberBg} target={DEFAULT_SELECTION} selection={selection} onToggle={toggleSelection} />
+          <WorkQueueTile count={assessmentCount} label="Assess" sublabel="Awaiting assessment" icon={ClipboardCheck} color={C.accent} background={C.accentBg} target={ASSESSMENT_SELECTION} selection={selection} onToggle={toggleSelection} />
+          <WorkQueueTile count={pendingCount} label="Scope" sublabel="Applicability pending" icon={ListChecks} color={C.ink} background={C.panel2} target={SCOPE_SELECTION} selection={selection} onToggle={toggleSelection} />
         </div>
       )}
 

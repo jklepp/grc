@@ -42,7 +42,9 @@ export function createCockpit(
   function cockpitSummary(systemId: SystemId) {
     const system = rollups.systemRollupById[systemId];
     const summary = profile.profileSummary(systemId);
+    const systemRisks = risk.risksForSystem(systemId);
     const topRisks = risk.topRisksForSystem(systemId, 5);
+    const aboveAppetiteCount = systemRisks.filter((item) => item.residualScore > item.appetite).length;
     const openHighSeverity = findings
       .findingsForSystem(systemId)
       .filter((f) => (f.severity === "critical" || f.severity === "high") && f.open);
@@ -163,7 +165,7 @@ export function createCockpit(
       assuranceBand: system?.assuranceBand ?? null,
       target: summary?.target ?? null,
       coverage: system?.coverage ?? null,
-      residualRisk: { top: topRisks[0] ?? null, count: topRisks.length },
+      residualRisk: { top: topRisks[0] ?? null, count: systemRisks.length, aboveAppetiteCount },
       attentionRequired,
       positiveAssurance,
     };

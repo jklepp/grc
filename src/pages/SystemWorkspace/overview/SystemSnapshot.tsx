@@ -27,17 +27,16 @@ function ownerName(system: WorkspaceSystem): string {
 function MiniDataTypeCard({ dataType }: { dataType: WorkspaceDataType }) {
   const meta = CLASS_META[dataType.sensitivity];
   return (
-    <div className="rounded-lg pl-3 pr-3 py-2 flex-1 min-w-[140px]" style={{ background: C.panel2, borderLeft: `3px solid ${meta.color}` }}>
-      <div className="text-sm font-semibold truncate" style={{ color: C.ink }}>{dataType.name}</div>
-      <div className="text-[10px] font-semibold uppercase tracking-wide mt-0.5" style={{ color: meta.color }}>{dataType.sensitivity}</div>
+    <div className="rounded-md pl-2.5 pr-2.5 py-1.5 shrink-0" style={{ background: C.panel2, borderLeft: `2px solid ${meta.color}` }}>
+      <div className="text-xs font-semibold whitespace-nowrap" style={{ color: C.ink }}>{dataType.name}</div>
+      <div className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: meta.color }}>{dataType.sensitivity}</div>
     </div>
   );
 }
 
 export function SystemSnapshot({ system, exposure, dataTypes }: { system: WorkspaceSystem; exposure: ExposurePosture; dataTypes: WorkspaceDataType[] }) {
-  const topDataTypes = [...dataTypes]
-    .sort((a, b) => CLASS_ORDER.indexOf(b.sensitivity) - CLASS_ORDER.indexOf(a.sensitivity))
-    .slice(0, 3);
+  const sortedDataTypes = [...dataTypes]
+    .sort((a, b) => CLASS_ORDER.indexOf(b.sensitivity) - CLASS_ORDER.indexOf(a.sensitivity));
   const inbound = exposure.posture?.inboundIntegrationCount ?? "—";
   const outbound = exposure.posture?.outboundIntegrationCount ?? "—";
 
@@ -70,11 +69,11 @@ export function SystemSnapshot({ system, exposure, dataTypes }: { system: Worksp
         <IdentificationField label="Users" value={system.userCount?.toLocaleString?.() ?? system.userCount} />
         <div className="col-span-2">
           <div className="text-[10px] uppercase tracking-wide mb-1.5" style={{ color: C.muted }}>Major Data Types</div>
-          {topDataTypes.length === 0 ? (
+          {sortedDataTypes.length === 0 ? (
             <div className="text-sm" style={{ color: C.muted }}>None mapped</div>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {topDataTypes.map((t) => <MiniDataTypeCard key={t.id} dataType={t} />)}
+              {sortedDataTypes.map((t) => <MiniDataTypeCard key={t.id} dataType={t} />)}
             </div>
           )}
         </div>
