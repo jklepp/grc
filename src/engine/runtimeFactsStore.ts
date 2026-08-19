@@ -9,7 +9,7 @@
 // dataset, never break the app on load.
 import type { RuntimeFacts } from "./liveGraph";
 import { emptyRuntimeFacts } from "./liveGraph";
-import type { AssetId, EvidenceId, FindingId, SystemId } from "../graph/ids";
+import type { ActorId, AssetId, EvidenceArtifactId, EvidenceId, EvidenceReviewId, FindingId, SystemId } from "../graph/ids";
 
 const STORAGE_KEY = "grc-runtime-facts";
 
@@ -23,6 +23,10 @@ export function loadRuntimeFacts(): RuntimeFacts {
       systems: Array.isArray(parsed.systems) ? parsed.systems : empty.systems,
       assets: Array.isArray(parsed.assets) ? parsed.assets : empty.assets,
       assetDataTypes: Array.isArray(parsed.assetDataTypes) ? parsed.assetDataTypes : empty.assetDataTypes,
+      actors: Array.isArray(parsed.actors) ? parsed.actors : empty.actors,
+      actorAccess: Array.isArray(parsed.actorAccess) ? parsed.actorAccess : empty.actorAccess,
+      dataFlows: Array.isArray(parsed.dataFlows) ? parsed.dataFlows : empty.dataFlows,
+      agenticIdentities: Array.isArray(parsed.agenticIdentities) ? parsed.agenticIdentities : empty.agenticIdentities,
       assessmentScopes: Array.isArray(parsed.assessmentScopes) ? parsed.assessmentScopes : empty.assessmentScopes,
       expectedClassification:
         parsed.expectedClassification && typeof parsed.expectedClassification === "object"
@@ -30,6 +34,8 @@ export function loadRuntimeFacts(): RuntimeFacts {
           : empty.expectedClassification,
       implementationMechanisms: Array.isArray(parsed.implementationMechanisms) ? parsed.implementationMechanisms : empty.implementationMechanisms,
       evidence: Array.isArray(parsed.evidence) ? parsed.evidence : empty.evidence,
+      evidenceArtifacts: Array.isArray(parsed.evidenceArtifacts) ? parsed.evidenceArtifacts : empty.evidenceArtifacts,
+      evidenceReviews: Array.isArray(parsed.evidenceReviews) ? parsed.evidenceReviews : empty.evidenceReviews,
       notImplemented: Array.isArray(parsed.notImplemented) ? parsed.notImplemented : empty.notImplemented,
       prismaOverrides: Array.isArray(parsed.prismaOverrides) ? parsed.prismaOverrides : empty.prismaOverrides,
       findings: Array.isArray(parsed.findings) ? parsed.findings : empty.findings,
@@ -51,8 +57,14 @@ export function saveRuntimeFacts(facts: RuntimeFacts): void {
 export function hasRuntimeFacts(facts: RuntimeFacts): boolean {
   return (
     facts.systems.length > 0 ||
+    facts.actors.length > 0 ||
+    facts.actorAccess.length > 0 ||
+    facts.dataFlows.length > 0 ||
+    facts.agenticIdentities.length > 0 ||
     facts.implementationMechanisms.length > 0 ||
     facts.evidence.length > 0 ||
+    facts.evidenceArtifacts.length > 0 ||
+    facts.evidenceReviews.length > 0 ||
     facts.notImplemented.length > 0 ||
     facts.prismaOverrides.length > 0 ||
     facts.findings.length > 0
@@ -72,11 +84,45 @@ export function nextAssetId(systemId: SystemId, index: number): AssetId {
   return `AST-USR-${suffix}-${index + 1}` as AssetId;
 }
 
+export function nextActorId(existing: RuntimeFacts): ActorId {
+  let n = 1;
+  while (existing.actors.some((actor) => actor.id === `ACTOR-USR-${n}`)) n += 1;
+  return `ACTOR-USR-${n}` as ActorId;
+}
+
+function nextRuntimeStringId(prefix: string, ids: readonly string[]): string {
+  let n = 1;
+  while (ids.includes(`${prefix}-${n}`)) n += 1;
+  return `${prefix}-${n}`;
+}
+
+export const nextActorAccessId = (existing: RuntimeFacts): string =>
+  nextRuntimeStringId("ACC-USR", existing.actorAccess.map((edge) => edge.id));
+
+export const nextDataFlowId = (existing: RuntimeFacts): string =>
+  nextRuntimeStringId("FLOW-USR", existing.dataFlows.map((flow) => flow.id));
+
+export const nextAgenticIdentityId = (existing: RuntimeFacts): string =>
+  nextRuntimeStringId("AGENT-USR", existing.agenticIdentities.map((agent) => agent.id));
+
 // EVD-USR-<n>, distinct from the YAML source's EVD-<domain>-<n> ids, same
 // reasoning as nextSystemId/nextAssetId above.
 export function nextEvidenceId(existing: RuntimeFacts): EvidenceId {
-  const n = existing.evidence.length + 1;
+  let n = 1;
+  while (existing.evidence.some((evidence) => evidence.id === `EVD-USR-${n}`)) n += 1;
   return `EVD-USR-${n}` as EvidenceId;
+}
+
+export function nextEvidenceArtifactId(existing: RuntimeFacts): EvidenceArtifactId {
+  let n = 1;
+  while (existing.evidenceArtifacts.some((artifact) => artifact.id === `ART-USR-${n}`)) n += 1;
+  return `ART-USR-${n}` as EvidenceArtifactId;
+}
+
+export function nextEvidenceReviewId(existing: RuntimeFacts): EvidenceReviewId {
+  let n = 1;
+  while (existing.evidenceReviews.some((review) => review.id === `EVR-USR-${n}`)) n += 1;
+  return `EVR-USR-${n}` as EvidenceReviewId;
 }
 
 // FND-USR-<n>, distinct from the YAML source's SEC-<n> ids, same reasoning as

@@ -7,8 +7,7 @@ import { ClassificationTag } from "../components/SystemBadges";
 import { getAllAssets, getControl, getDataFlows, INSTANCE_STATUS_META } from "../engine";
 import type { AssetRollup } from "../engine/rollups";
 import type { AssetId, SystemId } from "../graph/ids";
-
-const ASSETS = getAllAssets();
+import { useLiveEngine } from "../engine/useLiveEngine";
 
 interface DisplayBand {
   label: string;
@@ -364,7 +363,9 @@ interface AssetGroup {
 }
 
 export default function AssetRegister({ systemId }: { systemId?: SystemId }) {
-  const assets = systemId ? ASSETS.filter((a) => a.system.id === systemId) : ASSETS;
+  useLiveEngine();
+  const allAssets = getAllAssets();
+  const assets = systemId ? allAssets.filter((a) => a.system.id === systemId) : allAssets;
   const [selectedId, setSelectedId] = useState<AssetId | null>(null);
   const [search, setSearch] = useState("");
   const [assetView, setAssetView] = useState<"lanes" | "flat">(systemId ? "lanes" : "flat");

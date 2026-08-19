@@ -24,6 +24,7 @@ import type { Control } from "./nodes/controls";
 import type { KeyControl } from "./nodes/keyControls";
 import type { RawEvidence, Evidence } from "./nodes/evidence";
 import type { EvidenceSource } from "./nodes/evidenceSources";
+import type { EvidenceArtifact, EvidenceReview } from "./nodes/evidenceProvenance";
 import type { Risk } from "./nodes/risks";
 import type { Org } from "./nodes/orgs";
 import type { Finding } from "./nodes/findings";
@@ -57,7 +58,7 @@ import type { Vendor, VendorAssurance, SystemVendor } from "./nodes/vendors";
 import type { SdlcPosture } from "./nodes/sdlc";
 import type {
   AssetId, SystemId, ControlId, OrgId, RiskId, DataTypeId, EvidenceId,
-  EvidenceSourceId, ActorId, SystemScope,
+  EvidenceSourceId, EvidenceArtifactId, EvidenceReviewId, ActorId, SystemScope,
 } from "./ids";
 
 // ---- What a source supplies --------------------------------------------------
@@ -73,6 +74,8 @@ export interface GraphFacts {
   controls: Control[];
   keyControls: KeyControl[];
   evidence: RawEvidence[];
+  evidenceArtifacts: EvidenceArtifact[];
+  evidenceReviews: EvidenceReview[];
   risks: Risk[];
   orgs: Org[];
   findings: Finding[];
@@ -218,6 +221,8 @@ export interface Graph {
   readonly keyControls: readonly KeyControl[];
   readonly evidence: readonly Evidence[];
   readonly evidenceSources: readonly EvidenceSource[];
+  readonly evidenceArtifacts: readonly EvidenceArtifact[];
+  readonly evidenceReviews: readonly EvidenceReview[];
   readonly risks: readonly Risk[];
   readonly orgs: readonly Org[];
   readonly findings: readonly Finding[];
@@ -258,6 +263,9 @@ export interface Graph {
   readonly keyControlById: Readonly<Record<ControlId, KeyControl>>;
   readonly evidenceById: Readonly<Record<EvidenceId, Evidence>>;
   readonly evidenceSourceById: Readonly<Record<EvidenceSourceId, EvidenceSource>>;
+  readonly evidenceArtifactById: Readonly<Record<EvidenceArtifactId, EvidenceArtifact>>;
+  readonly evidenceReviewById: Readonly<Record<EvidenceReviewId, EvidenceReview>>;
+  readonly evidenceReviewsByEvidence: Readonly<Record<EvidenceId, readonly EvidenceReview[]>>;
   readonly riskById: Readonly<Record<RiskId, Risk>>;
   readonly orgById: Readonly<Record<OrgId, Org>>;
   readonly actorById: Readonly<Record<ActorId, Actor>>;

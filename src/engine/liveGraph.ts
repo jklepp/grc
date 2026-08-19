@@ -35,9 +35,14 @@ import type { GraphFacts } from "../graph/types";
 import type { System } from "../graph/nodes/systems";
 import type { Asset } from "../graph/nodes/assets";
 import type { AssetDataType } from "../graph/edges/assetDataTypes";
+import type { Actor } from "../graph/nodes/actors";
+import type { ActorAccess } from "../graph/edges/actorAccess";
+import type { DataFlow } from "../graph/edges/dataFlows";
+import type { AgenticIdentity } from "../graph/nodes/agenticIdentities";
 import type { AssessmentScope } from "../graph/nodes/assessmentScope";
 import type { ImplementationMechanism, NotImplemented } from "../graph/edges/controlImplementations";
 import type { RawEvidence } from "../graph/nodes/evidence";
+import type { EvidenceArtifact, EvidenceReview } from "../graph/nodes/evidenceProvenance";
 import type { PrismaLevelOverride } from "../graph/edges/prismaOverrides";
 import type { Finding } from "../graph/nodes/findings";
 import type { SystemId } from "../graph/ids";
@@ -47,6 +52,10 @@ export interface RuntimeFacts {
   systems: System[];
   assets: Asset[];
   assetDataTypes: AssetDataType[];
+  actors: Actor[];
+  actorAccess: ActorAccess[];
+  dataFlows: DataFlow[];
+  agenticIdentities: AgenticIdentity[];
   assessmentScopes: AssessmentScope[];
   expectedClassification: Record<SystemId, ClassificationTier>;
   // What a runtime system's controls are actually evaluated against — absent
@@ -54,6 +63,8 @@ export interface RuntimeFacts {
   // same as their YAML-authored counterparts being authored sparsely.
   implementationMechanisms: ImplementationMechanism[];
   evidence: RawEvidence[];
+  evidenceArtifacts: EvidenceArtifact[];
+  evidenceReviews: EvidenceReview[];
   notImplemented: NotImplemented[];
   prismaOverrides: PrismaLevelOverride[];
   findings: Finding[];
@@ -61,8 +72,8 @@ export interface RuntimeFacts {
 
 export function emptyRuntimeFacts(): RuntimeFacts {
   return {
-    systems: [], assets: [], assetDataTypes: [], assessmentScopes: [], expectedClassification: {},
-    implementationMechanisms: [], evidence: [], notImplemented: [], prismaOverrides: [], findings: [],
+    systems: [], assets: [], assetDataTypes: [], actors: [], actorAccess: [], dataFlows: [], agenticIdentities: [], assessmentScopes: [], expectedClassification: {},
+    implementationMechanisms: [], evidence: [], evidenceArtifacts: [], evidenceReviews: [], notImplemented: [], prismaOverrides: [], findings: [],
   };
 }
 
@@ -76,15 +87,22 @@ export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts 
   const overriddenBaseAssetIds = new Set(
     base.assets.filter((a) => overriddenSystemIds.has(a.systemId)).map((a) => a.id)
   );
+  const runtimeActorIds = new Set(runtime.actors.map((actor) => actor.id));
   return {
     ...base,
     systems: [...base.systems.filter((s) => !overriddenSystemIds.has(s.id)), ...runtime.systems],
     assets: [...base.assets.filter((a) => !overriddenSystemIds.has(a.systemId)), ...runtime.assets],
     assetDataTypes: [...base.assetDataTypes.filter((edge) => !overriddenBaseAssetIds.has(edge.assetId)), ...runtime.assetDataTypes],
+    actors: [...base.actors.filter((actor) => !runtimeActorIds.has(actor.id)), ...runtime.actors],
+    actorAccess: [...base.actorAccess.filter((edge) => !overriddenBaseAssetIds.has(edge.assetId)), ...runtime.actorAccess],
+    dataFlows: [...base.dataFlows.filter((flow) => !overriddenBaseAssetIds.has(flow.from) && !overriddenBaseAssetIds.has(flow.to)), ...runtime.dataFlows],
+    agenticIdentities: [...base.agenticIdentities.filter((agent) => !overriddenSystemIds.has(agent.systemId)), ...runtime.agenticIdentities],
     assessmentScopes: [...base.assessmentScopes.filter((scope) => !overriddenSystemIds.has(scope.systemId)), ...runtime.assessmentScopes],
     expectedClassification: { ...base.expectedClassification, ...runtime.expectedClassification },
     implementationMechanisms: [...base.implementationMechanisms, ...runtime.implementationMechanisms],
     evidence: [...base.evidence, ...runtime.evidence],
+    evidenceArtifacts: [...base.evidenceArtifacts, ...runtime.evidenceArtifacts],
+    evidenceReviews: [...base.evidenceReviews, ...runtime.evidenceReviews],
     notImplemented: [...base.notImplemented, ...runtime.notImplemented],
     prismaOverrides: [...base.prismaOverrides, ...runtime.prismaOverrides],
     findings: [...base.findings, ...runtime.findings],

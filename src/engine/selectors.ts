@@ -67,6 +67,9 @@ export function createSelectors(
   const getControl = (id: ControlId) => graph.keyControlById[id] ?? graph.controlById[id] ?? null;
   const getEvidence = (id: EvidenceId) =>
     graph.evidenceById[id] ? evidenceApi.scoreEvidence(graph.evidenceById[id]) : null;
+  const getEvidenceArtifacts = (id: EvidenceId) =>
+    (graph.evidenceById[id]?.artifactIds ?? []).flatMap((artifactId) => graph.evidenceArtifactById[artifactId] ?? []);
+  const getEvidenceReviews = (id: EvidenceId) => graph.evidenceReviewsByEvidence[id] ?? [];
 
   // ---- Relationship traversal ------------------------------------------------
   // These used to return per-(asset, control) implementations, each with its own
@@ -444,7 +447,7 @@ export function createSelectors(
 
   return {
     // Entity access
-    getAsset, getSystem, getRisk, getDataType, getControl, getEvidence,
+    getAsset, getSystem, getRisk, getDataType, getControl, getEvidence, getEvidenceArtifacts, getEvidenceReviews,
     getAllAssets: () => rollups.assetRollups,
     getAllSystems: () => rollups.systemRollups,
     getAllRisks: () => risk.riskRollups,

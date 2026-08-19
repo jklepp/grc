@@ -35,7 +35,8 @@ import { DOMAINS, FRAMEWORKS } from "./nodes/controls";
 import { CERTIFICATION_REPORT_TYPES } from "./nodes/providerCertifications";
 import { SHARED_RESPONSIBILITY_DOMAINS } from "./edges/controlImplementations";
 import { ACTIVITY_FREQUENCIES, PERIODS_PER_YEAR } from "./nodes/scheduledActivities";
-import { EVIDENCE_RESULTS, INDEPENDENCE_LEVELS } from "./nodes/evidence";
+import { EVIDENCE_COLLECTOR_TYPES, EVIDENCE_RECORD_STATUSES, EVIDENCE_RESULTS, INDEPENDENCE_LEVELS } from "./nodes/evidence";
+import { ARTIFACT_SENSITIVITIES, EVIDENCE_REVIEW_DECISIONS } from "./nodes/evidenceProvenance";
 import { SEVERITY_LEVELS, LIKELIHOOD_LEVELS } from "./nodes/risks";
 import { DATA_ROLE_META } from "./edges/assetDataTypes";
 import { FLOW_KINDS } from "./edges/dataFlows";
@@ -68,7 +69,7 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
 
   // ---- Nodes -----------------------------------------------------------------
   const idsSeen = new Set<string>();
-  [...graph.systems, ...graph.assets, ...graph.dataTypes, ...graph.evidence, ...graph.risks, ...graph.dataFlows, ...graph.agenticIdentities]
+  [...graph.systems, ...graph.assets, ...graph.dataTypes, ...graph.evidence, ...graph.evidenceArtifacts, ...graph.evidenceReviews, ...graph.risks, ...graph.dataFlows, ...graph.agenticIdentities]
     .forEach((n) => {
       check(!idsSeen.has(n.id), `duplicate node id "${n.id}" — ids must be unique across the whole graph`);
       idsSeen.add(n.id);
@@ -153,6 +154,22 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
     }
     check(Number.isFinite(e.validForDays) && e.validForDays > 0, `evidence ${e.id}: validForDays must be a positive number`);
     check(!Number.isNaN(new Date(e.collectedAt).getTime()), `evidence ${e.id}: collectedAt "${e.collectedAt}" is not a parseable date`);
+    if (e.periodStart) check(!Number.isNaN(new Date(e.periodStart).getTime()), `evidence ${e.id}: periodStart "${e.periodStart}" is not a parseable date`);
+    if (e.periodEnd) check(!Number.isNaN(new Date(e.periodEnd).getTime()), `evidence ${e.id}: periodEnd "${e.periodEnd}" is not a parseable date`);
+    if (e.periodStart && e.periodEnd) check(new Date(e.periodStart) <= new Date(e.periodEnd), `evidence ${e.id}: periodStart is after periodEnd`);
+    if (e.ingestedAt) check(!Number.isNaN(new Date(e.ingestedAt).getTime()), `evidence ${e.id}: ingestedAt "${e.ingestedAt}" is not a parseable date`);
+    if (e.collectorType) check(EVIDENCE_COLLECTOR_TYPES.includes(e.collectorType), `evidence ${e.id}: collectorType "${e.collectorType}" is not known`);
+    if (e.recordStatus) check(EVIDENCE_RECORD_STATUSES.includes(e.recordStatus), `evidence ${e.id}: recordStatus "${e.recordStatus}" is not known`);
+    (e.artifactIds ?? []).forEach((id) => check(has(graph.evidenceArtifactById, id), `evidence ${e.id}: artifactId "${id}" is not an evidence artifact`));
+    if (e.supersedesId) {
+      check(has(graph.evidenceById, e.supersedesId), `evidence ${e.id}: supersedesId "${e.supersedesId}" is not evidence`);
+      check(e.supersedesId !== e.id, `evidence ${e.id}: cannot supersede itself`);
+      const previous = graph.evidenceById[e.supersedesId];
+      if (previous) {
+        check(previous.controlId === e.controlId, `evidence ${e.id}: cannot supersede ${previous.id} for a different control`);
+        check(previous.recordStatus === "superseded", `evidence ${e.id}: superseded record ${previous.id} must be marked superseded`);
+      }
+    }
     e.assetIds.forEach((id) => check(has(graph.assetById, id), `evidence ${e.id}: assetId "${id}" is not an asset`));
 
     const keyControl = graph.keyControlById[e.controlId];
@@ -639,6 +656,37 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
     check(r.reviewedCount <= r.totalCount, `access review ${r.id}: reviewedCount (${r.reviewedCount}) exceeds totalCount (${r.totalCount})`);
     check(r.exceptionsOpen <= r.exceptionsIdentified, `access review ${r.id}: exceptionsOpen (${r.exceptionsOpen}) exceeds exceptionsIdentified (${r.exceptionsIdentified})`);
     check(!Number.isNaN(Date.parse(r.reviewedAt)), `access review ${r.id}: reviewedAt "${r.reviewedAt}" is not a parseable date`);
+  });
+
+  graph.evidenceArtifacts.forEach((artifact) => {
+    check(Boolean(artifact.name.trim()), `evidence artifact ${artifact.id}: name is required`);
+    check(Boolean(artifact.mediaType.trim()), `evidence artifact ${artifact.id}: mediaType is required`);
+    check(Boolean(artifact.storageRef.trim()), `evidence artifact ${artifact.id}: storageRef is required`);
+    check(Boolean(artifact.createdBy.trim()), `evidence artifact ${artifact.id}: createdBy is required`);
+    check(Boolean(artifact.version.trim()), `evidence artifact ${artifact.id}: version is required`);
+    check(/^[a-f0-9]{64}$/i.test(artifact.sha256), `evidence artifact ${artifact.id}: sha256 must contain 64 hexadecimal characters`);
+    check(!Number.isNaN(new Date(artifact.createdAt).getTime()), `evidence artifact ${artifact.id}: createdAt is not a parseable date`);
+    check(!Number.isNaN(new Date(artifact.ingestedAt).getTime()), `evidence artifact ${artifact.id}: ingestedAt is not a parseable date`);
+    check(ARTIFACT_SENSITIVITIES.includes(artifact.sensitivity), `evidence artifact ${artifact.id}: sensitivity "${artifact.sensitivity}" is not known`);
+    if (artifact.retentionUntil) check(!Number.isNaN(new Date(artifact.retentionUntil).getTime()), `evidence artifact ${artifact.id}: retentionUntil is not a parseable date`);
+    if (artifact.supersedesId) {
+      check(has(graph.evidenceArtifactById, artifact.supersedesId), `evidence artifact ${artifact.id}: supersedesId "${artifact.supersedesId}" is not an artifact`);
+      check(artifact.supersedesId !== artifact.id, `evidence artifact ${artifact.id}: cannot supersede itself`);
+    }
+    check(graph.evidence.some((evidence) => evidence.artifactIds?.includes(artifact.id)), `evidence artifact ${artifact.id}: no evidence observation references it`);
+  });
+
+  graph.evidenceReviews.forEach((review) => {
+    check(has(graph.evidenceById, review.evidenceId), `evidence review ${review.id}: evidenceId "${review.evidenceId}" is not evidence`);
+    check(Boolean(review.reviewer.trim()), `evidence review ${review.id}: reviewer is required`);
+    check(!Number.isNaN(new Date(review.reviewedAt).getTime()), `evidence review ${review.id}: reviewedAt is not a parseable date`);
+    check(EVIDENCE_REVIEW_DECISIONS.includes(review.decision), `evidence review ${review.id}: decision "${review.decision}" is not known`);
+    check(typeof review.independenceDeclared === "boolean", `evidence review ${review.id}: independenceDeclared must be true or false`);
+    if (review.validThrough) check(!Number.isNaN(new Date(review.validThrough).getTime()), `evidence review ${review.id}: validThrough is not a parseable date`);
+    if (review.supersedesId) {
+      check(has(graph.evidenceReviewById, review.supersedesId), `evidence review ${review.id}: supersedesId "${review.supersedesId}" is not a review`);
+      check(review.supersedesId !== review.id, `evidence review ${review.id}: cannot supersede itself`);
+    }
   });
 
   const agentPrincipalKeys = new Set<string>();

@@ -6,7 +6,7 @@ import { C, CLASS_META } from "../theme";
 import { PageHeader } from "../components/Headings";
 import { ClassificationTag, AssuranceBadge, SystemPicker } from "../components/SystemBadges";
 import {
-  getAllSystems, getAsset, getDataFlows, getAllDataTypes, dataTypesForSystem, dataForAsset,
+  getAsset, getAllDataTypes, dataForAsset,
   INSTANCE_STATUS_META, PRISMA_LEVELS, ASSURANCE_TARGET,
   ACTOR_KINDS, resilienceForSystem,
 } from "../engine";
@@ -17,9 +17,7 @@ import { exportFlowDiagramPdf } from "../utils/exportFlowDiagramPdf";
 import type { FlowLayout } from "../utils/flowDiagramLayout";
 import type { AssetRollup, SystemRollup } from "../engine";
 import type { AssetId, DataTypeId, SystemId } from "../graph/ids";
-
-const SYSTEMS = getAllSystems();
-const ALL_ASSETS = SYSTEMS.flatMap((system) => system.assets);
+import { useLiveEngine } from "../engine/useLiveEngine";
 
 type LayoutAsset = FlowLayout["stages"][number]["nodes"][number];
 type LayoutStage = FlowLayout["stages"][number];
@@ -806,6 +804,9 @@ interface DataMapProps {
 }
 
 export default function DataMap({ systemId: controlledSystemId, onSelectSystem, embedded = false }: DataMapProps) {
+  const liveEngine = useLiveEngine();
+  const SYSTEMS = liveEngine.rollups.systemRollups;
+  const ALL_ASSETS = SYSTEMS.flatMap((system) => system.assets);
   const defaultSystem = SYSTEMS[0];
   if (!defaultSystem) throw new Error("Data Map requires at least one system.");
   const [localSystemId, setLocalSystemId] = useState<SystemId>(defaultSystem.id);
@@ -818,9 +819,9 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
   const controlSvgRef = useRef<SVGSVGElement | null>(null);
 
   const system = SYSTEMS.find((s) => s.id === systemId);
-  const systemDataTypes = useMemo(() => dataTypesForSystem(systemId), [systemId]);
-  const fullLayout = useMemo(() => getDataFlows(systemId), [systemId]);
-  const resilience = useMemo(() => resilienceForSystem(systemId), [systemId]);
+  const systemDataTypes = useMemo(() => liveEngine.classification.dataTypesForSystem(systemId), [liveEngine, systemId]);
+  const fullLayout = useMemo(() => liveEngine.rollups.flowLayoutForSystem(systemId), [liveEngine, systemId]);
+  const resilience = useMemo(() => liveEngine.resilience.resilienceForSystem(systemId), [liveEngine, systemId]);
 
   // Filtering to one data type is a real query over the edges, not a second
   // dataset: keep the assets that touch it and the flows that carry it. The

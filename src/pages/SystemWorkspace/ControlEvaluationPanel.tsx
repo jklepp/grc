@@ -11,12 +11,11 @@ import {
   FINDING_SEVERITY_META, FINDING_REMEDIATION_STATUS_META, FINDING_SEVERITIES, FINDING_SOURCES, REMEDIATION_STATUSES,
   INSTANCE_STATUS_META,
   EVIDENCE_TYPES, EVIDENCE_RESULTS, INDEPENDENCE_LEVELS,
-  getEvidence, resolveProgramApplicability, assetsForSystem, getDataFlows, ORGS,
-  evaluateControl, addPrismaOverride, updateEvidence, removeEvidence, addFinding,
+  EVIDENCE_COLLECTOR_TYPES, ARTIFACT_SENSITIVITIES, EVIDENCE_REVIEW_DECISIONS,
+  getEvidence, getEvidenceArtifacts, getEvidenceReviews, resolveProgramApplicability, assetsForSystem, getDataFlows, ORGS,
+  evaluateControl, addPrismaOverride, updateEvidence, removeEvidence, addFinding, updateFinding, commitRuntimeFacts,
 } from "../../engine";
-import { buildLiveEngine } from "../../engine/liveGraph";
-import { loadRuntimeFacts, saveRuntimeFacts } from "../../engine/runtimeFactsStore";
-import { YAML_FACTS } from "../../graph/sources/yaml";
+import { loadRuntimeFacts } from "../../engine/runtimeFactsStore";
 import { PRINCIPLE_DOMAINS, STATUS_META as PRINCIPLE_STATUS_META } from "../../data/securityPrinciples";
 import { STATUS_META, IMPLEMENTATION_META, RESPONSIBILITY_META, ratingColor, assetName, evidenceHealthForRow } from "./controlMeta";
 import { POLICY_BY_CONTROL, PROCEDURE_BY_CONTROL } from "./policyLookup";
@@ -24,9 +23,10 @@ import { BasisTag } from "../../components/BasisTag";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import type { ControlAssessment, ControlEvidenceDraft, ControlInstance, EvidenceDraft, EngineFinding, FindingDraft, LevelRating, ScoredEvidence } from "../../engine";
 import type { RuntimeFacts } from "../../engine/liveGraph";
-import type { AssetId, ControlId, EvidenceId, SystemId } from "../../graph/ids";
+import type { AssetId, ControlId, EvidenceId, FindingId, SystemId } from "../../graph/ids";
 import type { ComplianceRating, EvidenceType, PrismaLevel } from "../../graph/nodes/taxonomy";
-import type { EvidenceResult, IndependenceLevel } from "../../graph/nodes/evidence";
+import type { EvidenceCollectorType, EvidenceResult, IndependenceLevel } from "../../graph/nodes/evidence";
+import type { ArtifactSensitivity, EvidenceReviewDecision } from "../../graph/nodes/evidenceProvenance";
 import type { FindingSeverity, FindingSource, RemediationStatus } from "../../graph/nodes/findings";
 import type { SecurityPrinciple } from "../../data/securityPrinciples";
 import type { ControlMatrixRow, WorkspaceSystem } from "./types";
@@ -226,6 +226,24 @@ interface EvidenceFormState {
   population: number | string;
   independence: IndependenceLevel;
   note: string;
+  collectedAt: string;
+  periodStart: string;
+  periodEnd: string;
+  collectorType: EvidenceCollectorType;
+  collectorIdentity: string;
+  collectionRunId: string;
+  methodVersion: string;
+  sourceConfigurationVersion: string;
+  artifactName: string;
+  artifactMediaType: string;
+  artifactStorageRef: string;
+  artifactSha256: string;
+  artifactSensitivity: ArtifactSensitivity;
+  reviewer: string;
+  reviewDecision: EvidenceReviewDecision;
+  reviewComments: string;
+  reviewValidThrough: string;
+  reviewIndependenceDeclared: boolean;
 }
 
 interface AssetOption { assetId: AssetId; label: string }
@@ -237,6 +255,10 @@ function selectedValue<T extends string>(options: readonly T[], value: string, f
 const EMPTY_EVIDENCE_FORM: EvidenceFormState = {
   source: "", evidenceType: EVIDENCE_TYPES[0], result: "pass", coveragePct: 100,
   exceptions: "", population: "", independence: "automated", note: "",
+  collectedAt: new Date().toISOString().slice(0, 10), periodStart: "", periodEnd: "",
+  collectorType: "manual", collectorIdentity: "", collectionRunId: "", methodVersion: "", sourceConfigurationVersion: "",
+  artifactName: "", artifactMediaType: "application/pdf", artifactStorageRef: "", artifactSha256: "", artifactSensitivity: "Confidential",
+  reviewer: "", reviewDecision: "accepted", reviewComments: "", reviewValidThrough: "", reviewIndependenceDeclared: false,
 };
 
 interface EvidenceFormProps {
@@ -249,12 +271,17 @@ interface EvidenceFormProps {
 
 function EvidenceForm({ initial, assetOptions, isProgramScoped, onCancel, onSubmit }: EvidenceFormProps) {
   const [form, setForm] = useState<EvidenceFormState>({ ...EMPTY_EVIDENCE_FORM, ...initial });
+  const [showProvenance, setShowProvenance] = useState(false);
   const [assetIds, setAssetIds] = useState<AssetId[]>(
     isProgramScoped ? [] : (initial?.assetIds ?? assetOptions.map((a) => a.assetId))
   );
   function setField<K extends keyof EvidenceFormState>(key: K, value: EvidenceFormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
+  const artifactReady = !form.artifactName.trim() || (
+    Boolean(form.artifactStorageRef.trim()) && /^[a-f0-9]{64}$/i.test(form.artifactSha256.trim())
+  );
+  const reviewReady = !form.reviewer.trim() || form.reviewIndependenceDeclared;
 
   return (
     <div className="rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
@@ -281,6 +308,49 @@ function EvidenceForm({ initial, assetOptions, isProgramScoped, onCancel, onSubm
         <div>{fieldLabel("Population (optional)")}<input type="number" min={0} style={inputStyle()} value={form.population} onChange={(e) => setField("population", e.target.value)} /></div>
       </div>
       <div className="mt-2">{fieldLabel("Note")}<input style={inputStyle()} value={form.note} onChange={(e) => setField("note", e.target.value)} placeholder="Optional context" /></div>
+      <button type="button" className="mt-2 text-[11px] font-semibold flex items-center gap-1" style={{ color: C.accent }} onClick={() => setShowProvenance((open) => !open)}>
+        {showProvenance ? <ChevronDown size={12} /> : <ChevronRight size={12} />} Collection, artifact &amp; review provenance
+      </button>
+      {showProvenance && (
+        <div className="mt-2 rounded-lg p-3 space-y-3" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+          <div>
+            <SectionLabel>Collection details</SectionLabel>
+            <div className="grid grid-cols-2 gap-2">
+              <div>{fieldLabel("Collected date")}<input type="date" style={inputStyle()} value={form.collectedAt} onChange={(e) => setField("collectedAt", e.target.value)} /></div>
+              <div>{fieldLabel("Collector type")}<select style={inputStyle()} value={form.collectorType} onChange={(e) => setField("collectorType", selectedValue(EVIDENCE_COLLECTOR_TYPES, e.target.value, form.collectorType))}>{EVIDENCE_COLLECTOR_TYPES.map((value) => <option key={value} value={value}>{value}</option>)}</select></div>
+              <div>{fieldLabel("Period start")}<input type="date" style={inputStyle()} value={form.periodStart} onChange={(e) => setField("periodStart", e.target.value)} /></div>
+              <div>{fieldLabel("Period end")}<input type="date" style={inputStyle()} value={form.periodEnd} onChange={(e) => setField("periodEnd", e.target.value)} /></div>
+              <div>{fieldLabel("Collector identity")}<input style={inputStyle()} value={form.collectorIdentity} onChange={(e) => setField("collectorIdentity", e.target.value)} placeholder="Connector, account, or person" /></div>
+              <div>{fieldLabel("Collection run ID")}<input style={inputStyle()} value={form.collectionRunId} onChange={(e) => setField("collectionRunId", e.target.value)} /></div>
+              <div>{fieldLabel("Method / script version")}<input style={inputStyle()} value={form.methodVersion} onChange={(e) => setField("methodVersion", e.target.value)} /></div>
+              <div>{fieldLabel("Source config version")}<input style={inputStyle()} value={form.sourceConfigurationVersion} onChange={(e) => setField("sourceConfigurationVersion", e.target.value)} /></div>
+            </div>
+          </div>
+          <div>
+            <SectionLabel>Retained artifact (optional)</SectionLabel>
+            <div className="grid grid-cols-2 gap-2">
+              <div>{fieldLabel("Artifact name")}<input style={inputStyle()} value={form.artifactName} onChange={(e) => setField("artifactName", e.target.value)} placeholder="report.pdf or snapshot.json" /></div>
+              <div>{fieldLabel("Media type")}<input style={inputStyle()} value={form.artifactMediaType} onChange={(e) => setField("artifactMediaType", e.target.value)} /></div>
+              <div>{fieldLabel("Immutable storage reference")}<input style={inputStyle()} value={form.artifactStorageRef} onChange={(e) => setField("artifactStorageRef", e.target.value)} placeholder="grc://evidence/..." /></div>
+              <div>{fieldLabel("Sensitivity")}<select style={inputStyle()} value={form.artifactSensitivity} onChange={(e) => setField("artifactSensitivity", selectedValue(ARTIFACT_SENSITIVITIES, e.target.value, form.artifactSensitivity))}>{ARTIFACT_SENSITIVITIES.map((value) => <option key={value} value={value}>{value}</option>)}</select></div>
+              <div className="col-span-2">{fieldLabel("SHA-256")}<input style={inputStyle()} value={form.artifactSha256} onChange={(e) => setField("artifactSha256", e.target.value)} placeholder="64-character hexadecimal digest" /></div>
+            </div>
+          </div>
+          <div>
+            <SectionLabel>Review decision (optional)</SectionLabel>
+            <div className="grid grid-cols-2 gap-2">
+              <div>{fieldLabel("Reviewer")}<input style={inputStyle()} value={form.reviewer} onChange={(e) => setField("reviewer", e.target.value)} placeholder="Name or accountable team" /></div>
+              <div>{fieldLabel("Decision")}<select style={inputStyle()} value={form.reviewDecision} onChange={(e) => setField("reviewDecision", selectedValue(EVIDENCE_REVIEW_DECISIONS, e.target.value, form.reviewDecision))}>{EVIDENCE_REVIEW_DECISIONS.map((value) => <option key={value} value={value}>{value}</option>)}</select></div>
+              <div>{fieldLabel("Valid through")}<input type="date" style={inputStyle()} value={form.reviewValidThrough} onChange={(e) => setField("reviewValidThrough", e.target.value)} /></div>
+              <div className="col-span-2">{fieldLabel("Review comments")}<input style={inputStyle()} value={form.reviewComments} onChange={(e) => setField("reviewComments", e.target.value)} /></div>
+              <label className="col-span-2 flex items-center gap-2 text-[10.5px]" style={{ color: C.ink }}>
+                <input type="checkbox" checked={form.reviewIndependenceDeclared} onChange={(e) => setField("reviewIndependenceDeclared", e.target.checked)} />
+                Reviewer declares any independence conflict has been considered and recorded.
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
       {!isProgramScoped && assetOptions.length > 0 && (
         <div className="mt-2">
           {fieldLabel("Applies to assets")}
@@ -314,12 +384,34 @@ function EvidenceForm({ initial, assetOptions, isProgramScoped, onCancel, onSubm
             population: form.population === "" ? undefined : Number(form.population),
             independence: form.independence,
             note: form.note.trim() || undefined,
+            collectedAt: form.collectedAt,
+            periodStart: form.periodStart || undefined,
+            periodEnd: form.periodEnd || undefined,
+            ingestedAt: new Date().toISOString(),
+            collectorType: form.collectorType,
+            collectorIdentity: form.collectorIdentity.trim() || undefined,
+            collectionRunId: form.collectionRunId.trim() || undefined,
+            methodVersion: form.methodVersion.trim() || undefined,
+            sourceConfigurationVersion: form.sourceConfigurationVersion.trim() || undefined,
+            artifacts: form.artifactName.trim() ? [{
+              name: form.artifactName.trim(), mediaType: form.artifactMediaType.trim() || "application/octet-stream",
+              storageRef: form.artifactStorageRef.trim(), sha256: form.artifactSha256.trim().toLowerCase(),
+              createdAt: new Date().toISOString(), ingestedAt: new Date().toISOString(), createdBy: form.collectorIdentity.trim() || "Manual upload",
+              sensitivity: form.artifactSensitivity, version: "1",
+            }] : undefined,
+            review: form.reviewer.trim() ? {
+              reviewer: form.reviewer.trim(), reviewedAt: new Date().toISOString(), decision: form.reviewDecision,
+              comments: form.reviewComments.trim() || undefined, validThrough: form.reviewValidThrough || undefined,
+              independenceDeclared: form.reviewIndependenceDeclared,
+            } : undefined,
             assetIds,
           })}
-          disabled={!form.source.trim()}
+          disabled={!form.source.trim() || !artifactReady || !reviewReady}
         >
           Save evidence
         </button>
+        {!artifactReady && <span className="text-[10px]" style={{ color: C.red }}>An artifact needs an immutable storage reference and a 64-character SHA-256 digest.</span>}
+        {!reviewReady && <span className="text-[10px]" style={{ color: C.red }}>A reviewer must complete the independence declaration.</span>}
         <button className="text-xs px-3 py-1.5 rounded-lg" style={{ color: C.muted }} onClick={onCancel}>Cancel</button>
       </div>
     </div>
@@ -385,17 +477,19 @@ const EMPTY_FINDING_FORM: FindingFormState = {
 };
 
 interface FindingFormProps {
+  initial?: Partial<FindingFormState>;
   assetOptions: AssetOption[];
   onCancel: () => void;
   onSubmit: (draft: Omit<FindingDraft, "controlId">) => void;
 }
 
-function FindingForm({ assetOptions, onCancel, onSubmit }: FindingFormProps) {
+function FindingForm({ initial, assetOptions, onCancel, onSubmit }: FindingFormProps) {
   const [form, setForm] = useState<FindingFormState>({
     ...EMPTY_FINDING_FORM,
     assetId: assetOptions[0]?.assetId ?? "",
     ownerId: ORGS[0]?.id ?? "",
     due: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+    ...initial,
   });
   function setField<K extends keyof FindingFormState>(key: K, value: FindingFormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -466,7 +560,7 @@ function FindingForm({ assetOptions, onCancel, onSubmit }: FindingFormProps) {
           disabled={!ready}
           onClick={submitFinding}
         >
-          Create finding
+          {initial ? "Save finding" : "Create finding"}
         </button>
         <button className="text-xs px-3 py-1.5 rounded-lg" style={{ color: C.muted }} onClick={onCancel}>Cancel</button>
       </div>
@@ -500,9 +594,11 @@ export function ControlEvaluationPanel({ row, system, onClose }: ControlEvaluati
   const [activeStep, setActiveStep] = useState<EvaluationStep>("requirement");
   const [attachingEvidence, setAttachingEvidence] = useState(false);
   const [editingEvidenceId, setEditingEvidenceId] = useState<EvidenceId | null>(null);
+  const [expandedEvidenceId, setExpandedEvidenceId] = useState<EvidenceId | null>(null);
   const [overridingLevel, setOverridingLevel] = useState<PrismaLevel | null>(null);
   const [showMaturityDetails, setShowMaturityDetails] = useState(false);
   const [creatingFinding, setCreatingFinding] = useState(false);
+  const [editingFindingId, setEditingFindingId] = useState<FindingId | null>(null);
   const [saveError, setSaveError] = useState<string[] | null>(null);
 
   const governingPolicy = POLICY_BY_CONTROL[row.control.id];
@@ -540,13 +636,16 @@ export function ControlEvaluationPanel({ row, system, onClose }: ControlEvaluati
     setSaveError(null);
     const existing = loadRuntimeFacts();
     const runtime = mutate(existing);
-    const { engine, problems } = buildLiveEngine(YAML_FACTS, runtime);
+    const { engine, problems } = commitRuntimeFacts(runtime);
     if (!engine) {
       setSaveError(problems);
       return;
     }
-    saveRuntimeFacts(runtime);
-    window.location.reload();
+    setAttachingEvidence(false);
+    setEditingEvidenceId(null);
+    setCreatingFinding(false);
+    setEditingFindingId(null);
+    setOverridingLevel(null);
   }
 
   function handleAttachEvidence(draft: ControlEvidenceDraft) {
@@ -579,6 +678,10 @@ export function ControlEvaluationPanel({ row, system, onClose }: ControlEvaluati
 
   function handleCreateFinding(draft: Omit<FindingDraft, "controlId">) {
     saveMutation((existing) => addFinding(existing, { ...draft, controlId: row.control.id }));
+  }
+
+  function handleUpdateFinding(findingId: FindingId, patch: Omit<FindingDraft, "controlId">) {
+    saveMutation((existing) => updateFinding(existing, findingId, patch));
   }
 
   return (
@@ -919,7 +1022,7 @@ export function ControlEvaluationPanel({ row, system, onClose }: ControlEvaluati
                   <table className="w-full text-left" style={{ borderCollapse: "collapse" }}>
                     <thead>
                       <tr style={{ background: C.panel2 }}>
-                        {["Source", "Asset", "Result", "Coverage", "Collected", "Independence", "", ""].map((h) => (
+                        {["Source", "Asset", "Result", "Coverage", "Collected", "Provenance", "", ""].map((h) => (
                           <th key={h} className="text-[9.5px] uppercase tracking-wide px-2.5 py-2" style={{ color: C.muted }}>{h}</th>
                         ))}
                       </tr>
@@ -942,8 +1045,13 @@ export function ControlEvaluationPanel({ row, system, onClose }: ControlEvaluati
                           );
                         }
                         const editable = isRuntimeEvidence(e.id);
+                        const artifacts = getEvidenceArtifacts(e.id);
+                        const reviews = getEvidenceReviews(e.id);
+                        const latestReview = reviews.at(-1);
+                        const expanded = expandedEvidenceId === e.id;
                         return (
-                          <tr key={e.key} style={{ borderTop: `1px solid ${C.border}` }}>
+                          <React.Fragment key={e.key}>
+                          <tr style={{ borderTop: `1px solid ${C.border}` }}>
                             <td className="px-2.5 py-2">
                               <div className="flex items-center gap-1.5">
                                 <Link2 size={11} color={C.muted} className="shrink-0" />
@@ -966,7 +1074,15 @@ export function ControlEvaluationPanel({ row, system, onClose }: ControlEvaluati
                             <td className="px-2.5 py-2 text-[11px]" style={{ color: C.muted }}>
                               {e.ageDays === 0 ? "Today" : `${e.ageDays}d ago`}{e.stale && <span className="font-semibold ml-1" style={{ color: C.amber }}>STALE</span>}
                             </td>
-                            <td className="px-2.5 py-2 text-[11px] capitalize" style={{ color: C.muted }}>{e.independence}</td>
+                            <td className="px-2.5 py-2">
+                              <button className="text-left" onClick={() => setExpandedEvidenceId(expanded ? null : e.id)}>
+                                <div className="flex items-center gap-1 text-[10.5px] font-semibold" style={{ color: latestReview?.decision === "accepted" ? C.green : latestReview?.decision === "rejected" ? C.red : C.muted }}>
+                                  {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                                  {latestReview ? latestReview.decision.replace("-", " ") : "Needs review"}
+                                </div>
+                                <div className="text-[9.5px] mt-0.5" style={{ color: C.muted }}>{artifacts.length} artifact{artifacts.length === 1 ? "" : "s"} · {e.collectorType ?? e.independence}</div>
+                              </button>
+                            </td>
                             <td className="px-2.5 py-2">
                               {!editable && (
                                 <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded inline-block" style={{ background: C.panel2, color: C.muted }}>REFERENCE</span>
@@ -981,6 +1097,41 @@ export function ControlEvaluationPanel({ row, system, onClose }: ControlEvaluati
                               )}
                             </td>
                           </tr>
+                          {expanded && (
+                            <tr style={{ background: C.panel2 }}>
+                              <td colSpan={8} className="px-4 py-3" style={{ borderTop: `1px solid ${C.border}` }}>
+                                <div className="grid grid-cols-3 gap-4 text-[10.5px]">
+                                  <div>
+                                    <SectionLabel>Collection</SectionLabel>
+                                    <div style={{ color: C.ink }}>{e.collectorIdentity ?? "Collector identity not recorded"}</div>
+                                    <div style={{ color: C.muted }}>{e.collectionRunId ?? "No run ID"}{e.methodVersion ? ` · ${e.methodVersion}` : ""}</div>
+                                    <div style={{ color: C.muted }}>{e.periodStart && e.periodEnd ? `${e.periodStart.slice(0, 10)} to ${e.periodEnd.slice(0, 10)}` : "Coverage period not recorded"}</div>
+                                  </div>
+                                  <div>
+                                    <SectionLabel>Artifact integrity</SectionLabel>
+                                    {artifacts.length > 0 ? artifacts.map((artifact) => (
+                                      <div key={artifact.id} className="mb-1">
+                                        <div style={{ color: C.ink }}>{artifact.name} · v{artifact.version}</div>
+                                        <div className="font-mono truncate" title={artifact.sha256} style={{ color: C.muted }}>SHA-256 {artifact.sha256.slice(0, 14)}…</div>
+                                        <div style={{ color: C.muted }}>{artifact.sensitivity} · retained at {artifact.storageRef}</div>
+                                      </div>
+                                    )) : <div style={{ color: C.muted }}>No retained artifact metadata</div>}
+                                  </div>
+                                  <div>
+                                    <SectionLabel>Review</SectionLabel>
+                                    {latestReview ? (
+                                      <>
+                                        <div className="font-semibold capitalize" style={{ color: latestReview.decision === "accepted" ? C.green : latestReview.decision === "rejected" ? C.red : C.amber }}>{latestReview.decision.replace("-", " ")}</div>
+                                        <div style={{ color: C.ink }}>{latestReview.reviewer} · {latestReview.reviewedAt.slice(0, 10)}</div>
+                                        <div style={{ color: C.muted }}>{latestReview.comments ?? "No review comments"}</div>
+                                      </>
+                                    ) : <div style={{ color: C.amber }}>No review decision recorded</div>}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          </React.Fragment>
                         );
                       })}
                     </tbody>
@@ -1038,6 +1189,22 @@ export function ControlEvaluationPanel({ row, system, onClose }: ControlEvaluati
               {controlFindings.length > 0 ? (
                 <div className="space-y-3">
                   {controlFindings.map((f) => {
+                    if (editingFindingId === f.id) {
+                      return (
+                        <FindingForm
+                          key={f.id}
+                          initial={{
+                            title: f.title, detail: f.detail, assetId: f.assetId, severity: f.severity ?? "medium",
+                            source: f.source ?? "", ownerId: f.ownerId, remediationStatus: f.remediationStatus,
+                            due: f.due, remediationPlan: f.remediationPlan ?? "",
+                            remediationOwnerId: f.remediationOwnerId ?? "", targetDate: f.targetDate ?? "",
+                          }}
+                          assetOptions={assetOptions}
+                          onCancel={() => setEditingFindingId(null)}
+                          onSubmit={(patch) => handleUpdateFinding(f.id, patch)}
+                        />
+                      );
+                    }
                     const remMeta = FINDING_REMEDIATION_STATUS_META[f.remediationStatus];
                     const severityMetaF = f.severity ? FINDING_SEVERITY_META[f.severity] : null;
                     const closureEvidenceIds = f.closureEvidenceIds ?? [];
@@ -1065,6 +1232,14 @@ export function ControlEvaluationPanel({ row, system, onClose }: ControlEvaluati
                         <div className="text-[11px] mt-1" style={{ color: C.muted }}>
                           {f.remediationOwnerName ?? f.ownerName} · target {f.targetDate ?? f.due}{f.overdue && " · OVERDUE"}
                         </div>
+                        {f.id.startsWith("FND-USR-") && (
+                          <div className="flex items-center gap-3 mt-2 pt-2" style={{ borderTop: `1px solid ${C.border}` }}>
+                            <button type="button" className="flex items-center gap-1 text-[10.5px]" style={{ color: C.accent }} onClick={() => { setEditingFindingId(f.id); setCreatingFinding(false); }}><Pencil size={10} /> Edit / assign</button>
+                            {f.remediationStatus !== "In Progress" && f.remediationStatus !== "Complete" && <button type="button" className="text-[10.5px]" style={{ color: C.accent }} onClick={() => saveMutation((existing) => updateFinding(existing, f.id, { remediationStatus: "In Progress" }))}>Start work</button>}
+                            {f.remediationStatus !== "Blocked" && f.remediationStatus !== "Complete" && <button type="button" className="text-[10.5px]" style={{ color: C.red }} onClick={() => saveMutation((existing) => updateFinding(existing, f.id, { remediationStatus: "Blocked" }))}>Block</button>}
+                            {f.remediationStatus !== "Complete" && <button type="button" className="text-[10.5px] font-semibold" style={{ color: C.green }} onClick={() => saveMutation((existing) => updateFinding(existing, f.id, { remediationStatus: "Complete", closedDate: new Date().toISOString().slice(0, 10) }))}>Mark complete</button>}
+                          </div>
+                        )}
                         {f.remediationStatus === "Complete" && (
                           <div className="text-[11px] mt-1" style={{ color: C.green }}>
                             Closed {f.closedDate}

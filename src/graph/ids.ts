@@ -29,6 +29,8 @@ export type DataTypeId = string & Brand<"DataTypeId">;
 export type EvidenceId = string & Brand<"EvidenceId">;
 export type FindingId = string & Brand<"FindingId">;
 export type EvidenceSourceId = string & Brand<"EvidenceSourceId">;
+export type EvidenceArtifactId = string & Brand<"EvidenceArtifactId">;
+export type EvidenceReviewId = string & Brand<"EvidenceReviewId">;
 export type ActorId = string & Brand<"ActorId">;
 
 // Ownership and implementation records key some maps by system id OR the

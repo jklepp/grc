@@ -5,7 +5,7 @@ An enterprise security system of record that connects systems, identities, asset
 ## Concept
 
 - **Boundary is the system; the unit of assessment is (system, control).**
-- Controls are scored on HITRUST PRISMA's five maturity levels — Policy, Procedure, Implemented, Measured, Managed — per system, not enterprise-wide.
+- Controls are scored on PRISMA's five maturity levels — Policy, Procedure, Implemented, Measured, Managed — per system, not enterprise-wide.
 - Unassessed controls carry a `null` score, never a `0`. Inheritance from enterprise-level controls is capped, not automatic.
 - Applicability of a control to a system must be explainable — deterministic rules, not a silent AI judgment call.
 - Assurance scores (how well a control actually works) are kept separate from assessment coverage (how much has been assessed).

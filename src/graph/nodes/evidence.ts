@@ -35,13 +35,19 @@
 // asset, its system, the enterprise score, that control's framework coverage,
 // and any risk it contributes to all move together.
 import type { EvidenceType } from "./taxonomy";
-import type { EvidenceId, ControlId, AssetId, FindingId, EvidenceSourceId } from "../ids";
+import type { EvidenceId, ControlId, AssetId, FindingId, EvidenceSourceId, EvidenceArtifactId } from "../ids";
 
 export const EVIDENCE_RESULTS = ["pass", "partial", "fail"] as const;
 export type EvidenceResult = (typeof EVIDENCE_RESULTS)[number];
 
 export const INDEPENDENCE_LEVELS = ["automated", "internal", "external"] as const;
 export type IndependenceLevel = (typeof INDEPENDENCE_LEVELS)[number];
+
+export const EVIDENCE_COLLECTOR_TYPES = ["automated", "manual", "imported"] as const;
+export type EvidenceCollectorType = (typeof EVIDENCE_COLLECTOR_TYPES)[number];
+
+export const EVIDENCE_RECORD_STATUSES = ["active", "superseded", "withdrawn"] as const;
+export type EvidenceRecordStatus = (typeof EVIDENCE_RECORD_STATUSES)[number];
 
 // Deliberately duplicated (not imported) from evidenceSources.ts's identical
 // function: that file derives EVIDENCE_SOURCES FROM this file's RAW_EVIDENCE,
@@ -73,6 +79,17 @@ export interface RawEvidence {
   controlId: ControlId;
   assetIds: AssetId[];
   collectedAt: string;
+  periodStart?: string;
+  periodEnd?: string;
+  ingestedAt?: string;
+  collectorType?: EvidenceCollectorType;
+  collectorIdentity?: string;
+  collectionRunId?: string;
+  methodVersion?: string;
+  sourceConfigurationVersion?: string;
+  artifactIds?: EvidenceArtifactId[];
+  recordStatus?: EvidenceRecordStatus;
+  supersedesId?: EvidenceId;
   coveragePct: number;
   result: EvidenceResult;
   independence: IndependenceLevel;

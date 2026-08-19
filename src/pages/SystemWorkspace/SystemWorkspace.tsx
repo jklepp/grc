@@ -1,12 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { TabBar } from "../../components/Headings";
-import {
-  getAllSystems, systemControlMatrix, dataTypesForSystem, getDataFlows,
-  cockpitSummary, identityPostureForSystem, exposureForSystem, securityTestsForSystem,
-  resilienceForSystem, irForSystem, vendorsForSystem, vulnerabilitiesForSystem, sdlcForSystem,
-  topRisksForSystem, controlApplicabilitySummary, responsibilityForControl, systemCoverageBreakdown,
-  findingsForSystem,
-} from "../../engine";
+import { getAllSystems } from "../../engine";
 import { SUB_TABS } from "./tabs";
 import { STATUS_ORDER } from "./controlMeta";
 import { SystemHeader } from "./SystemHeader";
@@ -22,8 +16,8 @@ import { SystemAssets } from "./SystemAssets";
 import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
 import AddSystemWizard from "../../components/AddSystemWizard";
 import type { ControlId, SystemId } from "../../graph/ids";
-import type { ControlMatrixRow } from "./types";
 import type { SystemWorkspaceTab } from "./tabs";
+import { useLiveEngine } from "../../engine/useLiveEngine";
 
 const SYSTEMS = getAllSystems();
 
@@ -44,21 +38,24 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   const [localSystemId, setLocalSystemId] = useState(DEFAULT_SYSTEM_ID);
   const systemId = controlledSystemId ?? localSystemId;
   const [subTab, setSubTab] = useState<SystemWorkspaceTab>(SUB_TABS.some((t) => t.id === initialSubTab) ? initialSubTab! : SUB_TABS[0].id);
-  const [selectedRow, setSelectedRow] = useState<ControlMatrixRow | null>(null);
+  const [selectedControlId, setSelectedControlId] = useState<ControlId | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
+  const liveEngine = useLiveEngine();
+  const systems = liveEngine.rollups.systemRollups;
 
-  const system = SYSTEMS.find((s) => s.id === systemId);
+  const system = systems.find((s) => s.id === systemId);
   if (!system) throw new Error(`Unknown system: ${systemId}`);
   const reportSystem = system;
   const matrix = useMemo(
-    () => systemControlMatrix(system.id).map((row) => ({
+    () => liveEngine.compliance.systemControlMatrix(system.id).map((row) => ({
       ...row,
-      responsibility: responsibilityForControl(system.id, row.controlId),
+      responsibility: liveEngine.compliance.responsibilityForControl(system.id, row.controlId),
     })),
-    [system]
+    [liveEngine, system]
   );
-  const applicabilitySummary = useMemo(() => controlApplicabilitySummary(system.id), [system]);
-  const coverageBreakdown = useMemo(() => systemCoverageBreakdown(system.id), [system]);
+  const selectedRow = selectedControlId ? matrix.find((row) => row.controlId === selectedControlId) ?? null : null;
+  const applicabilitySummary = useMemo(() => liveEngine.compliance.controlApplicabilitySummary(system.id), [liveEngine, system]);
+  const coverageBreakdown = useMemo(() => liveEngine.compliance.systemCoverageBreakdown(system.id), [liveEngine, system]);
   // Three separately-meaningful numbers, not one score read three ways:
   // compliance asks whether what was assessed holds, assurance is the
   // criticality-weighted rollup across every category, coverage asks how much
@@ -70,18 +67,18 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
     coverage: coverageBreakdown.assessedPct,
   }), [coverageBreakdown, system]);
 
-  const cockpit = useMemo(() => cockpitSummary(system.id), [system]);
-  const identity = useMemo(() => identityPostureForSystem(system.id), [system]);
-  const exposure = useMemo(() => exposureForSystem(system.id), [system]);
-  const secTests = useMemo(() => securityTestsForSystem(system.id), [system]);
-  const ir = useMemo(() => irForSystem(system.id), [system]);
-  const resilience = useMemo(() => resilienceForSystem(system.id), [system]);
-  const vendors = useMemo(() => vendorsForSystem(system.id), [system]);
-  const vuln = useMemo(() => vulnerabilitiesForSystem(system.id), [system]);
-  const sdlc = useMemo(() => sdlcForSystem(system.id), [system]);
-  const topRisks = useMemo(() => topRisksForSystem(system.id, 5), [system]);
-  const dataTypes = useMemo(() => dataTypesForSystem(system.id), [system]);
-  const backupRecovery = useMemo(() => getDataFlows(system.id).backupRecovery, [system]);
+  const cockpit = useMemo(() => liveEngine.cockpit.cockpitSummary(system.id), [liveEngine, system]);
+  const identity = useMemo(() => liveEngine.identity.identityPostureForSystem(system.id), [liveEngine, system]);
+  const exposure = useMemo(() => liveEngine.exposure.exposureForSystem(system.id), [liveEngine, system]);
+  const secTests = useMemo(() => liveEngine.securityTesting.securityTestsForSystem(system.id), [liveEngine, system]);
+  const ir = useMemo(() => liveEngine.incidentResponse.irForSystem(system.id), [liveEngine, system]);
+  const resilience = useMemo(() => liveEngine.resilience.resilienceForSystem(system.id), [liveEngine, system]);
+  const vendors = useMemo(() => liveEngine.vendors.vendorsForSystem(system.id), [liveEngine, system]);
+  const vuln = useMemo(() => liveEngine.vulnerabilities.vulnerabilitiesForSystem(system.id), [liveEngine, system]);
+  const sdlc = useMemo(() => liveEngine.sdlc.sdlcForSystem(system.id), [liveEngine, system]);
+  const topRisks = useMemo(() => liveEngine.risk.topRisksForSystem(system.id, 5), [liveEngine, system]);
+  const dataTypes = useMemo(() => liveEngine.classification.dataTypesForSystem(system.id), [liveEngine, system]);
+  const backupRecovery = useMemo(() => liveEngine.rollups.flowLayoutForSystem(system.id).backupRecovery, [liveEngine, system]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<(typeof STATUS_ORDER)[number], number> = Object.fromEntries(STATUS_ORDER.map((s) => [s, 0])) as Record<(typeof STATUS_ORDER)[number], number>;
@@ -89,7 +86,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
     return counts;
   }, [matrix]);
 
-  const findings = useMemo(() => findingsForSystem(system.id), [system]);
+  const findings = useMemo(() => liveEngine.findings.findingsForSystem(system.id), [liveEngine, system]);
   // Open findings per control, so the table can show a count without every
   // row re-filtering the system's whole findings list.
   const findingsByControl = useMemo(() => {
@@ -124,14 +121,14 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
     if (onSelectSystem) onSelectSystem(id);
     else setLocalSystemId(id);
     setSubTab(SUB_TABS[0].id);
-    setSelectedRow(null);
+    setSelectedControlId(null);
   }
 
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
       <SystemHeader
         system={system}
-        systems={SYSTEMS}
+        systems={systems}
         systemId={systemId}
         onSelectSystem={selectSystem}
         onEdit={() => setEditorOpen(true)}
@@ -170,7 +167,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           matrix={matrix} statusCounts={statusCounts}
           applicabilitySummary={applicabilitySummary} posture={posture}
           findingsByControl={findingsByControl}
-          onSelectRow={setSelectedRow}
+          onSelectRow={(row) => setSelectedControlId(row.controlId)}
         />
       )}
 
@@ -178,9 +175,9 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
 
       {subTab === "assets" && <SystemAssets systemId={systemId} />}
 
-      {selectedRow && <ControlEvaluationPanel row={selectedRow} system={system} onClose={() => setSelectedRow(null)} />}
+      {selectedRow && <ControlEvaluationPanel row={selectedRow} system={system} onClose={() => setSelectedControlId(null)} />}
 
-      <AddSystemWizard open={editorOpen} onClose={() => setEditorOpen(false)} editingSystemId={systemId} />
+      <AddSystemWizard open={editorOpen} onClose={() => setEditorOpen(false)} onCreated={() => setEditorOpen(false)} editingSystemId={systemId} />
     </div>
   );
 }

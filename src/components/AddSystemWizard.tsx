@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { ComponentProps, CSSProperties, ReactNode } from "react";
 import {
-  Info, Gauge, Layers, ClipboardCheck, Check, AlertTriangle, Plus, Trash2, ChevronLeft, ChevronRight,
+  Info, Gauge, Layers, ClipboardCheck, Check, AlertTriangle, Plus, Trash2, ChevronLeft, ChevronRight, Network, Users, Bot,
 } from "lucide-react";
 import { C } from "../theme";
 import Modal, { ModalCloseButton } from "./Modal";
@@ -11,13 +11,13 @@ import {
   AVAILABILITY_TIERS, DATA_SUBJECT_TYPES, ASSET_TYPE_CATEGORIES, ASSET_TYPES,
   DATA_ROLE_META, getAllDataTypes, CLOUD_REGIONS, RETENTION_OPTIONS, RESIDENCY_OPTIONS,
   SYSTEM_REGULATORY_CONTEXTS, IDENTITY_TYPES, NETWORK_EXPOSURES,
-  engine as appEngine,
+  engine as appEngine, commitRuntimeFacts,
 } from "../engine";
 import { buildLiveEngine } from "../engine/liveGraph";
 import type { RuntimeFacts } from "../engine/liveGraph";
 import { YAML_FACTS } from "../graph/sources/yaml";
-import { loadRuntimeFacts, saveRuntimeFacts, nextSystemId, nextAssetId } from "../engine/runtimeFactsStore";
-import type { AssetId, DataTypeId, OrgId, SystemId } from "../graph/ids";
+import { loadRuntimeFacts, nextSystemId, nextAssetId, nextActorId, nextActorAccessId, nextDataFlowId, nextAgenticIdentityId } from "../engine/runtimeFactsStore";
+import type { ActorId, AssetId, DataTypeId, OrgId, SystemId } from "../graph/ids";
 import type { Asset, AssetKind, CriticalityFactors } from "../graph/nodes/assets";
 import type { AssetDataType, DataRole } from "../graph/edges/assetDataTypes";
 import { DATA_ROLES } from "../graph/edges/assetDataTypes";
@@ -27,14 +27,22 @@ import type {
 } from "../graph/nodes/systems";
 import type { ClassificationTier } from "../graph/nodes/taxonomy";
 import type { AssessmentScope } from "../graph/nodes/assessmentScope";
+import { ACTOR_KINDS, type Actor, type ActorKind } from "../graph/nodes/actors";
+import { ACTOR_DIRECTIONS, type ActorAccess, type ActorDirection } from "../graph/edges/actorAccess";
+import { FLOW_KINDS, type DataFlow, type FlowKind } from "../graph/edges/dataFlows";
+import {
+  AGENT_AUTONOMY_LEVELS, AGENT_CREDENTIAL_TYPES, AGENT_PRIVILEGE_LEVELS, AGENT_REVOCATION_MECHANISMS,
+  type AgentAutonomyLevel, type AgentCredentialType, type AgenticIdentity, type AgentPrivilegeLevel, type AgentRevocationMechanism,
+} from "../graph/nodes/agenticIdentities";
 
 const STEPS = [
   { id: 1, title: "Basics", detail: "Purpose & ownership", icon: Info },
   { id: 2, title: "Technology", detail: "Hosting & exposure", icon: Gauge },
   { id: 3, title: "Data", detail: "What it processes", icon: Layers },
   { id: 4, title: "Assets", detail: "Where data lives", icon: Layers },
-  { id: 5, title: "Derived Scope", detail: "What applies & why", icon: ClipboardCheck },
-  { id: 6, title: "Launch", detail: "Start assessment", icon: Check },
+  { id: 5, title: "Architecture", detail: "Actors, flows & agents", icon: Network },
+  { id: 6, title: "Derived Scope", detail: "What applies & why", icon: ClipboardCheck },
+  { id: 7, title: "Launch", detail: "Start assessment", icon: Check },
 ] as const;
 type WizardStep = (typeof STEPS)[number]["id"];
 type CriticalityFactorKey = keyof CriticalityFactors;
@@ -52,6 +60,66 @@ interface AssetDraft {
   dataTypes: Record<string, DataRole>;
   sourceType?: string | null;
   sourceKind?: AssetKind | null;
+}
+
+interface ActorDraft {
+  key: string;
+  actorId?: ActorId;
+  accessId?: string;
+  name: string;
+  kind: ActorKind;
+  description: string;
+  assetKey: string;
+  direction: ActorDirection;
+  note: string;
+}
+
+interface FlowDraft {
+  key: string;
+  id?: string;
+  fromKey: string;
+  toKey: string;
+  kind: FlowKind;
+  dataTypeIds: DataTypeId[];
+  note: string;
+}
+
+interface AgentDraft {
+  key: string;
+  id?: string;
+  name: string;
+  purpose: string;
+  ownerOrgId: OrgId | "";
+  servicePrincipal: string;
+  autonomyLevel: AgentAutonomyLevel;
+  externalActions: boolean;
+  canImpersonateUser: boolean;
+  privilegeLevel: AgentPrivilegeLevel;
+  credentialType: AgentCredentialType;
+  loggingEnabled: boolean;
+  revocationMechanism: AgentRevocationMechanism;
+  tools: string;
+}
+
+function draftKey(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function blankActor(assetKey = ""): ActorDraft {
+  return { key: draftKey("actor"), name: "", kind: ACTOR_KINDS.HUMAN, description: "", assetKey, direction: ACTOR_DIRECTIONS.INBOUND, note: "" };
+}
+
+function blankFlow(fromKey = "", toKey = "", dataTypeIds: DataTypeId[] = []): FlowDraft {
+  return { key: draftKey("flow"), fromKey, toKey, kind: FLOW_KINDS.DATA, dataTypeIds, note: "" };
+}
+
+function blankAgent(ownerOrgId: OrgId | "" = ""): AgentDraft {
+  return {
+    key: draftKey("agent"), name: "", purpose: "", ownerOrgId, servicePrincipal: "",
+    autonomyLevel: "approval-gated", externalActions: false, canImpersonateUser: false,
+    privilegeLevel: "standard", credentialType: "workload-identity", loggingEnabled: true,
+    revocationMechanism: "automated", tools: "",
+  };
 }
 
 interface DryRunResult {
@@ -201,7 +269,7 @@ function TechnologySection({ number, title, description, children }: { number: n
 interface AddSystemWizardProps {
   open: boolean;
   onClose: () => void;
-  onCreated?: () => void;
+  onCreated?: (systemId: SystemId) => void;
   editingSystemId?: SystemId | null;
 }
 
@@ -235,6 +303,9 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   const [assessmentTarget, setAssessmentTarget] = useState(defaultAssessmentTarget);
 
   const [assets, setAssets] = useState<AssetDraft[]>([blankAsset(0)]);
+  const [actorDrafts, setActorDrafts] = useState<ActorDraft[]>([]);
+  const [flowDrafts, setFlowDrafts] = useState<FlowDraft[]>([]);
+  const [agentDrafts, setAgentDrafts] = useState<AgentDraft[]>([]);
 
   const [dryRun, setDryRun] = useState<DryRunResult | null>(null);
   const [checking, setChecking] = useState(false);
@@ -301,6 +372,32 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       inherentLikelihood: asset.inherentLikelihood,
       dataTypes: Object.fromEntries(appEngine.classification.dataForAsset(asset.id).map((holding) => [holding.dataTypeId, holding.role])),
     })));
+    const sourceAssetIds = new Set(sourceAssets.map((asset) => asset.id));
+    setActorDrafts(appEngine.graph.actorAccess
+      .filter((access) => sourceAssetIds.has(access.assetId))
+      .map((access) => {
+        const actor = appEngine.graph.actorById[access.actorId];
+        return {
+          key: access.id, actorId: access.actorId, accessId: access.id,
+          name: actor?.name ?? access.actorId, kind: actor?.kind ?? ACTOR_KINDS.MACHINE,
+          description: actor?.description ?? "External system actor", assetKey: access.assetId,
+          direction: access.direction, note: access.note ?? "",
+        };
+      }));
+    setFlowDrafts(appEngine.graph.dataFlows
+      .filter((flow) => sourceAssetIds.has(flow.from) && sourceAssetIds.has(flow.to))
+      .map((flow) => ({
+        key: flow.id, id: flow.id, fromKey: flow.from, toKey: flow.to, kind: flow.kind,
+        dataTypeIds: [...flow.dataTypeIds], note: flow.note ?? "",
+      })));
+    setAgentDrafts((appEngine.graph.agenticIdentitiesBySystem[editingSystemId] ?? []).map((agent) => ({
+      key: agent.id, id: agent.id, name: agent.name, purpose: agent.purpose,
+      ownerOrgId: agent.ownerOrgId ?? "", servicePrincipal: agent.servicePrincipal,
+      autonomyLevel: agent.autonomyLevel, externalActions: agent.externalActions,
+      canImpersonateUser: agent.canImpersonateUser, privilegeLevel: agent.privilegeLevel,
+      credentialType: agent.credentialType, loggingEnabled: agent.loggingEnabled,
+      revocationMechanism: agent.revocationMechanism, tools: agent.tools.join(", "),
+    })));
     setDryRun(null);
   }, [editingSystemId, open]);
 
@@ -312,7 +409,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     setUsesAI(false); setAutonomousActions(false); setRegulatoryContext([]);
     setIdentityTypes([]); setNetworkExposure([]); setHasThirdPartyIntegration(false); setSdlcApplicable(false);
     setOwnerOrgId(ORGS[0]?.id ?? ""); setAssessor(""); setAssessmentTarget(defaultAssessmentTarget());
-    setAssets([blankAsset(0)]); setDryRun(null);
+    setAssets([blankAsset(0)]); setActorDrafts([]); setFlowDrafts([]); setAgentDrafts([]); setDryRun(null);
   }
 
   function close() { reset(); onClose(); }
@@ -364,7 +461,22 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     setAssets((prev) => prev.map((a) => (a.key === key ? { ...a, dataTypes: { ...a.dataTypes, [dataTypeId]: role } } : a)));
   }
   function addAsset() { setAssets((prev) => [...prev, blankAsset(prev.length)]); }
-  function removeAsset(key: string) { setAssets((prev) => (prev.length > 1 ? prev.filter((a) => a.key !== key) : prev)); }
+  function removeAsset(key: string) {
+    if (assets.length <= 1) return;
+    setAssets((prev) => prev.filter((a) => a.key !== key));
+    setActorDrafts((current) => current.filter((actor) => actor.assetKey !== key));
+    setFlowDrafts((current) => current.filter((flow) => flow.fromKey !== key && flow.toKey !== key));
+  }
+
+  function updateActor(key: string, patch: Partial<ActorDraft>) {
+    setActorDrafts((current) => current.map((actor) => actor.key === key ? { ...actor, ...patch } : actor));
+  }
+  function updateFlow(key: string, patch: Partial<FlowDraft>) {
+    setFlowDrafts((current) => current.map((flow) => flow.key === key ? { ...flow, ...patch } : flow));
+  }
+  function updateAgent(key: string, patch: Partial<AgentDraft>) {
+    setAgentDrafts((current) => current.map((agent) => agent.key === key ? { ...agent, ...patch } : agent));
+  }
 
   // Builds an upsert candidate for either a new or existing system. Nothing is
   // wired into the real store until the complete graph validates.
@@ -432,6 +544,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       criticalityFactors: a.criticalityFactors,
       inherentLikelihood: Number(a.inherentLikelihood) || 1,
     }));
+    const assetIdByKey = new Map(assets.map((draft, index) => [draft.key, newAssets[index]?.id]));
 
     const newAssetDataTypes: AssetDataType[] = assets.flatMap((draft, index) => {
       const asset = newAssets[index];
@@ -440,6 +553,54 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
         const dataType = dataTypes.find((candidate) => candidate.id === dataTypeId);
         return dataType ? [{ assetId: asset.id, dataTypeId: dataType.id, role }] : [];
       });
+    });
+
+    let idFacts = existing;
+    const newActors: Actor[] = [];
+    const newActorAccess: ActorAccess[] = [];
+    actorDrafts.forEach((draft) => {
+      const assetId = assetIdByKey.get(draft.assetKey);
+      if (!assetId) return;
+      const actorId = draft.actorId ?? nextActorId(idFacts);
+      if (!newActors.some((actor) => actor.id === actorId)) {
+        const actor: Actor = { id: actorId, name: draft.name.trim(), kind: draft.kind, description: draft.description.trim() };
+        newActors.push(actor);
+        idFacts = { ...idFacts, actors: [...idFacts.actors, actor] };
+      }
+      const access: ActorAccess = {
+        id: draft.accessId ?? nextActorAccessId(idFacts), actorId, assetId,
+        direction: draft.direction, note: draft.note.trim() || undefined,
+      };
+      newActorAccess.push(access);
+      idFacts = { ...idFacts, actorAccess: [...idFacts.actorAccess, access] };
+    });
+
+    const newDataFlows: DataFlow[] = [];
+    flowDrafts.forEach((draft) => {
+      const from = assetIdByKey.get(draft.fromKey);
+      const to = assetIdByKey.get(draft.toKey);
+      if (!from || !to) return;
+      const flow: DataFlow = {
+        id: draft.id ?? nextDataFlowId(idFacts), from, to, kind: draft.kind,
+        dataTypeIds: [...draft.dataTypeIds], note: draft.note.trim() || undefined,
+      };
+      newDataFlows.push(flow);
+      idFacts = { ...idFacts, dataFlows: [...idFacts.dataFlows, flow] };
+    });
+
+    const newAgenticIdentities: AgenticIdentity[] = [];
+    (usesAI ? agentDrafts : []).forEach((draft) => {
+      const agent: AgenticIdentity = {
+        id: draft.id ?? nextAgenticIdentityId(idFacts), systemId, name: draft.name.trim(), purpose: draft.purpose.trim(),
+        ownerOrgId: draft.ownerOrgId || undefined, servicePrincipal: draft.servicePrincipal.trim(),
+        autonomyLevel: draft.autonomyLevel, humanApprovalRequired: draft.autonomyLevel !== "autonomous",
+        externalActions: draft.externalActions, canImpersonateUser: draft.canImpersonateUser,
+        privilegeLevel: draft.privilegeLevel, credentialType: draft.credentialType,
+        loggingEnabled: draft.loggingEnabled, revocationMechanism: draft.revocationMechanism,
+        tools: draft.tools.split(",").map((tool) => tool.trim()).filter(Boolean), active: true,
+      };
+      newAgenticIdentities.push(agent);
+      idFacts = { ...idFacts, agenticIdentities: [...idFacts.agenticIdentities, agent] };
     });
 
     const assessmentScope: AssessmentScope = {
@@ -458,6 +619,10 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       ...existing.assets.filter((a) => a.systemId === systemId).map((a) => a.id),
       ...newAssets.map((a) => a.id),
     ]);
+    const replacedActorIds = new Set([
+      ...appEngine.graph.actorAccess.filter((edge) => replacedAssetIds.has(edge.assetId)).map((edge) => edge.actorId),
+      ...existing.actorAccess.filter((edge) => replacedAssetIds.has(edge.assetId)).map((edge) => edge.actorId),
+    ]);
     const expectedClassification = { ...existing.expectedClassification };
     delete expectedClassification[systemId];
 
@@ -465,13 +630,19 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       systems: [...existing.systems.filter((s) => s.id !== systemId), system],
       assets: [...existing.assets.filter((a) => a.systemId !== systemId), ...newAssets],
       assetDataTypes: [...existing.assetDataTypes.filter((edge) => !replacedAssetIds.has(edge.assetId)), ...newAssetDataTypes],
+      actors: [...existing.actors.filter((actor) => !replacedActorIds.has(actor.id)), ...newActors],
+      actorAccess: [...existing.actorAccess.filter((edge) => !replacedAssetIds.has(edge.assetId)), ...newActorAccess],
+      dataFlows: [...existing.dataFlows.filter((flow) => !replacedAssetIds.has(flow.from) && !replacedAssetIds.has(flow.to)), ...newDataFlows],
+      agenticIdentities: [...existing.agenticIdentities.filter((agent) => agent.systemId !== systemId), ...newAgenticIdentities],
       assessmentScopes: [...existing.assessmentScopes.filter((scope) => scope.systemId !== systemId), assessmentScope],
       expectedClassification,
       // This wizard only ever adds a system — it never evaluates a control —
-      // so these three just carry forward whatever runtimeMutations.ts has
+      // so these collections just carry forward whatever runtimeMutations.ts has
       // already recorded for earlier systems, unchanged.
       implementationMechanisms: [...existing.implementationMechanisms],
       evidence: [...existing.evidence],
+      evidenceArtifacts: [...existing.evidenceArtifacts],
+      evidenceReviews: [...existing.evidenceReviews],
       notImplemented: [...existing.notImplemented],
       prismaOverrides: [...existing.prismaOverrides],
       findings: [...existing.findings],
@@ -505,7 +676,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   }
 
   function goNext() {
-    if (step === 4) { runDryRun(); setStep(5); return; }
+    if (step === 5) { runDryRun(); setStep(6); return; }
     const nextStep = STEPS.find((candidate) => candidate.id === step + 1)?.id;
     if (nextStep) setStep(nextStep);
   }
@@ -518,38 +689,47 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     if (n === 2 && canAdvanceFrom1) { setStep(2); return; }
     if (n === 3 && canAdvanceFrom1 && canAdvanceFrom2) { setStep(3); return; }
     if (n === 4 && canAdvanceFrom1 && canAdvanceFrom2 && canAdvanceFrom3) { setStep(4); return; }
-    if (n === 5 && canAdvanceFrom4) { runDryRun(); setStep(5); return; }
-    if (n === 6 && dryRun && dryRun.problems.length === 0) setStep(6);
+    if (n === 5 && canAdvanceFrom4) { setStep(5); return; }
+    if (n === 6 && canAdvanceFrom5) { runDryRun(); setStep(6); return; }
+    if (n === 7 && dryRun && dryRun.problems.length === 0) setStep(7);
   }
 
   function handleCreate() {
     if (!dryRun || dryRun.problems.length > 0 || !canLaunch) return;
     setSaving(true);
-    const { runtime } = buildCandidateRuntimeFacts();
-    const { engine, problems } = buildLiveEngine(YAML_FACTS, runtime);
+    const { runtime, systemId } = buildCandidateRuntimeFacts();
+    const { engine, problems } = commitRuntimeFacts(runtime);
     if (!engine) {
       setDryRun((current) => ({ ...(current ?? { systemId: null }), problems }));
       setSaving(false);
-      setStep(5);
+      setStep(6);
       return;
     }
-    saveRuntimeFacts(runtime);
     setSaving(false);
-    onCreated?.();
-    window.location.reload();
+    onCreated?.(systemId);
+    close();
   }
 
   const canAdvanceFrom1 = Boolean(name.trim() && boundary.trim() && mission.trim() && ownerOrgId);
   const canAdvanceFrom2 = Boolean(provider && regions.length > 0);
   const canAdvanceFrom3 = systemDataTypeIds.length > 0;
   const canAdvanceFrom4 = assets.every((a) => Object.keys(a.dataTypes).length > 0) && unmappedSystemDataTypeIds.length === 0;
+  const actorsValid = actorDrafts.length > 0 && actorDrafts.every((actor) => actor.name.trim() && actor.description.trim() && actor.assetKey);
+  const flowsValid = assets.length <= 1 || (flowDrafts.length > 0 && flowDrafts.every((flow) => flow.fromKey && flow.toKey && flow.fromKey !== flow.toKey && flow.dataTypeIds.length > 0));
+  const agentsValid = !usesAI || agentDrafts.every((agent) =>
+    agent.name.trim() && agent.purpose.trim() && agent.servicePrincipal.trim() && agent.tools.trim()
+    && (agent.autonomyLevel !== "autonomous" || autonomousActions)
+    && (agent.autonomyLevel !== "recommend" || !agent.externalActions)
+  );
+  const canAdvanceFrom5 = actorsValid && flowsValid && agentsValid;
   const canLaunch = Boolean(assessor.trim() && assessmentTarget);
   const nextDisabled =
     (step === 1 && !canAdvanceFrom1) ||
     (step === 2 && !canAdvanceFrom2) ||
     (step === 3 && !canAdvanceFrom3) ||
     (step === 4 && !canAdvanceFrom4) ||
-    (step === 5 && (!dryRun || dryRun.problems.length > 0));
+    (step === 5 && !canAdvanceFrom5) ||
+    (step === 6 && (!dryRun || dryRun.problems.length > 0));
 
   return (
     <Modal open={open} onClose={close} width={960} height={700}>
@@ -606,7 +786,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
         <div className="p-6 overflow-y-auto">
           {step === 1 && (
             <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 1 of 6</div>
+              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 1 of 7</div>
               <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>System basics</h2>
               <p className="text-xs mb-5 max-w-[60ch]" style={{ color: C.muted }}>
                 Core facts about the system. Its classification, assurance and PRISMA level are never entered here — they're
@@ -646,7 +826,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
           {step === 2 && (
             <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 2 of 6</div>
+              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 2 of 7</div>
               <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Technology & exposure</h2>
               <p className="text-xs mb-5 max-w-[64ch]" style={{ color: C.muted }}>
                 Capture the system's operating environment. Your choices determine which controls apply and which ones may be inherited from a provider.
@@ -793,9 +973,9 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
             </div>
           )}
 
-          {step === 6 && (
+          {step === 7 && (
             <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 6 of 6</div>
+              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 7 of 7</div>
               <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Launch assessment</h2>
               <p className="text-xs mb-5 max-w-[60ch]" style={{ color: C.muted }}>
                 Assign the assessment and set its target date. {editingSystemId ? "Saving recalculates the system's scope without changing its recorded evidence." : "Creating the system launches an honest initial scope; controls remain unassessed until evidence or a supported inheritance actually evaluates them."}
@@ -825,7 +1005,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
           {step === 3 && (
             <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 3 of 6</div>
+              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 3 of 7</div>
               <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>System data inventory</h2>
               <p className="text-xs mb-5 max-w-[64ch]" style={{ color: C.muted }}>
                 Identify every type of data this system stores, transmits, or processes. You will map these data types to individual assets next.
@@ -921,7 +1101,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
           {step === 4 && (
             <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 4 of 6</div>
+              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 4 of 7</div>
               <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Assets & data mapping</h2>
               <p className="text-xs mb-5 max-w-[64ch]" style={{ color: C.muted }}>
                 Add the assets inside this boundary and map only the system data types each asset stores, transmits, or processes.
@@ -1084,7 +1264,103 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
           {step === 5 && (
             <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 5 of 6</div>
+              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 5 of 7</div>
+              <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>System architecture</h2>
+              <p className="text-xs mb-5 max-w-[70ch]" style={{ color: C.muted }}>
+                Connect the boundary you just described: who reaches it, how data and control relationships move between assets, and which authenticated agents operate inside it.
+              </p>
+
+              <div className="space-y-4">
+                <section className="rounded-xl p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-start gap-2">
+                      <Users size={16} color={C.accent} className="mt-0.5" />
+                      <div><div className="text-[13px] font-semibold" style={{ color: C.ink }}>Actors and access</div><div className="text-[10.5px]" style={{ color: C.muted }}>At least one human or machine actor must identify where it touches the boundary.</div></div>
+                    </div>
+                    <button type="button" onClick={() => setActorDrafts((current) => [...current, blankActor(assets[0]?.key)])} className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: C.accent }}><Plus size={12} /> Add actor</button>
+                  </div>
+                  <div className="space-y-2">
+                    {actorDrafts.map((actor) => (
+                      <div key={actor.key} className="rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+                        <div className="grid grid-cols-3 gap-2">
+                          <Field label="Actor name"><TextInput value={actor.name} onChange={(e) => updateActor(actor.key, { name: e.target.value })} placeholder="Customer, administrator, integration" /></Field>
+                          <Field label="Type"><Select value={actor.kind} onChange={(e) => updateActor(actor.key, { kind: Object.values(ACTOR_KINDS).find((value) => value === e.target.value) ?? actor.kind })}>{Object.values(ACTOR_KINDS).map((value) => <option key={value} value={value}>{value}</option>)}</Select></Field>
+                          <Field label="Direction"><Select value={actor.direction} onChange={(e) => updateActor(actor.key, { direction: Object.values(ACTOR_DIRECTIONS).find((value) => value === e.target.value) ?? actor.direction })}>{Object.values(ACTOR_DIRECTIONS).map((value) => <option key={value} value={value}>{value}</option>)}</Select></Field>
+                          <Field label="Touches asset"><Select value={actor.assetKey} onChange={(e) => updateActor(actor.key, { assetKey: e.target.value })}><option value="">Select asset</option>{assets.map((asset, index) => <option key={asset.key} value={asset.key}>{asset.name || `Asset ${index + 1}`}</option>)}</Select></Field>
+                          <Field label="Description"><TextInput value={actor.description} onChange={(e) => updateActor(actor.key, { description: e.target.value })} placeholder="Role in the architecture" /></Field>
+                          <div className="flex items-end gap-2"><div className="flex-1"><Field label="Access note"><TextInput value={actor.note} onChange={(e) => updateActor(actor.key, { note: e.target.value })} placeholder="Authentication or path detail" /></Field></div><button type="button" onClick={() => setActorDrafts((current) => current.filter((item) => item.key !== actor.key))} className="p-2 mb-0.5" style={{ color: C.red }}><Trash2 size={14} /></button></div>
+                        </div>
+                      </div>
+                    ))}
+                    {actorDrafts.length === 0 && <div className="rounded-lg px-3 py-3 text-[11px]" style={{ border: `1px dashed ${C.amber}`, color: C.amber }}>Add at least one actor so the architecture has a real entry, exit, or administrative path.</div>}
+                  </div>
+                </section>
+
+                <section className="rounded-xl p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-start gap-2"><Network size={16} color={C.accent} className="mt-0.5" /><div><div className="text-[13px] font-semibold" style={{ color: C.ink }}>Asset relationships</div><div className="text-[10.5px]" style={{ color: C.muted }}>Flows drive architecture lanes and make data movement traceable.</div></div></div>
+                    <button type="button" disabled={assets.length < 2} onClick={() => setFlowDrafts((current) => [...current, blankFlow(assets[0]?.key, assets[1]?.key, [...systemDataTypeIds])])} className="flex items-center gap-1 text-[11px] font-semibold disabled:opacity-40" style={{ color: C.accent }}><Plus size={12} /> Add relationship</button>
+                  </div>
+                  <div className="space-y-2">
+                    {flowDrafts.map((flow) => (
+                      <div key={flow.key} className="rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+                        <div className="grid grid-cols-3 gap-2">
+                          <Field label="From"><Select value={flow.fromKey} onChange={(e) => updateFlow(flow.key, { fromKey: e.target.value })}>{assets.map((asset, index) => <option key={asset.key} value={asset.key}>{asset.name || `Asset ${index + 1}`}</option>)}</Select></Field>
+                          <Field label="Relationship"><Select value={flow.kind} onChange={(e) => updateFlow(flow.key, { kind: Object.values(FLOW_KINDS).find((value) => value === e.target.value) ?? flow.kind })}>{Object.values(FLOW_KINDS).map((value) => <option key={value} value={value}>{value.replace(/-/g, " ")}</option>)}</Select></Field>
+                          <Field label="To"><Select value={flow.toKey} onChange={(e) => updateFlow(flow.key, { toKey: e.target.value })}>{assets.map((asset, index) => <option key={asset.key} value={asset.key}>{asset.name || `Asset ${index + 1}`}</option>)}</Select></Field>
+                        </div>
+                        <div className="mt-2 flex items-end gap-2">
+                          <div className="flex-1"><Field label="Data carried"><div className="flex flex-wrap gap-1.5">{systemDataTypeIds.map((id) => { const dataType = dataTypes.find((item) => item.id === id); const selected = flow.dataTypeIds.includes(id); return <ChoiceChip key={id} selected={selected} onClick={() => updateFlow(flow.key, { dataTypeIds: selected ? flow.dataTypeIds.filter((item) => item !== id) : [...flow.dataTypeIds, id] })}>{dataType?.name ?? id}</ChoiceChip>; })}</div></Field></div>
+                          <div className="w-[34%]"><Field label="Relationship note"><TextInput value={flow.note} onChange={(e) => updateFlow(flow.key, { note: e.target.value })} placeholder="What moves or is protected" /></Field></div>
+                          <button type="button" onClick={() => setFlowDrafts((current) => current.filter((item) => item.key !== flow.key))} className="p-2 mb-0.5" style={{ color: C.red }}><Trash2 size={14} /></button>
+                        </div>
+                        {flow.fromKey === flow.toKey && <div className="text-[10px] mt-1" style={{ color: C.red }}>A relationship must connect two different assets.</div>}
+                      </div>
+                    ))}
+                    {assets.length > 1 && flowDrafts.length === 0 && <div className="rounded-lg px-3 py-3 text-[11px]" style={{ border: `1px dashed ${C.amber}`, color: C.amber }}>Add at least one relationship between the assets in this boundary.</div>}
+                    {assets.length === 1 && <div className="text-[11px]" style={{ color: C.muted }}>A one-asset boundary does not require an internal relationship.</div>}
+                  </div>
+                </section>
+
+                {usesAI && (
+                  <section className="rounded-xl p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex items-start gap-2"><Bot size={16} color={C.accent} className="mt-0.5" /><div><div className="text-[13px] font-semibold" style={{ color: C.ink }}>Agentic identities</div><div className="text-[10.5px]" style={{ color: C.muted }}>Optional: record authenticated AI agents that can invoke tools or affect resources.</div></div></div>
+                      <button type="button" onClick={() => setAgentDrafts((current) => [...current, blankAgent(ownerOrgId)])} className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: C.accent }}><Plus size={12} /> Add agent</button>
+                    </div>
+                    <div className="space-y-2">
+                      {agentDrafts.map((agent) => (
+                        <div key={agent.key} className="rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+                          <div className="grid grid-cols-3 gap-2">
+                            <Field label="Agent name"><TextInput value={agent.name} onChange={(e) => updateAgent(agent.key, { name: e.target.value })} /></Field>
+                            <Field label="Service principal"><TextInput value={agent.servicePrincipal} onChange={(e) => updateAgent(agent.key, { servicePrincipal: e.target.value })} placeholder="spn://system/agent" /></Field>
+                            <Field label="Owner"><Select value={agent.ownerOrgId} onChange={(e) => updateAgent(agent.key, { ownerOrgId: e.target.value })}><option value="">Unassigned</option>{ORGS.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</Select></Field>
+                            <Field label="Autonomy"><Select value={agent.autonomyLevel} onChange={(e) => updateAgent(agent.key, { autonomyLevel: AGENT_AUTONOMY_LEVELS.find((value) => value === e.target.value) ?? agent.autonomyLevel, externalActions: e.target.value === "recommend" ? false : agent.externalActions })}>{AGENT_AUTONOMY_LEVELS.filter((value) => value !== "autonomous" || autonomousActions).map((value) => <option key={value} value={value}>{value}</option>)}</Select></Field>
+                            <Field label="Privilege"><Select value={agent.privilegeLevel} onChange={(e) => updateAgent(agent.key, { privilegeLevel: AGENT_PRIVILEGE_LEVELS.find((value) => value === e.target.value) ?? agent.privilegeLevel })}>{AGENT_PRIVILEGE_LEVELS.map((value) => <option key={value} value={value}>{value}</option>)}</Select></Field>
+                            <Field label="Credential"><Select value={agent.credentialType} onChange={(e) => updateAgent(agent.key, { credentialType: AGENT_CREDENTIAL_TYPES.find((value) => value === e.target.value) ?? agent.credentialType })}>{AGENT_CREDENTIAL_TYPES.map((value) => <option key={value} value={value}>{value}</option>)}</Select></Field>
+                            <Field label="Purpose"><TextInput value={agent.purpose} onChange={(e) => updateAgent(agent.key, { purpose: e.target.value })} /></Field>
+                            <Field label="Tools / resources"><TextInput value={agent.tools} onChange={(e) => updateAgent(agent.key, { tools: e.target.value })} placeholder="Search, tickets, deployment" /></Field>
+                            <Field label="Revocation"><Select value={agent.revocationMechanism} onChange={(e) => updateAgent(agent.key, { revocationMechanism: AGENT_REVOCATION_MECHANISMS.find((value) => value === e.target.value) ?? agent.revocationMechanism })}>{AGENT_REVOCATION_MECHANISMS.map((value) => <option key={value} value={value}>{value}</option>)}</Select></Field>
+                          </div>
+                          <div className="flex items-center gap-4 mt-2 text-[11px]" style={{ color: C.ink }}>
+                            <label className="flex items-center gap-1.5"><input type="checkbox" checked={agent.externalActions} disabled={agent.autonomyLevel === "recommend"} onChange={(e) => updateAgent(agent.key, { externalActions: e.target.checked })} /> External actions</label>
+                            <label className="flex items-center gap-1.5"><input type="checkbox" checked={agent.canImpersonateUser} onChange={(e) => updateAgent(agent.key, { canImpersonateUser: e.target.checked })} /> Can impersonate user</label>
+                            <label className="flex items-center gap-1.5"><input type="checkbox" checked={agent.loggingEnabled} onChange={(e) => updateAgent(agent.key, { loggingEnabled: e.target.checked })} /> Activity logging</label>
+                            <button type="button" onClick={() => setAgentDrafts((current) => current.filter((item) => item.key !== agent.key))} className="ml-auto flex items-center gap-1" style={{ color: C.red }}><Trash2 size={12} /> Remove</button>
+                          </div>
+                        </div>
+                      ))}
+                      {agentDrafts.length === 0 && <div className="text-[11px]" style={{ color: C.muted }}>No agentic identity declared. AI use alone does not imply an agent can take action.</div>}
+                    </div>
+                  </section>
+                )}
+              </div>
+            </div>
+          )}
+
+          {step === 6 && (
+            <div>
+              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 6 of 7</div>
               <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Derived scope</h2>
               <p className="text-xs mb-5 max-w-[60ch]" style={{ color: C.muted }}>
                 This is the live engine resolving classification, applicability, responsibility and initial coverage from your entries.
@@ -1177,7 +1453,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       </div>
 
       <div className="flex items-center justify-between px-6 py-3.5" style={{ borderTop: `1px solid ${C.border}`, background: C.panel2 }}>
-        <span className="text-[11px] font-mono" style={{ color: C.muted }}>STEP {step} OF 6</span>
+        <span className="text-[11px] font-mono" style={{ color: C.muted }}>STEP {step} OF 7</span>
         <div className="flex gap-2.5">
           <button
             onClick={goBack}
@@ -1187,7 +1463,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
           >
             <ChevronLeft size={14} /> Back
           </button>
-          {step < 6 ? (
+          {step < 7 ? (
             <button
               onClick={goNext}
               disabled={nextDisabled}

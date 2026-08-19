@@ -19,12 +19,13 @@
 // only function meant to be called directly for that reason: it always pairs
 // the scope entry with at least one supporting fact in the same call.
 import type { RuntimeFacts } from "./liveGraph";
-import type { AssetId, ControlId, EvidenceId, SystemId } from "../graph/ids";
+import type { AssetId, ControlId, EvidenceArtifactId, EvidenceId, SystemId } from "../graph/ids";
 import type { ImplementationMechanism, NotImplemented, Responsibility } from "../graph/edges/controlImplementations";
 import type { RawEvidence } from "../graph/nodes/evidence";
+import type { EvidenceArtifact, EvidenceReview } from "../graph/nodes/evidenceProvenance";
 import type { PrismaLevelOverride } from "../graph/edges/prismaOverrides";
 import type { Finding } from "../graph/nodes/findings";
-import { nextEvidenceId, nextFindingId } from "./runtimeFactsStore";
+import { nextEvidenceArtifactId, nextEvidenceId, nextEvidenceReviewId, nextFindingId } from "./runtimeFactsStore";
 
 // Removes a wizard-created system and every runtime fact scoped to it. Baseline
 // systems never reach this function from the UI; their authored graph records
@@ -34,6 +35,19 @@ export function removeRuntimeSystem(runtime: RuntimeFacts, systemId: SystemId): 
     runtime.assets.filter((asset) => asset.systemId === systemId).map((asset) => asset.id)
   );
   const expectedClassification = { ...runtime.expectedClassification };
+  const removedEvidenceIds = new Set(
+    runtime.evidence
+      .filter((entry) => entry.assetIds.some((assetId) => assetIds.has(assetId)))
+      .map((entry) => entry.id)
+  );
+  const removedArtifactIds = new Set(
+    runtime.evidence
+      .filter((entry) => removedEvidenceIds.has(entry.id))
+      .flatMap((entry) => entry.artifactIds ?? [])
+  );
+  const removedActorIds = new Set(
+    runtime.actorAccess.filter((edge) => assetIds.has(edge.assetId)).map((edge) => edge.actorId)
+  );
   delete expectedClassification[systemId];
 
   return {
@@ -41,10 +55,16 @@ export function removeRuntimeSystem(runtime: RuntimeFacts, systemId: SystemId): 
     systems: runtime.systems.filter((system) => system.id !== systemId),
     assets: runtime.assets.filter((asset) => asset.systemId !== systemId),
     assetDataTypes: runtime.assetDataTypes.filter((edge) => !assetIds.has(edge.assetId)),
+    actors: runtime.actors.filter((actor) => !removedActorIds.has(actor.id)),
+    actorAccess: runtime.actorAccess.filter((edge) => !assetIds.has(edge.assetId)),
+    dataFlows: runtime.dataFlows.filter((flow) => !assetIds.has(flow.from) && !assetIds.has(flow.to)),
+    agenticIdentities: runtime.agenticIdentities.filter((agent) => agent.systemId !== systemId),
     assessmentScopes: runtime.assessmentScopes.filter((scope) => scope.systemId !== systemId),
     expectedClassification,
     implementationMechanisms: runtime.implementationMechanisms.filter((mechanism) => !assetIds.has(mechanism.assetId)),
     evidence: runtime.evidence.filter((entry) => !entry.assetIds.some((assetId) => assetIds.has(assetId))),
+    evidenceArtifacts: runtime.evidenceArtifacts.filter((artifact) => !removedArtifactIds.has(artifact.id)),
+    evidenceReviews: runtime.evidenceReviews.filter((review) => !removedEvidenceIds.has(review.evidenceId)),
     notImplemented: runtime.notImplemented.filter((entry) => !assetIds.has(entry.assetId)),
     prismaOverrides: runtime.prismaOverrides.filter((override) => override.systemId !== systemId),
     findings: runtime.findings.filter((finding) => !assetIds.has(finding.assetId)),
@@ -78,8 +98,15 @@ export function upsertImplementationMechanism(
   return { ...runtime, implementationMechanisms: [...withoutExisting, mechanism] };
 }
 
-export interface EvidenceDraft extends Omit<RawEvidence, "id" | "collectedAt"> {
+export type EvidenceArtifactDraft = Omit<EvidenceArtifact, "id">;
+
+export type EvidenceReviewDraft = Omit<EvidenceReview, "id" | "evidenceId">;
+
+export interface EvidenceDraft extends Omit<RawEvidence, "id" | "collectedAt" | "artifactIds" | "recordStatus"> {
   collectedAt?: string;
+  artifacts?: EvidenceArtifactDraft[];
+  existingArtifactIds?: EvidenceArtifactId[];
+  review?: EvidenceReviewDraft;
 }
 
 export type ControlEvidenceDraft = Omit<EvidenceDraft, "controlId">;
@@ -89,28 +116,68 @@ export type ControlEvidenceDraft = Omit<EvidenceDraft, "controlId">;
 // usually does) accumulate more than one evidence record over time.
 export function addEvidence(runtime: RuntimeFacts, draft: EvidenceDraft): RuntimeFacts {
   const id = nextEvidenceId(runtime);
+  let withProvenance = runtime;
+  const artifactIds: EvidenceArtifactId[] = [];
+  (draft.artifacts ?? []).forEach((artifactDraft) => {
+    const artifactId = nextEvidenceArtifactId(withProvenance);
+    withProvenance = {
+      ...withProvenance,
+      evidenceArtifacts: [...withProvenance.evidenceArtifacts, { ...artifactDraft, id: artifactId }],
+    };
+    artifactIds.push(artifactId);
+  });
+  const { artifacts: _artifacts, existingArtifactIds, review, ...observationDraft } = draft;
   const evidence: RawEvidence = {
-    ...draft,
+    ...observationDraft,
     id: id as RawEvidence["id"],
     collectedAt: draft.collectedAt ?? new Date().toISOString().slice(0, 10),
+    artifactIds: [...(existingArtifactIds ?? []), ...artifactIds].length > 0
+      ? [...(existingArtifactIds ?? []), ...artifactIds]
+      : undefined,
+    recordStatus: "active",
   };
-  return { ...runtime, evidence: [...runtime.evidence, evidence] };
+  let next: RuntimeFacts = { ...withProvenance, evidence: [...withProvenance.evidence, evidence] };
+  if (review) {
+    next = {
+      ...next,
+      evidenceReviews: [...next.evidenceReviews, { ...review, id: nextEvidenceReviewId(next), evidenceId: id }],
+    };
+  }
+  return next;
 }
 
 // Evidence records are runtime-owned only when they live in runtime.evidence
 // (id prefix EVD-USR-, see nextEvidenceId) — YAML-authored evidence is never
 // part of RuntimeFacts, so these two functions are structurally incapable of
-// reaching it. That's the enforcement of "only what this panel added can be
-// edited or removed here," not a check callers have to remember to make.
+// reaching it. Updates append a successor and retire the prior version; removal
+// records a withdrawal. Neither operation destroys the audit history.
 export function updateEvidence(runtime: RuntimeFacts, evidenceId: EvidenceId, patch: Partial<EvidenceDraft>): RuntimeFacts {
-  return {
-    ...runtime,
-    evidence: runtime.evidence.map((e) => (e.id === evidenceId ? { ...e, ...patch, id: e.id } : e)),
-  };
+  const previous = runtime.evidence.find((e) => e.id === evidenceId);
+  if (!previous) return runtime;
+  const evidence = runtime.evidence.map((entry) =>
+    entry.id === evidenceId ? { ...entry, recordStatus: "superseded" as const } : entry
+  );
+  const { id: _id, recordStatus: _status, supersedesId: _supersedes, artifactIds: _artifactIds, ...priorDraft } = previous;
+  return addEvidence(
+    { ...runtime, evidence },
+    {
+      ...priorDraft,
+      ...patch,
+      artifacts: patch.artifacts,
+      existingArtifactIds: previous.artifactIds,
+      review: patch.review,
+      supersedesId: evidenceId,
+    } as EvidenceDraft
+  );
 }
 
 export function removeEvidence(runtime: RuntimeFacts, evidenceId: EvidenceId): RuntimeFacts {
-  return { ...runtime, evidence: runtime.evidence.filter((e) => e.id !== evidenceId) };
+  return {
+    ...runtime,
+    evidence: runtime.evidence.map((entry) =>
+      entry.id === evidenceId ? { ...entry, recordStatus: "withdrawn" as const } : entry
+    ),
+  };
 }
 
 // Same replace-by-key semantics as upsertImplementationMechanism — validate.ts
@@ -140,6 +207,24 @@ export function addFinding(runtime: RuntimeFacts, draft: FindingDraft): RuntimeF
   const id = nextFindingId(runtime);
   const finding: Finding = { ...draft, id: id as Finding["id"] };
   return { ...runtime, findings: [...runtime.findings, finding] };
+}
+
+export function updateFinding(runtime: RuntimeFacts, findingId: Finding["id"], patch: Partial<FindingDraft>): RuntimeFacts {
+  return {
+    ...runtime,
+    findings: runtime.findings.map((finding) => {
+      if (finding.id !== findingId) return finding;
+      const remediationStatus = patch.remediationStatus ?? finding.remediationStatus;
+      return {
+        ...finding,
+        ...patch,
+        id: finding.id,
+        closedDate: remediationStatus === "Complete"
+          ? (patch.closedDate ?? finding.closedDate ?? new Date().toISOString().slice(0, 10))
+          : undefined,
+      };
+    }),
+  };
 }
 
 export interface EvaluateControlInput {

@@ -163,7 +163,7 @@ export function assembleGraph(facts: GraphFacts): Graph {
   // one asset, and is filed under the "program" sentinel so evidenceFor() has a
   // single lookup shape for both cases.
   const evidenceByPair: Record<string, Evidence[]> = {};
-  evidence.forEach((e) => {
+  evidence.filter((e) => (e.recordStatus ?? "active") === "active").forEach((e) => {
     if (e.assetIds.length === 0) {
       (evidenceByPair[pair("program", e.controlId)] ||= []).push(e);
       return;
@@ -232,6 +232,8 @@ export function assembleGraph(facts: GraphFacts): Graph {
     keyControls: facts.keyControls,
     evidence,
     evidenceSources,
+    evidenceArtifacts: facts.evidenceArtifacts,
+    evidenceReviews: facts.evidenceReviews,
     risks: facts.risks,
     orgs: facts.orgs,
     findings: facts.findings,
@@ -272,6 +274,9 @@ export function assembleGraph(facts: GraphFacts): Graph {
     keyControlById: byId(facts.keyControls) as Record<ControlId, (typeof facts.keyControls)[number]>,
     evidenceById: byId(evidence),
     evidenceSourceById: byId(evidenceSources),
+    evidenceArtifactById: byId(facts.evidenceArtifacts),
+    evidenceReviewById: byId(facts.evidenceReviews),
+    evidenceReviewsByEvidence: groupBy(facts.evidenceReviews, (review) => review.evidenceId),
     riskById: byId(facts.risks) as Record<RiskId, (typeof facts.risks)[number]>,
     orgById: byId(facts.orgs),
     actorById: byId(facts.actors),

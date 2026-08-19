@@ -69,6 +69,8 @@ export const YAML_FACTS: GraphFacts = {
   controls: CONTROLS,
   keyControls: read("key-controls"),
   evidence: read("evidence"),
+  evidenceArtifacts: read("evidence-artifacts"),
+  evidenceReviews: read("evidence-reviews"),
   risks: read("risks"),
   orgs: read("orgs"),
   findings: read("findings"),

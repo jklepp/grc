@@ -20,7 +20,9 @@ import { loadGraph } from "../graph/load";
 import { YAML_FACTS } from "../graph/sources/yaml";
 import { createEngine } from "./create";
 import { buildLiveEngine } from "./liveGraph";
-import { loadRuntimeFacts, hasRuntimeFacts } from "./runtimeFactsStore";
+import { loadRuntimeFacts, hasRuntimeFacts, saveRuntimeFacts } from "./runtimeFactsStore";
+import type { RuntimeFacts } from "./liveGraph";
+import type { Engine } from "./create";
 
 // The live dataset now comes from src/graph/facts/*.yaml. The TypeScript
 // modules those were generated from are still present and still exported as
@@ -41,7 +43,7 @@ import { loadRuntimeFacts, hasRuntimeFacts } from "./runtimeFactsStore";
 // validators could in principle invalidate an old blob — fall back to the
 // plain YAML engine rather than let a stale localStorage entry break the app.
 const runtimeFacts = loadRuntimeFacts();
-export const engine = hasRuntimeFacts(runtimeFacts)
+export let engine = hasRuntimeFacts(runtimeFacts)
   ? (() => {
       const { engine: liveEngine, problems } = buildLiveEngine(YAML_FACTS, runtimeFacts);
       if (liveEngine) return liveEngine;
@@ -49,6 +51,26 @@ export const engine = hasRuntimeFacts(runtimeFacts)
       return createEngine(loadGraph(YAML_FACTS));
     })()
   : createEngine(loadGraph(YAML_FACTS));
+
+const engineListeners = new Set<() => void>();
+
+export function getLiveEngine(): Engine {
+  return engine;
+}
+
+export function subscribeToLiveEngine(listener: () => void): () => void {
+  engineListeners.add(listener);
+  return () => engineListeners.delete(listener);
+}
+
+export function commitRuntimeFacts(runtime: RuntimeFacts): { engine: Engine | null; problems: string[] } {
+  const result = buildLiveEngine(YAML_FACTS, runtime);
+  if (!result.engine) return result;
+  saveRuntimeFacts(runtime);
+  engine = result.engine;
+  engineListeners.forEach((listener) => listener());
+  return result;
+}
 
 const {
   selectors, profile, risk, compliance, findings, rollups, graph,
@@ -64,16 +86,18 @@ export type { Graph, GraphFacts } from "../graph/types";
 
 // ---- Page-facing surface ------------------------------------------------------
 // Entity access
-export const getAsset = selectors.getAsset;
+export const getAsset: typeof selectors.getAsset = (...args) => engine.selectors.getAsset(...args);
 export const getSystem = selectors.getSystem;
 export const getRisk = selectors.getRisk;
 export const getDataType = selectors.getDataType;
 export const getControl = selectors.getControl;
-export const getEvidence = selectors.getEvidence;
-export const getAllAssets = selectors.getAllAssets;
-export const getAllSystems = selectors.getAllSystems;
+export const getEvidence: typeof selectors.getEvidence = (...args) => engine.selectors.getEvidence(...args);
+export const getEvidenceArtifacts: typeof selectors.getEvidenceArtifacts = (...args) => engine.selectors.getEvidenceArtifacts(...args);
+export const getEvidenceReviews: typeof selectors.getEvidenceReviews = (...args) => engine.selectors.getEvidenceReviews(...args);
+export const getAllAssets: typeof selectors.getAllAssets = (...args) => engine.selectors.getAllAssets(...args);
+export const getAllSystems: typeof selectors.getAllSystems = (...args) => engine.selectors.getAllSystems(...args);
 export const getAllRisks = selectors.getAllRisks;
-export const getAllDataTypes = selectors.getAllDataTypes;
+export const getAllDataTypes: typeof selectors.getAllDataTypes = (...args) => engine.selectors.getAllDataTypes(...args);
 export const getAllKeyControls = selectors.getAllKeyControls;
 export const getAllEvidence = selectors.getAllEvidence;
 export const getEnterprise = selectors.getEnterprise;
@@ -85,16 +109,16 @@ export const getInstance = selectors.getInstance;
 export const getControlAssessments = selectors.getControlAssessments;
 export const getApplicability = selectors.getApplicability;
 export const getApplicabilityProfile = selectors.getApplicabilityProfile;
-export const getDataFlows = selectors.getDataFlows;
+export const getDataFlows: typeof selectors.getDataFlows = (...args) => engine.selectors.getDataFlows(...args);
 export const getNeighbors = selectors.getNeighbors;
 export const flowsFrom = selectors.flowsFrom;
 export const flowsTo = selectors.flowsTo;
 export const flowsCarrying = selectors.flowsCarrying;
-export const dataForAsset = selectors.dataForAsset;
-export const dataTypesForSystem = selectors.dataTypesForSystem;
+export const dataForAsset: typeof selectors.dataForAsset = (...args) => engine.selectors.dataForAsset(...args);
+export const dataTypesForSystem: typeof selectors.dataTypesForSystem = (...args) => engine.selectors.dataTypesForSystem(...args);
 export const assetsHoldingDataType = selectors.assetsHoldingDataType;
 export const assetClassification = selectors.assetClassification;
-export const assetsForSystem = selectors.assetsForSystem;
+export const assetsForSystem: typeof selectors.assetsForSystem = (...args) => engine.selectors.assetsForSystem(...args);
 export const requiredControlsForAsset = selectors.requiredControlsForAsset;
 export const assetsRequiringControl = selectors.assetsRequiringControl;
 export const allExceptions = selectors.allExceptions;
@@ -119,7 +143,7 @@ export const responsibilityForControl = compliance.responsibilityForControl;
 export const notApplicableControlsForSystem = compliance.notApplicableControlsForSystem;
 export const controlApplicabilitySummary = compliance.controlApplicabilitySummary;
 export const pendingControlsForSystem = engine.applicability.pendingControlsForSystem;
-export const resolveProgramApplicability = engine.applicability.resolveProgramApplicability;
+export const resolveProgramApplicability: typeof engine.applicability.resolveProgramApplicability = (...args) => engine.applicability.resolveProgramApplicability(...args);
 export { STATUS_RANK } from "./compliance";
 
 // Profile
@@ -138,7 +162,7 @@ export const topRisksForSystem = risk.topRisksForSystem;
 
 // Findings
 export const ALL_FINDINGS = findings.ALL_FINDINGS;
-export const findingsForSystem = findings.findingsForSystem;
+export const findingsForSystem: typeof findings.findingsForSystem = (...args) => engine.findings.findingsForSystem(...args);
 export const findingsForAsset = findings.findingsForAsset;
 export const findingsForRisk = findings.findingsForRisk;
 export const openFindingsForSource = findings.openFindingsForSource;
@@ -151,7 +175,7 @@ export const EXCEPTION_SUMMARY = exceptions.exceptionSummary;
 export const exceptionsForSystem = exceptions.exceptionsForSystem;
 export const vulnerabilitiesForSystem = vulnerabilities.vulnerabilitiesForSystem;
 export const securityTestsForSystem = securityTesting.securityTestsForSystem;
-export const resilienceForSystem = resilience.resilienceForSystem;
+export const resilienceForSystem: typeof resilience.resilienceForSystem = (...args) => engine.resilience.resilienceForSystem(...args);
 export const irForSystem = incidentResponse.irForSystem;
 export const vendorsForSystem = vendors.vendorsForSystem;
 export const sdlcForSystem = sdlc.sdlcForSystem;
@@ -208,13 +232,14 @@ export {
   PRISMA_LEVELS, COMPLIANCE_RATINGS, COMPLIANCE_LABELS,
 } from "../graph/nodes/taxonomy";
 export { DATA_ROLE_META } from "../graph/edges/assetDataTypes";
-export { EVIDENCE_RESULTS, INDEPENDENCE_LEVELS } from "../graph/nodes/evidence";
+export { EVIDENCE_COLLECTOR_TYPES, EVIDENCE_RESULTS, INDEPENDENCE_LEVELS } from "../graph/nodes/evidence";
+export { ARTIFACT_SENSITIVITIES, EVIDENCE_REVIEW_DECISIONS } from "../graph/nodes/evidenceProvenance";
 export {
-  evaluateControl, addPrismaOverride, updateEvidence, removeEvidence, addFinding,
+  evaluateControl, addPrismaOverride, updateEvidence, removeEvidence, addFinding, updateFinding,
   addControlToScope, upsertImplementationMechanism, addEvidence, declareNotImplemented,
   removeRuntimeSystem,
 } from "./runtimeMutations";
-export type { ControlEvidenceDraft, EvidenceDraft, EvaluateControlInput, FindingDraft } from "./runtimeMutations";
+export type { ControlEvidenceDraft, EvidenceArtifactDraft, EvidenceReviewDraft, EvidenceDraft, EvaluateControlInput, FindingDraft } from "./runtimeMutations";
 export type { PrismaLevelOverride } from "../graph/edges/prismaOverrides";
 export type { Finding } from "../graph/nodes/findings";
 

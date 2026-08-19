@@ -5,14 +5,12 @@ import { PageHeader } from "../components/Headings";
 import { ClassificationTag, AssuranceBadge } from "../components/SystemBadges";
 import AddSystemWizard from "../components/AddSystemWizard";
 import Modal, { ModalCloseButton } from "../components/Modal";
-import { getAllSystems, removeRuntimeSystem } from "../engine";
-import { buildLiveEngine } from "../engine/liveGraph";
-import { loadRuntimeFacts, saveRuntimeFacts } from "../engine/runtimeFactsStore";
+import { commitRuntimeFacts, removeRuntimeSystem } from "../engine";
+import { loadRuntimeFacts } from "../engine/runtimeFactsStore";
 import { YAML_FACTS } from "../graph/sources/yaml";
+import { useLiveEngine } from "../engine/useLiveEngine";
 import type { SystemId } from "../graph/ids";
 import type { SystemRollup } from "../engine/rollups";
-
-const SYSTEMS = getAllSystems();
 
 function coverageColor(pct: number): string {
   if (pct >= 90) return C.green;
@@ -119,6 +117,8 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
   const [pendingDelete, setPendingDelete] = useState<SystemRollup | null>(null);
   const [deleteProblems, setDeleteProblems] = useState<string[]>([]);
   const [query, setQuery] = useState("");
+  const liveEngine = useLiveEngine();
+  const systems = liveEngine.rollups.systemRollups;
   const runtimeFacts = loadRuntimeFacts();
   const baselineSystemIds = new Set(YAML_FACTS.systems.map((system) => system.id));
   const deletableSystemIds = new Set(
@@ -143,22 +143,28 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
   function deletePendingSystem() {
     if (!pendingDelete || !deletableSystemIds.has(pendingDelete.id)) return;
     const candidate = removeRuntimeSystem(loadRuntimeFacts(), pendingDelete.id);
-    const { engine, problems } = buildLiveEngine(YAML_FACTS, candidate);
+    const { engine, problems } = commitRuntimeFacts(candidate);
     if (!engine) {
       setDeleteProblems(problems);
       return;
     }
-    saveRuntimeFacts(candidate);
-    window.location.reload();
+    setPendingDelete(null);
+    setDeleteProblems([]);
   }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return SYSTEMS;
-    return SYSTEMS.filter((s) =>
+    if (!q) return systems;
+    return systems.filter((s) =>
       s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q) || (s.classification?.toLowerCase() ?? "").includes(q)
     );
-  }, [query]);
+  }, [query, systems]);
+
+  function handleWizardSaved(systemId: SystemId) {
+    const created = editingSystemId === null;
+    closeWizard();
+    if (created) onSelectSystem(systemId);
+  }
 
   return (
     <div className="w-full">
@@ -226,7 +232,7 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
         </div>
       </div>
 
-      <AddSystemWizard open={wizardOpen} onClose={closeWizard} editingSystemId={editingSystemId} />
+      <AddSystemWizard open={wizardOpen} onClose={closeWizard} onCreated={handleWizardSaved} editingSystemId={editingSystemId} />
 
       <Modal
         open={pendingDelete !== null}

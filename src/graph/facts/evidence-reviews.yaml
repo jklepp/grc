@@ -1,0 +1,29 @@
+# Human review decisions are separate from collection results so acceptance,
+# rejection, and clarification requests remain attributable and versioned.
+
+- id: "EVR-9101"
+  evidenceId: "EV-9101"
+  reviewer: "J. Smith, Security Assurance"
+  reviewedAt: "2026-08-14T14:05:00Z"
+  decision: "accepted"
+  comments: "Connector identity, full population coverage, and retained output verified."
+  validThrough: "2026-08-27"
+  independenceDeclared: true
+
+- id: "EVR-9102"
+  evidenceId: "EV-9102"
+  reviewer: "J. Smith, Security Assurance"
+  reviewedAt: "2026-08-12T16:30:00Z"
+  decision: "accepted"
+  comments: "Configuration snapshot matches the production account and key inventory."
+  validThrough: "2026-09-10"
+  independenceDeclared: true
+
+- id: "EVR-7001"
+  evidenceId: "EV-7001"
+  reviewer: "Vendor Risk Management"
+  reviewedAt: "2026-03-06T15:00:00Z"
+  decision: "accepted"
+  comments: "Report scope and auditor independence confirmed for the current assurance period."
+  validThrough: "2027-03-02"
+  independenceDeclared: true
