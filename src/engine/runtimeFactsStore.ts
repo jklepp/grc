@@ -62,7 +62,8 @@ export function hasRuntimeFacts(facts: RuntimeFacts): boolean {
 // SYS-USR-<n> / AST-USR-<n>-<m>, distinct from the YAML source's SYS-0xx /
 // AST-0xx-xx ids so a runtime id can never collide with an authored one.
 export function nextSystemId(existing: RuntimeFacts): SystemId {
-  const n = existing.systems.length + 1;
+  let n = 1;
+  while (existing.systems.some((system) => system.id === `SYS-USR-${n}`)) n += 1;
   return `SYS-USR-${n}` as SystemId;
 }
 

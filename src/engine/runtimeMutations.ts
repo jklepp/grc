@@ -26,6 +26,31 @@ import type { PrismaLevelOverride } from "../graph/edges/prismaOverrides";
 import type { Finding } from "../graph/nodes/findings";
 import { nextEvidenceId, nextFindingId } from "./runtimeFactsStore";
 
+// Removes a wizard-created system and every runtime fact scoped to it. Baseline
+// systems never reach this function from the UI; their authored graph records
+// remain protected in YAML.
+export function removeRuntimeSystem(runtime: RuntimeFacts, systemId: SystemId): RuntimeFacts {
+  const assetIds = new Set(
+    runtime.assets.filter((asset) => asset.systemId === systemId).map((asset) => asset.id)
+  );
+  const expectedClassification = { ...runtime.expectedClassification };
+  delete expectedClassification[systemId];
+
+  return {
+    ...runtime,
+    systems: runtime.systems.filter((system) => system.id !== systemId),
+    assets: runtime.assets.filter((asset) => asset.systemId !== systemId),
+    assetDataTypes: runtime.assetDataTypes.filter((edge) => !assetIds.has(edge.assetId)),
+    assessmentScopes: runtime.assessmentScopes.filter((scope) => scope.systemId !== systemId),
+    expectedClassification,
+    implementationMechanisms: runtime.implementationMechanisms.filter((mechanism) => !assetIds.has(mechanism.assetId)),
+    evidence: runtime.evidence.filter((entry) => !entry.assetIds.some((assetId) => assetIds.has(assetId))),
+    notImplemented: runtime.notImplemented.filter((entry) => !assetIds.has(entry.assetId)),
+    prismaOverrides: runtime.prismaOverrides.filter((override) => override.systemId !== systemId),
+    findings: runtime.findings.filter((finding) => !assetIds.has(finding.assetId)),
+  };
+}
+
 // Adds controlId to the given system's declared assessment scope, if it
 // isn't there already. A no-op if the system has no runtime AssessmentScope
 // (i.e. it isn't a runtime-created system) — there is nothing to append to.

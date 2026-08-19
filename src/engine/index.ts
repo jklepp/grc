@@ -209,6 +209,7 @@ export { EVIDENCE_RESULTS, INDEPENDENCE_LEVELS } from "../graph/nodes/evidence";
 export {
   evaluateControl, addPrismaOverride, updateEvidence, removeEvidence, addFinding,
   addControlToScope, upsertImplementationMechanism, addEvidence, declareNotImplemented,
+  removeRuntimeSystem,
 } from "./runtimeMutations";
 export type { ControlEvidenceDraft, EvidenceDraft, EvaluateControlInput, FindingDraft } from "./runtimeMutations";
 export type { PrismaLevelOverride } from "../graph/edges/prismaOverrides";

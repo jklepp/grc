@@ -1,10 +1,14 @@
 import React, { useMemo, useState } from "react";
-import { Server, Plus, AlertTriangle, Search, Pencil } from "lucide-react";
+import { Server, Plus, AlertTriangle, Search, Pencil, Trash2 } from "lucide-react";
 import { C } from "../theme";
 import { PageHeader } from "../components/Headings";
 import { ClassificationTag, AssuranceBadge } from "../components/SystemBadges";
 import AddSystemWizard from "../components/AddSystemWizard";
-import { getAllSystems } from "../engine";
+import Modal, { ModalCloseButton } from "../components/Modal";
+import { getAllSystems, removeRuntimeSystem } from "../engine";
+import { buildLiveEngine } from "../engine/liveGraph";
+import { loadRuntimeFacts, saveRuntimeFacts } from "../engine/runtimeFactsStore";
+import { YAML_FACTS } from "../graph/sources/yaml";
 import type { SystemId } from "../graph/ids";
 import type { SystemRollup } from "../engine/rollups";
 
@@ -16,7 +20,7 @@ function coverageColor(pct: number): string {
   return C.red;
 }
 
-const COLUMNS = "2.4fr 90px 120px 100px 90px 150px 76px";
+const COLUMNS = "2.4fr 90px 120px 100px 90px 150px 142px";
 
 function SystemAvatar({ name }: { name: string }) {
   const initial = name.trim().charAt(0).toUpperCase();
@@ -34,10 +38,11 @@ interface SystemRowProps {
   system: SystemRollup;
   onSelect: (id: SystemId) => void;
   onEdit: (id: SystemId) => void;
+  onDelete?: (system: SystemRollup) => void;
   striped: boolean;
 }
 
-function SystemRow({ system, onSelect, onEdit, striped }: SystemRowProps) {
+function SystemRow({ system, onSelect, onEdit, onDelete, striped }: SystemRowProps) {
   const openFindings = system.findings.filter((f) => f.open).length;
   return (
     <div
@@ -54,7 +59,7 @@ function SystemRow({ system, onSelect, onEdit, striped }: SystemRowProps) {
       <button type="button" onClick={() => onSelect(system.id)} className="contents" aria-label={`Open ${system.name}`}>
         <div className="flex items-center gap-3 min-w-0">
           <SystemAvatar name={system.name} />
-          <div className="min-w-0">
+          <div className="min-w-0 text-left">
             <div className="flex items-center gap-2">
               <div className="text-sm font-semibold truncate" style={{ color: C.ink }}>{system.name}</div>
               {system.classification && <ClassificationTag level={system.classification} />}
@@ -78,15 +83,28 @@ function SystemRow({ system, onSelect, onEdit, striped }: SystemRowProps) {
           )}
         </div>
       </button>
-      <button
-        type="button"
-        onClick={() => onEdit(system.id)}
-        className="flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold"
-        style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
-        aria-label={`Edit ${system.name}`}
-      >
-        <Pencil size={11} /> Edit
-      </button>
+      <div className="flex items-center justify-end gap-1.5">
+        {onDelete && (
+          <button
+            type="button"
+            onClick={() => onDelete(system)}
+            className="flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold"
+            style={{ color: C.red, background: C.redBg, border: `1px solid ${C.red}` }}
+            aria-label={`Delete ${system.name}`}
+          >
+            <Trash2 size={11} /> Delete
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => onEdit(system.id)}
+          className="flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold"
+          style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
+          aria-label={`Edit ${system.name}`}
+        >
+          <Pencil size={11} /> Edit
+        </button>
+      </div>
     </div>
   );
 }
@@ -98,7 +116,14 @@ function SystemRow({ system, onSelect, onEdit, striped }: SystemRowProps) {
 export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: SystemId) => void }) {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editingSystemId, setEditingSystemId] = useState<SystemId | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<SystemRollup | null>(null);
+  const [deleteProblems, setDeleteProblems] = useState<string[]>([]);
   const [query, setQuery] = useState("");
+  const runtimeFacts = loadRuntimeFacts();
+  const baselineSystemIds = new Set(YAML_FACTS.systems.map((system) => system.id));
+  const deletableSystemIds = new Set(
+    runtimeFacts.systems.filter((system) => !baselineSystemIds.has(system.id)).map((system) => system.id)
+  );
 
   function openAddSystem() {
     setEditingSystemId(null);
@@ -113,6 +138,18 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
   function closeWizard() {
     setWizardOpen(false);
     setEditingSystemId(null);
+  }
+
+  function deletePendingSystem() {
+    if (!pendingDelete || !deletableSystemIds.has(pendingDelete.id)) return;
+    const candidate = removeRuntimeSystem(loadRuntimeFacts(), pendingDelete.id);
+    const { engine, problems } = buildLiveEngine(YAML_FACTS, candidate);
+    if (!engine) {
+      setDeleteProblems(problems);
+      return;
+    }
+    saveRuntimeFacts(candidate);
+    window.location.reload();
   }
 
   const filtered = useMemo(() => {
@@ -180,6 +217,7 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
                   system={system}
                   onSelect={onSelectSystem}
                   onEdit={openEditSystem}
+                  onDelete={deletableSystemIds.has(system.id) ? setPendingDelete : undefined}
                   striped={i % 2 === 1}
                 />
               ))}
@@ -189,6 +227,49 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
       </div>
 
       <AddSystemWizard open={wizardOpen} onClose={closeWizard} editingSystemId={editingSystemId} />
+
+      <Modal
+        open={pendingDelete !== null}
+        onClose={() => { setPendingDelete(null); setDeleteProblems([]); }}
+        width={520}
+        height={330}
+      >
+        <div className="flex items-start justify-between gap-4 px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
+          <div>
+            <h2 className="text-base font-semibold" style={{ color: C.ink }}>Delete system?</h2>
+            <p className="text-xs mt-1" style={{ color: C.muted }}>This action removes the system and all of its runtime assessment data.</p>
+          </div>
+          <ModalCloseButton onClose={() => { setPendingDelete(null); setDeleteProblems([]); }} />
+        </div>
+        <div className="flex-1 px-5 py-4">
+          <p className="text-sm" style={{ color: C.ink }}>
+            Permanently delete <b>{pendingDelete?.name}</b>? Its assets, data mappings, assessment scope, evidence, findings, and attestations will also be removed.
+          </p>
+          {deleteProblems.length > 0 && (
+            <div className="mt-3 rounded-lg px-3 py-2 text-xs" style={{ color: C.red, background: C.redBg }}>
+              The graph could not be validated after deletion: {deleteProblems.join(" · ")}
+            </div>
+          )}
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-4" style={{ borderTop: `1px solid ${C.border}` }}>
+          <button
+            type="button"
+            onClick={() => { setPendingDelete(null); setDeleteProblems([]); }}
+            className="rounded-lg px-3 py-2 text-xs font-semibold"
+            style={{ color: C.ink, border: `1px solid ${C.border}` }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={deletePendingSystem}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold"
+            style={{ color: "#fff", background: C.red }}
+          >
+            <Trash2 size={13} /> Delete system
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }
