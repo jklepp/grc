@@ -18,7 +18,8 @@ function coverageColor(pct: number): string {
   return C.red;
 }
 
-const COLUMNS = "2.4fr 90px 120px 100px 90px 150px 142px";
+const COLUMNS = "minmax(220px, 2.4fr) minmax(140px, 1.1fr) 88px 80px 72px minmax(130px, 1fr) max-content";
+const TABLE_MIN_WIDTH = 860;
 
 function SystemAvatar({ name }: { name: string }) {
   const initial = name.trim().charAt(0).toUpperCase();
@@ -47,41 +48,51 @@ function SystemRow({ system, onSelect, onEdit, onDelete, striped }: SystemRowPro
       className="w-full grid items-center gap-3 pl-3.5 pr-4 py-3.5 text-left transition-all group"
       style={{
         gridTemplateColumns: COLUMNS,
+        minWidth: TABLE_MIN_WIDTH,
         borderBottom: `1px solid ${C.border}`,
         borderLeft: "3px solid transparent",
         background: striped ? C.panel2 : "transparent",
+        cursor: "pointer",
       }}
+      onClick={() => onSelect(system.id)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(system.id);
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${system.name}`}
       onMouseEnter={(e) => { e.currentTarget.style.borderLeftColor = C.accent; e.currentTarget.style.background = C.accentBg; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderLeftColor = "transparent"; e.currentTarget.style.background = striped ? C.panel2 : "transparent"; }}
     >
-      <button type="button" onClick={() => onSelect(system.id)} className="contents" aria-label={`Open ${system.name}`}>
-        <div className="flex items-center gap-3 min-w-0">
-          <SystemAvatar name={system.name} />
-          <div className="min-w-0 text-left">
-            <div className="flex items-center gap-2">
-              <div className="text-sm font-semibold truncate" style={{ color: C.ink }}>{system.name}</div>
-              {system.classification && <ClassificationTag level={system.classification} />}
-            </div>
-            <div className="text-[11px] mt-0.5" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{system.id}</div>
+      <div className="flex items-center gap-3 min-w-0">
+        <SystemAvatar name={system.name} />
+        <div className="min-w-0 text-left">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="text-sm font-semibold truncate" style={{ color: C.ink }}>{system.name}</div>
+            {system.classification && <ClassificationTag level={system.classification} />}
           </div>
+          <div className="text-[11px] mt-0.5" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{system.id}</div>
         </div>
-        <div className="text-xs" style={{ color: C.muted }}>{system.env}</div>
-        <div className="flex items-center gap-2">
-          <AssuranceBadge pct={system.overallAssurance} size={34} />
-        </div>
-        <div className="text-sm font-semibold">
-          <span style={{ color: coverageColor(system.coverage.assessedPct) }}>{system.coverage.assessedPct}%</span>
-        </div>
-        <div className="text-xs" style={{ color: C.muted }}>{system.assetCount}</div>
-        <div className="text-xs">
-          {openFindings > 0 ? (
-            <span className="flex items-center gap-1" style={{ color: C.amber }}><AlertTriangle size={11} /> {openFindings} open</span>
-          ) : (
-            <span style={{ color: C.green }}>No open findings</span>
-          )}
-        </div>
-      </button>
-      <div className="flex items-center justify-end gap-1.5">
+      </div>
+      <div className="text-xs truncate" style={{ color: C.muted }}>{system.env}</div>
+      <div className="flex items-center">
+        <AssuranceBadge pct={system.overallAssurance} size={34} />
+      </div>
+      <div className="text-sm font-semibold">
+        <span style={{ color: coverageColor(system.coverage.assessedPct) }}>{system.coverage.assessedPct}%</span>
+      </div>
+      <div className="text-xs" style={{ color: C.muted }}>{system.assetCount}</div>
+      <div className="text-xs">
+        {openFindings > 0 ? (
+          <span className="flex items-center gap-1" style={{ color: C.amber }}><AlertTriangle size={11} /> {openFindings} open</span>
+        ) : (
+          <span style={{ color: C.green }}>No open findings</span>
+        )}
+      </div>
+      <div className="flex items-center justify-end gap-1.5" onClick={(event) => event.stopPropagation()}>
         {onDelete && (
           <button
             type="button"
@@ -228,10 +239,10 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
           </div>
         )}
 
-        <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}`, boxShadow: "0 6px 20px rgba(0,0,0,0.06)" }}>
+        <div className="rounded-xl overflow-x-auto" style={{ border: `1px solid ${C.border}`, boxShadow: "0 6px 20px rgba(0,0,0,0.06)" }}>
           <div
             className="grid gap-3 pl-3.5 pr-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide"
-            style={{ gridTemplateColumns: COLUMNS, background: C.panel2, color: C.muted, borderBottom: `2px solid ${C.accent}` }}
+            style={{ gridTemplateColumns: COLUMNS, minWidth: TABLE_MIN_WIDTH, background: C.panel2, color: C.muted, borderBottom: `2px solid ${C.accent}` }}
           >
             <div>System</div>
             <div>Env</div>
@@ -246,7 +257,7 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
               No systems match "{query}"
             </div>
           ) : (
-            <div style={{ background: C.panel }}>
+            <div style={{ background: C.panel, minWidth: TABLE_MIN_WIDTH }}>
               {filtered.map((system, i) => (
                 <SystemRow
                   key={system.id}
