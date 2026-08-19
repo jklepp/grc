@@ -13,6 +13,7 @@ import {
 import { C } from "../../theme";
 import { Panel } from "./shared/Panel";
 import { IdentificationField } from "./shared/IdentificationField";
+import { SectionHeader } from "./shared/SectionHeader";
 import type { ExposurePosture, SdlcPosture, VendorPosture } from "./types";
 
 interface SystemSecurityProps {
@@ -30,21 +31,6 @@ interface SdlcGroup {
   label: string;
   description: string;
   safeguards: SdlcSafeguard[];
-}
-
-function CardHeader({ icon, title, description, aside }: { icon: ReactNode; title: string; description: string; aside?: ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-4 mb-4">
-      <div className="flex items-start gap-2.5">
-        <span className="mt-0.5" style={{ color: C.accent }}>{icon}</span>
-        <div>
-          <div className="text-sm font-semibold" style={{ color: C.ink }}>{title}</div>
-          <div className="text-xs mt-0.5" style={{ color: C.muted }}>{description}</div>
-        </div>
-      </div>
-      {aside}
-    </div>
-  );
 }
 
 function CountBadge({ children, tone = "accent" }: { children: ReactNode; tone?: "accent" | "good" | "attention" }) {
@@ -105,8 +91,8 @@ export function SystemSecurity({ exposure, sdlc, vendors }: SystemSecurityProps)
   return (
     <div className="px-8 pb-10 space-y-5">
       <Panel>
-        <CardHeader
-          icon={<ShieldCheck size={16} />}
+        <SectionHeader
+          icon={ShieldCheck}
           title="Security Posture"
           description="The exposure, exception, and development signals most likely to require action."
         />
@@ -139,8 +125,8 @@ export function SystemSecurity({ exposure, sdlc, vendors }: SystemSecurityProps)
       </Panel>
 
       <Panel>
-        <CardHeader
-          icon={<Globe size={16} />}
+        <SectionHeader
+          icon={Globe}
           title="Exposure / Attack Surface"
           description="Public reachability, integration paths, administrative access, and approved exposure exceptions."
           aside={<CountBadge tone={exposure.dangerousConditionsUnmitigated.length > 0 ? "attention" : "accent"}>{exposure.externallyReachableCount} reachable</CountBadge>}
@@ -206,8 +192,8 @@ export function SystemSecurity({ exposure, sdlc, vendors }: SystemSecurityProps)
       </Panel>
 
       <Panel>
-        <CardHeader
-          icon={<GitBranch size={16} />}
+        <SectionHeader
+          icon={GitBranch}
           title="Secure Development"
           description="Preventive and detective safeguards applied from source control through production deployment."
           aside={sdlc?.applicable ? <CountBadge tone={missingSdlcCount === 0 ? "good" : "attention"}>{enabledSdlcCount} of {sdlcSafeguards.length} enabled</CountBadge> : <CountBadge>N/A</CountBadge>}
@@ -242,8 +228,8 @@ export function SystemSecurity({ exposure, sdlc, vendors }: SystemSecurityProps)
       </Panel>
 
       <Panel>
-        <CardHeader
-          icon={<Building2 size={16} />}
+        <SectionHeader
+          icon={Building2}
           title="Physical / Environmental"
           description="How facility-level safeguards are provided for this system."
           aside={<CountBadge tone="good">Inherited</CountBadge>}

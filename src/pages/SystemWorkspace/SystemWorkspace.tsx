@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { TabBar } from "../../components/Headings";
 import {
-  getAllSystems, systemControlMatrix, dataTypesForSystem,
+  getAllSystems, systemControlMatrix, dataTypesForSystem, getDataFlows,
   cockpitSummary, identityPostureForSystem, exposureForSystem, securityTestsForSystem,
   resilienceForSystem, irForSystem, vendorsForSystem, vulnerabilitiesForSystem, sdlcForSystem,
   topRisksForSystem, controlApplicabilitySummary, responsibilityForControl, systemCoverageBreakdown,
@@ -79,6 +79,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   const sdlc = useMemo(() => sdlcForSystem(system.id), [system]);
   const topRisks = useMemo(() => topRisksForSystem(system.id, 5), [system]);
   const dataTypes = useMemo(() => dataTypesForSystem(system.id), [system]);
+  const backupRecovery = useMemo(() => getDataFlows(system.id).backupRecovery, [system]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<(typeof STATUS_ORDER)[number], number> = Object.fromEntries(STATUS_ORDER.map((s) => [s, 0])) as Record<(typeof STATUS_ORDER)[number], number>;
@@ -132,7 +133,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         <SystemArchitecture systemId={systemId} onSelectSystem={selectSystem} />
       )}
 
-      {subTab === "data" && <SystemData system={system} dataTypes={dataTypes} />}
+      {subTab === "data" && <SystemData system={system} dataTypes={dataTypes} resilience={resilience} backupRecovery={backupRecovery} />}
 
       {subTab === "identity" && <SystemIdentity identity={identity} exposure={exposure} />}
 

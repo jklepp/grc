@@ -25,8 +25,6 @@ export function SystemHeader({ system, systems, systemId, onSelectSystem, onEdit
           <AssuranceBadge pct={system.overallAssurance} />
         </span>
       }
-      description="A live operational view of this system's security posture — what it contains, how it's exposed, how it's protected, and what the evidence proves."
-      descriptionClassName="max-w-none whitespace-nowrap"
       right={(
         <div className="flex items-center gap-2">
           <button

@@ -53,6 +53,14 @@ try {
     ["flow to a non-existent asset", (f) => { f.dataFlows[0].to = "AST-NOPE"; }, /is not an asset/],
     ["flow pointing at itself", (f) => { f.dataFlows[0].to = f.dataFlows[0].from; }, /connects an asset to itself/],
     ["flow carrying nothing", (f) => { f.dataFlows[0].dataTypeIds = []; }, /carries no data types/],
+    ["backup flow terminating outside a backup vault", (f) => {
+      const flow = f.dataFlows.find((candidate) => candidate.kind === "backup");
+      flow.to = f.assets.find((asset) => asset.systemId === "SYS-003" && asset.kind !== "backup-vault" && asset.id !== flow.from).id;
+    }, /backup flow .* must terminate at a backup-vault/],
+    ["restore flow originating outside a backup vault", (f) => {
+      const flow = f.dataFlows.find((candidate) => candidate.kind === "restore");
+      flow.from = f.assets.find((asset) => asset.systemId === "SYS-003" && asset.kind !== "backup-vault" && asset.id !== flow.to).id;
+    }, /restore flow .* must originate from a backup-vault/],
     ["tier weights not summing to 100", (f) => { f.controlProfile.categoryWeights.Restricted.Governance += 5; }, /weights sum to/],
     ["zero weight for a category", (f) => {
       const w = f.controlProfile.categoryWeights.Internal;

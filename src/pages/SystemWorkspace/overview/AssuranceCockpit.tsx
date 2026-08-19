@@ -1,7 +1,7 @@
 import React from "react";
 import { Gauge } from "lucide-react";
 import { C } from "../../../theme";
-import { SectionHeading } from "../../../components/Headings";
+import { SectionHeader } from "../shared/SectionHeader";
 import { StatTile } from "../shared/StatTile";
 import { StatRing } from "../shared/StatRing";
 import type { Band } from "../../../engine/assurance";
@@ -38,7 +38,11 @@ export function AssuranceCockpit({ system, cockpit }: { system: WorkspaceSystem;
   const risksAboveAppetite = cockpit.residualRisk.aboveAppetiteCount;
   return (
     <div>
-      <SectionHeading icon={Gauge}>System Posture</SectionHeading>
+      <SectionHeader
+        icon={Gauge}
+        title="System Posture"
+        description="Assurance, assessment coverage, evidence coverage, and risks above appetite."
+      />
       <div className="grid grid-cols-4 gap-4">
         <AssuranceTargetCard assurance={cockpit.assurance} target={cockpit.target} band={cockpit.assuranceBand} />
         <StatTile

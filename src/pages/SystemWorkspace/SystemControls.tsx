@@ -3,7 +3,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { RadioTower, Layers, AlertTriangle, ChevronUp, ChevronDown, ChevronsUpDown, ClipboardCheck, ListChecks } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { C } from "../../theme";
-import { SectionHeading } from "../../components/Headings";
+import { SectionHeader } from "./shared/SectionHeader";
 import {
   STATUS_META, STATUS_ORDER, STATUS_RANK, RESPONSIBILITY_META, APPLICABILITY_META,
   EVIDENCE_HEALTH_META, EVIDENCE_HEALTH_ORDER, evidenceHealthForRow,
@@ -628,7 +628,11 @@ export function SystemControls({ matrix, statusCounts, applicabilitySummary, pos
 
   return (
     <div className="px-8 pb-10 space-y-6">
-      <SectionHeading icon={Layers}>Controls</SectionHeading>
+      <SectionHeader
+        icon={Layers}
+        title="Control Posture"
+        description="Assurance, compliance, assessment coverage, applicability, and the work required to close control gaps."
+      />
 
       {applicabilitySummary && posture && (
         <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">

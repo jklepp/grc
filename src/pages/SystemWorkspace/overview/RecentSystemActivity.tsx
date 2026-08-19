@@ -1,8 +1,8 @@
 import React, { useMemo } from "react";
 import { Clock } from "lucide-react";
 import { C } from "../../../theme";
-import { SectionHeading } from "../../../components/Headings";
 import { Panel } from "../shared/Panel";
+import { SectionHeader } from "../shared/SectionHeader";
 import { recentActivityForSystem } from "./recentActivity";
 import type { RecentActivityInput } from "./recentActivity";
 
@@ -21,9 +21,12 @@ export function RecentSystemActivity({ identity, resilience, secTests, ir, vendo
   );
 
   return (
-    <div>
-      <SectionHeading icon={Clock} hint="a full changelog is planned">Recent Activity</SectionHeading>
-      <Panel>
+    <Panel>
+        <SectionHeader
+          icon={Clock}
+          title="Recent Activity"
+          description="The latest identity, recovery, testing, incident-response, and vendor-assurance events."
+        />
         {events.length === 0 ? (
           <div className="text-sm" style={{ color: C.muted }}>No recent activity on record for this system.</div>
         ) : (
@@ -45,7 +48,6 @@ export function RecentSystemActivity({ identity, resilience, secTests, ir, vendo
             ))}
           </div>
         )}
-      </Panel>
-    </div>
+    </Panel>
   );
 }

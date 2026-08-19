@@ -34,7 +34,8 @@
 // weights are a fact, and facts come from the graph.
 import type { Graph } from "../graph/types";
 import {
-  BOUNDARY_INGRESS_KINDS, BOUNDARY_EGRESS_KINDS, DATABASE_KINDS, SOFTWARE_DELIVERY_KINDS, WORKFORCE_INGRESS_KINDS,
+  BACKUP_RECOVERY_KINDS, BOUNDARY_INGRESS_KINDS, BOUNDARY_EGRESS_KINDS, DATABASE_KINDS,
+  SOFTWARE_DELIVERY_KINDS, WORKFORCE_INGRESS_KINDS,
 } from "../graph/nodes/assets";
 import {
   ASSURANCE_CATEGORIES, BASIS, PRISMA_LEVELS,
@@ -432,6 +433,11 @@ export function createRollups(
     // into the boundary, they don't carry a live request through it.
     const deliveryIds = new Set(assets.filter((a) => (SOFTWARE_DELIVERY_KINDS as readonly string[]).includes(a.kind)).map((a) => a.id));
 
+    // Backup-vault assets are recovery infrastructure, not live state stores.
+    // Keep them out of both the request-path walk and the generic control plane
+    // so their asynchronous backup/restore semantics remain visible.
+    const backupRecoveryIds = new Set(assets.filter((a) => (BACKUP_RECOVERY_KINDS as readonly string[]).includes(a.kind)).map((a) => a.id));
+
     // Workforce-ingress-kind assets (an SSO provider, a ZTNA gateway) are
     // pulled out the same way — they gate an internal actor's path to a
     // privileged asset, they don't carry a live customer request through it.
@@ -505,7 +511,7 @@ export function createRollups(
     }
 
     const branches = assets
-      .filter((a) => depth[a.id] === null && !dbIds.has(a.id) && !egressIds.has(a.id) && !deliveryIds.has(a.id) && !workforceIngressIds.has(a.id))
+      .filter((a) => depth[a.id] === null && !dbIds.has(a.id) && !egressIds.has(a.id) && !deliveryIds.has(a.id) && !backupRecoveryIds.has(a.id) && !workforceIngressIds.has(a.id))
       .map((a) => ({
         asset: assetRollupById[a.id],
         protects: graph.dataFlows.filter((f) => f.from === a.id && f.kind === "control-plane").map((f) => assetRollupById[f.to]),
@@ -540,6 +546,17 @@ export function createRollups(
         deploysTo: graph.dataFlows.filter((f) => f.from === a.id && f.kind === "deploys-to").map((f) => assetRollupById[f.to]),
       }));
 
+    // Backup & Recovery: asynchronous protection copies terminate at the
+    // vault; controlled restore relationships originate there. These edges
+    // deliberately do not contribute to the live request-path layout.
+    const backupRecovery = assets
+      .filter((a) => backupRecoveryIds.has(a.id))
+      .map((a) => ({
+        asset: assetRollupById[a.id],
+        backedUpFrom: graph.dataFlows.filter((f) => f.to === a.id && f.kind === "backup").map((f) => assetRollupById[f.from]),
+        restoresTo: graph.dataFlows.filter((f) => f.from === a.id && f.kind === "restore").map((f) => assetRollupById[f.to]),
+      }));
+
     // Ingress - Workforce: the workforce-ingress-kind assets pulled out of
     // the branch walk above, paired with whichever privileged asset they
     // grant access to.
@@ -570,7 +587,7 @@ export function createRollups(
     const internalActors = systemActorAccess.filter((a) => a.direction === ACTOR_DIRECTIONS.INTERNAL);
 
     return {
-      systemId, stages, branches, dataPlane, egress, softwareDeployment, workforceIngress, ingressActors, egressActors, internalActors,
+      systemId, stages, branches, dataPlane, egress, softwareDeployment, backupRecovery, workforceIngress, ingressActors, egressActors, internalActors,
       edges: dataEdges,
       controlPlaneEdges: graph.dataFlows.filter((f) => f.kind === "control-plane" && ids.has(f.from)),
     };

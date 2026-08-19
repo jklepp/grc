@@ -610,6 +610,30 @@
       score: 62
       reason: "The sanctioned network path every administrator's device takes to reach the boundary"
   inherentLikelihood: 3
+- id: "AST-003-25"
+  systemId: "SYS-003"
+  name: "Immutable Backup Vault"
+  type: "AWS Backup Vault (Cross-Region Copy)"
+  kind: "backup-vault"
+  provider: "AWS"
+  code: "BAK"
+  criticalityFactors:
+    confidentiality:
+      score: 98
+      reason: "Contains protected copies of Restricted customer documents, PII, and system metadata"
+    integrity:
+      score: 95
+      reason: "Corrupted or altered recovery points would make restoration untrustworthy"
+    availability:
+      score: 90
+      reason: "Provides the recovery source after regional failure, destructive change, or data loss"
+    regulatory:
+      score: 95
+      reason: "Supports retention, immutability, and tested recovery obligations for protected customer data"
+    businessDependency:
+      score: 92
+      reason: "The platform depends on these recovery points when primary durable stores cannot be used"
+  inherentLikelihood: 2
 - id: "AST-042-01"
   systemId: "SYS-042"
   name: "Production Tenant"

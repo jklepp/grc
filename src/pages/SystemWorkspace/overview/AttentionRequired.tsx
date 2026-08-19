@@ -2,6 +2,7 @@ import React from "react";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { C } from "../../../theme";
 import { Panel } from "../shared/Panel";
+import { SectionHeader } from "../shared/SectionHeader";
 import type { CockpitItem } from "../../../engine";
 import type { CockpitSummary } from "../types";
 import type { SystemWorkspaceTab } from "../tabs";
@@ -58,20 +59,22 @@ export function AttentionRequired({ cockpit, onNavigate }: { cockpit: CockpitSum
   return (
     <div className="space-y-4">
       <Panel>
-        <div className="text-[11px] uppercase tracking-wide font-semibold mb-2" style={{ color: C.green }}>Positive Assurance</div>
+        <SectionHeader icon={CheckCircle2} title="Positive Assurance" description="Recent evidence that demonstrates this system's controls are operating as intended." />
         {cockpit.positiveAssurance.length === 0 ? (
           <div className="text-sm" style={{ color: C.muted }}>Nothing proven yet.</div>
         ) : cockpit.positiveAssurance.map((item, i) => <PositiveRow key={i} item={item} />)}
       </Panel>
       <Panel>
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-[11px] uppercase tracking-wide font-semibold" style={{ color: C.red }}>Attention Required</div>
-          {cockpit.attentionRequired.length > 0 && (
+        <SectionHeader
+          icon={AlertTriangle}
+          title="Attention Required"
+          description="The highest-priority posture, testing, identity, vendor, and risk signals requiring action."
+          aside={cockpit.attentionRequired.length > 0 ? (
             <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: C.redBg, color: C.red }}>
               {cockpit.attentionRequired.length}
             </span>
-          )}
-        </div>
+          ) : undefined}
+        />
         {cockpit.attentionRequired.length === 0 ? (
           <div className="text-sm" style={{ color: C.muted }}>Nothing outstanding.</div>
         ) : cockpit.attentionRequired.map((item, i) => <AttentionRow key={i} item={item} onNavigate={onNavigate} />)}

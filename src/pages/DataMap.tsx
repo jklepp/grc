@@ -1,14 +1,14 @@
 import React, { useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Network, AlertTriangle, X, KeyRound, User, Cpu, Database, Workflow, LayoutList, Download, Loader2, UserCog, Rocket, Fingerprint, RotateCcw } from "lucide-react";
+import { Network, AlertTriangle, X, KeyRound, User, Cpu, Database, DatabaseBackup, Workflow, LayoutList, Download, Loader2, UserCog, Rocket, Fingerprint, RotateCcw } from "lucide-react";
 import { C, CLASS_META } from "../theme";
 import { PageHeader } from "../components/Headings";
 import { ClassificationTag, AssuranceBadge, SystemPicker } from "../components/SystemBadges";
 import {
   getAllSystems, getAsset, getDataFlows, getAllDataTypes, dataTypesForSystem, dataForAsset,
   INSTANCE_STATUS_META, PRISMA_LEVELS, ASSURANCE_TARGET,
-  ACTOR_KINDS,
+  ACTOR_KINDS, resilienceForSystem,
 } from "../engine";
 import { buildDataFlowDiagram, buildControlPlaneMatrix } from "../utils/flowDiagramLayout";
 import FlowDiagramSVG, { FlowDiagramLegend } from "../components/FlowDiagramSVG";
@@ -27,6 +27,7 @@ type LayoutActor = FlowLayout["ingressActors"][number]["actor"];
 type ActorAccess = FlowLayout["ingressActors"][number];
 type WorkforceIngress = FlowLayout["workforceIngress"];
 type EgressEntries = FlowLayout["egress"];
+type ResiliencePosture = ReturnType<typeof resilienceForSystem>;
 type RolesFor = (assetId: AssetId) => string[] | null;
 interface DisplayBand { label: string; color: string }
 
@@ -334,10 +335,17 @@ function TwoColumnRow({ isFirst, left, right }: { isFirst?: boolean; left?: Reac
   );
 }
 
-function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }: { layout: FlowLayout; selectedKey: AssetId | null; onSelectNode: (id: AssetId) => void; rolesFor: RolesFor }) {
+function FlowChart({ layout, resilience, selectedKey, onSelectNode, rolesFor }: {
+  layout: FlowLayout;
+  resilience: ResiliencePosture;
+  selectedKey: AssetId | null;
+  onSelectNode: (id: AssetId) => void;
+  rolesFor: RolesFor;
+}) {
   if (
     layout.stages.length === 0 && layout.dataPlane.length === 0 && layout.egress.length === 0
     && (!layout.softwareDeployment || layout.softwareDeployment.length === 0)
+    && (!layout.backupRecovery || layout.backupRecovery.length === 0)
     && (!layout.workforceIngress || layout.workforceIngress.length === 0)
   ) {
     return (
@@ -362,7 +370,8 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }: { layout: Fl
   const hasDataPlane = layout.dataPlane.length > 0;
   const hasControlPlane = layout.branches.length > 0;
   const hasSoftwareDeployment = layout.softwareDeployment && layout.softwareDeployment.length > 0;
-  const hasTrustedSection = hasBoundaryStages || hasActorsBlock || hasDataPlane || hasControlPlane || hasSoftwareDeployment;
+  const hasBackupRecovery = layout.backupRecovery && layout.backupRecovery.length > 0;
+  const hasTrustedSection = hasBoundaryStages || hasActorsBlock || hasDataPlane || hasControlPlane || hasSoftwareDeployment || hasBackupRecovery;
   // Which of the (fixed-order) boundary sections is first — that one skips
   // the top separator every other present section gets. Also tracked which
   // is last, so the actors block (the only one with its own fill background)
@@ -373,6 +382,7 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }: { layout: Fl
     hasDataPlane && "dataPlane",
     hasControlPlane && "controlPlane",
     hasSoftwareDeployment && "softwareDeployment",
+    hasBackupRecovery && "backupRecovery",
   ].filter(Boolean);
   const firstBoundarySection = presentBoundarySections[0];
   const lastBoundarySection = presentBoundarySections[presentBoundarySections.length - 1];
@@ -579,6 +589,53 @@ function FlowChart({ layout, selectedKey, onSelectNode, rolesFor }: { layout: Fl
               </div>
             </>
           )}
+
+          {layout.backupRecovery && layout.backupRecovery.length > 0 && (
+            <>
+              <div className="-mx-6" style={{ marginTop: 16, marginBottom: 12, borderTop: `1px solid ${C.borderStrong}` }} />
+              <div>
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <DatabaseBackup size={12} color={C.accent} />
+                  <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
+                    Backup &amp; Recovery
+                  </span>
+                  <span className="text-[11px]" style={{ color: C.muted }}>
+                    — asynchronous protection and controlled restore paths; not part of the live request path
+                  </span>
+                </div>
+                {resilience.backup && (
+                  <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+                    {resilience.backup.immutable && <span className="text-[10px] font-semibold px-2 py-1 rounded-full" style={{ color: C.accent, background: C.accentBg }}>Immutable</span>}
+                    {resilience.backup.crossRegion && <span className="text-[10px] font-semibold px-2 py-1 rounded-full" style={{ color: C.accent, background: C.accentBg }}>Cross-region</span>}
+                    <span className="text-[10px] px-2 py-1 rounded-full" style={{ color: C.muted, background: C.panel }}>
+                      RPO {resilience.backup.rpoTargetMinutes}m · RTO {resilience.backup.rtoTargetMinutes}m
+                    </span>
+                    {resilience.lastDrTest && (
+                      <span className="text-[10px] px-2 py-1 rounded-full" style={{ color: resilience.targetsMetLastTest ? C.green : C.amber, background: resilience.targetsMetLastTest ? C.greenBg : C.amberBg }}>
+                        Restore tested {resilience.lastDrTest.conductedAt}{resilience.targetsMetLastTest ? " · targets met" : ""}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-3">
+                  {layout.backupRecovery.map(({ asset, backedUpFrom, restoresTo }) => (
+                    <NodeCard
+                      key={asset.id}
+                      asset={asset}
+                      footer={backedUpFrom.length > 0
+                        ? `protects ${backedUpFrom.map((source) => source.code).join(" · ")}${restoresTo.length > 0 ? " · restore path verified" : ""}`
+                        : null}
+                      selected={asset.id === selectedKey}
+                      onSelect={onSelectNode}
+                      isBranch
+                      width={WIDE_NODE_CARD_WIDTH}
+                      height={WIDE_NODE_CARD_HEIGHT}
+                    />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -763,6 +820,7 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
   const system = SYSTEMS.find((s) => s.id === systemId);
   const systemDataTypes = useMemo(() => dataTypesForSystem(systemId), [systemId]);
   const fullLayout = useMemo(() => getDataFlows(systemId), [systemId]);
+  const resilience = useMemo(() => resilienceForSystem(systemId), [systemId]);
 
   // Filtering to one data type is a real query over the edges, not a second
   // dataset: keep the assets that touch it and the flows that carry it. The
@@ -779,6 +837,9 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
       branches: fullLayout.branches.filter((b) => carries(b.asset.id) || b.protects.some((p) => carries(p.id))),
       dataPlane: fullLayout.dataPlane.filter((d) => carries(d.asset.id) || d.fedBy.some((p) => carries(p.id))),
       egress: fullLayout.egress.filter((d) => carries(d.asset.id) || d.fedBy.some((p) => carries(p.id))),
+      backupRecovery: fullLayout.backupRecovery.filter(
+        (entry) => carries(entry.asset.id) || entry.backedUpFrom.some((source) => carries(source.id)) || entry.restoresTo.some((target) => carries(target.id))
+      ),
       edges: fullLayout.edges.filter((e) => e.dataTypeIds.includes(dataTypeId)),
     };
   }, [fullLayout, dataTypeId]);
@@ -908,7 +969,7 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
               </div>
 
               {viewMode === "cards" ? (
-                <FlowChart layout={layout} selectedKey={selectedKey} onSelectNode={(k) => setSelectedKey((cur) => (cur === k ? null : k))} rolesFor={rolesFor} />
+                <FlowChart layout={layout} resilience={resilience} selectedKey={selectedKey} onSelectNode={(k) => setSelectedKey((cur) => (cur === k ? null : k))} rolesFor={rolesFor} />
               ) : (
                 <div className="flex flex-col gap-4">
                   <div className="rounded-2xl p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>

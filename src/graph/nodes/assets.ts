@@ -34,6 +34,7 @@ export const ASSET_KINDS = [
   "compute-service",
   "vector-db",
   "object-storage",
+  "backup-vault",
   "relational-db",
   "key-management",
   "secrets-store",
@@ -68,7 +69,7 @@ export type AssetKind = (typeof ASSET_KINDS)[number];
 export const ASSET_TYPE_CATEGORIES: Record<string, AssetKind[]> = {
   "Network": ["api-gateway", "waf", "egress-gateway", "secure-web-gateway", "tool-gateway", "model-gateway"],
   "Compute": ["compute-service", "cache"],
-  "Database & Storage": ["relational-db", "vector-db", "object-storage"],
+  "Database & Storage": ["relational-db", "vector-db", "object-storage", "backup-vault"],
   "Identity & Access": ["iam", "identity-provider", "secrets-store", "key-management", "service-account"],
   "SaaS": ["saas-tenant", "saas-api"],
   "Integration": ["integration-endpoint", "export-endpoint", "log-feed"],
@@ -122,6 +123,11 @@ export const DATABASE_KINDS: AssetKind[] = ["relational-db", "vector-db", "objec
 // instead, the same way DATABASE_KINDS and BOUNDARY_EGRESS_KINDS are pulled
 // out of the request-path walk and Control Plane branches respectively.
 export const SOFTWARE_DELIVERY_KINDS: AssetKind[] = ["cicd-pipeline", "artifact-registry", "iac-pipeline"];
+
+// Recovery stores are intentionally separate from the live data plane. They
+// receive asynchronous protection copies and originate controlled restores,
+// but they are not part of the system's request path.
+export const BACKUP_RECOVERY_KINDS: AssetKind[] = ["backup-vault"];
 
 // The kinds that mediate workforce (employee/admin) access into the
 // boundary — an SSO/identity provider, a ZTNA/secure web gateway — as

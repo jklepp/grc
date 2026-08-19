@@ -233,6 +233,12 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
     const from = graph.assetById[f.from];
     const to = graph.assetById[f.to];
     if (from && to) {
+      if (f.kind === FLOW_KINDS.BACKUP) {
+        check(to.kind === "backup-vault", `backup flow ${f.id}: must terminate at a backup-vault asset`);
+      }
+      if (f.kind === FLOW_KINDS.RESTORE) {
+        check(from.kind === "backup-vault", `restore flow ${f.id}: must originate from a backup-vault asset`);
+      }
       check(from.systemId === to.systemId, `data flow ${f.id}: crosses from ${from.systemId} to ${to.systemId} — cross-system flows change what each boundary is responsible for and need to be modelled deliberately, not appear by accident`);
     }
   });

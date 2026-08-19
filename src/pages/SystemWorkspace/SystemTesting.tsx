@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { C } from "../../theme";
-import { SectionHeading } from "../../components/Headings";
+import { SectionHeader } from "./shared/SectionHeader";
 import { Panel } from "./shared/Panel";
 import { IdentificationField } from "./shared/IdentificationField";
 import { StatTile } from "./shared/StatTile";
@@ -182,7 +182,11 @@ export function SystemTesting({ secTests, vuln, ir, resilience, vendors }: Syste
   return (
     <div className="px-8 pb-10 space-y-8">
       <div>
-        <SectionHeading icon={Activity}>Testing Posture</SectionHeading>
+        <SectionHeader
+          icon={Activity}
+          title="Testing Posture"
+          description="Cadence, findings, vulnerability, recovery, incident-response, and vendor-assurance signals requiring action."
+        />
         <div className="grid grid-cols-2 xl:grid-cols-5 gap-3 mb-4">
           <TestingMetric icon={ShieldAlert} label="Action items" value={attentionItems.length} detail={criticalAttentionCount > 0 ? `${criticalAttentionCount} critical` : "No critical items"} color={actionColor} />
           <TestingMetric icon={CalendarClock} label="Overdue / missing" value={overdueOrMissingCount} detail="Cadence-based activities" color={overdueOrMissingCount > 0 ? C.red : C.green} />
@@ -198,13 +202,12 @@ export function SystemTesting({ secTests, vuln, ir, resilience, vendors }: Syste
           ))}
         </div>
         <Panel>
-          <div className="flex items-center justify-between gap-3 mb-3">
-            <div>
-              <div className="text-sm font-semibold" style={{ color: C.ink }}>Testing Actions</div>
-              <div className="text-xs mt-0.5" style={{ color: C.muted }}>Findings and other actions derived from recorded cadence, coverage, vulnerabilities, and test results.</div>
-            </div>
-            <span className="text-[11px] font-semibold px-2 py-1 rounded-full" style={{ color: actionColor, background: criticalAttentionCount > 0 ? C.redBg : attentionItems.length > 0 ? C.amberBg : C.greenBg }}>{attentionItems.length} item{attentionItems.length === 1 ? "" : "s"}</span>
-          </div>
+          <SectionHeader
+            icon={ClipboardList}
+            title="Testing Actions"
+            description="Findings and other actions derived from recorded cadence, coverage, vulnerabilities, and test results."
+            aside={<span className="text-[11px] font-semibold px-2 py-1 rounded-full" style={{ color: actionColor, background: criticalAttentionCount > 0 ? C.redBg : attentionItems.length > 0 ? C.amberBg : C.greenBg }}>{attentionItems.length} item{attentionItems.length === 1 ? "" : "s"}</span>}
+          />
           {attentionItems.length === 0 ? (
             <div className="flex items-center gap-2 rounded-lg p-3 text-sm" style={{ background: C.greenBg, color: C.green }}><CheckCircle2 size={16} /> No testing posture items currently need attention.</div>
           ) : (
@@ -234,7 +237,11 @@ export function SystemTesting({ secTests, vuln, ir, resilience, vendors }: Syste
       </div>
 
       <div id="security-testing" style={{ scrollMarginTop: 24 }}>
-        <SectionHeading icon={Crosshair}>Security Testing</SectionHeading>
+        <SectionHeader
+          icon={Crosshair}
+          title="Security Testing"
+          description="The latest independent penetration test and adversarial red-team exercise results."
+        />
         <div className="grid grid-cols-2 gap-4 mb-4">
           {(["penetration-test", "red-team"] as const).map((type) => {
             const latest = secTests.latestByType[type];
@@ -270,7 +277,11 @@ export function SystemTesting({ secTests, vuln, ir, resilience, vendors }: Syste
       </div>
 
       <div id="vulnerability-scanning" style={{ scrollMarginTop: 24 }}>
-        <SectionHeading icon={Bug}>Vulnerability Scanning</SectionHeading>
+        <SectionHeader
+          icon={Bug}
+          title="Vulnerability Scanning"
+          description="Current vulnerability volume, patch-SLA performance, and internet-facing exposure."
+        />
         <Panel>
           {vuln ? (
             <>
@@ -292,7 +303,11 @@ export function SystemTesting({ secTests, vuln, ir, resilience, vendors }: Syste
       </div>
 
       <div id="incident-response" style={{ scrollMarginTop: 24 }}>
-        <SectionHeading icon={Siren}>Incident Response</SectionHeading>
+        <SectionHeader
+          icon={Siren}
+          title="Incident Response"
+          description="Plan currency, production incidents, tabletop coverage, and resulting response actions."
+        />
         <div className="grid grid-cols-2 gap-4">
           <Panel>
             <div className="flex items-center justify-between mb-3">
@@ -336,7 +351,11 @@ export function SystemTesting({ secTests, vuln, ir, resilience, vendors }: Syste
       </div>
 
       <div id="resilience-testing" style={{ scrollMarginTop: 24 }}>
-        <SectionHeading icon={LifeBuoy}>Resilience / Backup / Recovery</SectionHeading>
+        <SectionHeader
+          icon={LifeBuoy}
+          title="Resilience / Backup / Recovery"
+          description="Backup configuration and the recovery exercises that prove the system can meet its objectives."
+        />
         <div className="grid grid-cols-2 gap-4">
           <Panel>
             <div className="text-sm font-semibold mb-3" style={{ color: C.ink }}>Backup Configuration</div>
@@ -384,7 +403,11 @@ export function SystemTesting({ secTests, vuln, ir, resilience, vendors }: Syste
       </div>
 
       <div id="vendor-assurance" style={{ scrollMarginTop: 24 }}>
-        <SectionHeading icon={Handshake}>Vendor / Dependency Assurance</SectionHeading>
+        <SectionHeader
+          icon={Handshake}
+          title="Vendor / Dependency Assurance"
+          description="Critical external dependencies, reassessment cadence, certifications, and shared-responsibility coverage."
+        />
         <div className="space-y-3">
           {vendors.vendors.map((v) => (
             <Panel key={v.vendorId}>

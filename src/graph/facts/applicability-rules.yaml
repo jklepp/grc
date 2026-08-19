@@ -9,6 +9,7 @@
   requiredWhen:
     assetKinds:
       - "object-storage"
+      - "backup-vault"
       - "relational-db"
       - "vector-db"
       - "key-management"
@@ -27,6 +28,7 @@
       - "key-management"
       - "secrets-store"
       - "object-storage"
+      - "backup-vault"
       - "relational-db"
       - "vector-db"
   rationale: "Either holds key material or depends on a customer-managed key to protect data at rest."
@@ -35,6 +37,7 @@
   requiredWhen:
     assetKinds:
       - "object-storage"
+      - "backup-vault"
       - "relational-db"
       - "vector-db"
       - "saas-tenant"
@@ -69,6 +72,7 @@
       - "compute-service"
       - "vector-db"
       - "object-storage"
+      - "backup-vault"
       - "saas-tenant"
       - "saas-api"
   rationale: "Serves or stores data for more than one tenant, so isolation has to hold below the
@@ -88,6 +92,7 @@
     assetKinds:
       - "log-feed"
       - "object-storage"
+      - "backup-vault"
       - "relational-db"
       - "saas-tenant"
   rationale: "Retains records that an investigation would later depend on being unaltered."
@@ -157,6 +162,7 @@
   requiredWhen:
     assetKinds:
       - "object-storage"
+      - "backup-vault"
       - "relational-db"
       - "vector-db"
       - "saas-tenant"

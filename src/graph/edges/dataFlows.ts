@@ -24,7 +24,13 @@
 // engine/rollups.ts by walking inbound edges, so a new flow reshapes the map
 // instead of requiring someone to also remember to re-slot the asset.
 
-export const FLOW_KINDS = { DATA: "data", CONTROL_PLANE: "control-plane", DEPLOYS_TO: "deploys-to" } as const;
+export const FLOW_KINDS = {
+  DATA: "data",
+  CONTROL_PLANE: "control-plane",
+  DEPLOYS_TO: "deploys-to",
+  BACKUP: "backup",
+  RESTORE: "restore",
+} as const;
 export type FlowKind = (typeof FLOW_KINDS)[keyof typeof FLOW_KINDS];
 
 import type { AssetId, DataTypeId } from "../ids";

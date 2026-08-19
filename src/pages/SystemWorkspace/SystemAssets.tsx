@@ -1,7 +1,20 @@
 import React from "react";
+import { Boxes } from "lucide-react";
 import AssetRegister from "../AssetRegister";
 import type { SystemId } from "../../graph/ids";
+import { SectionHeader } from "./shared/SectionHeader";
 
 export function SystemAssets({ systemId }: { systemId: SystemId }) {
-  return <AssetRegister systemId={systemId} />;
+  return (
+    <div className="pb-10">
+      <div className="px-8">
+        <SectionHeader
+          icon={Boxes}
+          title="Asset Inventory"
+          description="Resources inside this system's boundary, grouped by architecture lane with criticality, verification, and inherent risk."
+        />
+      </div>
+      <AssetRegister systemId={systemId} />
+    </div>
+  );
 }

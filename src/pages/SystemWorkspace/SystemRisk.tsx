@@ -1,8 +1,8 @@
 import React from "react";
 import { TrendingUp, ListTodo } from "lucide-react";
 import { C } from "../../theme";
-import { SectionHeading } from "../../components/Headings";
 import { POAMRow } from "./shared/POAMRow";
+import { SectionHeader } from "./shared/SectionHeader";
 import type { TopRisk, WorkspaceSystem } from "./types";
 
 // What could go wrong, how exposed are we, and what are we doing about it?
@@ -10,7 +10,11 @@ export function SystemRisk({ system, topRisks }: { system: WorkspaceSystem; topR
   return (
     <div className="px-8 pb-10 space-y-8">
       <div>
-        <SectionHeading icon={TrendingUp}>Top Risk Scenarios</SectionHeading>
+        <SectionHeader
+          icon={TrendingUp}
+          title="Top Risk Scenarios"
+          description="The system's highest residual risks, their control assurance, ownership, and position against appetite."
+        />
         <div className="space-y-2">
           {topRisks.map((r) => (
             <div key={r.id} className="rounded-lg p-4 flex items-center justify-between gap-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
@@ -32,7 +36,11 @@ export function SystemRisk({ system, topRisks }: { system: WorkspaceSystem; topR
       </div>
 
       <div>
-        <SectionHeading icon={ListTodo}>Plan of Action & Milestones (POA&M)</SectionHeading>
+        <SectionHeader
+          icon={ListTodo}
+          title="Plan of Action & Milestones (POA&M)"
+          description="Every control not yet fully implemented, with its remediation, responsible resource, and target date."
+        />
         <p className="text-xs mb-3" style={{ color: C.muted }}>
           Every control not yet fully implemented, with the planned remediation, the resource responsible, and a target date — pulled from ACME's live remediation tracker, not a static appendix.
         </p>

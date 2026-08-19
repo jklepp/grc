@@ -6,6 +6,7 @@ import { Panel } from "./shared/Panel";
 import { IdentificationField } from "./shared/IdentificationField";
 import { CadenceBadge } from "./shared/CadenceBadge";
 import { CoverageBar } from "./shared/CoverageBar";
+import { SectionHeader } from "./shared/SectionHeader";
 import type { ExposurePosture, IdentityPosture } from "./types";
 
 interface SystemIdentityProps {
@@ -14,21 +15,6 @@ interface SystemIdentityProps {
 }
 
 type IdentityPopulation = IdentityPosture["populations"][number];
-
-function CardHeader({ icon, title, description, aside }: { icon: ReactNode; title: string; description: string; aside?: ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-4 mb-4">
-      <div className="flex items-start gap-2.5">
-        <span className="mt-0.5" style={{ color: C.accent }}>{icon}</span>
-        <div>
-          <div className="text-sm font-semibold" style={{ color: C.ink }}>{title}</div>
-          <div className="text-xs mt-0.5" style={{ color: C.muted }}>{description}</div>
-        </div>
-      </div>
-      {aside}
-    </div>
-  );
-}
 
 function CountBadge({ children, tone = "accent" }: { children: ReactNode; tone?: "accent" | "good" | "attention" }) {
   const color = tone === "good" ? C.green : tone === "attention" ? C.red : C.accent;
@@ -102,8 +88,8 @@ export function SystemIdentity({ identity, exposure }: SystemIdentityProps) {
   return (
     <div className="px-8 pb-10 space-y-5">
       <Panel>
-        <CardHeader
-          icon={<Fingerprint size={16} />}
+        <SectionHeader
+          icon={Fingerprint}
           title="Identity Posture"
           description="The workforce, lifecycle, privileged-access, and review signals most likely to require action."
         />
@@ -148,8 +134,8 @@ export function SystemIdentity({ identity, exposure }: SystemIdentityProps) {
       </Panel>
 
       <Panel>
-        <CardHeader
-          icon={<Bot size={16} />}
+        <SectionHeader
+          icon={Bot}
           title="Agentic Identities"
           description="Authenticated AI agents that can invoke tools, access resources, or take actions within this system."
           aside={<CountBadge tone={identity.agenticSummary.withIssues > 0 ? "attention" : "good"}>{identity.agenticSummary.total} registered</CountBadge>}
@@ -220,8 +206,8 @@ export function SystemIdentity({ identity, exposure }: SystemIdentityProps) {
       </Panel>
 
       <Panel>
-        <CardHeader
-          icon={<Users2 size={16} />}
+        <SectionHeader
+          icon={Users2}
           title="Workforce Access"
           description="SSO, MFA, phishing-resistant MFA, and lifecycle coverage for human identities."
           aside={<CountBadge tone={workforceLocalBypass > 0 || workforceDormant > 0 ? "attention" : "good"}>{workforcePopulations.reduce((total, population) => total + population.totalCount, 0)} identities</CountBadge>}
@@ -248,8 +234,8 @@ export function SystemIdentity({ identity, exposure }: SystemIdentityProps) {
       </Panel>
 
       <Panel>
-        <CardHeader
-          icon={<KeyRound size={16} />}
+        <SectionHeader
+          icon={KeyRound}
           title="Non-Human Identities"
           description="Service and workload identities tracked separately from workforce authentication controls."
           aside={<CountBadge>{nonHumanPopulations.reduce((total, population) => total + population.totalCount, 0)} identities</CountBadge>}
@@ -279,8 +265,8 @@ export function SystemIdentity({ identity, exposure }: SystemIdentityProps) {
       </Panel>
 
       <Panel>
-        <CardHeader
-          icon={<ShieldAlert size={16} />}
+        <SectionHeader
+          icon={ShieldAlert}
           title="Emergency Access"
           description="Break-glass identities reserved for recovery when normal workforce authentication is unavailable."
           aside={<CountBadge tone={emergencyException ? "accent" : breakGlassPopulation ? "attention" : "good"}>{breakGlassPopulation?.totalCount ?? 0} accounts</CountBadge>}

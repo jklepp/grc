@@ -1,10 +1,10 @@
 import React from "react";
 import { Building2 } from "lucide-react";
 import { C, CLASS_META, CLASS_ORDER } from "../../../theme";
-import { SectionHeading } from "../../../components/Headings";
 import { ClassificationTag, StandardChip } from "../../../components/SystemBadges";
 import { Panel } from "../shared/Panel";
 import { IdentificationField } from "../shared/IdentificationField";
+import { SectionHeader } from "../shared/SectionHeader";
 import { ProviderBadge } from "../ProviderBadge";
 import { hostingTypeLabel } from "../controlMeta";
 import type { WorkspaceDataType, WorkspaceSystem, ExposurePosture } from "../types";
@@ -42,7 +42,11 @@ export function SystemSnapshot({ system, exposure, dataTypes }: { system: Worksp
 
   return (
     <Panel>
-      <SectionHeading icon={Building2} className="mb-3 pb-2">System Snapshot</SectionHeading>
+      <SectionHeader
+        icon={Building2}
+        title="System Snapshot"
+        description="Ownership, boundary, hosting, scale, classification, and business purpose."
+      />
       <div className="grid grid-cols-2 gap-x-5 gap-y-3">
         <IdentificationField label="Owner" value={ownerName(system)} />
         <IdentificationField label="Classification" value={system.classification ? <ClassificationTag level={system.classification} /> : "Unclassified"} />
