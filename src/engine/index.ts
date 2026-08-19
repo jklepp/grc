@@ -237,7 +237,7 @@ export { ARTIFACT_SENSITIVITIES, EVIDENCE_REVIEW_DECISIONS } from "../graph/node
 export {
   evaluateControl, addPrismaOverride, updateEvidence, removeEvidence, addFinding, updateFinding,
   addControlToScope, upsertImplementationMechanism, addEvidence, declareNotImplemented,
-  removeRuntimeSystem,
+  removeRuntimeSystem, restoreBaselineSystems,
 } from "./runtimeMutations";
 export type { ControlEvidenceDraft, EvidenceArtifactDraft, EvidenceReviewDraft, EvidenceDraft, EvaluateControlInput, FindingDraft } from "./runtimeMutations";
 export type { PrismaLevelOverride } from "../graph/edges/prismaOverrides";

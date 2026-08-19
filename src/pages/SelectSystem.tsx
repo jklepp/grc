@@ -5,7 +5,7 @@ import { PageHeader } from "../components/Headings";
 import { ClassificationTag, AssuranceBadge } from "../components/SystemBadges";
 import AddSystemWizard from "../components/AddSystemWizard";
 import Modal, { ModalCloseButton } from "../components/Modal";
-import { commitRuntimeFacts, removeRuntimeSystem } from "../engine";
+import { commitRuntimeFacts, removeRuntimeSystem, restoreBaselineSystems } from "../engine";
 import { loadRuntimeFacts } from "../engine/runtimeFactsStore";
 import { YAML_FACTS } from "../graph/sources/yaml";
 import { useLiveEngine } from "../engine/useLiveEngine";
@@ -116,6 +116,7 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
   const [editingSystemId, setEditingSystemId] = useState<SystemId | null>(null);
   const [pendingDelete, setPendingDelete] = useState<SystemRollup | null>(null);
   const [deleteProblems, setDeleteProblems] = useState<string[]>([]);
+  const [restoreProblems, setRestoreProblems] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const liveEngine = useLiveEngine();
   const systems = liveEngine.rollups.systemRollups;
@@ -124,6 +125,7 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
   const deletableSystemIds = new Set(
     runtimeFacts.systems.filter((system) => !baselineSystemIds.has(system.id)).map((system) => system.id)
   );
+  const hasDemoOverrides = runtimeFacts.systems.some((system) => baselineSystemIds.has(system.id));
 
   function openAddSystem() {
     setEditingSystemId(null);
@@ -152,6 +154,16 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
     setDeleteProblems([]);
   }
 
+  function restoreDemoSystems() {
+    const candidate = restoreBaselineSystems(loadRuntimeFacts(), baselineSystemIds);
+    const { engine, problems } = commitRuntimeFacts(candidate);
+    if (!engine) {
+      setRestoreProblems(problems);
+      return;
+    }
+    setRestoreProblems([]);
+  }
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return systems;
@@ -173,13 +185,25 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
         title="Select a System"
         description="Every system inside ACME's assessment boundary. Select one to open its full security profile, or add a new system to bring it into scope."
         right={
-          <button
-            onClick={openAddSystem}
-            className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3.5 py-2"
-            style={{ background: C.accent, color: "#fff" }}
-          >
-            <Plus size={14} /> Add System
-          </button>
+          <div className="flex items-center gap-2">
+            {hasDemoOverrides && (
+              <button
+                type="button"
+                onClick={restoreDemoSystems}
+                className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3.5 py-2"
+                style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
+              >
+                Restore demo systems
+              </button>
+            )}
+            <button
+              onClick={openAddSystem}
+              className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3.5 py-2"
+              style={{ background: C.accent, color: "#fff" }}
+            >
+              <Plus size={14} /> Add System
+            </button>
+          </div>
         }
       />
 
@@ -197,6 +221,12 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
             style={{ color: C.ink }}
           />
         </div>
+
+        {restoreProblems.length > 0 && (
+          <div className="mb-4 rounded-lg px-3 py-2 text-xs" style={{ color: C.red, background: C.redBg }}>
+            Could not restore demo systems: {restoreProblems.join(" · ")}
+          </div>
+        )}
 
         <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}`, boxShadow: "0 6px 20px rgba(0,0,0,0.06)" }}>
           <div

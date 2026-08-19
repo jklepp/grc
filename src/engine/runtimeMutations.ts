@@ -71,6 +71,15 @@ export function removeRuntimeSystem(runtime: RuntimeFacts, systemId: SystemId): 
   };
 }
 
+// Drop runtime overrides of YAML-authored systems (SYS-003, SYS-042, …) so
+// demo topology comes back, without deleting wizard-created test systems.
+export function restoreBaselineSystems(runtime: RuntimeFacts, baselineSystemIds: ReadonlySet<SystemId>): RuntimeFacts {
+  return [...baselineSystemIds].reduce(
+    (current, systemId) => (current.systems.some((system) => system.id === systemId) ? removeRuntimeSystem(current, systemId) : current),
+    runtime
+  );
+}
+
 // Adds controlId to the given system's declared assessment scope, if it
 // isn't there already. A no-op if the system has no runtime AssessmentScope
 // (i.e. it isn't a runtime-created system) — there is nothing to append to.

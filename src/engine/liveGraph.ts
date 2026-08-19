@@ -110,7 +110,7 @@ export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts 
       .map((asset) => asset.id)
   );
   const runtimeActorIds = new Set(runtime.actors.map((actor) => actor.id));
-  return {
+  return pruneDanglingAssetEdges({
     ...base,
     systems: [...base.systems.filter((s) => !overriddenSystemIds.has(s.id)), ...runtime.systems],
     assets: [...base.assets.filter((a) => !overriddenSystemIds.has(a.systemId)), ...runtime.assets],
@@ -128,6 +128,29 @@ export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts 
     notImplemented: [...base.notImplemented, ...runtime.notImplemented],
     prismaOverrides: [...base.prismaOverrides, ...runtime.prismaOverrides],
     findings: [...base.findings, ...runtime.findings],
+  });
+}
+
+// A replaced system can drop assets the wizard did not re-author (backup vaults
+// are the usual case) while YAML flows still name them. Drop those dangling
+// edges so adding an unrelated system is not blocked by an earlier edit.
+function pruneDanglingAssetEdges(facts: GraphFacts): GraphFacts {
+  const assetIds = new Set(facts.assets.map((asset) => asset.id));
+  const hasAsset = (id: string) => assetIds.has(id);
+  return {
+    ...facts,
+    dataFlows: facts.dataFlows.filter((flow) => hasAsset(flow.from) && hasAsset(flow.to)),
+    assetDataTypes: facts.assetDataTypes.filter((edge) => hasAsset(edge.assetId)),
+    actorAccess: facts.actorAccess.filter((edge) => hasAsset(edge.assetId)),
+    implementationMechanisms: facts.implementationMechanisms.filter((mechanism) => hasAsset(mechanism.assetId)),
+    operatingHistory: facts.operatingHistory.filter((entry) => hasAsset(entry.assetId)),
+    notImplemented: facts.notImplemented.filter((entry) => hasAsset(entry.assetId)),
+    ownerOverrides: facts.ownerOverrides.filter((entry) => hasAsset(entry.assetId)),
+    implementationOverrides: facts.implementationOverrides.filter((entry) => hasAsset(entry.assetId)),
+    findings: facts.findings.filter((finding) => hasAsset(finding.assetId)),
+    evidence: facts.evidence.filter((entry) => entry.assetIds.every(hasAsset)),
+    riskAssets: facts.riskAssets.filter((edge) => hasAsset(edge.assetId)),
+    applicabilityExceptions: facts.applicabilityExceptions.filter((entry) => hasAsset(entry.assetId)),
   };
 }
 
