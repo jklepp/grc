@@ -87,6 +87,28 @@ export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts 
   const overriddenBaseAssetIds = new Set(
     base.assets.filter((a) => overriddenSystemIds.has(a.systemId)).map((a) => a.id)
   );
+  const runtimeAssetSystemIds = new Map(
+    runtime.assets.map((asset) => [asset.id, asset.systemId] as const)
+  );
+  const overriddenArchitectureSystemIds = new Set<SystemId>(
+    runtime.agenticIdentities.map((identity) => identity.systemId)
+  );
+  for (const edge of runtime.actorAccess) {
+    const systemId = runtimeAssetSystemIds.get(edge.assetId);
+    if (systemId) overriddenArchitectureSystemIds.add(systemId);
+  }
+  for (const flow of runtime.dataFlows) {
+    const systemId = runtimeAssetSystemIds.get(flow.from) ?? runtimeAssetSystemIds.get(flow.to);
+    if (systemId) overriddenArchitectureSystemIds.add(systemId);
+  }
+  // Saved overrides created before runtime architecture authoring have empty
+  // architecture arrays. Preserve their baseline topology so an old system
+  // edit cannot silently erase actors, ingress, or data-flow lanes.
+  const overriddenArchitectureAssetIds = new Set(
+    base.assets
+      .filter((asset) => overriddenArchitectureSystemIds.has(asset.systemId))
+      .map((asset) => asset.id)
+  );
   const runtimeActorIds = new Set(runtime.actors.map((actor) => actor.id));
   return {
     ...base,
@@ -94,9 +116,9 @@ export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts 
     assets: [...base.assets.filter((a) => !overriddenSystemIds.has(a.systemId)), ...runtime.assets],
     assetDataTypes: [...base.assetDataTypes.filter((edge) => !overriddenBaseAssetIds.has(edge.assetId)), ...runtime.assetDataTypes],
     actors: [...base.actors.filter((actor) => !runtimeActorIds.has(actor.id)), ...runtime.actors],
-    actorAccess: [...base.actorAccess.filter((edge) => !overriddenBaseAssetIds.has(edge.assetId)), ...runtime.actorAccess],
-    dataFlows: [...base.dataFlows.filter((flow) => !overriddenBaseAssetIds.has(flow.from) && !overriddenBaseAssetIds.has(flow.to)), ...runtime.dataFlows],
-    agenticIdentities: [...base.agenticIdentities.filter((agent) => !overriddenSystemIds.has(agent.systemId)), ...runtime.agenticIdentities],
+    actorAccess: [...base.actorAccess.filter((edge) => !overriddenArchitectureAssetIds.has(edge.assetId)), ...runtime.actorAccess],
+    dataFlows: [...base.dataFlows.filter((flow) => !overriddenArchitectureAssetIds.has(flow.from) && !overriddenArchitectureAssetIds.has(flow.to)), ...runtime.dataFlows],
+    agenticIdentities: [...base.agenticIdentities.filter((agent) => !overriddenArchitectureSystemIds.has(agent.systemId)), ...runtime.agenticIdentities],
     assessmentScopes: [...base.assessmentScopes.filter((scope) => !overriddenSystemIds.has(scope.systemId)), ...runtime.assessmentScopes],
     expectedClassification: { ...base.expectedClassification, ...runtime.expectedClassification },
     implementationMechanisms: [...base.implementationMechanisms, ...runtime.implementationMechanisms],
