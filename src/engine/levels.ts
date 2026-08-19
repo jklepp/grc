@@ -306,7 +306,8 @@ export function rateManaged(args: {
 // The three levels ACME cannot verify itself are rated from the report and held
 // at INHERITED_LEVEL_CAP. That ceiling is derived from the evidence scale rather
 // than declared: a SOC 2 is an auditor's examination, which sits below the grade
-// at which this engine calls anything verified.
+// at which this engine calls anything verified. A current HITRUST r2 is the
+// exception — that is score transfer, not a report grade, and is not capped.
 export function rateInheritedImplemented(args: {
   controlId: ControlId;
   certification: ProviderCertification | null;
@@ -359,6 +360,22 @@ export function rateInheritedManaged(args: {
     return rate("Managed", 25, BASIS.INHERITED, `${vendorReview.activity.title} covers ${provider}, but its current period is overdue.`);
   }
   return rate("Managed", 50, BASIS.INHERITED, `${vendorReview.activity.title} reassesses ${provider} ${cadence(vendorReview.activity.frequency)} and is on schedule.`);
+}
+
+// Current HITRUST r2 covering this inherited domain: take Fully Compliant on
+// Implemented, Measured, and Managed. Not a 100 on the evidence scale — the
+// provider's validated assessment already rated those rungs.
+export function rateInheritedHitrustR2(
+  level: "Implemented" | "Measured" | "Managed",
+  provider: string,
+  domain: string
+): LevelRating {
+  return rate(
+    level,
+    100,
+    BASIS.INHERITED,
+    `${provider}'s current HITRUST r2 covers "${domain}"; ${level} is inherited at Fully Compliant.`
+  );
 }
 
 // Applied to every level of an inherited control. Capping after the fact rather

@@ -32,7 +32,7 @@ import type { Graph } from "../graph/types";
 import type { Asset } from "../graph/nodes/assets";
 import type { Control } from "../graph/nodes/controls";
 import type { Org } from "../graph/nodes/orgs";
-import type { ProviderCertification } from "../graph/nodes/providerCertifications";
+import { isHitrustR2Certification, type ProviderCertification } from "../graph/nodes/providerCertifications";
 import type { ScheduledActivityRecord } from "../graph/nodes/scheduledActivities";
 import type { ImplementationMechanism, NotImplemented } from "../graph/edges/controlImplementations";
 import { inheritsDomain } from "../graph/nodes/systems";
@@ -46,7 +46,7 @@ import {
 } from "./assurance";
 import { DAY_MS, VERIFYING_EVIDENCE_FLOOR, governingRecord, type EvidenceApi, type ScoredEvidence } from "./evidence";
 import {
-  INSTANCE_CREDIT, capInherited, capImmature, rateImplemented, rateInheritedImplemented, rateInheritedManaged,
+  INSTANCE_CREDIT, capInherited, capImmature, rateImplemented, rateInheritedHitrustR2, rateInheritedImplemented, rateInheritedManaged,
   rateInheritedMeasured, rateManaged, rateMeasured,ratePolicy, rateProcedure,
   type LevelRating,
 } from "./levels";
@@ -273,9 +273,19 @@ export function createAssessment(
       .map((a) => a.id);
   }
 
+  function certificationExpired(cert: ProviderCertification): boolean {
+    const age = Math.floor((ctx.now.getTime() - Date.parse(cert.issuedAt)) / DAY_MS);
+    return age > cert.validForDays;
+  }
+
+  // Prefer a current HITRUST r2 over a SOC 2 covering the same domain. An
+  // expired r2 is ignored so scoring falls back to the SOC 2 path.
   function certificationFor(systemId: SystemId, domain: string): ProviderCertification | null {
     const provider = graph.systemById[systemId].provider;
-    return (graph.certificationsByProvider[provider] ?? []).find((c) => c.domains.includes(domain)) ?? null;
+    const covering = (graph.certificationsByProvider[provider] ?? []).filter((c) => c.domains.includes(domain));
+    if (covering.length === 0) return null;
+    const current = covering.filter((c) => !certificationExpired(c));
+    return current.find(isHitrustR2Certification) ?? current[0] ?? covering[0];
   }
 
   // An enterprise attestation adapted to the exact shape a provider
@@ -310,11 +320,6 @@ export function createAssessment(
     return withOverdue(
       graph.scheduledActivities.filter((a) => a.controlIds.some((cid) => graph.controlById[cid]?.domain === domain))
     )[0] ?? null;
-  }
-
-  function certificationExpired(cert: ProviderCertification): boolean {
-    const age = Math.floor((ctx.now.getTime() - Date.parse(cert.issuedAt)) / DAY_MS);
-    return age > cert.validForDays;
   }
 
   function ownersFor(systemId: SystemId, category: AssuranceCategory): Org[] {
@@ -410,27 +415,36 @@ export function createAssessment(
     let measuredLevel: LevelRating;
     let managedLevel: LevelRating;
     let certification: ProviderCertification | null = null;
+    let hitrustR2Inheritance = false;
 
     if (inherited && !inScope) {
       certification = vendorInherited ? certificationFor(systemId, domain) : enterpriseCertificationFor(domain);
       const expired = certification ? certificationExpired(certification) : false;
       const inheritedProvider = certification?.provider ?? system.provider;
-      implementedLevel = rateInheritedImplemented({ controlId, certification, provider: inheritedProvider, expired, domain });
-      measuredLevel = rateInheritedMeasured({ certification, domain });
+      const hitrustR2 = isHitrustR2Certification(certification) && !expired;
+      hitrustR2Inheritance = hitrustR2;
+      if (hitrustR2) {
+        implementedLevel = rateInheritedHitrustR2("Implemented", inheritedProvider, domain);
+        measuredLevel = rateInheritedHitrustR2("Measured", inheritedProvider, domain);
+        managedLevel = rateInheritedHitrustR2("Managed", inheritedProvider, domain);
+      } else {
+        implementedLevel = rateInheritedImplemented({ controlId, certification, provider: inheritedProvider, expired, domain });
+        measuredLevel = rateInheritedMeasured({ certification, domain });
 
-      // ACME's own Managed responsibility for something a vendor runs is
-      // reassessing the vendor, which is already on the calendar. Found by the
-      // DOMAIN of the controls an activity cites rather than by an id prefix —
-      // "TPM-" happens to spell third-party management today, and a model that
-      // reads meaning out of an id string breaks the first time one is renamed.
-      //
-      // An enterprise-run domain has no vendor relationship to reassess — its
-      // Managed rung reads whether anything on the calendar actually revisits
-      // the domain the central program covers (domainReviewActivity) instead.
-      managedLevel = rateInheritedManaged({
-        provider: inheritedProvider,
-        vendorReview: vendorInherited ? (vendorReviewActivities[0] ?? null) : domainReviewActivity(domain),
-      });
+        // ACME's own Managed responsibility for something a vendor runs is
+        // reassessing the vendor, which is already on the calendar. Found by the
+        // DOMAIN of the controls an activity cites rather than by an id prefix —
+        // "TPM-" happens to spell third-party management today, and a model that
+        // reads meaning out of an id string breaks the first time one is renamed.
+        //
+        // An enterprise-run domain has no vendor relationship to reassess — its
+        // Managed rung reads whether anything on the calendar actually revisits
+        // the domain the central program covers (domainReviewActivity) instead.
+        managedLevel = rateInheritedManaged({
+          provider: inheritedProvider,
+          vendorReview: vendorInherited ? (vendorReviewActivities[0] ?? null) : domainReviewActivity(domain),
+        });
+      }
     } else {
       const counted = instances.filter((i) => i.status !== "not-applicable");
       const credit = counted.reduce((sum, i) => sum + i.credit, 0);
@@ -511,7 +525,7 @@ export function createAssessment(
       Managed: managedLevel,
     };
 
-    if (inherited && !inScope) {
+    if (inherited && !inScope && !hitrustR2Inheritance) {
       levels = {
         ...levels,
         Implemented: capInherited(levels.Implemented, INHERITED_LEVEL_CAP),

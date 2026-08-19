@@ -20,6 +20,7 @@ type PageTab = ControlsTab | SystemsTab | GovernanceTab | OverviewTab;
 interface PageProps {
   initialTab?: PageTab;
   onNavigate: (target: string) => void;
+  systemsPickerEpoch?: number;
 }
 
 function controlsTab(tab?: PageTab): ControlsTab | undefined {
@@ -41,7 +42,14 @@ function overviewTab(tab?: PageTab): OverviewTab | undefined {
 // Map nav item ids (defined in Sidebar.tsx) to a consistently typed renderer.
 const PAGES: Record<NavigationPageId, ComponentType<PageProps>> = {
   assurance: ({ initialTab }) => <Controls initialTab={controlsTab(initialTab)} />,
-  "data-estate": ({ initialTab, onNavigate }) => <Systems initialTab={systemsTab(initialTab)} onNavigate={onNavigate} />,
+  "data-estate": ({ initialTab, onNavigate, systemsPickerEpoch }) => (
+    <Systems
+      key={systemsPickerEpoch}
+      initialTab={systemsTab(initialTab)}
+      onNavigate={onNavigate}
+      pickerEpoch={systemsPickerEpoch}
+    />
+  ),
   governance: ({ initialTab, onNavigate }) => (
     <Governance initialTab={governanceTab(initialTab)} onNavigate={onNavigate} />
   ),
@@ -87,6 +95,9 @@ function isNavigationPageId(id: string): id is NavigationPageId {
 export default function App() {
   const [active, setActive] = useState<NavigationPageId>("data-estate");
   const [initialTab, setInitialTab] = useState<PageTab | undefined>(undefined);
+  // Incremented only when the Systems nav item is clicked, so that click can
+  // reopen the picker even if Systems is already mounted on a workspace.
+  const [systemsPickerEpoch, setSystemsPickerEpoch] = useState(0);
   const [expanded, setExpanded] = useState(false);
   const [mode, setMode] = useState<ThemeMode>("light");
   // No real auth is wired up yet — this just gates the UI behind the login screen.
@@ -107,6 +118,7 @@ export default function App() {
     if (isNavigationPageId(id)) {
       setActive(id);
       setInitialTab(undefined);
+      if (id === "data-estate") setSystemsPickerEpoch((n) => n + 1);
     }
   }
 
@@ -133,7 +145,7 @@ export default function App() {
         onToggleTheme={() => setMode((m) => (m === "dark" ? "light" : "dark"))}
       />
       <div className="flex-1" style={{ maxHeight: "100vh", overflowY: "auto" }}>
-        <ActivePage onNavigate={navigate} initialTab={initialTab} />
+        <ActivePage onNavigate={navigate} initialTab={initialTab} systemsPickerEpoch={systemsPickerEpoch} />
       </div>
     </div>
   );

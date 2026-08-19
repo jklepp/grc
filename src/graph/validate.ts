@@ -32,7 +32,7 @@ import {
 import { ASSET_KINDS } from "./nodes/assets";
 import { REGULATORY_FLAGS } from "./nodes/dataTypes";
 import { DOMAINS, FRAMEWORKS } from "./nodes/controls";
-import { CERTIFICATION_REPORT_TYPES } from "./nodes/providerCertifications";
+import { CERTIFICATION_REPORT_TYPES, HITRUST_R2_STANDARD } from "./nodes/providerCertifications";
 import { SHARED_RESPONSIBILITY_DOMAINS } from "./edges/controlImplementations";
 import { ACTIVITY_FREQUENCIES, PERIODS_PER_YEAR } from "./nodes/scheduledActivities";
 import { EVIDENCE_COLLECTOR_TYPES, EVIDENCE_RECORD_STATUSES, EVIDENCE_RESULTS, INDEPENDENCE_LEVELS } from "./nodes/evidence";
@@ -535,7 +535,10 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
       graph.systems.some((s) => s.provider === c.provider),
       `certification ${c.id}: provider "${c.provider}" does not match any system's provider`
     );
-    check(FRAMEWORKS.includes(c.standard), `certification ${c.id}: standard "${c.standard}" is not one of ${FRAMEWORKS.join(", ")}`);
+    check(
+      FRAMEWORKS.includes(c.standard) || c.standard === HITRUST_R2_STANDARD,
+      `certification ${c.id}: standard "${c.standard}" is not one of ${[...FRAMEWORKS, HITRUST_R2_STANDARD].join(", ")}`
+    );
     check(CERTIFICATION_REPORT_TYPES.includes(c.reportType), `certification ${c.id}: reportType "${c.reportType}" is not one of ${CERTIFICATION_REPORT_TYPES.join(", ")}`);
     check(EVIDENCE_TYPES.includes(c.evidenceType), `certification ${c.id}: evidenceType "${c.evidenceType}" is not one of ${EVIDENCE_TYPES.join(", ")}`);
     check(!Number.isNaN(Date.parse(c.issuedAt)), `certification ${c.id}: issuedAt "${c.issuedAt}" is not a parseable date`);

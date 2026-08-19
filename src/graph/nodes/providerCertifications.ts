@@ -21,6 +21,16 @@ import type { EvidenceType } from "./taxonomy";
 export const CERTIFICATION_REPORT_TYPES = ["type-2", "type-1", "point-in-time"] as const;
 export type CertificationReportType = (typeof CERTIFICATION_REPORT_TYPES)[number];
 
+// A HITRUST r2 is score transfer, not a SOC 2-style evidence grade. Not an SCF
+// mapping framework, so certifications may name it even though FRAMEWORKS does
+// not. Engine inheritance prefers a current r2 over a SOC 2 covering the same
+// domain and does not apply INHERITED_LEVEL_CAP on that path.
+export const HITRUST_R2_STANDARD = "HITRUST r2";
+
+export function isHitrustR2Certification(cert: { standard: string } | null | undefined): boolean {
+  return cert?.standard === HITRUST_R2_STANDARD;
+}
+
 export interface ProviderCertification {
   id: string;
   // Must equal a System.provider. Validated, so renaming a provider breaks the

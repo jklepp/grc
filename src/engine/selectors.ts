@@ -11,6 +11,7 @@
 // one shouldn't have to be.
 import type { Graph } from "../graph/types";
 import { BASIS, BASIS_META, ASSURANCE_CATEGORIES, PRISMA_LEVELS, COMPLIANCE_LABELS, type Basis } from "../graph/nodes/taxonomy";
+import { isHitrustR2Certification } from "../graph/nodes/providerCertifications";
 import { INSTANCE_STATUS_META } from "./assessment";
 import type { ClassificationApi } from "./classification";
 import type { ApplicabilityApi } from "./applicability";
@@ -269,7 +270,7 @@ export function createSelectors(
         label: `${a.controlId} — ${a.control.name} on ${graph.systemById[systemId]?.name}`,
         value: a.score,
         basis: a.basis,
-        formula: `HITRUST PRISMA: Policy 15%, Procedure 20%, Implemented 40%, Measured 10%, Managed 15%, each rated on the five-point compliance scale.${a.inherited ? " Held below what ACME could claim for a control it verified itself." : ""}`,
+        formula: `HITRUST PRISMA: Policy 15%, Procedure 20%, Implemented 40%, Measured 10%, Managed 15%, each rated on the five-point compliance scale.${a.inherited ? (isHitrustR2Certification(a.certification) ? " Inherited from a current HITRUST r2 at Fully Compliant on Implemented, Measured, and Managed." : " Held below what ACME could claim for a control it verified itself.") : ""}`,
         steps: PRISMA_LEVELS.map((level) => {
           const L = a.levels[level];
           return {

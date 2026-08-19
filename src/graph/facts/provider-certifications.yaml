@@ -29,6 +29,22 @@
     maintenance controls SYS-003 inherits; the complementary user entity controls
     it lists are the ones ACME assesses itself elsewhere in this scope.
 
+- id: "CERT-AWS-HITRUST-R2-2026"
+  provider: "AWS"
+  standard: "HITRUST r2"
+  reportType: "type-2"
+  evidenceType: "Auditor examination"
+  issuedAt: "2026-03-15"
+  validForDays: 730
+  domains:
+    - "Physical & Environmental Security"
+    - "Maintenance"
+  reference: >
+    AWS HITRUST r2 validated assessment covering the same physical and
+    maintenance domains SYS-003 inherits. Complementary user entity controls
+    remain ACME's to assess; this letter does not cover IAM, encryption
+    configuration, or logging ACME operates.
+
 - id: "CERT-WORKDAY-SOC2-2026"
   provider: "Workday"
   standard: "SOC 2"
