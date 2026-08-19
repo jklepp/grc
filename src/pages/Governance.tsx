@@ -1,11 +1,14 @@
 import React, { useState } from "react";
-import { FileText, ListChecks, Shield, CalendarClock, ShieldAlert } from "lucide-react";
-import { TabBar } from "../components/Headings";
+import { ArrowLeft } from "lucide-react";
+import { C } from "../theme";
 import PolicyCenter from "./PolicyCenter";
 import ProcedureLibrary from "./ProcedureLibrary";
 import SecurityPrinciples from "./SecurityPrinciples";
 import ScheduledActivities from "./ScheduledActivities";
 import ExceptionRegister from "./ExceptionRegister";
+import { GovernanceLanding } from "./GovernanceLanding";
+import { GOVERNANCE_AREAS } from "./governanceAreas";
+import type { GovernanceAreaId } from "./governanceAreas";
 
 // Governance merges the former Policy Center, Procedure Library, Security
 // Principles, and Governance Schedule (formerly "Activity Timeliness") top-
@@ -13,15 +16,15 @@ import ExceptionRegister from "./ExceptionRegister";
 // sidebar entries. Each page's own content is untouched — this is purely a
 // shell around them. System Register (formerly "System Security Plan")
 // lives on Data Estate now, not here.
-const TABS = [
-  { id: "policy", label: "Policy Center", icon: FileText, Page: PolicyCenter },
-  { id: "procedures", label: "Procedure Library", icon: ListChecks, Page: ProcedureLibrary },
-  { id: "principles", label: "Security Principles", icon: Shield, Page: SecurityPrinciples },
-  { id: "schedule", label: "Governance Schedule", icon: CalendarClock, Page: ScheduledActivities },
-  { id: "exceptions", label: "Exception Register", icon: ShieldAlert, Page: ExceptionRegister },
-] as const;
+const PAGE_BY_AREA = {
+  policy: PolicyCenter,
+  procedures: ProcedureLibrary,
+  principles: SecurityPrinciples,
+  schedule: ScheduledActivities,
+  exceptions: ExceptionRegister,
+} satisfies Record<GovernanceAreaId, React.ComponentType<{ onNavigate?: (target: string) => void }>>;
 
-type GovernanceTab = (typeof TABS)[number]["id"];
+type GovernanceTab = GovernanceAreaId;
 
 // These pages cross-link each other by their old top-level ids (e.g.
 // Procedure Library's "View policy" links to "policy-center"). Map those
@@ -40,23 +43,42 @@ const INTERNAL_TABS: Record<string, GovernanceTab> = {
 // `initialTab` lets other pages deep-link into a specific tab via App.jsx's
 // legacy-id map.
 export default function Governance({ onNavigate, initialTab }: { onNavigate?: (target: string) => void; initialTab?: GovernanceTab }) {
-  const [tab, setTab] = useState<GovernanceTab>(initialTab || TABS[0].id);
-  const ActiveTabPage = (TABS.find((t) => t.id === tab) || TABS[0]).Page;
+  const [area, setArea] = useState<GovernanceTab | null>(initialTab ?? null);
 
   function handleNavigate(target: string) {
     const internalTab = INTERNAL_TABS[target];
     if (internalTab) {
-      setTab(internalTab);
+      setArea(internalTab);
       return;
     }
     onNavigate?.(target);
   }
 
+  if (!area) return <GovernanceLanding onSelect={setArea} />;
+
+  const ActiveAreaPage = PAGE_BY_AREA[area];
+  const activeArea = GOVERNANCE_AREAS.find((candidate) => candidate.id === area) ?? GOVERNANCE_AREAS[0];
+
   return (
     <div className="w-full">
-      <TabBar tabs={TABS} active={tab} onChange={setTab} />
+      <div className="px-8 pt-6 flex items-center justify-between gap-4">
+        <button type="button" onClick={() => setArea(null)} className="flex items-center gap-1.5 text-xs font-medium" style={{ color: C.muted }}>
+          <ArrowLeft size={13} /> All Governance Areas
+        </button>
+        <label className="flex items-center gap-2 text-xs" style={{ color: C.muted }}>
+          Governance area
+          <select
+            value={activeArea.id}
+            onChange={(event) => setArea(event.target.value as GovernanceAreaId)}
+            className="rounded-lg px-3 py-2 outline-none text-sm font-medium"
+            style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
+          >
+            {GOVERNANCE_AREAS.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.label}</option>)}
+          </select>
+        </label>
+      </div>
 
-      <ActiveTabPage onNavigate={handleNavigate} />
+      <ActiveAreaPage onNavigate={handleNavigate} />
     </div>
   );
 }
