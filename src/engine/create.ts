@@ -45,6 +45,7 @@ import { createIncidentResponse } from "./incidentResponse";
 import { createVendors } from "./vendors";
 import { createSdlc } from "./sdlc";
 import { createCockpit } from "./cockpit";
+import { createExceptions } from "./exceptions";
 
 export interface EngineOptions {
   ctx?: EngineContext;
@@ -77,6 +78,7 @@ export function createEngine(graph: Graph, options: EngineOptions = {}) {
   // findings (the shared POA&M mechanism) and cockpit, which composes them.
   const identity = createIdentity(graph, ctx);
   const exposure = createExposure(graph);
+  const exceptions = createExceptions(graph, ctx);
   const vulnerabilities = createVulnerabilities(graph);
   const securityTesting = createSecurityTesting(graph, ctx, findings);
   const resilience = createResilience(graph, ctx);
@@ -92,7 +94,7 @@ export function createEngine(graph: Graph, options: EngineOptions = {}) {
     graph, ctx,
     classification, applicability, findings, evidence, assessment,
     rollups, risk, compliance, profile, selectors,
-    identity, exposure, vulnerabilities, securityTesting, resilience,
+    identity, exposure, exceptions, vulnerabilities, securityTesting, resilience,
     incidentResponse, vendors, sdlc, cockpit,
   };
 

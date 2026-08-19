@@ -689,8 +689,17 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
   graph.exposureExceptions.forEach((e) => {
     check(has(graph.systemById, e.systemId), `exposure exception ${e.id}: systemId "${e.systemId}" is not a system`);
     check(DANGEROUS_CONDITIONS.includes(e.condition), `exposure exception ${e.id}: condition "${e.condition}" is not one of ${DANGEROUS_CONDITIONS.join(", ")}`);
+    check(Boolean(e.title?.trim()), `exposure exception ${e.id}: needs a title`);
     check(Boolean(e.reason?.trim()), `exposure exception ${e.id}: needs a reason — an accepted dangerous condition without one is indistinguishable from nobody looking`);
     check(has(graph.orgById, e.approvedBy), `exposure exception ${e.id}: approvedBy "${e.approvedBy}" is not an org`);
+    check(has(graph.orgById, e.ownerId), `exposure exception ${e.id}: ownerId "${e.ownerId}" is not an org`);
+    check(!Number.isNaN(Date.parse(e.approvedAt)), `exposure exception ${e.id}: approvedAt "${e.approvedAt}" is not a date`);
+    check(!e.expiresAt || !Number.isNaN(Date.parse(e.expiresAt)), `exposure exception ${e.id}: expiresAt "${e.expiresAt}" is not a date`);
+    check(Number.isInteger(e.reviewCadenceDays) && e.reviewCadenceDays > 0, `exposure exception ${e.id}: reviewCadenceDays must be a positive integer`);
+    check(e.affectedAssetIds.length > 0, `exposure exception ${e.id}: must identify at least one affected asset`);
+    e.affectedAssetIds.forEach((assetId) => check(has(graph.assetById, assetId), `exposure exception ${e.id}: affected asset "${assetId}" does not exist`));
+    e.controlIds.forEach((controlId) => check(has(graph.controlById, controlId), `exposure exception ${e.id}: control "${controlId}" does not exist`));
+    check(e.compensatingControls.length > 0 && e.compensatingControls.every((item) => Boolean(item.trim())), `exposure exception ${e.id}: must identify at least one compensating control`);
   });
 
   graph.vulnSnapshots.forEach((v) => {

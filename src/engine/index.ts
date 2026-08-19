@@ -52,7 +52,7 @@ export const engine = hasRuntimeFacts(runtimeFacts)
 
 const {
   selectors, profile, risk, compliance, findings, rollups, graph,
-  identity, exposure, vulnerabilities, securityTesting, resilience,
+  identity, exposure, exceptions, vulnerabilities, securityTesting, resilience,
   incidentResponse, vendors, sdlc, cockpit,
 } = engine;
 
@@ -146,6 +146,9 @@ export const openFindingsForSource = findings.openFindingsForSource;
 // System Register cockpit domains
 export const identityPostureForSystem = identity.identityPostureForSystem;
 export const exposureForSystem = exposure.exposureForSystem;
+export const EXCEPTION_REGISTER = exceptions.exceptionRegister;
+export const EXCEPTION_SUMMARY = exceptions.exceptionSummary;
+export const exceptionsForSystem = exceptions.exceptionsForSystem;
 export const vulnerabilitiesForSystem = vulnerabilities.vulnerabilitiesForSystem;
 export const securityTestsForSystem = securityTesting.securityTestsForSystem;
 export const resilienceForSystem = resilience.resilienceForSystem;
@@ -223,3 +226,4 @@ export type { ControlAssessment, ControlInstance } from "./assessment";
 export type { LevelRating } from "./levels";
 export type { ControlCoverage } from "./compliance";
 export type { EngineFinding } from "./findings";
+export type { ManagedException, ExceptionLifecycleStatus, ExceptionReviewStatus } from "./exceptions";

@@ -37,9 +37,10 @@ interface SystemWorkspaceProps {
   systemId?: SystemId | null;
   onSelectSystem?: (systemId: SystemId) => void;
   initialSubTab?: SystemWorkspaceTab | null;
+  onNavigate?: (target: string) => void;
 }
 
-export default function SystemWorkspace({ systemId: controlledSystemId, onSelectSystem, initialSubTab }: SystemWorkspaceProps) {
+export default function SystemWorkspace({ systemId: controlledSystemId, onSelectSystem, initialSubTab, onNavigate }: SystemWorkspaceProps) {
   const [localSystemId, setLocalSystemId] = useState(DEFAULT_SYSTEM_ID);
   const systemId = controlledSystemId ?? localSystemId;
   const [subTab, setSubTab] = useState<SystemWorkspaceTab>(SUB_TABS.some((t) => t.id === initialSubTab) ? initialSubTab! : SUB_TABS[0].id);
@@ -48,6 +49,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
 
   const system = SYSTEMS.find((s) => s.id === systemId);
   if (!system) throw new Error(`Unknown system: ${systemId}`);
+  const reportSystem = system;
   const matrix = useMemo(
     () => systemControlMatrix(system.id).map((row) => ({
       ...row,
@@ -100,6 +102,24 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
     return counts;
   }, [findings]);
 
+  async function generateIsoReport() {
+    const { exportIso27001SystemReportPdf } = await import("../../utils/exportIso27001SystemReportPdf");
+    await exportIso27001SystemReportPdf({
+      system: reportSystem,
+      cockpit,
+      matrix,
+      applicabilitySummary,
+      dataTypes,
+      identity,
+      exposure,
+      resilience,
+      securityTesting: secTests,
+      incidentResponse: ir,
+      vendors,
+      topRisks,
+    });
+  }
+
   function selectSystem(id: SystemId) {
     if (onSelectSystem) onSelectSystem(id);
     else setLocalSystemId(id);
@@ -125,7 +145,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         <SystemOverview
           system={system} cockpit={cockpit} identity={identity} exposure={exposure}
           resilience={resilience} secTests={secTests} ir={ir} vendors={vendors}
-          dataTypes={dataTypes} onNavigate={setSubTab}
+          dataTypes={dataTypes} onNavigate={setSubTab} onGenerateIsoReport={generateIsoReport}
         />
       )}
 
@@ -138,7 +158,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
       {subTab === "identity" && <SystemIdentity identity={identity} exposure={exposure} />}
 
       {subTab === "security" && (
-        <SystemSecurity exposure={exposure} sdlc={sdlc} vendors={vendors} />
+        <SystemSecurity exposure={exposure} sdlc={sdlc} vendors={vendors} onOpenExceptionRegister={() => onNavigate?.("exception-register")} />
       )}
 
       {subTab === "testing" && (

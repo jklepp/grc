@@ -11,7 +11,7 @@ type LegacySystemTab = "profile" | "map" | "assets";
 // SystemDetail. `initialTab` lets legacy deep-links (e.g. Policy Center's
 // "View Register" link) land straight on a tab without going through the
 // picker — App.jsx's legacy-route map is the only caller that sets it.
-export default function Systems({ initialTab }: { initialTab?: LegacySystemTab }) {
+export default function Systems({ initialTab, onNavigate }: { initialTab?: LegacySystemTab; onNavigate?: (target: string) => void }) {
   const [selectedSystemId, setSelectedSystemId] = useState<SystemId | null>(initialTab ? DEFAULT_SYSTEM_ID : null);
 
   if (!selectedSystemId) {
@@ -23,6 +23,7 @@ export default function Systems({ initialTab }: { initialTab?: LegacySystemTab }
       systemId={selectedSystemId}
       initialTab={initialTab}
       onBack={() => setSelectedSystemId(null)}
+      onNavigate={onNavigate}
     />
   );
 }

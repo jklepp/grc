@@ -2,6 +2,7 @@ import React from "react";
 import type { ReactNode } from "react";
 import {
   AlertTriangle,
+  ArrowUpRight,
   Building2,
   CheckCircle2,
   Circle,
@@ -20,6 +21,7 @@ interface SystemSecurityProps {
   exposure: ExposurePosture;
   sdlc: SdlcPosture;
   vendors: VendorPosture;
+  onOpenExceptionRegister?: () => void;
 }
 
 interface SdlcSafeguard {
@@ -51,7 +53,7 @@ function SecurityMetric({ label, value, detail, tone = "accent" }: { label: stri
   );
 }
 
-export function SystemSecurity({ exposure, sdlc, vendors }: SystemSecurityProps) {
+export function SystemSecurity({ exposure, sdlc, vendors, onOpenExceptionRegister }: SystemSecurityProps) {
   const sdlcGroups: SdlcGroup[] = sdlc?.applicable ? [
     {
       label: "Source",
@@ -173,12 +175,19 @@ export function SystemSecurity({ exposure, sdlc, vendors }: SystemSecurityProps)
 
         {exposure.exceptions.length > 0 && (
           <div className="mt-4">
-            <div className="text-[10px] uppercase tracking-wide font-semibold mb-2" style={{ color: C.muted }}>Accepted Exceptions</div>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.muted }}>Accepted Exceptions</div>
+              {onOpenExceptionRegister && (
+                <button type="button" onClick={onOpenExceptionRegister} className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: C.accent }}>
+                  Open Exception Register <ArrowUpRight size={12} />
+                </button>
+              )}
+            </div>
             <div className="space-y-2">
               {exposure.exceptions.map((exception) => (
                 <div key={exception.id} className="rounded-lg p-3" style={{ background: C.greenBg }}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-sm font-medium" style={{ color: C.green }}><CheckCircle2 size={13} /> {exception.condition.replace(/-/g, " ")} — accepted</div>
+                    <div className="flex items-center gap-2 text-sm font-medium" style={{ color: C.green }}><CheckCircle2 size={13} /> {exception.title}</div>
                     <div className="text-[11px]" style={{ color: C.muted }}>
                       Approved by {exception.approvedBy}{exception.expiresAt ? ` · expires ${exception.expiresAt}` : " · no expiration recorded"}
                     </div>

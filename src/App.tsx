@@ -31,7 +31,7 @@ function systemsTab(tab?: PageTab): SystemsTab | undefined {
 }
 
 function governanceTab(tab?: PageTab): GovernanceTab | undefined {
-  return tab === "policy" || tab === "procedures" || tab === "principles" || tab === "schedule" ? tab : undefined;
+  return tab === "policy" || tab === "procedures" || tab === "principles" || tab === "schedule" || tab === "exceptions" ? tab : undefined;
 }
 
 function overviewTab(tab?: PageTab): OverviewTab | undefined {
@@ -41,7 +41,7 @@ function overviewTab(tab?: PageTab): OverviewTab | undefined {
 // Map nav item ids (defined in Sidebar.tsx) to a consistently typed renderer.
 const PAGES: Record<NavigationPageId, ComponentType<PageProps>> = {
   assurance: ({ initialTab }) => <Controls initialTab={controlsTab(initialTab)} />,
-  "data-estate": ({ initialTab }) => <Systems initialTab={systemsTab(initialTab)} />,
+  "data-estate": ({ initialTab, onNavigate }) => <Systems initialTab={systemsTab(initialTab)} onNavigate={onNavigate} />,
   governance: ({ initialTab, onNavigate }) => (
     <Governance initialTab={governanceTab(initialTab)} onNavigate={onNavigate} />
   ),
@@ -72,6 +72,7 @@ const LEGACY_ROUTES = {
   "procedure-library": { page: "governance", tab: "procedures" },
   "security-principles": { page: "governance", tab: "principles" },
   "activity-timeliness": { page: "governance", tab: "schedule" },
+  "exception-register": { page: "governance", tab: "exceptions" },
   ssp: { page: "data-estate", tab: "profile" },
 } satisfies Record<string, LegacyRoute>;
 

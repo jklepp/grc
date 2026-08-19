@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { FileText, ListChecks, Shield, CalendarClock } from "lucide-react";
+import { FileText, ListChecks, Shield, CalendarClock, ShieldAlert } from "lucide-react";
 import { TabBar } from "../components/Headings";
 import PolicyCenter from "./PolicyCenter";
 import ProcedureLibrary from "./ProcedureLibrary";
 import SecurityPrinciples from "./SecurityPrinciples";
 import ScheduledActivities from "./ScheduledActivities";
+import ExceptionRegister from "./ExceptionRegister";
 
 // Governance merges the former Policy Center, Procedure Library, Security
 // Principles, and Governance Schedule (formerly "Activity Timeliness") top-
@@ -17,6 +18,7 @@ const TABS = [
   { id: "procedures", label: "Procedure Library", icon: ListChecks, Page: ProcedureLibrary },
   { id: "principles", label: "Security Principles", icon: Shield, Page: SecurityPrinciples },
   { id: "schedule", label: "Governance Schedule", icon: CalendarClock, Page: ScheduledActivities },
+  { id: "exceptions", label: "Exception Register", icon: ShieldAlert, Page: ExceptionRegister },
 ] as const;
 
 type GovernanceTab = (typeof TABS)[number]["id"];
@@ -32,6 +34,7 @@ const INTERNAL_TABS: Record<string, GovernanceTab> = {
   "procedure-library": "procedures",
   "security-principles": "principles",
   "activity-timeliness": "schedule",
+  "exception-register": "exceptions",
 };
 
 // `initialTab` lets other pages deep-link into a specific tab via App.jsx's

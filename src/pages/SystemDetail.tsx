@@ -18,9 +18,10 @@ interface SystemDetailProps {
   systemId: SystemId;
   initialTab?: LegacySystemTab;
   onBack: () => void;
+  onNavigate?: (target: string) => void;
 }
 
-export default function SystemDetail({ systemId: initialSystemId, initialTab, onBack }: SystemDetailProps) {
+export default function SystemDetail({ systemId: initialSystemId, initialTab, onBack, onNavigate }: SystemDetailProps) {
   const [systemId, setSystemId] = useState<SystemId>(initialSystemId);
 
   return (
@@ -39,6 +40,7 @@ export default function SystemDetail({ systemId: initialSystemId, initialTab, on
         systemId={systemId}
         onSelectSystem={setSystemId}
         initialSubTab={initialTab ? INITIAL_SUBTAB_BY_LEGACY_TAB[initialTab] : undefined}
+        onNavigate={onNavigate}
       />
     </div>
   );

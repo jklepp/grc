@@ -1,7 +1,7 @@
 // Attack surface — what a system exposes to the internet and how tightly it's
 // held. Separate from the control matrix: a control says what ACME does about
 // exposure, this says what the exposure actually is.
-import type { SystemId, OrgId } from "../ids";
+import type { AssetId, ControlId, SystemId, OrgId } from "../ids";
 
 export const EGRESS_POSTURE = ["default-deny", "monitored-allow", "default-allow"] as const;
 export type EgressPosture = (typeof EGRESS_POSTURE)[number];
@@ -49,8 +49,15 @@ export type DangerousCondition = (typeof DANGEROUS_CONDITIONS)[number];
 export interface ExposureException {
   id: string;
   systemId: SystemId;
+  title: string;
   condition: DangerousCondition;
   reason: string;
+  ownerId: OrgId;
   approvedBy: OrgId;
+  approvedAt: string;
   expiresAt?: string;
+  reviewCadenceDays: number;
+  affectedAssetIds: AssetId[];
+  controlIds: ControlId[];
+  compensatingControls: string[];
 }

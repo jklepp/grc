@@ -4,9 +4,21 @@
 
 - id: "EXPEXC-SYS-003-01"
   systemId: "SYS-003"
+  title: "Emergency AWS break-glass access outside Okta"
   condition: "unmanaged-break-glass-access"
   reason: "The two break-glass IAM roles bypass Okta by design, for AWS control-plane recovery when
     Okta itself is unavailable. Credentials are sealed in a physical safe, usage pages IT Security,
     and every use is reviewed within 24 hours per the incident response playbook."
+  ownerId: "it-security"
   approvedBy: "it-security"
+  approvedAt: "2026-07-01"
   expiresAt: "2027-01-01"
+  reviewCadenceDays: 180
+  affectedAssetIds:
+    - "AST-003-16"
+  controlIds:
+    - "IAC-16"
+  compensatingControls:
+    - "Credentials are sealed in a physical safe under dual control."
+    - "Every use pages IT Security and is reviewed within 24 hours."
+    - "Break-glass roles are reserved for identity-provider and control-plane recovery."
