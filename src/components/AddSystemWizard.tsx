@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentProps, CSSProperties, ReactNode } from "react";
 import {
   Info, Gauge, Layers, ClipboardCheck, Check, AlertTriangle, Plus, Trash2, ChevronLeft, ChevronRight, Network, Users, Bot,
@@ -50,6 +50,9 @@ type AssetType = string;
 
 interface AssetDraft {
   key: string;
+  added: boolean;
+  saved: boolean;
+  expanded: boolean;
   id?: AssetId;
   name: string;
   assetType: AssetType;
@@ -141,6 +144,10 @@ function agentDraftIsValid(agent: AgentDraft, autonomousActions: boolean): boole
   );
 }
 
+function assetDraftIsValid(asset: AssetDraft): boolean {
+  return Boolean(asset.name.trim() && Object.keys(asset.dataTypes).length > 0);
+}
+
 interface DryRunResult {
   problems: string[];
   systemId: SystemId | null;
@@ -186,6 +193,9 @@ function blankAsset(index: number): AssetDraft {
   const assetType = ASSET_TYPES[0];
   return {
     key: `new-${index}-${Math.random().toString(36).slice(2, 8)}`,
+    added: false,
+    saved: false,
+    expanded: true,
     name: "",
     assetType,
     kind: ASSET_TYPE_CATEGORIES[assetType][0],
@@ -294,6 +304,11 @@ interface AddSystemWizardProps {
 
 export default function AddSystemWizard({ open, onClose, onCreated, editingSystemId = null }: AddSystemWizardProps) {
   const [step, setStep] = useState<WizardStep>(1);
+  const contentPaneRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    contentPaneRef.current?.scrollTo({ top: 0, behavior: "auto" });
+  }, [step]);
 
   const [hostingType, setHostingType] = useState<HostingType>("cloud");
   const [provider, setProvider] = useState("");
@@ -380,6 +395,9 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     setAssessmentTarget(scope?.periodEnd ?? defaultAssessmentTarget());
     setAssets(sourceAssets.map((asset) => ({
       key: asset.id,
+      added: true,
+      saved: true,
+      expanded: false,
       id: asset.id,
       name: asset.name,
       assetType: assetTypeForKind(asset.kind),
@@ -434,19 +452,19 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   function close() { reset(); onClose(); }
 
   function updateAsset(key: string, patch: Partial<AssetDraft>) {
-    setAssets((prev) => prev.map((a) => (a.key === key ? { ...a, ...patch } : a)));
+    setAssets((prev) => prev.map((a) => (a.key === key ? { ...a, ...patch, saved: false } : a)));
   }
   function updateAssetType(key: string, assetType: AssetType) {
     const kinds = ASSET_TYPE_CATEGORIES[assetType] ?? ASSET_TYPE_CATEGORIES[ASSET_TYPES[0]];
     const kind = kinds?.[0];
     if (!kind) return;
     setAssets((prev) => prev.map((a) => (a.key === key
-      ? { ...a, assetType, kind, sourceType: null, sourceKind: null }
+      ? { ...a, assetType, kind, sourceType: null, sourceKind: null, saved: false }
       : a)));
   }
   function updateCrit(key: string, factor: CriticalityFactorKey, patch: Partial<CriticalityFactors[CriticalityFactorKey]>) {
     setAssets((prev) => prev.map((a) => (a.key === key
-      ? { ...a, criticalityFactors: { ...a.criticalityFactors, [factor]: { ...a.criticalityFactors[factor], ...patch } } }
+      ? { ...a, criticalityFactors: { ...a.criticalityFactors, [factor]: { ...a.criticalityFactors[factor], ...patch } }, saved: false }
       : a)));
   }
   function toggleSystemDataType(dataTypeId: DataTypeId) {
@@ -455,7 +473,8 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       setAssets((current) => current.map((a) => {
         const next = { ...a.dataTypes };
         delete next[dataTypeId];
-        return { ...a, dataTypes: next };
+        const remainsValid = Boolean(a.name.trim() && Object.keys(next).length > 0);
+        return { ...a, dataTypes: next, saved: remainsValid ? a.saved : false, expanded: remainsValid ? a.expanded : true };
       }));
       return;
     }
@@ -465,7 +484,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     if (!dataTypeId) return;
     setAssets((prev) => prev.map((a) => {
       if (a.key !== key) return a;
-      return { ...a, dataTypes: { ...a.dataTypes, [dataTypeId]: a.dataTypes[dataTypeId] || "processes" } };
+      return { ...a, dataTypes: { ...a.dataTypes, [dataTypeId]: a.dataTypes[dataTypeId] || "processes" }, saved: false };
     }));
   }
   function removeAssetDataType(key: string, dataTypeId: DataTypeId) {
@@ -473,13 +492,21 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       if (a.key !== key) return a;
       const next = { ...a.dataTypes };
       delete next[dataTypeId];
-      return { ...a, dataTypes: next };
+      return { ...a, dataTypes: next, saved: false };
     }));
   }
   function setDataTypeRole(key: string, dataTypeId: DataTypeId, role: DataRole) {
-    setAssets((prev) => prev.map((a) => (a.key === key ? { ...a, dataTypes: { ...a.dataTypes, [dataTypeId]: role } } : a)));
+    setAssets((prev) => prev.map((a) => (a.key === key ? { ...a, dataTypes: { ...a.dataTypes, [dataTypeId]: role }, saved: false } : a)));
   }
   function addAsset() { setAssets((prev) => [...prev, blankAsset(prev.length)]); }
+  function saveAsset(key: string) {
+    setAssets((current) => current.map((asset) => asset.key === key && assetDraftIsValid(asset)
+      ? { ...asset, added: true, saved: true, expanded: false }
+      : asset));
+  }
+  function expandAsset(key: string) {
+    setAssets((current) => current.map((asset) => asset.key === key ? { ...asset, expanded: true } : asset));
+  }
   function removeAsset(key: string) {
     if (assets.length <= 1) return;
     setAssets((prev) => prev.filter((a) => a.key !== key));
@@ -741,7 +768,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   const canAdvanceFrom1 = Boolean(name.trim() && boundary.trim() && mission.trim() && ownerOrgId);
   const canAdvanceFrom2 = Boolean(provider && regions.length > 0);
   const canAdvanceFrom3 = systemDataTypeIds.length > 0;
-  const canAdvanceFrom4 = assets.every((a) => Object.keys(a.dataTypes).length > 0) && unmappedSystemDataTypeIds.length === 0;
+  const canAdvanceFrom4 = assets.every((asset) => asset.saved && assetDraftIsValid(asset)) && unmappedSystemDataTypeIds.length === 0;
   const actorsValid = actorDrafts.length > 0 && actorDrafts.every((actor) => actor.saved && actorDraftIsValid(actor));
   const flowsValid = assets.length <= 1 || (flowDrafts.length > 0 && flowDrafts.every((flow) => flow.saved && flowDraftIsValid(flow)));
   const agentsValid = !usesAI || agentDrafts.every((agent) => agent.saved && agentDraftIsValid(agent, autonomousActions));
@@ -807,7 +834,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
         </nav>
 
         {/* ---- Content pane ---- */}
-        <div className="p-6 overflow-y-auto">
+        <div ref={contentPaneRef} className="p-6 overflow-y-auto">
           {step === 1 && (
             <div>
               <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 1 of 7</div>
@@ -1142,21 +1169,30 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
               )}
 
               {assets.map((a, i) => (
-                <div key={a.key} className="rounded-xl p-4 mb-3.5" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                  <div className="flex items-center justify-between mb-3.5">
-                    <div className="text-[13px] font-bold flex items-center gap-2" style={{ color: C.ink }}>
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: C.accentBg, color: C.accent }}>
-                        {`A${i + 1}`}
-                      </span>
-                      {a.name || `Asset ${i + 1}`}
+                <div key={a.key} className="rounded-xl p-4 mb-3.5" style={{ background: a.expanded ? C.panel2 : C.panel, border: `1px solid ${a.saved ? C.green : C.border}` }}>
+                  <div className={`flex items-center justify-between gap-3 ${a.expanded ? "mb-3.5" : ""}`}>
+                    <div>
+                      <div className="text-[13px] font-bold flex items-center gap-2" style={{ color: C.ink }}>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: C.accentBg, color: C.accent }}>
+                          {`A${i + 1}`}
+                        </span>
+                        {a.name || `Asset ${i + 1}`}
+                      </div>
+                      {!a.expanded && (
+                        <div className="text-[10.5px] mt-1 ml-8" style={{ color: C.muted }}>
+                          {a.assetType} · {a.kind.replace(/-/g, " ")} · {Object.keys(a.dataTypes).length} data type{Object.keys(a.dataTypes).length === 1 ? "" : "s"}
+                        </div>
+                      )}
                     </div>
-                    {assets.length > 1 && (
-                      <button onClick={() => removeAsset(a.key)} className="p-1 rounded" style={{ color: C.muted }}>
-                        <Trash2 size={14} />
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {!a.expanded && a.saved && <span className="flex items-center gap-1 text-[10.5px] font-semibold" style={{ color: C.green }}><Check size={12} /> Added</span>}
+                      {!a.expanded && <button type="button" onClick={() => expandAsset(a.key)} className="rounded-md px-3 py-1.5 text-[11px] font-semibold" style={{ color: C.accent, border: `1px solid ${C.border}` }}>View / edit</button>}
+                      {assets.length > 1 && <button type="button" onClick={() => removeAsset(a.key)} aria-label={`Remove ${a.name || `Asset ${i + 1}`}`} className="p-1.5 rounded" style={{ color: C.muted }}><Trash2 size={14} /></button>}
+                    </div>
                   </div>
 
+                  {a.expanded && (
+                  <>
                   <div className="grid grid-cols-3 gap-3 mb-3.5">
                     <Field label="Name"><TextInput value={a.name} onChange={(e) => updateAsset(a.key, { name: e.target.value })} /></Field>
                     <Field label="Type">
@@ -1273,13 +1309,29 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                       No data types mapped to this asset yet.
                     </div>
                   )}
+                  <div className="flex items-center justify-end gap-2 mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+                    {!assetDraftIsValid(a) && <span className="mr-auto text-[10.5px]" style={{ color: C.amber }}>Enter an asset name and map at least one data type.</span>}
+                    <button
+                      type="button"
+                      disabled={!assetDraftIsValid(a)}
+                      onClick={() => saveAsset(a.key)}
+                      className="flex items-center gap-1.5 rounded-md px-3.5 py-2 text-[11.5px] font-semibold"
+                      style={{ background: C.accent, color: "#fff", opacity: assetDraftIsValid(a) ? 1 : 0.45 }}
+                    >
+                      <Check size={13} /> {a.added ? "Save changes" : "Add asset"}
+                    </button>
+                  </div>
+                  </>
+                  )}
                 </div>
               ))}
 
               <button
+                type="button"
                 onClick={addAsset}
-                className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-[12.5px] font-semibold"
-                style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentBg }}
+                disabled={assets.some((asset) => !asset.saved)}
+                className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-[12.5px] font-semibold disabled:cursor-default"
+                style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentBg, opacity: assets.some((asset) => !asset.saved) ? 0.45 : 1 }}
               >
                 <Plus size={14} /> Add another asset
               </button>
