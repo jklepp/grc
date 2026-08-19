@@ -64,6 +64,7 @@ interface AssetDraft {
 
 interface ActorDraft {
   key: string;
+  saved: boolean;
   actorId?: ActorId;
   accessId?: string;
   name: string;
@@ -76,6 +77,7 @@ interface ActorDraft {
 
 interface FlowDraft {
   key: string;
+  saved: boolean;
   id?: string;
   fromKey: string;
   toKey: string;
@@ -86,6 +88,7 @@ interface FlowDraft {
 
 interface AgentDraft {
   key: string;
+  saved: boolean;
   id?: string;
   name: string;
   purpose: string;
@@ -106,20 +109,36 @@ function draftKey(prefix: string): string {
 }
 
 function blankActor(assetKey = ""): ActorDraft {
-  return { key: draftKey("actor"), name: "", kind: ACTOR_KINDS.HUMAN, description: "", assetKey, direction: ACTOR_DIRECTIONS.INBOUND, note: "" };
+  return { key: draftKey("actor"), saved: false, name: "", kind: ACTOR_KINDS.HUMAN, description: "", assetKey, direction: ACTOR_DIRECTIONS.INBOUND, note: "" };
 }
 
 function blankFlow(fromKey = "", toKey = "", dataTypeIds: DataTypeId[] = []): FlowDraft {
-  return { key: draftKey("flow"), fromKey, toKey, kind: FLOW_KINDS.DATA, dataTypeIds, note: "" };
+  return { key: draftKey("flow"), saved: false, fromKey, toKey, kind: FLOW_KINDS.DATA, dataTypeIds, note: "" };
 }
 
 function blankAgent(ownerOrgId: OrgId | "" = ""): AgentDraft {
   return {
-    key: draftKey("agent"), name: "", purpose: "", ownerOrgId, servicePrincipal: "",
+    key: draftKey("agent"), saved: false, name: "", purpose: "", ownerOrgId, servicePrincipal: "",
     autonomyLevel: "approval-gated", externalActions: false, canImpersonateUser: false,
     privilegeLevel: "standard", credentialType: "workload-identity", loggingEnabled: true,
     revocationMechanism: "automated", tools: "",
   };
+}
+
+function actorDraftIsValid(actor: ActorDraft): boolean {
+  return Boolean(actor.name.trim() && actor.description.trim() && actor.assetKey);
+}
+
+function flowDraftIsValid(flow: FlowDraft): boolean {
+  return Boolean(flow.fromKey && flow.toKey && flow.fromKey !== flow.toKey && flow.dataTypeIds.length > 0);
+}
+
+function agentDraftIsValid(agent: AgentDraft, autonomousActions: boolean): boolean {
+  return Boolean(
+    agent.name.trim() && agent.purpose.trim() && agent.servicePrincipal.trim() && agent.tools.trim()
+    && (agent.autonomyLevel !== "autonomous" || autonomousActions)
+    && (agent.autonomyLevel !== "recommend" || !agent.externalActions)
+  );
 }
 
 interface DryRunResult {
@@ -378,7 +397,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       .map((access) => {
         const actor = appEngine.graph.actorById[access.actorId];
         return {
-          key: access.id, actorId: access.actorId, accessId: access.id,
+          key: access.id, saved: true, actorId: access.actorId, accessId: access.id,
           name: actor?.name ?? access.actorId, kind: actor?.kind ?? ACTOR_KINDS.MACHINE,
           description: actor?.description ?? "External system actor", assetKey: access.assetId,
           direction: access.direction, note: access.note ?? "",
@@ -387,11 +406,11 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     setFlowDrafts(appEngine.graph.dataFlows
       .filter((flow) => sourceAssetIds.has(flow.from) && sourceAssetIds.has(flow.to))
       .map((flow) => ({
-        key: flow.id, id: flow.id, fromKey: flow.from, toKey: flow.to, kind: flow.kind,
+        key: flow.id, saved: true, id: flow.id, fromKey: flow.from, toKey: flow.to, kind: flow.kind,
         dataTypeIds: [...flow.dataTypeIds], note: flow.note ?? "",
       })));
     setAgentDrafts((appEngine.graph.agenticIdentitiesBySystem[editingSystemId] ?? []).map((agent) => ({
-      key: agent.id, id: agent.id, name: agent.name, purpose: agent.purpose,
+      key: agent.id, saved: true, id: agent.id, name: agent.name, purpose: agent.purpose,
       ownerOrgId: agent.ownerOrgId ?? "", servicePrincipal: agent.servicePrincipal,
       autonomyLevel: agent.autonomyLevel, externalActions: agent.externalActions,
       canImpersonateUser: agent.canImpersonateUser, privilegeLevel: agent.privilegeLevel,
@@ -469,13 +488,22 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   }
 
   function updateActor(key: string, patch: Partial<ActorDraft>) {
-    setActorDrafts((current) => current.map((actor) => actor.key === key ? { ...actor, ...patch } : actor));
+    setActorDrafts((current) => current.map((actor) => actor.key === key ? { ...actor, ...patch, saved: false } : actor));
   }
   function updateFlow(key: string, patch: Partial<FlowDraft>) {
-    setFlowDrafts((current) => current.map((flow) => flow.key === key ? { ...flow, ...patch } : flow));
+    setFlowDrafts((current) => current.map((flow) => flow.key === key ? { ...flow, ...patch, saved: false } : flow));
   }
   function updateAgent(key: string, patch: Partial<AgentDraft>) {
-    setAgentDrafts((current) => current.map((agent) => agent.key === key ? { ...agent, ...patch } : agent));
+    setAgentDrafts((current) => current.map((agent) => agent.key === key ? { ...agent, ...patch, saved: false } : agent));
+  }
+  function saveActor(key: string) {
+    setActorDrafts((current) => current.map((actor) => actor.key === key && actorDraftIsValid(actor) ? { ...actor, saved: true } : actor));
+  }
+  function saveFlow(key: string) {
+    setFlowDrafts((current) => current.map((flow) => flow.key === key && flowDraftIsValid(flow) ? { ...flow, saved: true } : flow));
+  }
+  function saveAgent(key: string) {
+    setAgentDrafts((current) => current.map((agent) => agent.key === key && agentDraftIsValid(agent, autonomousActions) ? { ...agent, saved: true } : agent));
   }
 
   // Builds an upsert candidate for either a new or existing system. Nothing is
@@ -714,13 +742,9 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   const canAdvanceFrom2 = Boolean(provider && regions.length > 0);
   const canAdvanceFrom3 = systemDataTypeIds.length > 0;
   const canAdvanceFrom4 = assets.every((a) => Object.keys(a.dataTypes).length > 0) && unmappedSystemDataTypeIds.length === 0;
-  const actorsValid = actorDrafts.length > 0 && actorDrafts.every((actor) => actor.name.trim() && actor.description.trim() && actor.assetKey);
-  const flowsValid = assets.length <= 1 || (flowDrafts.length > 0 && flowDrafts.every((flow) => flow.fromKey && flow.toKey && flow.fromKey !== flow.toKey && flow.dataTypeIds.length > 0));
-  const agentsValid = !usesAI || agentDrafts.every((agent) =>
-    agent.name.trim() && agent.purpose.trim() && agent.servicePrincipal.trim() && agent.tools.trim()
-    && (agent.autonomyLevel !== "autonomous" || autonomousActions)
-    && (agent.autonomyLevel !== "recommend" || !agent.externalActions)
-  );
+  const actorsValid = actorDrafts.length > 0 && actorDrafts.every((actor) => actor.saved && actorDraftIsValid(actor));
+  const flowsValid = assets.length <= 1 || (flowDrafts.length > 0 && flowDrafts.every((flow) => flow.saved && flowDraftIsValid(flow)));
+  const agentsValid = !usesAI || agentDrafts.every((agent) => agent.saved && agentDraftIsValid(agent, autonomousActions));
   const canAdvanceFrom5 = actorsValid && flowsValid && agentsValid;
   const canLaunch = Boolean(assessor.trim() && assessmentTarget);
   const nextDisabled =
@@ -1288,7 +1312,12 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                           <Field label="Direction"><Select value={actor.direction} onChange={(e) => updateActor(actor.key, { direction: Object.values(ACTOR_DIRECTIONS).find((value) => value === e.target.value) ?? actor.direction })}>{Object.values(ACTOR_DIRECTIONS).map((value) => <option key={value} value={value}>{value}</option>)}</Select></Field>
                           <Field label="Touches asset"><Select value={actor.assetKey} onChange={(e) => updateActor(actor.key, { assetKey: e.target.value })}><option value="">Select asset</option>{assets.map((asset, index) => <option key={asset.key} value={asset.key}>{asset.name || `Asset ${index + 1}`}</option>)}</Select></Field>
                           <Field label="Description"><TextInput value={actor.description} onChange={(e) => updateActor(actor.key, { description: e.target.value })} placeholder="Role in the architecture" /></Field>
-                          <div className="flex items-end gap-2"><div className="flex-1"><Field label="Access note"><TextInput value={actor.note} onChange={(e) => updateActor(actor.key, { note: e.target.value })} placeholder="Authentication or path detail" /></Field></div><button type="button" onClick={() => setActorDrafts((current) => current.filter((item) => item.key !== actor.key))} className="p-2 mb-0.5" style={{ color: C.red }}><Trash2 size={14} /></button></div>
+                          <Field label="Access note"><TextInput value={actor.note} onChange={(e) => updateActor(actor.key, { note: e.target.value })} placeholder="Authentication or path detail" /></Field>
+                        </div>
+                        <div className="flex items-center justify-end gap-2 mt-3 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+                          {!actorDraftIsValid(actor) && <span className="mr-auto text-[10.5px]" style={{ color: C.amber }}>Name, description, and touched asset are required.</span>}
+                          <button type="button" onClick={() => setActorDrafts((current) => current.filter((item) => item.key !== actor.key))} className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold" style={{ color: C.red }}><Trash2 size={12} /> Remove</button>
+                          <button type="button" disabled={!actorDraftIsValid(actor) || actor.saved} onClick={() => saveActor(actor.key)} className="flex items-center gap-1 rounded-md px-3 py-1.5 text-[11px] font-semibold disabled:cursor-default" style={{ background: actor.saved ? C.greenBg : C.accent, color: actor.saved ? C.green : "#fff", opacity: !actorDraftIsValid(actor) ? 0.45 : 1 }}><Check size={12} /> {actor.saved ? "Actor saved" : "Save actor"}</button>
                         </div>
                       </div>
                     ))}
@@ -1312,9 +1341,13 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                         <div className="mt-2 flex items-end gap-2">
                           <div className="flex-1"><Field label="Data carried"><div className="flex flex-wrap gap-1.5">{systemDataTypeIds.map((id) => { const dataType = dataTypes.find((item) => item.id === id); const selected = flow.dataTypeIds.includes(id); return <ChoiceChip key={id} selected={selected} onClick={() => updateFlow(flow.key, { dataTypeIds: selected ? flow.dataTypeIds.filter((item) => item !== id) : [...flow.dataTypeIds, id] })}>{dataType?.name ?? id}</ChoiceChip>; })}</div></Field></div>
                           <div className="w-[34%]"><Field label="Relationship note"><TextInput value={flow.note} onChange={(e) => updateFlow(flow.key, { note: e.target.value })} placeholder="What moves or is protected" /></Field></div>
-                          <button type="button" onClick={() => setFlowDrafts((current) => current.filter((item) => item.key !== flow.key))} className="p-2 mb-0.5" style={{ color: C.red }}><Trash2 size={14} /></button>
                         </div>
                         {flow.fromKey === flow.toKey && <div className="text-[10px] mt-1" style={{ color: C.red }}>A relationship must connect two different assets.</div>}
+                        <div className="flex items-center justify-end gap-2 mt-3 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+                          {!flowDraftIsValid(flow) && <span className="mr-auto text-[10.5px]" style={{ color: C.amber }}>Choose different assets and at least one data type.</span>}
+                          <button type="button" onClick={() => setFlowDrafts((current) => current.filter((item) => item.key !== flow.key))} className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold" style={{ color: C.red }}><Trash2 size={12} /> Remove</button>
+                          <button type="button" disabled={!flowDraftIsValid(flow) || flow.saved} onClick={() => saveFlow(flow.key)} className="flex items-center gap-1 rounded-md px-3 py-1.5 text-[11px] font-semibold disabled:cursor-default" style={{ background: flow.saved ? C.greenBg : C.accent, color: flow.saved ? C.green : "#fff", opacity: !flowDraftIsValid(flow) ? 0.45 : 1 }}><Check size={12} /> {flow.saved ? "Relationship saved" : "Save relationship"}</button>
+                        </div>
                       </div>
                     ))}
                     {assets.length > 1 && flowDrafts.length === 0 && <div className="rounded-lg px-3 py-3 text-[11px]" style={{ border: `1px dashed ${C.amber}`, color: C.amber }}>Add at least one relationship between the assets in this boundary.</div>}
@@ -1346,7 +1379,11 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                             <label className="flex items-center gap-1.5"><input type="checkbox" checked={agent.externalActions} disabled={agent.autonomyLevel === "recommend"} onChange={(e) => updateAgent(agent.key, { externalActions: e.target.checked })} /> External actions</label>
                             <label className="flex items-center gap-1.5"><input type="checkbox" checked={agent.canImpersonateUser} onChange={(e) => updateAgent(agent.key, { canImpersonateUser: e.target.checked })} /> Can impersonate user</label>
                             <label className="flex items-center gap-1.5"><input type="checkbox" checked={agent.loggingEnabled} onChange={(e) => updateAgent(agent.key, { loggingEnabled: e.target.checked })} /> Activity logging</label>
-                            <button type="button" onClick={() => setAgentDrafts((current) => current.filter((item) => item.key !== agent.key))} className="ml-auto flex items-center gap-1" style={{ color: C.red }}><Trash2 size={12} /> Remove</button>
+                          </div>
+                          <div className="flex items-center justify-end gap-2 mt-3 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+                            {!agentDraftIsValid(agent, autonomousActions) && <span className="mr-auto text-[10.5px]" style={{ color: C.amber }}>Name, purpose, service principal, and tools are required.</span>}
+                            <button type="button" onClick={() => setAgentDrafts((current) => current.filter((item) => item.key !== agent.key))} className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold" style={{ color: C.red }}><Trash2 size={12} /> Remove</button>
+                            <button type="button" disabled={!agentDraftIsValid(agent, autonomousActions) || agent.saved} onClick={() => saveAgent(agent.key)} className="flex items-center gap-1 rounded-md px-3 py-1.5 text-[11px] font-semibold disabled:cursor-default" style={{ background: agent.saved ? C.greenBg : C.accent, color: agent.saved ? C.green : "#fff", opacity: !agentDraftIsValid(agent, autonomousActions) ? 0.45 : 1 }}><Check size={12} /> {agent.saved ? "Agent saved" : "Save agent"}</button>
                           </div>
                         </div>
                       ))}
