@@ -24,10 +24,10 @@ try {
       connections: [], roles: [], syncSource: "manual", lastSynced: "just now",
       oktaEnforced: "compliant", mfaEnforced: "compliant", internetFacing: false,
       availabilityTier: "tier-3-standard",
-      criticalityFactors: {
-        confidentiality: { score: 50, reason: "test" }, integrity: { score: 50, reason: "test" },
-        availability: { score: 50, reason: "test" }, regulatory: { score: 50, reason: "test" },
-        businessDependency: { score: 50, reason: "test" },
+      securityCategory: {
+        confidentiality: { impact: "moderate", reason: "test" },
+        integrity: { impact: "moderate", reason: "test" },
+        availability: { impact: "moderate", reason: "test" },
       },
       userCount: 1, regions: ["us-east-1"],
       dataProfile: { subjects: [], approxRecords: 0, retention: "n/a", residency: ["United States"] },

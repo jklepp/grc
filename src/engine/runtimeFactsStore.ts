@@ -10,8 +10,40 @@
 import type { RuntimeFacts } from "./liveGraph";
 import { emptyRuntimeFacts } from "./liveGraph";
 import type { ActorId, AssetId, EvidenceArtifactId, EvidenceId, EvidenceReviewId, FindingId, SystemId } from "../graph/ids";
+import type { ImpactLevel } from "../graph/nodes/assets";
+import { defaultSecurityCategory, type SecurityCategory, type System } from "../graph/nodes/systems";
 
 const STORAGE_KEY = "grc-runtime-facts";
+
+function impactFromLegacyScore(score: unknown): ImpactLevel {
+  if (typeof score !== "number" || !Number.isFinite(score)) return "moderate";
+  if (score >= 75) return "high";
+  if (score >= 50) return "moderate";
+  return "low";
+}
+
+// Older runtime systems stored a five-factor 0-100 criticalityFactors blob.
+// Map CIA scores onto FIPS 199 impact levels and drop the extra lanes so a
+// previously saved system still loads against the current schema.
+function migrateSystem(system: System & { criticalityFactors?: Record<string, { score?: number; reason?: string }> }): System {
+  const existing = system.securityCategory;
+  if (existing?.confidentiality?.impact && existing?.integrity?.impact && existing?.availability?.impact) {
+    const { criticalityFactors: _legacy, ...rest } = system;
+    return rest;
+  }
+  const legacy = system.criticalityFactors;
+  const rating = (objective: keyof SecurityCategory): SecurityCategory[keyof SecurityCategory] => ({
+    impact: impactFromLegacyScore(legacy?.[objective]?.score),
+    reason: typeof legacy?.[objective]?.reason === "string" ? legacy[objective].reason : "",
+  });
+  const { criticalityFactors: _legacy, ...rest } = system;
+  return {
+    ...rest,
+    securityCategory: legacy
+      ? { confidentiality: rating("confidentiality"), integrity: rating("integrity"), availability: rating("availability") }
+      : defaultSecurityCategory(),
+  };
+}
 
 export function loadRuntimeFacts(): RuntimeFacts {
   try {
@@ -20,7 +52,7 @@ export function loadRuntimeFacts(): RuntimeFacts {
     const parsed = JSON.parse(raw);
     const empty = emptyRuntimeFacts();
     return {
-      systems: Array.isArray(parsed.systems) ? parsed.systems : empty.systems,
+      systems: Array.isArray(parsed.systems) ? parsed.systems.map(migrateSystem) : empty.systems,
       assets: Array.isArray(parsed.assets) ? parsed.assets : empty.assets,
       assetDataTypes: Array.isArray(parsed.assetDataTypes) ? parsed.assetDataTypes : empty.assetDataTypes,
       actors: Array.isArray(parsed.actors) ? parsed.actors : empty.actors,

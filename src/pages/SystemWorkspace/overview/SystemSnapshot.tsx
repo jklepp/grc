@@ -8,16 +8,8 @@ import { SectionHeader } from "../shared/SectionHeader";
 import { ProviderBadge } from "../ProviderBadge";
 import { hostingTypeLabel } from "../controlMeta";
 import type { WorkspaceDataType, WorkspaceSystem, ExposurePosture } from "../types";
-import { CRITICALITY_FACTOR_NAMES } from "../../../graph/nodes/systems";
-import type { CriticalityFactorName } from "../../../graph/nodes/systems";
-
-const CRITICALITY_FACTOR_LABELS: Record<CriticalityFactorName, string> = {
-  confidentiality: "Confidentiality",
-  integrity: "Integrity",
-  availability: "Availability",
-  regulatory: "Regulatory",
-  businessDependency: "Business dependency",
-};
+import { SECURITY_OBJECTIVES, SECURITY_OBJECTIVE_LABELS } from "../../../graph/nodes/systems";
+import { IMPACT_LEVEL_LABELS } from "../../../graph/nodes/assets";
 
 function bandColor(color?: string): string {
   if (color === "red") return C.red;
@@ -71,11 +63,10 @@ export function SystemSnapshot({ system, exposure, dataTypes }: { system: Worksp
           }
         />
         <IdentificationField
-          label="Criticality"
+          label="Security category"
           value={
-            <span style={{ color: bandColor(system.criticalityBand?.color) }}>
-              {system.criticalityBand?.label ?? "—"}
-              {system.criticality != null ? ` · ${system.criticality}` : ""}
+            <span style={{ color: bandColor(system.overallImpactBand?.color) }}>
+              {system.overallImpactBand?.label ?? "—"}
             </span>
           }
         />
@@ -87,17 +78,17 @@ export function SystemSnapshot({ system, exposure, dataTypes }: { system: Worksp
         <IdentificationField label="Integrations" value={`${inbound} inbound · ${outbound} outbound`} />
         <IdentificationField label="Users" value={system.userCount?.toLocaleString?.() ?? system.userCount} />
         <div className="col-span-2">
-          <div className="text-[10px] uppercase tracking-wide mb-1.5" style={{ color: C.muted }}>Criticality factors</div>
+          <div className="text-[10px] uppercase tracking-wide mb-1.5" style={{ color: C.muted }}>FIPS 199 security objectives</div>
           <div className="rounded-md px-3 py-1" style={{ background: C.panel2 }}>
-            {CRITICALITY_FACTOR_NAMES.map((factor, index) => {
-              const entry = system.criticalityFactors[factor];
+            {SECURITY_OBJECTIVES.map((objective, index) => {
+              const entry = system.securityCategory[objective];
               return (
-                <div key={factor} className="flex items-start justify-between gap-3 py-1.5" style={{ borderBottom: index < CRITICALITY_FACTOR_NAMES.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                <div key={objective} className="flex items-start justify-between gap-3 py-1.5" style={{ borderBottom: index < SECURITY_OBJECTIVES.length - 1 ? `1px solid ${C.border}` : "none" }}>
                   <div className="min-w-0">
-                    <div className="text-xs font-medium" style={{ color: C.ink }}>{CRITICALITY_FACTOR_LABELS[factor]}</div>
+                    <div className="text-xs font-medium" style={{ color: C.ink }}>{SECURITY_OBJECTIVE_LABELS[objective]}</div>
                     {entry.reason ? <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{entry.reason}</div> : null}
                   </div>
-                  <div className="text-sm font-semibold shrink-0" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{entry.score}</div>
+                  <div className="text-sm font-semibold shrink-0" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{IMPACT_LEVEL_LABELS[entry.impact]}</div>
                 </div>
               );
             })}

@@ -2,9 +2,9 @@
 //
 // These are the formulas from the previous assuranceModel.js, essentially
 // unchanged — they were the right formulas. What changed is what feeds them:
-// criticality now comes from a system's own factors (FIPS 199 categorizes the
-// information system, not each box inside it), and control assurance arrives
-// from real implementations and evidence rather than from a six-value category
+// a system's FIPS 199 security category (confidentiality, integrity,
+// availability) is the boundary rating, and control assurance arrives from
+// real implementations and evidence rather than from a six-value category
 // block typed onto the asset.
 //
 // The ordered vocabularies these scales attach to (MATURITY_STAGES,
@@ -17,7 +17,6 @@ import {
   type EvidenceType, type PrismaLevel, type ComplianceRating,
 } from "../graph/nodes/taxonomy";
 import type { ImpactLevel } from "../graph/nodes/assets";
-import { CRITICALITY_FACTOR_NAMES } from "../graph/nodes/systems";
 
 // ---- Evidence confidence ------------------------------------------------------
 // How much an assertion can be trusted, from "we say so" to "the system proves
@@ -101,40 +100,14 @@ export function complianceForConfidence(confidence: number): ComplianceRating {
 // report says. Derived from EVIDENCE_CONFIDENCE so the two move together.
 export const INHERITED_LEVEL_CAP = complianceForConfidence(EVIDENCE_CONFIDENCE["Auditor examination"]);
 
-// ---- System criticality (FIPS-199-style) ---------------------------------------
-// Five weighted factors, each 0-100, scored on the information system — the
-// same subject FIPS 199 categorizes. The overall score blends the highest
-// single factor (a catastrophic regulatory or confidentiality exposure
-// shouldn't be diluted by four unrelated low scores — the high-water-mark
-// idea) with a weighted average across all five (so one spike alone can't
-// fully mask the rest of the profile either).
-export const CRITICALITY_FACTORS = CRITICALITY_FACTOR_NAMES;
-export type CriticalityFactorName = (typeof CRITICALITY_FACTORS)[number];
-const CRITICALITY_WEIGHTS: Record<CriticalityFactorName, number> = { confidentiality: 0.25, integrity: 0.2, availability: 0.15, regulatory: 0.25, businessDependency: 0.15 };
-const HIGH_WATER_MARK_WEIGHT = 0.6;
-
-export function criticalityScore(factors: Record<string, number>): number {
-  const values = CRITICALITY_FACTORS.map((f) => factors[f]);
-  const max = Math.max(...values);
-  const weightedAvg = CRITICALITY_FACTORS.reduce((sum, f) => sum + factors[f] * CRITICALITY_WEIGHTS[f], 0);
-  return Math.round(HIGH_WATER_MARK_WEIGHT * max + (1 - HIGH_WATER_MARK_WEIGHT) * weightedAvg);
-}
-
 export interface Band {
   label: string;
   color: string;
 }
 
-export function criticalityBand(score: number): Band {
-  if (score >= 90) return { label: "Critical", color: "red" };
-  if (score >= 75) return { label: "High", color: "amber" };
-  if (score >= 50) return { label: "Moderate", color: "amber" };
-  return { label: "Low", color: "green" };
-}
-
-// FIPS 199 potential impact on an asset (Low / Moderate / High). Distinct from
-// the system's five-factor criticality score: this is the inventory tag
-// frameworks ask for on a component, not a second copy of the boundary rating.
+// FIPS 199 potential impact (Low / Moderate / High). Used for an asset's
+// inventory tag and for the system's overall security category — the high
+// water mark of confidentiality, integrity, and availability.
 export function impactLevelBand(level: ImpactLevel): Band {
   if (level === "high") return { label: "High", color: "red" };
   if (level === "moderate") return { label: "Moderate", color: "amber" };
@@ -222,14 +195,6 @@ export function assuranceBand(score: number | null | undefined): Band & { label:
 // doesn't move because controls improved. Only likelihood does. Impact is
 // derived from the FIPS 199 impact level rather than stored, so the two can't
 // drift apart.
-export function impactFromCriticality(score: number): number {
-  if (score >= 90) return 5;
-  if (score >= 75) return 4;
-  if (score >= 60) return 3;
-  if (score >= 40) return 2;
-  return 1;
-}
-
 export function impactFromImpactLevel(level: ImpactLevel): number {
   if (level === "high") return 5;
   if (level === "moderate") return 3;

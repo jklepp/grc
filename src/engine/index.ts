@@ -213,9 +213,10 @@ export { REGULATORY_FLAGS } from "../graph/nodes/dataTypes";
 export {
   AVAILABILITY_TIERS, HOSTING_TYPES, INHERITED_DOMAINS, DATA_SUBJECT_TYPES,
   CLOUD_REGIONS, RETENTION_OPTIONS, RESIDENCY_OPTIONS, SYSTEM_REGULATORY_CONTEXTS,
-  NETWORK_EXPOSURES, CRITICALITY_FACTOR_NAMES, defaultCriticalityFactors,
+  NETWORK_EXPOSURES, SECURITY_OBJECTIVES, SECURITY_OBJECTIVE_LABELS,
+  defaultSecurityCategory, overallImpactLevel,
 } from "../graph/nodes/systems";
-export type { CriticalityFactors, CriticalityFactor } from "../graph/nodes/systems";
+export type { SecurityCategory, SecurityObjective, SecurityObjectiveRating } from "../graph/nodes/systems";
 export { RESPONSIBILITIES, SHARED_RESPONSIBILITY_DOMAINS } from "../graph/edges/controlImplementations";
 export type { Responsibility } from "../graph/edges/controlImplementations";
 export { ASSET_KINDS, ASSET_TYPE_CATEGORIES, ASSET_TYPES, IMPACT_LEVELS, IMPACT_LEVEL_LABELS, IMPACT_LEVEL_SHORT } from "../graph/nodes/assets";

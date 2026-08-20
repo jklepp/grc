@@ -21,9 +21,9 @@ const RISKS = getAllRisks();
 const ASSET_SUMMARIES = getAllAssets();
 const CATEGORY_PORTFOLIO_AVERAGES = getCategoryAverages();
 
-// Enterprise Assurance: criticality-weighted, so a weak high-criticality
-// system drags it down harder than a weak low-stakes one and it can't be gamed
-// by padding the register with low-stakes boundaries.
+// Enterprise Assurance: weighted by each system's FIPS 199 overall impact, so
+// a weak High system drags it down harder than a weak Low one and it can't be
+// gamed by padding the register with low-impact boundaries.
 //
 // This page used to compute that weighting here, over the asset list. Correct
 // arithmetic, but a second implementation of a rollup the engine also performs

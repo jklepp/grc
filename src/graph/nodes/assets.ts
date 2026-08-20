@@ -22,8 +22,9 @@
 // any other container workload.
 //
 // impactLevel is the FIPS 199 potential-impact rating (Low / Moderate / High)
-// for this component. The five-factor criticality score lives on the system —
-// FIPS 199 security categorization is a boundary activity, not a per-box one.
+// for this component. The system's security category (confidentiality,
+// integrity, availability) lives on the boundary — FIPS 199 security
+// categorization is a system activity, not a per-box one.
 // inherentLikelihood stays: what happens if this specific resource is
 // compromised is still a genuine per-asset fact with no upstream to derive it
 // from.

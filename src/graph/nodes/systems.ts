@@ -33,6 +33,7 @@
 // substring match on "SaaS"/"on-prem" was doing inference where a field will do.
 import type { SystemId, OrgId } from "../ids";
 import type { IdentityType } from "./identity";
+import { IMPACT_LEVELS, type ImpactLevel } from "./assets";
 
 export const HOSTING_TYPES = ["cloud", "saas", "on-prem"] as const;
 export type HostingType = (typeof HOSTING_TYPES)[number];
@@ -76,41 +77,49 @@ export interface SystemRole {
   note?: string;
 }
 
-// Five-factor criticality lives on the system, not the asset. FIPS 199
-// security categorization is a boundary activity: confidentiality, integrity,
-// and availability of the information system, plus the regulatory and business
-// dependency that no CIA triad captures on its own. Each factor is 0-100 with
-// a reason; engine/assurance.ts blends them into one score.
-export interface CriticalityFactor {
-  score: number;
+// FIPS 199 security categorization of the information system. Each security
+// objective is Low / Moderate / High; "not applicable" is not allowed on a
+// system. The overall category is the high water mark of the three, derived
+// in overallImpactLevel() rather than stored.
+export const SECURITY_OBJECTIVES = ["confidentiality", "integrity", "availability"] as const;
+export type SecurityObjective = (typeof SECURITY_OBJECTIVES)[number];
+
+export const SECURITY_OBJECTIVE_LABELS: Record<SecurityObjective, string> = {
+  confidentiality: "Confidentiality",
+  integrity: "Integrity",
+  availability: "Availability",
+};
+
+export interface SecurityObjectiveRating {
+  impact: ImpactLevel;
   reason: string;
 }
 
-export const CRITICALITY_FACTOR_NAMES = [
-  "confidentiality",
-  "integrity",
-  "availability",
-  "regulatory",
-  "businessDependency",
-] as const;
-export type CriticalityFactorName = (typeof CRITICALITY_FACTOR_NAMES)[number];
-
-export interface CriticalityFactors {
-  confidentiality: CriticalityFactor;
-  integrity: CriticalityFactor;
-  availability: CriticalityFactor;
-  regulatory: CriticalityFactor;
-  businessDependency: CriticalityFactor;
+export interface SecurityCategory {
+  confidentiality: SecurityObjectiveRating;
+  integrity: SecurityObjectiveRating;
+  availability: SecurityObjectiveRating;
 }
 
-export function defaultCriticalityFactors(): CriticalityFactors {
+export function defaultSecurityCategory(): SecurityCategory {
   return {
-    confidentiality: { score: 50, reason: "" },
-    integrity: { score: 50, reason: "" },
-    availability: { score: 50, reason: "" },
-    regulatory: { score: 50, reason: "" },
-    businessDependency: { score: 50, reason: "" },
+    confidentiality: { impact: "moderate", reason: "" },
+    integrity: { impact: "moderate", reason: "" },
+    availability: { impact: "moderate", reason: "" },
   };
+}
+
+const IMPACT_RANK: Record<ImpactLevel, number> = { low: 0, moderate: 1, high: 2 };
+
+export function overallImpactLevel(category: SecurityCategory): ImpactLevel {
+  return SECURITY_OBJECTIVES.reduce<ImpactLevel>((highest, objective) => {
+    const impact = category[objective].impact;
+    return IMPACT_RANK[impact] > IMPACT_RANK[highest] ? impact : highest;
+  }, "low");
+}
+
+export function isImpactLevel(value: unknown): value is ImpactLevel {
+  return typeof value === "string" && (IMPACT_LEVELS as readonly string[]).includes(value);
 }
 
 // How much downtime this boundary can tolerate before it's a business
@@ -230,7 +239,7 @@ export interface System {
   mfaEnforced: string;
   internetFacing: boolean;
   availabilityTier: AvailabilityTier;
-  criticalityFactors: CriticalityFactors;
+  securityCategory: SecurityCategory;
   userCount: number;
   regions: string[];
   dataProfile: SystemDataProfile;

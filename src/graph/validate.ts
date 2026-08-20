@@ -27,7 +27,7 @@ import {
 } from "./nodes/taxonomy";
 import {
   HOSTING_TYPES, INHERITED_DOMAINS, AVAILABILITY_TIERS, DATA_SUBJECT_TYPES,
-  SYSTEM_REGULATORY_CONTEXTS, NETWORK_EXPOSURES, CRITICALITY_FACTOR_NAMES,
+  SYSTEM_REGULATORY_CONTEXTS, NETWORK_EXPOSURES, SECURITY_OBJECTIVES, isImpactLevel,
 } from "./nodes/systems";
 import { ASSET_KINDS, IMPACT_LEVELS } from "./nodes/assets";
 import { REGULATORY_FLAGS } from "./nodes/dataTypes";
@@ -86,12 +86,12 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
       check(has(graph.orgById, r.ownerId), `system ${s.id} role "${r.role}": ownerId "${r.ownerId}" is not an org`)
     );
     check(AVAILABILITY_TIERS.includes(s.availabilityTier), `system ${s.id}: availabilityTier "${s.availabilityTier}" is not one of ${AVAILABILITY_TIERS.join(", ")}`);
-    CRITICALITY_FACTOR_NAMES.forEach((factor) => {
-      const entry = s.criticalityFactors?.[factor];
-      check(Boolean(entry), `system ${s.id}: criticalityFactors.${factor} is missing`);
+    SECURITY_OBJECTIVES.forEach((objective) => {
+      const entry = s.securityCategory?.[objective];
+      check(Boolean(entry), `system ${s.id}: securityCategory.${objective} is missing`);
       if (!entry) return;
-      check(Number.isFinite(entry.score) && entry.score >= 0 && entry.score <= 100, `system ${s.id}: criticalityFactors.${factor}.score must be 0-100`);
-      check(typeof entry.reason === "string", `system ${s.id}: criticalityFactors.${factor}.reason must be a string`);
+      check(isImpactLevel(entry.impact), `system ${s.id}: securityCategory.${objective}.impact "${String(entry.impact)}" is not one of ${IMPACT_LEVELS.join(", ")} (FIPS 199 Low / Moderate / High)`);
+      check(typeof entry.reason === "string", `system ${s.id}: securityCategory.${objective}.reason must be a string`);
     });
     check(Number.isInteger(s.userCount) && s.userCount >= 0, `system ${s.id}: userCount must be a non-negative integer`);
     check(s.regions.length > 0, `system ${s.id}: regions must name at least one region`);

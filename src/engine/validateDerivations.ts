@@ -114,7 +114,7 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
   // it is a diagnostic now, not a scoring subject. What still has to resolve is
   // everything derived from the asset's OWN facts: FIPS 199 impact level (the
   // inventory tag) and classification (which still decides which controls apply).
-  // System criticality, not asset criticality, is the enterprise-hop weight.
+  // The system's FIPS 199 overall impact, not the asset's, is the enterprise-hop weight.
   rollups.assetRollups.forEach((a) => {
     check(Boolean(a.impactLevelBand?.label), `asset ${a.id}: impactLevel did not resolve to a FIPS 199 band`);
     check(Boolean(a.classification), `asset ${a.id}: classification did not derive — check its data-type edges`);
@@ -287,8 +287,12 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
       `system ${s.id}: assurance did not resolve to a number — every assurance category is empty, which means nothing was assessed`
     );
     check(
-      Number.isFinite(s.criticality),
-      `system ${s.id}: criticality did not resolve to a number`
+      Boolean(s.overallImpactBand?.label),
+      `system ${s.id}: security category did not resolve to a FIPS 199 overall impact`
+    );
+    check(
+      Number.isFinite(s.impactWeight) && s.impactWeight > 0,
+      `system ${s.id}: FIPS 199 overall impact did not resolve to a rollup weight`
     );
     check(
       s.coverage.applicable === s.coverage.assessed + s.coverage.unassessed,

@@ -178,7 +178,7 @@ function factsFor(type: NodeType, id: string): FactRow[] {
         { label: "Assessment coverage", value: `${node.coverage.assessed} of ${node.coverage.applicable} controls (${node.coverage.assessedPct}%)` },
         { label: "Inherited", value: `${node.coverage.inherited} from ${node.provider}` },
         { label: "Assets", value: node.assetCount },
-        { label: "Criticality", value: `${node.criticality} (${node.criticalityBand.label})` },
+        { label: "Security category", value: `${node.overallImpactBand.label} (FIPS 199)` },
         { label: "Weakest control", value: node.weakestControl ? `${node.weakestControl.controlId} at ${node.weakestControl.score}` : null },
         { label: "Standards", value: node.standards.join(", ") },
       ];

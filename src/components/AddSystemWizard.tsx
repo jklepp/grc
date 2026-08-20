@@ -11,7 +11,8 @@ import {
   AVAILABILITY_TIERS, DATA_SUBJECT_TYPES, ASSET_TYPE_CATEGORIES, ASSET_TYPES,
   DATA_ROLE_META, getAllDataTypes, CLOUD_REGIONS, RETENTION_OPTIONS, RESIDENCY_OPTIONS,
   SYSTEM_REGULATORY_CONTEXTS, IDENTITY_TYPES, NETWORK_EXPOSURES,
-  IMPACT_LEVELS, IMPACT_LEVEL_LABELS, defaultCriticalityFactors,
+  IMPACT_LEVELS, IMPACT_LEVEL_LABELS, SECURITY_OBJECTIVES, SECURITY_OBJECTIVE_LABELS,
+  defaultSecurityCategory, overallImpactLevel,
   engine as appEngine, commitRuntimeFacts,
 } from "../engine";
 import { buildLiveEngine } from "../engine/liveGraph";
@@ -24,7 +25,7 @@ import type { AssetDataType, DataRole } from "../graph/edges/assetDataTypes";
 import { DATA_ROLES } from "../graph/edges/assetDataTypes";
 import type { IdentityType } from "../graph/nodes/identity";
 import type {
-  AvailabilityTier, CriticalityFactors, DataSubjectType, HostingType, NetworkExposure, System, SystemRegulatoryContext,
+  AvailabilityTier, DataSubjectType, HostingType, NetworkExposure, SecurityCategory, SecurityObjective, System, SystemRegulatoryContext,
 } from "../graph/nodes/systems";
 import type { ClassificationTier } from "../graph/nodes/taxonomy";
 import type { AssessmentScope } from "../graph/nodes/assessmentScope";
@@ -46,7 +47,6 @@ const STEPS = [
   { id: 7, title: "Launch", detail: "Start assessment", icon: Check },
 ] as const;
 type WizardStep = (typeof STEPS)[number]["id"];
-type CriticalityFactorKey = keyof CriticalityFactors;
 type AssetType = string;
 
 interface AssetDraft {
@@ -68,7 +68,9 @@ interface AssetDraft {
 
 interface ActorDraft {
   key: string;
+  added: boolean;
   saved: boolean;
+  expanded: boolean;
   actorId?: ActorId;
   accessId?: string;
   name: string;
@@ -81,7 +83,9 @@ interface ActorDraft {
 
 interface FlowDraft {
   key: string;
+  added: boolean;
   saved: boolean;
+  expanded: boolean;
   id?: string;
   fromKey: string;
   toKey: string;
@@ -92,7 +96,9 @@ interface FlowDraft {
 
 interface AgentDraft {
   key: string;
+  added: boolean;
   saved: boolean;
+  expanded: boolean;
   id?: string;
   name: string;
   purpose: string;
@@ -113,20 +119,32 @@ function draftKey(prefix: string): string {
 }
 
 function blankActor(assetKey = ""): ActorDraft {
-  return { key: draftKey("actor"), saved: false, name: "", kind: ACTOR_KINDS.HUMAN, description: "", assetKey, direction: ACTOR_DIRECTIONS.INBOUND, note: "" };
+  return {
+    key: draftKey("actor"), added: false, saved: false, expanded: true, name: "", kind: ACTOR_KINDS.HUMAN,
+    description: "", assetKey, direction: ACTOR_DIRECTIONS.INBOUND, note: "",
+  };
 }
 
 function blankFlow(fromKey = "", toKey = "", dataTypeIds: DataTypeId[] = []): FlowDraft {
-  return { key: draftKey("flow"), saved: false, fromKey, toKey, kind: FLOW_KINDS.DATA, dataTypeIds, note: "" };
+  return {
+    key: draftKey("flow"), added: false, saved: false, expanded: true, fromKey, toKey, kind: FLOW_KINDS.DATA,
+    dataTypeIds, note: "",
+  };
 }
 
 function blankAgent(ownerOrgId: OrgId | "" = ""): AgentDraft {
   return {
-    key: draftKey("agent"), saved: false, name: "", purpose: "", ownerOrgId, servicePrincipal: "",
-    autonomyLevel: "approval-gated", externalActions: false, canImpersonateUser: false,
+    key: draftKey("agent"), added: false, saved: false, expanded: true, name: "", purpose: "", ownerOrgId,
+    servicePrincipal: "", autonomyLevel: "approval-gated", externalActions: false, canImpersonateUser: false,
     privilegeLevel: "standard", credentialType: "workload-identity", loggingEnabled: true,
     revocationMechanism: "automated", tools: "",
   };
+}
+
+function assetDraftLabel(assets: AssetDraft[], key: string): string {
+  const index = assets.findIndex((asset) => asset.key === key);
+  if (index < 0) return "Unknown asset";
+  return assets[index].name.trim() || `Asset ${index + 1}`;
 }
 
 function actorDraftIsValid(actor: ActorDraft): boolean {
@@ -207,13 +225,7 @@ function blankAsset(index: number): AssetDraft {
   };
 }
 
-const CRIT_FACTORS = [
-  ["confidentiality", "Confidentiality"],
-  ["integrity", "Integrity"],
-  ["availability", "Availability"],
-  ["regulatory", "Regulatory"],
-  ["businessDependency", "Business dependency"],
-] as const satisfies ReadonlyArray<readonly [CriticalityFactorKey, string]>;
+
 
 function Field({ label, note, span2 = false, children }: { label: string; note?: string; span2?: boolean; children: ReactNode }) {
   return (
@@ -311,7 +323,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   const [mission, setMission] = useState("");
   const [boundary, setBoundary] = useState("");
   const [availabilityTier, setAvailabilityTier] = useState<AvailabilityTier>(AVAILABILITY_TIERS[1]);
-  const [criticalityFactors, setCriticalityFactors] = useState<CriticalityFactors>(defaultCriticalityFactors);
+  const [securityCategory, setSecurityCategory] = useState<SecurityCategory>(defaultSecurityCategory);
   const [userCount, setUserCount] = useState<number | string>(0);
   const [regions, setRegions] = useState<string[]>([]);
   const [subjects, setSubjects] = useState<DataSubjectType[]>([]);
@@ -370,7 +382,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     setHostingType(source.hostingType);
     setProvider(source.provider);
     setAvailabilityTier(source.availabilityTier);
-    setCriticalityFactors(structuredClone(source.criticalityFactors));
+    setSecurityCategory(structuredClone(source.securityCategory));
     setUserCount(source.userCount);
     setRegions([...source.regions]);
     setSubjects([...source.dataProfile.subjects]);
@@ -412,7 +424,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       .map((access) => {
         const actor = appEngine.graph.actorById[access.actorId];
         return {
-          key: access.id, saved: true, actorId: access.actorId, accessId: access.id,
+          key: access.id, added: true, saved: true, expanded: false, actorId: access.actorId, accessId: access.id,
           name: actor?.name ?? access.actorId, kind: actor?.kind ?? ACTOR_KINDS.MACHINE,
           description: actor?.description ?? "External system actor", assetKey: access.assetId,
           direction: access.direction, note: access.note ?? "",
@@ -421,11 +433,11 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     setFlowDrafts(appEngine.graph.dataFlows
       .filter((flow) => sourceAssetIds.has(flow.from) && sourceAssetIds.has(flow.to))
       .map((flow) => ({
-        key: flow.id, saved: true, id: flow.id, fromKey: flow.from, toKey: flow.to, kind: flow.kind,
-        dataTypeIds: [...flow.dataTypeIds], note: flow.note ?? "",
+        key: flow.id, added: true, saved: true, expanded: false, id: flow.id, fromKey: flow.from, toKey: flow.to,
+        kind: flow.kind, dataTypeIds: [...flow.dataTypeIds], note: flow.note ?? "",
       })));
     setAgentDrafts((appEngine.graph.agenticIdentitiesBySystem[editingSystemId] ?? []).map((agent) => ({
-      key: agent.id, saved: true, id: agent.id, name: agent.name, purpose: agent.purpose,
+      key: agent.id, added: true, saved: true, expanded: false, id: agent.id, name: agent.name, purpose: agent.purpose,
       ownerOrgId: agent.ownerOrgId ?? "", servicePrincipal: agent.servicePrincipal,
       autonomyLevel: agent.autonomyLevel, externalActions: agent.externalActions,
       canImpersonateUser: agent.canImpersonateUser, privilegeLevel: agent.privilegeLevel,
@@ -437,7 +449,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
   function reset() {
     setStep(1); setHostingType("cloud"); setProvider(""); setName(""); setMission(""); setBoundary("");
-    setAvailabilityTier(AVAILABILITY_TIERS[1]); setCriticalityFactors(defaultCriticalityFactors()); setUserCount(0); setRegions([]); setSubjects([]);
+    setAvailabilityTier(AVAILABILITY_TIERS[1]); setSecurityCategory(defaultSecurityCategory()); setUserCount(0); setRegions([]); setSubjects([]);
     setApproxRecords(0); setRetention(RETENTION_OPTIONS[0]); setResidency(RESIDENCY_OPTIONS[0]);
     setSystemDataTypeIds([]); setDataSearch(""); setInternetFacing(false);
     setUsesAI(false); setAutonomousActions(false); setRegulatoryContext([]);
@@ -459,8 +471,8 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       ? { ...a, assetType, kind, sourceType: null, sourceKind: null, saved: false }
       : a)));
   }
-  function updateSystemCrit(factor: CriticalityFactorKey, patch: Partial<CriticalityFactors[CriticalityFactorKey]>) {
-    setCriticalityFactors((current) => ({ ...current, [factor]: { ...current[factor], ...patch } }));
+  function updateSecurityCategory(objective: SecurityObjective, patch: Partial<SecurityCategory[SecurityObjective]>) {
+    setSecurityCategory((current) => ({ ...current, [objective]: { ...current[objective], ...patch } }));
   }
   function toggleSystemDataType(dataTypeId: DataTypeId) {
     if (systemDataTypeIds.includes(dataTypeId)) {
@@ -518,14 +530,47 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   function updateAgent(key: string, patch: Partial<AgentDraft>) {
     setAgentDrafts((current) => current.map((agent) => agent.key === key ? { ...agent, ...patch, saved: false } : agent));
   }
+  function addActor() {
+    setActorDrafts((current) => [...current, blankActor(assets[0]?.key ?? "")]);
+  }
+  function addFlow() {
+    setFlowDrafts((current) => [...current, blankFlow(assets[0]?.key ?? "", assets[1]?.key ?? "", [...systemDataTypeIds])]);
+  }
+  function addAgent() {
+    setAgentDrafts((current) => [...current, blankAgent(ownerOrgId)]);
+  }
+  function expandActor(key: string) {
+    setActorDrafts((current) => current.map((actor) => actor.key === key ? { ...actor, expanded: true } : actor));
+  }
+  function expandFlow(key: string) {
+    setFlowDrafts((current) => current.map((flow) => flow.key === key ? { ...flow, expanded: true } : flow));
+  }
+  function expandAgent(key: string) {
+    setAgentDrafts((current) => current.map((agent) => agent.key === key ? { ...agent, expanded: true } : agent));
+  }
   function saveActor(key: string) {
-    setActorDrafts((current) => current.map((actor) => actor.key === key && actorDraftIsValid(actor) ? { ...actor, saved: true } : actor));
+    setActorDrafts((current) => current.map((actor) => actor.key === key && actorDraftIsValid(actor)
+      ? { ...actor, added: true, saved: true, expanded: false }
+      : actor));
   }
   function saveFlow(key: string) {
-    setFlowDrafts((current) => current.map((flow) => flow.key === key && flowDraftIsValid(flow) ? { ...flow, saved: true } : flow));
+    setFlowDrafts((current) => current.map((flow) => flow.key === key && flowDraftIsValid(flow)
+      ? { ...flow, added: true, saved: true, expanded: false }
+      : flow));
   }
   function saveAgent(key: string) {
-    setAgentDrafts((current) => current.map((agent) => agent.key === key && agentDraftIsValid(agent, autonomousActions) ? { ...agent, saved: true } : agent));
+    setAgentDrafts((current) => current.map((agent) => agent.key === key && agentDraftIsValid(agent, autonomousActions)
+      ? { ...agent, added: true, saved: true, expanded: false }
+      : agent));
+  }
+  function removeActor(key: string) {
+    setActorDrafts((current) => current.filter((actor) => actor.key !== key));
+  }
+  function removeFlow(key: string) {
+    setFlowDrafts((current) => current.filter((flow) => flow.key !== key));
+  }
+  function removeAgent(key: string) {
+    setAgentDrafts((current) => current.filter((agent) => agent.key !== key));
   }
 
   // Builds an upsert candidate for either a new or existing system. Nothing is
@@ -558,7 +603,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       mfaEnforced: sourceSystem?.mfaEnforced ?? "compliant",
       internetFacing,
       availabilityTier,
-      criticalityFactors,
+      securityCategory,
       userCount: Number(userCount) || 0,
       regions,
       dataProfile: {
@@ -869,28 +914,29 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                 </Field>
               </div>
 
-              <div className="text-[10px] uppercase tracking-wide font-mono mt-5 mb-2" style={{ color: C.muted }}>System criticality</div>
+              <div className="text-[10px] uppercase tracking-wide font-mono mt-5 mb-2" style={{ color: C.muted }}>FIPS 199 security category</div>
               <p className="text-[10.5px] mb-3 max-w-[64ch]" style={{ color: C.muted }}>
-                FIPS 199 categorizes the information system, not each asset. Score the boundary on each factor; the engine blends them into one criticality rating.
+                Rate confidentiality, integrity, and availability for this information system. The overall category is the high water mark of the three.
               </p>
-              <div className="grid gap-2" style={{ gridTemplateColumns: "128px 86px 1fr" }}>
-                {CRIT_FACTORS.map(([key, label]) => (
-                  <React.Fragment key={key}>
-                    <div className="text-xs flex items-center" style={{ color: C.ink }}>{label}</div>
+              <div className="grid gap-2" style={{ gridTemplateColumns: "128px 110px 1fr" }}>
+                {SECURITY_OBJECTIVES.map((objective) => (
+                  <React.Fragment key={objective}>
+                    <div className="text-xs flex items-center" style={{ color: C.ink }}>{SECURITY_OBJECTIVE_LABELS[objective]}</div>
+                    <Select
+                      value={securityCategory[objective].impact}
+                      aria-label={`${SECURITY_OBJECTIVE_LABELS[objective]} impact`}
+                      onChange={(e) => {
+                        const level = IMPACT_LEVELS.find((candidate) => candidate === e.target.value);
+                        if (level) updateSecurityCategory(objective, { impact: level });
+                      }}
+                    >
+                      {IMPACT_LEVELS.map((level) => (
+                        <option key={level} value={level}>{IMPACT_LEVEL_LABELS[level]}</option>
+                      ))}
+                    </Select>
                     <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={1}
-                      aria-label={`${label} criticality score`}
-                      value={criticalityFactors[key].score}
-                      onChange={(e) => updateSystemCrit(key, { score: Number(e.target.value) })}
-                      className="text-xs rounded px-2 py-1 outline-none"
-                      style={inputStyle}
-                    />
-                    <input
-                      value={criticalityFactors[key].reason}
-                      onChange={(e) => updateSystemCrit(key, { reason: e.target.value })}
+                      value={securityCategory[objective].reason}
+                      onChange={(e) => updateSecurityCategory(objective, { reason: e.target.value })}
                       placeholder="reason"
                       className="text-xs rounded px-2 py-1"
                       style={inputStyle}
@@ -898,6 +944,9 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                   </React.Fragment>
                 ))}
               </div>
+              <p className="text-[10.5px] mt-2" style={{ color: C.muted }}>
+                Overall category: {IMPACT_LEVEL_LABELS[overallImpactLevel(securityCategory)]}
+              </p>
             </div>
           )}
 
@@ -1242,7 +1291,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                   <div className="grid grid-cols-3 gap-3 mb-3.5">
                     <Field
                       label="Impact level"
-                      note="FIPS 199 potential impact for this component — Low, Moderate, or High. System criticality is scored on the boundary, not here."
+                      note="FIPS 199 potential impact for this component — Low, Moderate, or High. The system's security category is scored on the boundary, not here."
                     >
                       <Select
                         value={a.impactLevel}
@@ -1365,18 +1414,38 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                 Connect the boundary you just described: who reaches it, how data and control relationships move between assets, and which authenticated agents operate inside it.
               </p>
 
-              <div className="space-y-4">
-                <section className="rounded-xl p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-start gap-2">
-                      <Users size={16} color={C.accent} className="mt-0.5" />
-                      <div><div className="text-[13px] font-semibold" style={{ color: C.ink }}>Actors and access</div><div className="text-[10.5px]" style={{ color: C.muted }}>At least one human or machine actor must identify where it touches the boundary.</div></div>
-                    </div>
-                    <button type="button" onClick={() => setActorDrafts((current) => [...current, blankActor(assets[0]?.key)])} className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: C.accent }}><Plus size={12} /> Add actor</button>
+              <section className="mb-6">
+                <div className="flex items-start gap-2 mb-3">
+                  <Users size={16} color={C.accent} className="mt-0.5" />
+                  <div>
+                    <div className="text-[13px] font-semibold" style={{ color: C.ink }}>Actors and access</div>
+                    <div className="text-[10.5px]" style={{ color: C.muted }}>At least one human or machine actor must identify where it touches the boundary.</div>
                   </div>
-                  <div className="space-y-2">
-                    {actorDrafts.map((actor) => (
-                      <div key={actor.key} className="rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+                </div>
+                {actorDrafts.map((actor, i) => (
+                  <div key={actor.key} className="rounded-xl p-4 mb-3.5" style={{ background: actor.expanded ? C.panel2 : C.panel, border: `1px solid ${actor.saved ? C.green : C.border}` }}>
+                    <div className={`flex items-center justify-between gap-3 ${actor.expanded ? "mb-3.5" : ""}`}>
+                      <div>
+                        <div className="text-[13px] font-bold flex items-center gap-2" style={{ color: C.ink }}>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: C.accentBg, color: C.accent }}>
+                            {`U${i + 1}`}
+                          </span>
+                          {actor.name || `Actor ${i + 1}`}
+                        </div>
+                        {!actor.expanded && (
+                          <div className="text-[10.5px] mt-1 ml-8" style={{ color: C.muted }}>
+                            {actor.kind} · {actor.direction} · {assetDraftLabel(assets, actor.assetKey)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {!actor.expanded && actor.saved && <span className="flex items-center gap-1 text-[10.5px] font-semibold" style={{ color: C.green }}><Check size={12} /> Added</span>}
+                        {!actor.expanded && <button type="button" onClick={() => expandActor(actor.key)} className="rounded-md px-3 py-1.5 text-[11px] font-semibold" style={{ color: C.accent, border: `1px solid ${C.border}` }}>View / edit</button>}
+                        <button type="button" onClick={() => removeActor(actor.key)} aria-label={`Remove ${actor.name || `Actor ${i + 1}`}`} className="p-1.5 rounded" style={{ color: C.muted }}><Trash2 size={14} /></button>
+                      </div>
+                    </div>
+                    {actor.expanded && (
+                      <>
                         <div className="grid grid-cols-3 gap-2">
                           <Field label="Actor name"><TextInput value={actor.name} onChange={(e) => updateActor(actor.key, { name: e.target.value })} placeholder="Customer, administrator, integration" /></Field>
                           <Field label="Type"><Select value={actor.kind} onChange={(e) => updateActor(actor.key, { kind: Object.values(ACTOR_KINDS).find((value) => value === e.target.value) ?? actor.kind })}>{Object.values(ACTOR_KINDS).map((value) => <option key={value} value={value}>{value}</option>)}</Select></Field>
@@ -1385,25 +1454,70 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                           <Field label="Description"><TextInput value={actor.description} onChange={(e) => updateActor(actor.key, { description: e.target.value })} placeholder="Role in the architecture" /></Field>
                           <Field label="Access note"><TextInput value={actor.note} onChange={(e) => updateActor(actor.key, { note: e.target.value })} placeholder="Authentication or path detail" /></Field>
                         </div>
-                        <div className="flex items-center justify-end gap-2 mt-3 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+                        <div className="flex items-center justify-end gap-2 mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
                           {!actorDraftIsValid(actor) && <span className="mr-auto text-[10.5px]" style={{ color: C.amber }}>Name, description, and touched asset are required.</span>}
-                          <button type="button" onClick={() => setActorDrafts((current) => current.filter((item) => item.key !== actor.key))} className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold" style={{ color: C.red }}><Trash2 size={12} /> Remove</button>
-                          <button type="button" disabled={!actorDraftIsValid(actor) || actor.saved} onClick={() => saveActor(actor.key)} className="flex items-center gap-1 rounded-md px-3 py-1.5 text-[11px] font-semibold disabled:cursor-default" style={{ background: actor.saved ? C.greenBg : C.accent, color: actor.saved ? C.green : "#fff", opacity: !actorDraftIsValid(actor) ? 0.45 : 1 }}><Check size={12} /> {actor.saved ? "Actor saved" : "Save actor"}</button>
+                          <button
+                            type="button"
+                            disabled={!actorDraftIsValid(actor)}
+                            onClick={() => saveActor(actor.key)}
+                            className="flex items-center gap-1.5 rounded-md px-3.5 py-2 text-[11.5px] font-semibold"
+                            style={{ background: C.accent, color: "#fff", opacity: actorDraftIsValid(actor) ? 1 : 0.45 }}
+                          >
+                            <Check size={13} /> {actor.added ? "Save changes" : "Add actor"}
+                          </button>
                         </div>
-                      </div>
-                    ))}
-                    {actorDrafts.length === 0 && <div className="rounded-lg px-3 py-3 text-[11px]" style={{ border: `1px dashed ${C.amber}`, color: C.amber }}>Add at least one actor so the architecture has a real entry, exit, or administrative path.</div>}
+                      </>
+                    )}
                   </div>
-                </section>
+                ))}
+                {actorDrafts.length === 0 && (
+                  <div className="rounded-lg px-3 py-3 text-[11px] mb-3.5" style={{ border: `1px dashed ${C.amber}`, color: C.amber }}>
+                    Add at least one actor so the architecture has a real entry, exit, or administrative path.
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={addActor}
+                  disabled={actorDrafts.some((actor) => !actor.saved)}
+                  className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-[12.5px] font-semibold disabled:cursor-default"
+                  style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentBg, opacity: actorDrafts.some((actor) => !actor.saved) ? 0.45 : 1 }}
+                >
+                  <Plus size={14} /> {actorDrafts.length === 0 ? "Add actor" : "Add another actor"}
+                </button>
+              </section>
 
-                <section className="rounded-xl p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-start gap-2"><Network size={16} color={C.accent} className="mt-0.5" /><div><div className="text-[13px] font-semibold" style={{ color: C.ink }}>Asset relationships</div><div className="text-[10.5px]" style={{ color: C.muted }}>Flows drive architecture lanes and make data movement traceable.</div></div></div>
-                    <button type="button" disabled={assets.length < 2} onClick={() => setFlowDrafts((current) => [...current, blankFlow(assets[0]?.key, assets[1]?.key, [...systemDataTypeIds])])} className="flex items-center gap-1 text-[11px] font-semibold disabled:opacity-40" style={{ color: C.accent }}><Plus size={12} /> Add relationship</button>
+              <section className="mb-6">
+                <div className="flex items-start gap-2 mb-3">
+                  <Network size={16} color={C.accent} className="mt-0.5" />
+                  <div>
+                    <div className="text-[13px] font-semibold" style={{ color: C.ink }}>Asset relationships</div>
+                    <div className="text-[10.5px]" style={{ color: C.muted }}>Flows drive architecture lanes and make data movement traceable.</div>
                   </div>
-                  <div className="space-y-2">
-                    {flowDrafts.map((flow) => (
-                      <div key={flow.key} className="rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+                </div>
+                {flowDrafts.map((flow, i) => (
+                  <div key={flow.key} className="rounded-xl p-4 mb-3.5" style={{ background: flow.expanded ? C.panel2 : C.panel, border: `1px solid ${flow.saved ? C.green : C.border}` }}>
+                    <div className={`flex items-center justify-between gap-3 ${flow.expanded ? "mb-3.5" : ""}`}>
+                      <div>
+                        <div className="text-[13px] font-bold flex items-center gap-2" style={{ color: C.ink }}>
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: C.accentBg, color: C.accent }}>
+                            {`F${i + 1}`}
+                          </span>
+                          {`${assetDraftLabel(assets, flow.fromKey)} → ${assetDraftLabel(assets, flow.toKey)}`}
+                        </div>
+                        {!flow.expanded && (
+                          <div className="text-[10.5px] mt-1 ml-8" style={{ color: C.muted }}>
+                            {flow.kind.replace(/-/g, " ")} · {flow.dataTypeIds.length} data type{flow.dataTypeIds.length === 1 ? "" : "s"}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {!flow.expanded && flow.saved && <span className="flex items-center gap-1 text-[10.5px] font-semibold" style={{ color: C.green }}><Check size={12} /> Added</span>}
+                        {!flow.expanded && <button type="button" onClick={() => expandFlow(flow.key)} className="rounded-md px-3 py-1.5 text-[11px] font-semibold" style={{ color: C.accent, border: `1px solid ${C.border}` }}>View / edit</button>}
+                        <button type="button" onClick={() => removeFlow(flow.key)} aria-label={`Remove relationship ${i + 1}`} className="p-1.5 rounded" style={{ color: C.muted }}><Trash2 size={14} /></button>
+                      </div>
+                    </div>
+                    {flow.expanded && (
+                      <>
                         <div className="grid grid-cols-3 gap-2">
                           <Field label="From"><Select value={flow.fromKey} onChange={(e) => updateFlow(flow.key, { fromKey: e.target.value })}>{assets.map((asset, index) => <option key={asset.key} value={asset.key}>{asset.name || `Asset ${index + 1}`}</option>)}</Select></Field>
                           <Field label="Relationship"><Select value={flow.kind} onChange={(e) => updateFlow(flow.key, { kind: Object.values(FLOW_KINDS).find((value) => value === e.target.value) ?? flow.kind })}>{Object.values(FLOW_KINDS).map((value) => <option key={value} value={value}>{value.replace(/-/g, " ")}</option>)}</Select></Field>
@@ -1414,27 +1528,74 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                           <div className="w-[34%]"><Field label="Relationship note"><TextInput value={flow.note} onChange={(e) => updateFlow(flow.key, { note: e.target.value })} placeholder="What moves or is protected" /></Field></div>
                         </div>
                         {flow.fromKey === flow.toKey && <div className="text-[10px] mt-1" style={{ color: C.red }}>A relationship must connect two different assets.</div>}
-                        <div className="flex items-center justify-end gap-2 mt-3 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+                        <div className="flex items-center justify-end gap-2 mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
                           {!flowDraftIsValid(flow) && <span className="mr-auto text-[10.5px]" style={{ color: C.amber }}>Choose different assets and at least one data type.</span>}
-                          <button type="button" onClick={() => setFlowDrafts((current) => current.filter((item) => item.key !== flow.key))} className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold" style={{ color: C.red }}><Trash2 size={12} /> Remove</button>
-                          <button type="button" disabled={!flowDraftIsValid(flow) || flow.saved} onClick={() => saveFlow(flow.key)} className="flex items-center gap-1 rounded-md px-3 py-1.5 text-[11px] font-semibold disabled:cursor-default" style={{ background: flow.saved ? C.greenBg : C.accent, color: flow.saved ? C.green : "#fff", opacity: !flowDraftIsValid(flow) ? 0.45 : 1 }}><Check size={12} /> {flow.saved ? "Relationship saved" : "Save relationship"}</button>
+                          <button
+                            type="button"
+                            disabled={!flowDraftIsValid(flow)}
+                            onClick={() => saveFlow(flow.key)}
+                            className="flex items-center gap-1.5 rounded-md px-3.5 py-2 text-[11.5px] font-semibold"
+                            style={{ background: C.accent, color: "#fff", opacity: flowDraftIsValid(flow) ? 1 : 0.45 }}
+                          >
+                            <Check size={13} /> {flow.added ? "Save changes" : "Add relationship"}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
+                {assets.length > 1 && flowDrafts.length === 0 && (
+                  <div className="rounded-lg px-3 py-3 text-[11px] mb-3.5" style={{ border: `1px dashed ${C.amber}`, color: C.amber }}>
+                    Add at least one relationship between the assets in this boundary.
+                  </div>
+                )}
+                {assets.length === 1 && <div className="text-[11px]" style={{ color: C.muted }}>A one-asset boundary does not require an internal relationship.</div>}
+                {assets.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={addFlow}
+                    disabled={flowDrafts.some((flow) => !flow.saved)}
+                    className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-[12.5px] font-semibold disabled:cursor-default"
+                    style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentBg, opacity: flowDrafts.some((flow) => !flow.saved) ? 0.45 : 1 }}
+                  >
+                    <Plus size={14} /> {flowDrafts.length === 0 ? "Add relationship" : "Add another relationship"}
+                  </button>
+                )}
+              </section>
+
+              {usesAI && (
+                <section>
+                  <div className="flex items-start gap-2 mb-3">
+                    <Bot size={16} color={C.accent} className="mt-0.5" />
+                    <div>
+                      <div className="text-[13px] font-semibold" style={{ color: C.ink }}>Agentic identities</div>
+                      <div className="text-[10.5px]" style={{ color: C.muted }}>Optional: record authenticated AI agents that can invoke tools or affect resources.</div>
+                    </div>
+                  </div>
+                  {agentDrafts.map((agent, i) => (
+                    <div key={agent.key} className="rounded-xl p-4 mb-3.5" style={{ background: agent.expanded ? C.panel2 : C.panel, border: `1px solid ${agent.saved ? C.green : C.border}` }}>
+                      <div className={`flex items-center justify-between gap-3 ${agent.expanded ? "mb-3.5" : ""}`}>
+                        <div>
+                          <div className="text-[13px] font-bold flex items-center gap-2" style={{ color: C.ink }}>
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: C.accentBg, color: C.accent }}>
+                              {`G${i + 1}`}
+                            </span>
+                            {agent.name || `Agent ${i + 1}`}
+                          </div>
+                          {!agent.expanded && (
+                            <div className="text-[10.5px] mt-1 ml-8" style={{ color: C.muted }}>
+                              {agent.autonomyLevel} · {agent.privilegeLevel} privilege · {agent.credentialType.replace(/-/g, " ")}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {!agent.expanded && agent.saved && <span className="flex items-center gap-1 text-[10.5px] font-semibold" style={{ color: C.green }}><Check size={12} /> Added</span>}
+                          {!agent.expanded && <button type="button" onClick={() => expandAgent(agent.key)} className="rounded-md px-3 py-1.5 text-[11px] font-semibold" style={{ color: C.accent, border: `1px solid ${C.border}` }}>View / edit</button>}
+                          <button type="button" onClick={() => removeAgent(agent.key)} aria-label={`Remove ${agent.name || `Agent ${i + 1}`}`} className="p-1.5 rounded" style={{ color: C.muted }}><Trash2 size={14} /></button>
                         </div>
                       </div>
-                    ))}
-                    {assets.length > 1 && flowDrafts.length === 0 && <div className="rounded-lg px-3 py-3 text-[11px]" style={{ border: `1px dashed ${C.amber}`, color: C.amber }}>Add at least one relationship between the assets in this boundary.</div>}
-                    {assets.length === 1 && <div className="text-[11px]" style={{ color: C.muted }}>A one-asset boundary does not require an internal relationship.</div>}
-                  </div>
-                </section>
-
-                {usesAI && (
-                  <section className="rounded-xl p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex items-start gap-2"><Bot size={16} color={C.accent} className="mt-0.5" /><div><div className="text-[13px] font-semibold" style={{ color: C.ink }}>Agentic identities</div><div className="text-[10.5px]" style={{ color: C.muted }}>Optional: record authenticated AI agents that can invoke tools or affect resources.</div></div></div>
-                      <button type="button" onClick={() => setAgentDrafts((current) => [...current, blankAgent(ownerOrgId)])} className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: C.accent }}><Plus size={12} /> Add agent</button>
-                    </div>
-                    <div className="space-y-2">
-                      {agentDrafts.map((agent) => (
-                        <div key={agent.key} className="rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+                      {agent.expanded && (
+                        <>
                           <div className="grid grid-cols-3 gap-2">
                             <Field label="Agent name"><TextInput value={agent.name} onChange={(e) => updateAgent(agent.key, { name: e.target.value })} /></Field>
                             <Field label="Service principal"><TextInput value={agent.servicePrincipal} onChange={(e) => updateAgent(agent.key, { servicePrincipal: e.target.value })} placeholder="spn://system/agent" /></Field>
@@ -1451,18 +1612,38 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                             <label className="flex items-center gap-1.5"><input type="checkbox" checked={agent.canImpersonateUser} onChange={(e) => updateAgent(agent.key, { canImpersonateUser: e.target.checked })} /> Can impersonate user</label>
                             <label className="flex items-center gap-1.5"><input type="checkbox" checked={agent.loggingEnabled} onChange={(e) => updateAgent(agent.key, { loggingEnabled: e.target.checked })} /> Activity logging</label>
                           </div>
-                          <div className="flex items-center justify-end gap-2 mt-3 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+                          <div className="flex items-center justify-end gap-2 mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
                             {!agentDraftIsValid(agent, autonomousActions) && <span className="mr-auto text-[10.5px]" style={{ color: C.amber }}>Name, purpose, service principal, and tools are required.</span>}
-                            <button type="button" onClick={() => setAgentDrafts((current) => current.filter((item) => item.key !== agent.key))} className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-semibold" style={{ color: C.red }}><Trash2 size={12} /> Remove</button>
-                            <button type="button" disabled={!agentDraftIsValid(agent, autonomousActions) || agent.saved} onClick={() => saveAgent(agent.key)} className="flex items-center gap-1 rounded-md px-3 py-1.5 text-[11px] font-semibold disabled:cursor-default" style={{ background: agent.saved ? C.greenBg : C.accent, color: agent.saved ? C.green : "#fff", opacity: !agentDraftIsValid(agent, autonomousActions) ? 0.45 : 1 }}><Check size={12} /> {agent.saved ? "Agent saved" : "Save agent"}</button>
+                            <button
+                              type="button"
+                              disabled={!agentDraftIsValid(agent, autonomousActions)}
+                              onClick={() => saveAgent(agent.key)}
+                              className="flex items-center gap-1.5 rounded-md px-3.5 py-2 text-[11.5px] font-semibold"
+                              style={{ background: C.accent, color: "#fff", opacity: agentDraftIsValid(agent, autonomousActions) ? 1 : 0.45 }}
+                            >
+                              <Check size={13} /> {agent.added ? "Save changes" : "Add agent"}
+                            </button>
                           </div>
-                        </div>
-                      ))}
-                      {agentDrafts.length === 0 && <div className="text-[11px]" style={{ color: C.muted }}>No agentic identity declared. AI use alone does not imply an agent can take action.</div>}
+                        </>
+                      )}
                     </div>
-                  </section>
-                )}
-              </div>
+                  ))}
+                  {agentDrafts.length === 0 && (
+                    <div className="text-[11px] mb-3.5" style={{ color: C.muted }}>
+                      No agentic identity declared. AI use alone does not imply an agent can take action.
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={addAgent}
+                    disabled={agentDrafts.some((agent) => !agent.saved)}
+                    className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-[12.5px] font-semibold disabled:cursor-default"
+                    style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentBg, opacity: agentDrafts.some((agent) => !agent.saved) ? 0.45 : 1 }}
+                  >
+                    <Plus size={14} /> {agentDrafts.length === 0 ? "Add agent" : "Add another agent"}
+                  </button>
+                </section>
+              )}
             </div>
           )}
 
