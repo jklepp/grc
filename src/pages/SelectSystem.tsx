@@ -122,7 +122,11 @@ function SystemRow({ system, onSelect, onEdit, onDelete, striped }: SystemRowPro
 // table, with the entry point for onboarding a new one. Selecting a row hands
 // its id up to Systems, which opens the full System Security Profile on it —
 // this page itself carries no per-system detail, only enough to pick one.
-export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: SystemId) => void }) {
+export interface SystemSelectOptions {
+  startAssessment?: boolean;
+}
+
+export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: SystemId, options?: SystemSelectOptions) => void }) {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editingSystemId, setEditingSystemId] = useState<SystemId | null>(null);
   const [pendingDelete, setPendingDelete] = useState<SystemRollup | null>(null);
@@ -186,7 +190,7 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
   function handleWizardSaved(systemId: SystemId) {
     const created = editingSystemId === null;
     closeWizard();
-    if (created) onSelectSystem(systemId);
+    if (created) onSelectSystem(systemId, { startAssessment: true });
   }
 
   return (

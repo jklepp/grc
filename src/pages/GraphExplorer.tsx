@@ -112,8 +112,8 @@ function e_result(node: DisplayNode): string {
 function nodeScore(type: string, node: DisplayNode | null): number | null {
   if (!node) return null;
   // An asset deliberately returns nothing. It is a diagnostic now — it carries
-  // a list of control instances and a criticality, and inventing a headline
-  // number for it here would put back the score the model just removed.
+  // a list of control instances and a FIPS 199 impact level, and inventing a
+  // headline number for it here would put back the score the model just removed.
   if (type === "system") return node.overallAssurance ?? null;
   if (type === "risk") return node.assurance?.pct ?? null;
   if (type === "evidence") return node.confidence ?? null;
@@ -178,6 +178,7 @@ function factsFor(type: NodeType, id: string): FactRow[] {
         { label: "Assessment coverage", value: `${node.coverage.assessed} of ${node.coverage.applicable} controls (${node.coverage.assessedPct}%)` },
         { label: "Inherited", value: `${node.coverage.inherited} from ${node.provider}` },
         { label: "Assets", value: node.assetCount },
+        { label: "Criticality", value: `${node.criticality} (${node.criticalityBand.label})` },
         { label: "Weakest control", value: node.weakestControl ? `${node.weakestControl.controlId} at ${node.weakestControl.score}` : null },
         { label: "Standards", value: node.standards.join(", ") },
       ];
@@ -187,7 +188,7 @@ function factsFor(type: NodeType, id: string): FactRow[] {
       if (!node) return [];
       return [
         { label: "Classification", value: node.classification },
-        { label: "Criticality", value: `${node.criticality} (${node.criticalityBand.label})` },
+        { label: "Impact level", value: `${node.impactLevelBand.label} (FIPS 199)` },
         // No assurance row. An asset is the sampling population for the
         // controls assessed on its system, not a scoring subject of its own.
         { label: "Controls applicable", value: node.applicableControlCount },

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import SelectSystem from "./SelectSystem";
+import type { SystemSelectOptions } from "./SelectSystem";
 import SystemDetail from "./SystemDetail";
 import { DEFAULT_SYSTEM_ID } from "./SystemWorkspace/SystemWorkspace";
 import type { SystemId } from "../graph/ids";
@@ -22,16 +23,26 @@ export default function Systems({
   const [selectedSystemId, setSelectedSystemId] = useState<SystemId | null>(
     initialTab || pickerEpoch === 0 ? DEFAULT_SYSTEM_ID : null
   );
+  const [startAssessment, setStartAssessment] = useState(false);
+
+  function selectSystem(id: SystemId, options?: SystemSelectOptions) {
+    setStartAssessment(Boolean(options?.startAssessment));
+    setSelectedSystemId(id);
+  }
 
   if (!selectedSystemId) {
-    return <SelectSystem onSelectSystem={setSelectedSystemId} />;
+    return <SelectSystem onSelectSystem={selectSystem} />;
   }
 
   return (
     <SystemDetail
       systemId={selectedSystemId}
       initialTab={initialTab}
-      onBack={() => setSelectedSystemId(null)}
+      startAssessment={startAssessment}
+      onBack={() => {
+        setStartAssessment(false);
+        setSelectedSystemId(null);
+      }}
       onNavigate={onNavigate}
     />
   );

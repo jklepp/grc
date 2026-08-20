@@ -10,23 +10,7 @@
   kind: "waf"
   provider: "AWS"
   code: "WAF"
-  criticalityFactors:
-    confidentiality:
-      score: 70
-      reason: "Inspects public traffic before it reaches the platform, but terminates no sensitive
-        payloads itself"
-    integrity:
-      score: 80
-      reason: "A bypassed or misconfigured rule set lets malicious requests reach every asset behind it"
-    availability:
-      score: 90
-      reason: "The single internet-facing checkpoint every customer and partner request must clear"
-    regulatory:
-      score: 70
-      reason: "A required perimeter control for a Restricted-tier public API surface"
-    businessDependency:
-      score: 85
-      reason: "The first line of defense for every revenue-generating request the platform receives"
+  impactLevel: "high"
   inherentLikelihood: 4
 - id: "AST-003-01"
   systemId: "SYS-003"
@@ -35,22 +19,7 @@
   kind: "api-gateway"
   provider: "AWS"
   code: "GW"
-  criticalityFactors:
-    confidentiality:
-      score: 85
-      reason: "Public-facing entry point; auth tokens and request payloads pass through it"
-    integrity:
-      score: 75
-      reason: "Request tampering or auth bypass here compounds through everything downstream"
-    availability:
-      score: 92
-      reason: "Every customer-facing AI feature depends on this single ingress point"
-    regulatory:
-      score: 85
-      reason: "Restricted-tier customer data transits this boundary on every call"
-    businessDependency:
-      score: 95
-      reason: "The sole entry point for the AI platform's revenue-generating features"
+  impactLevel: "high"
   inherentLikelihood: 4
 - id: "AST-003-02"
   systemId: "SYS-003"
@@ -59,25 +28,7 @@
   kind: "compute-service"
   provider: "AWS"
   code: "ECS"
-  criticalityFactors:
-    confidentiality:
-      score: 80
-      reason: "Holds customer prompts and completions in memory while orchestrating retrieval, model, and
-        tool calls for every agent turn"
-    integrity:
-      score: 85
-      reason: "A tampered or compromised container could manipulate agent decisions or returned outputs at
-        scale"
-    availability:
-      score: 88
-      reason: "Core orchestration path — an outage takes every AI feature down"
-    regulatory:
-      score: 80
-      reason: "Processes Restricted-tier customer data as part of the agent loop"
-    businessDependency:
-      score: 92
-      reason: "The orchestration compute driving the product's core AI capability — every retrieval,
-        model, and tool call originates here"
+  impactLevel: "high"
   inherentLikelihood: 3
 - id: "AST-003-03"
   systemId: "SYS-003"
@@ -86,23 +37,7 @@
   kind: "compute-service"
   provider: "AWS"
   code: "RAG"
-  criticalityFactors:
-    confidentiality:
-      score: 88
-      reason: "Retrieves and injects customer-specific documents into model context at query time"
-    integrity:
-      score: 78
-      reason: "Poisoned or wrong retrieval results directly bias what the model returns to customers"
-    availability:
-      score: 75
-      reason: "Degrades to base-model answers rather than a hard outage if retrieval fails"
-    regulatory:
-      score: 82
-      reason: "Pulls Restricted-tier customer records into live prompts"
-    businessDependency:
-      score: 80
-      reason: "Enforces tenant and document-level authorization before any retrieval reaches the model,
-        and is the only path into the vector store — nothing calls it directly"
+  impactLevel: "high"
   inherentLikelihood: 4
 - id: "AST-003-04"
   systemId: "SYS-003"
@@ -111,22 +46,7 @@
   kind: "vector-db"
   provider: "AWS"
   code: "VDB"
-  criticalityFactors:
-    confidentiality:
-      score: 90
-      reason: "Stores dense-vector embeddings of customer documents, re-identifiable via inversion"
-    integrity:
-      score: 70
-      reason: "Corrupted embeddings quietly degrade retrieval quality with no obvious signal"
-    availability:
-      score: 65
-      reason: "The RAG service degrades gracefully, so this isn't a hard-availability dependency"
-    regulatory:
-      score: 85
-      reason: "Embeddings are derived directly from Restricted-tier source documents"
-    businessDependency:
-      score: 72
-      reason: "Backs the retrieval quality that differentiates the product"
+  impactLevel: "high"
   inherentLikelihood: 3
 - id: "AST-003-05"
   systemId: "SYS-003"
@@ -135,22 +55,7 @@
   kind: "object-storage"
   provider: "AWS"
   code: "S3"
-  criticalityFactors:
-    confidentiality:
-      score: 98
-      reason: "The platform's primary at-rest store of raw customer documents used for RAG ingestion"
-    integrity:
-      score: 88
-      reason: "Corrupted source data propagates into every downstream embedding and inference"
-    availability:
-      score: 70
-      reason: "Ingestion tolerates short delay; live queries don't read this bucket directly"
-    regulatory:
-      score: 95
-      reason: "Restricted-tier PII at rest"
-    businessDependency:
-      score: 85
-      reason: "The ground-truth source every RAG answer traces back to"
+  impactLevel: "high"
   inherentLikelihood: 4
 - id: "AST-003-06"
   systemId: "SYS-003"
@@ -159,22 +64,7 @@
   kind: "relational-db"
   provider: "AWS"
   code: "RDS"
-  criticalityFactors:
-    confidentiality:
-      score: 70
-      reason: "Stores conversation/session metadata and customer identifiers, not raw document content"
-    integrity:
-      score: 82
-      reason: "Metadata drives access scoping and usage attribution across the platform"
-    availability:
-      score: 80
-      reason: "Session and audit metadata is read on every live request"
-    regulatory:
-      score: 75
-      reason: "Contains customer identifiers tied to Restricted-tier records"
-    businessDependency:
-      score: 78
-      reason: "Backs usage attribution, auditing, and per-customer access scoping"
+  impactLevel: "high"
   inherentLikelihood: 3
 - id: "AST-003-07"
   systemId: "SYS-003"
@@ -183,22 +73,7 @@
   kind: "key-management"
   provider: "AWS"
   code: "KMS"
-  criticalityFactors:
-    confidentiality:
-      score: 92
-      reason: "The root cryptographic key protecting every other asset in this system's boundary"
-    integrity:
-      score: 95
-      reason: "Unauthorized rotation or deletion could render the platform's data unrecoverable"
-    availability:
-      score: 90
-      reason: "Every read or write of encrypted data depends on this key being available"
-    regulatory:
-      score: 90
-      reason: "Key management is a direct regulatory control point for all encrypted Restricted-tier data"
-    businessDependency:
-      score: 90
-      reason: "The single point of cryptographic trust for the whole platform"
+  impactLevel: "high"
   inherentLikelihood: 2
 - id: "AST-003-08"
   systemId: "SYS-003"
@@ -207,22 +82,7 @@
   kind: "secrets-store"
   provider: "AWS"
   code: "SEC"
-  criticalityFactors:
-    confidentiality:
-      score: 90
-      reason: "Brokers database credentials, API keys, and third-party model provider secrets"
-    integrity:
-      score: 85
-      reason: "A tampered secret could redirect traffic or grant unauthorized system access"
-    availability:
-      score: 82
-      reason: "Every service in the boundary resolves credentials through this at runtime"
-    regulatory:
-      score: 80
-      reason: "Secrets gate access to every Restricted-tier data store in the boundary"
-    businessDependency:
-      score: 82
-      reason: "Underpins every service-to-service authentication in the platform"
+  impactLevel: "high"
   inherentLikelihood: 3
 - id: "AST-003-09"
   systemId: "SYS-003"
@@ -231,23 +91,7 @@
   kind: "integration-endpoint"
   provider: "AWS"
   code: "PAPI"
-  criticalityFactors:
-    confidentiality:
-      score: 82
-      reason: "Delivers model completions and retrieved context to partner integrations over the same
-        trust boundary as customer data"
-    integrity:
-      score: 78
-      reason: "A tampered delivery could hand a partner manipulated or mismatched completions"
-    availability:
-      score: 65
-      reason: "Partner delivery runs independently of the synchronous customer response path"
-    regulatory:
-      score: 78
-      reason: "Restricted-tier model outputs leave the boundary through this endpoint"
-    businessDependency:
-      score: 70
-      reason: "Backs partner-facing integrations built on top of the platform's completions"
+  impactLevel: "high"
   inherentLikelihood: 3
 - id: "AST-003-11"
   systemId: "SYS-003"
@@ -256,23 +100,7 @@
   kind: "model-gateway"
   provider: "AWS"
   code: "MGW"
-  criticalityFactors:
-    confidentiality:
-      score: 85
-      reason: "Every prompt and completion exchanged with an external model provider passes through it"
-    integrity:
-      score: 82
-      reason: "A bypassed allowlist could route customer prompts to an unapproved or malicious model
-        endpoint"
-    availability:
-      score: 80
-      reason: "Every agent call to a model provider depends on this single routing point"
-    regulatory:
-      score: 80
-      reason: "Restricted-tier prompts and completions cross the boundary to a third party through here"
-    businessDependency:
-      score: 85
-      reason: "Governs which model providers the platform is allowed to depend on"
+  impactLevel: "high"
   inherentLikelihood: 3
 - id: "AST-003-12"
   systemId: "SYS-003"
@@ -281,24 +109,7 @@
   kind: "policy-service"
   provider: "AWS"
   code: "AUTHZ"
-  criticalityFactors:
-    confidentiality:
-      score: 60
-      reason: "Evaluates identity, tenant, and resource metadata rather than holding customer content
-        itself"
-    integrity:
-      score: 92
-      reason: "A bypassed or fail-open policy check lets an agent take an unauthorized action directly"
-    availability:
-      score: 78
-      reason: "Every agent action stalls without a decision from this service, by design"
-    regulatory:
-      score: 75
-      reason: "The deterministic control point that keeps a model from ever being the authorization
-        boundary"
-    businessDependency:
-      score: 82
-      reason: "The single choke point every agent action must clear before it can affect anything"
+  impactLevel: "high"
   inherentLikelihood: 3
 - id: "AST-003-13"
   systemId: "SYS-003"
@@ -307,25 +118,7 @@
   kind: "tool-gateway"
   provider: "AWS"
   code: "TGW"
-  criticalityFactors:
-    confidentiality:
-      score: 82
-      reason: "Injects credentials for external tool and SaaS calls, and sees every tool request and
-        response"
-    integrity:
-      score: 88
-      reason: "A bypassed allowlist or schema check lets an agent invoke an unapproved tool with an
-        injected credential"
-    availability:
-      score: 75
-      reason: "Every agent tool call depends on this single mediation point"
-    regulatory:
-      score: 78
-      reason: "The control point where agentic tool use is allow-listed and logged rather than left to the
-        model"
-    businessDependency:
-      score: 80
-      reason: "Everything an agent can do outside the conversation itself goes through here"
+  impactLevel: "high"
   inherentLikelihood: 4
 - id: "AST-003-14"
   systemId: "SYS-003"
@@ -334,23 +127,7 @@
   kind: "cache"
   provider: "AWS"
   code: "REDIS"
-  criticalityFactors:
-    confidentiality:
-      score: 65
-      reason: "Holds short-lived session tokens and in-flight agent/workflow state, not durable customer
-        records"
-    integrity:
-      score: 70
-      reason: "Corrupted workflow state could cause a multi-step agent task to resume incorrectly"
-    availability:
-      score: 82
-      reason: "Session and in-flight agent state is read on every live request"
-    regulatory:
-      score: 60
-      reason: "Session-scoped data only; nothing here outlives the interaction it belongs to"
-    businessDependency:
-      score: 70
-      reason: "Backs the low-latency session and workflow state multi-step agent tasks depend on"
+  impactLevel: "high"
   inherentLikelihood: 3
 - id: "AST-003-15"
   systemId: "SYS-003"
@@ -359,24 +136,7 @@
   kind: "egress-gateway"
   provider: "AWS"
   code: "EGR"
-  criticalityFactors:
-    confidentiality:
-      score: 80
-      reason: "Every byte an agent or tool call sends to an external destination passes through it"
-    integrity:
-      score: 78
-      reason: "A gap in destination restrictions lets a compromised agent reach an unapproved or malicious
-        endpoint"
-    availability:
-      score: 68
-      reason: "Outbound tool and SaaS calls degrade without it; inbound customer traffic is unaffected"
-    regulatory:
-      score: 75
-      reason: "The control point that prevents Restricted-tier data from leaving via an unapproved
-        destination"
-    businessDependency:
-      score: 72
-      reason: "The only sanctioned path for agent workloads to reach anything outside the boundary"
+  impactLevel: "high"
   inherentLikelihood: 3
 - id: "AST-003-16"
   systemId: "SYS-003"
@@ -385,25 +145,7 @@
   kind: "iam"
   provider: "AWS"
   code: "IAM"
-  criticalityFactors:
-    confidentiality:
-      score: 85
-      reason: "Issues the short-lived credentials every workload and privileged administrator
-        authenticates with"
-    integrity:
-      score: 92
-      reason: "An over-permissioned role or compromised trust policy grants reach across the whole
-        boundary"
-    availability:
-      score: 85
-      reason: "Every workload identity in the boundary depends on this to authenticate at all"
-    regulatory:
-      score: 85
-      reason: "The control point for least-privilege and privileged-access requirements across the
-        platform"
-    businessDependency:
-      score: 88
-      reason: "Underpins every workload-to-workload and administrator authentication in the platform"
+  impactLevel: "high"
   inherentLikelihood: 3
 - id: "AST-003-17"
   systemId: "SYS-003"
@@ -412,24 +154,7 @@
   kind: "telemetry"
   provider: "AWS"
   code: "TEL"
-  criticalityFactors:
-    confidentiality:
-      score: 65
-      reason: "Aggregates execution, authorization, and network logs rather than customer content itself"
-    integrity:
-      score: 85
-      reason: "Gapped or tampered telemetry blinds detection across every agentic component at once"
-    availability:
-      score: 70
-      reason: "Detection lags rather than stops if telemetry is delayed, but visibility degrades
-        immediately"
-    regulatory:
-      score: 78
-      reason: "The accountability trail an agentic platform needs for every model, tool, and authorization
-        decision"
-    businessDependency:
-      score: 75
-      reason: "The single point every other security control's evidence ultimately flows through"
+  impactLevel: "high"
   inherentLikelihood: 2
 - id: "AST-003-18"
   systemId: "SYS-003"
@@ -438,23 +163,7 @@
   kind: "siem"
   provider: "Splunk"
   code: "SIEM"
-  criticalityFactors:
-    confidentiality:
-      score: 68
-      reason: "Receives aggregated security telemetry, not raw customer content"
-    integrity:
-      score: 80
-      reason: "A blind spot here delays detection of a live compromise anywhere upstream"
-    availability:
-      score: 65
-      reason: "Investigation and detection slow down without it; the platform itself keeps running"
-    regulatory:
-      score: 75
-      reason: "Supports the detection and investigation obligations SOC 2 expects of a monitored
-        environment"
-    businessDependency:
-      score: 68
-      reason: "The team's primary detection and investigation surface across the whole platform"
+  impactLevel: "high"
   inherentLikelihood: 2
 - id: "AST-003-19"
   systemId: "SYS-003"
@@ -463,23 +172,7 @@
   kind: "runtime-security"
   provider: "AWS"
   code: "RTS"
-  criticalityFactors:
-    confidentiality:
-      score: 60
-      reason: "Observes container and workload runtime behavior rather than holding customer data"
-    integrity:
-      score: 82
-      reason: "A disabled or evaded runtime agent hides an active compromise inside the agentic workloads"
-    availability:
-      score: 60
-      reason: "Detection-only; workloads keep running even if runtime monitoring is degraded"
-    regulatory:
-      score: 68
-      reason: "Runtime threat detection expected of container workloads processing Restricted-tier data"
-    businessDependency:
-      score: 65
-      reason: "The last line of detection if a container workload is compromised despite every upstream
-        control"
+  impactLevel: "high"
   inherentLikelihood: 3
 - id: "AST-003-20"
   systemId: "SYS-003"
@@ -488,24 +181,7 @@
   kind: "cicd-pipeline"
   provider: "AWS"
   code: "CICD"
-  criticalityFactors:
-    confidentiality:
-      score: 75
-      reason: "Holds deploy credentials and build-time secrets for every workload it ships"
-    integrity:
-      score: 90
-      reason: "A compromised pipeline can push arbitrary code straight into production, bypassing every
-        runtime control downstream"
-    availability:
-      score: 55
-      reason: "Blocks new releases if it goes down; running workloads are unaffected"
-    regulatory:
-      score: 65
-      reason: "The change-management control point for software delivered into a Restricted-tier
-        boundary"
-    businessDependency:
-      score: 70
-      reason: "The only sanctioned path new code takes into the platform"
+  impactLevel: "high"
   inherentLikelihood: 3
 - id: "AST-003-21"
   systemId: "SYS-003"
@@ -514,22 +190,7 @@
   kind: "artifact-registry"
   provider: "AWS"
   code: "ECR"
-  criticalityFactors:
-    confidentiality:
-      score: 65
-      reason: "Stores built container images, which can embed baked-in configuration and dependencies"
-    integrity:
-      score: 85
-      reason: "A tampered or unscanned image becomes the running workload the moment it's pulled"
-    availability:
-      score: 50
-      reason: "Blocks new deployments if unavailable; running containers keep serving traffic"
-    regulatory:
-      score: 60
-      reason: "Image provenance and scanning are part of the platform's secure-SDLC posture"
-    businessDependency:
-      score: 62
-      reason: "Every workload's running image traces back to what's stored here"
+  impactLevel: "high"
   inherentLikelihood: 2
 - id: "AST-003-22"
   systemId: "SYS-003"
@@ -538,25 +199,7 @@
   kind: "iac-pipeline"
   provider: "Terraform Cloud"
   code: "IAC"
-  criticalityFactors:
-    confidentiality:
-      score: 70
-      reason: "Terraform state and apply credentials describe and can reconfigure the whole boundary's
-        infrastructure"
-    integrity:
-      score: 92
-      reason: "An unreviewed apply can rewrite IAM policy, networking, or key management for the entire
-        boundary in one run"
-    availability:
-      score: 45
-      reason: "Blocks infrastructure changes if unavailable; the running boundary is unaffected"
-    regulatory:
-      score: 68
-      reason: "The control point for reviewed, auditable infrastructure change rather than manual
-        console edits"
-    businessDependency:
-      score: 68
-      reason: "The sanctioned path every infrastructure change to the boundary takes"
+  impactLevel: "high"
   inherentLikelihood: 2
 - id: "AST-003-23"
   systemId: "SYS-003"
@@ -565,24 +208,7 @@
   kind: "identity-provider"
   provider: "Okta"
   code: "OKTA"
-  criticalityFactors:
-    confidentiality:
-      score: 78
-      reason: "Brokers the SSO session that grants an administrator standing reach into the boundary"
-    integrity:
-      score: 88
-      reason: "A bypassed MFA policy or compromised admin account here grants privileged access directly"
-    availability:
-      score: 55
-      reason: "Blocks new privileged sign-in if unavailable; already-authenticated sessions and running
-        workloads are unaffected"
-    regulatory:
-      score: 72
-      reason: "The workforce identity control point least-privilege and MFA requirements are enforced
-        through"
-    businessDependency:
-      score: 68
-      reason: "The sanctioned identity path every administrator takes to reach the boundary"
+  impactLevel: "high"
   inherentLikelihood: 3
 - id: "AST-003-24"
   systemId: "SYS-003"
@@ -591,24 +217,7 @@
   kind: "secure-web-gateway"
   provider: "Zscaler"
   code: "ZSC"
-  criticalityFactors:
-    confidentiality:
-      score: 70
-      reason: "Mediates the network path an administrator's traffic takes into the boundary, without
-        holding boundary data itself"
-    integrity:
-      score: 80
-      reason: "A gap in device posture or destination policy lets an unmanaged device reach a privileged
-        endpoint directly"
-    availability:
-      score: 50
-      reason: "Blocks new administrator network access if unavailable; running workloads are unaffected"
-    regulatory:
-      score: 65
-      reason: "The zero-trust network control point that keeps administrator access off the flat network"
-    businessDependency:
-      score: 62
-      reason: "The sanctioned network path every administrator's device takes to reach the boundary"
+  impactLevel: "high"
   inherentLikelihood: 3
 - id: "AST-003-25"
   systemId: "SYS-003"
@@ -617,22 +226,7 @@
   kind: "backup-vault"
   provider: "AWS"
   code: "BAK"
-  criticalityFactors:
-    confidentiality:
-      score: 98
-      reason: "Contains protected copies of Restricted customer documents, PII, and system metadata"
-    integrity:
-      score: 95
-      reason: "Corrupted or altered recovery points would make restoration untrustworthy"
-    availability:
-      score: 90
-      reason: "Provides the recovery source after regional failure, destructive change, or data loss"
-    regulatory:
-      score: 95
-      reason: "Supports retention, immutability, and tested recovery obligations for protected customer data"
-    businessDependency:
-      score: 92
-      reason: "The platform depends on these recovery points when primary durable stores cannot be used"
+  impactLevel: "high"
   inherentLikelihood: 2
 - id: "AST-042-01"
   systemId: "SYS-042"
@@ -641,22 +235,7 @@
   kind: "saas-tenant"
   provider: "Workday"
   code: "TEN"
-  criticalityFactors:
-    confidentiality:
-      score: 90
-      reason: "Full employee PII including compensation, benefits, and HR records"
-    integrity:
-      score: 82
-      reason: "Incorrect HR data affects pay, benefits, and org records enterprise-wide"
-    availability:
-      score: 68
-      reason: "HR operations tolerate short outages; still the core system of record"
-    regulatory:
-      score: 85
-      reason: "GDPR-regulated personal data"
-    businessDependency:
-      score: 78
-      reason: "Core system of record for all employees"
+  impactLevel: "high"
   inherentLikelihood: 3
 - id: "AST-042-02"
   systemId: "SYS-042"
@@ -665,22 +244,7 @@
   kind: "saas-api"
   provider: "Workday"
   code: "API"
-  criticalityFactors:
-    confidentiality:
-      score: 85
-      reason: "Public-facing integration entry point; auth tokens and HR/payroll payloads pass through it"
-    integrity:
-      score: 78
-      reason: "Request tampering or auth bypass here compounds through every downstream integration"
-    availability:
-      score: 80
-      reason: "Every integration — payroll, identity, exports — depends on this single ingress point"
-    regulatory:
-      score: 80
-      reason: "GDPR-regulated personal data transits this boundary on every call"
-    businessDependency:
-      score: 82
-      reason: "The sole integration entry point for every connected system"
+  impactLevel: "high"
   inherentLikelihood: 3
 - id: "AST-042-03"
   systemId: "SYS-042"
@@ -689,22 +253,7 @@
   kind: "service-account"
   provider: "Workday"
   code: "SVC"
-  criticalityFactors:
-    confidentiality:
-      score: 92
-      reason: "A compromised service account grants broad programmatic access across the whole tenant"
-    integrity:
-      score: 88
-      reason: "Misuse could silently read or alter HR and payroll data through the API"
-    availability:
-      score: 55
-      reason: "Credential rotation causes brief integration downtime, not a hard outage"
-    regulatory:
-      score: 80
-      reason: "Gates programmatic access to every category of GDPR-regulated personal data in scope"
-    businessDependency:
-      score: 78
-      reason: "Every downstream integration authenticates through this single account"
+  impactLevel: "high"
   inherentLikelihood: 4
 - id: "AST-042-04"
   systemId: "SYS-042"
@@ -713,22 +262,7 @@
   kind: "integration-endpoint"
   provider: "Workday"
   code: "PAY"
-  criticalityFactors:
-    confidentiality:
-      score: 88
-      reason: "Compensation data flowing to the external payroll processor"
-    integrity:
-      score: 85
-      reason: "A bad payroll run has direct financial and legal consequences"
-    availability:
-      score: 60
-      reason: "Runs on a fixed pay-cycle schedule, not continuously"
-    regulatory:
-      score: 82
-      reason: "GDPR-regulated personal data, plus payroll-specific obligations"
-    businessDependency:
-      score: 78
-      reason: "Every employee's pay depends on this integration succeeding"
+  impactLevel: "high"
   inherentLikelihood: 3
 - id: "AST-042-05"
   systemId: "SYS-042"
@@ -737,23 +271,7 @@
   kind: "integration-endpoint"
   provider: "Workday"
   code: "IDN"
-  criticalityFactors:
-    confidentiality:
-      score: 78
-      reason: "Provisions and deprovisions employee identity and access across every connected system"
-    integrity:
-      score: 88
-      reason: "A broken or delayed deprovisioning run leaves terminated employees with active access"
-    availability:
-      score: 68
-      reason: "Identity sync runs on a scheduled cadence rather than continuously"
-    regulatory:
-      score: 76
-      reason: "Access lifecycle events are a direct control point for GDPR's security-of-processing
-        article"
-    businessDependency:
-      score: 80
-      reason: "Access lifecycle across every connected system depends on this feed being accurate"
+  impactLevel: "high"
   inherentLikelihood: 3
 - id: "AST-042-06"
   systemId: "SYS-042"
@@ -762,22 +280,7 @@
   kind: "export-endpoint"
   provider: "Workday"
   code: "EXP"
-  criticalityFactors:
-    confidentiality:
-      score: 90
-      reason: "Bulk employee PII and compensation data leave the tenant boundary through this endpoint"
-    integrity:
-      score: 65
-      reason: "Export integrity matters less than what leaves the boundary"
-    availability:
-      score: 50
-      reason: "Export delay has minimal operational impact"
-    regulatory:
-      score: 85
-      reason: "The highest-exposure point for GDPR-regulated personal data leaving the tenant"
-    businessDependency:
-      score: 55
-      reason: "Feeds downstream reporting and analytics, not core HR operations"
+  impactLevel: "high"
   inherentLikelihood: 4
 - id: "AST-042-07"
   systemId: "SYS-042"
@@ -786,20 +289,5 @@
   kind: "log-feed"
   provider: "Workday"
   code: "LOG"
-  criticalityFactors:
-    confidentiality:
-      score: 60
-      reason: "Contains access and change metadata, not primary HR records"
-    integrity:
-      score: 85
-      reason: "Tampered or gapped logs undermine the only record of who accessed and changed what"
-    availability:
-      score: 55
-      reason: "Delayed log delivery limits detection speed, not HR operations"
-    regulatory:
-      score: 75
-      reason: "The accountability trail SOC 2 and GDPR both expect for a Confidential-tier system"
-    businessDependency:
-      score: 60
-      reason: "The primary detection and accountability trail for the tenant"
+  impactLevel: "high"
   inherentLikelihood: 3

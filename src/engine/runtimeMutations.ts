@@ -19,6 +19,7 @@
 // only function meant to be called directly for that reason: it always pairs
 // the scope entry with at least one supporting fact in the same call.
 import type { RuntimeFacts } from "./liveGraph";
+import { YAML_FACTS } from "../graph/sources/yaml";
 import type { AssetId, ControlId, EvidenceArtifactId, EvidenceId, SystemId } from "../graph/ids";
 import type { ImplementationMechanism, NotImplemented, Responsibility } from "../graph/edges/controlImplementations";
 import type { RawEvidence } from "../graph/nodes/evidence";
@@ -81,16 +82,27 @@ export function restoreBaselineSystems(runtime: RuntimeFacts, baselineSystemIds:
 }
 
 // Adds controlId to the given system's declared assessment scope, if it
-// isn't there already. A no-op if the system has no runtime AssessmentScope
-// (i.e. it isn't a runtime-created system) — there is nothing to append to.
+// isn't there already. Runtime-created systems already carry a scope row.
+// YAML-authored systems do not, so the YAML engagement is copied into
+// runtime on first expansion — mergeFacts then replaces that system's YAML
+// scope, which is what lets evaluateControl / addFinding close an unassessed
+// control on a demo system without failing "scope creep."
 export function addControlToScope(runtime: RuntimeFacts, systemId: SystemId, controlId: ControlId): RuntimeFacts {
   const scope = runtime.assessmentScopes.find((s) => s.systemId === systemId);
-  if (!scope || scope.controlIds.includes(controlId)) return runtime;
+  if (scope) {
+    if (scope.controlIds.includes(controlId)) return runtime;
+    return {
+      ...runtime,
+      assessmentScopes: runtime.assessmentScopes.map((s) =>
+        s.systemId === systemId ? { ...s, controlIds: [...s.controlIds, controlId] } : s
+      ),
+    };
+  }
+  const yamlScope = YAML_FACTS.assessmentScopes.find((s) => s.systemId === systemId);
+  if (!yamlScope || yamlScope.controlIds.includes(controlId)) return runtime;
   return {
     ...runtime,
-    assessmentScopes: runtime.assessmentScopes.map((s) =>
-      s.systemId === systemId ? { ...s, controlIds: [...s.controlIds, controlId] } : s
-    ),
+    assessmentScopes: [...runtime.assessmentScopes, { ...yamlScope, controlIds: [...yamlScope.controlIds, controlId] }],
   };
 }
 
@@ -212,10 +224,11 @@ export type FindingDraft = Omit<Finding, "id">;
 
 // Assigns an id and appends — findings are never upserted-by-pair, a control
 // can accumulate more than one open finding over time same as evidence.
-export function addFinding(runtime: RuntimeFacts, draft: FindingDraft): RuntimeFacts {
+export function addFinding(runtime: RuntimeFacts, draft: FindingDraft, systemId?: SystemId): RuntimeFacts {
   const id = nextFindingId(runtime);
   const finding: Finding = { ...draft, id: id as Finding["id"] };
-  return { ...runtime, findings: [...runtime.findings, finding] };
+  const next = { ...runtime, findings: [...runtime.findings, finding] };
+  return systemId ? addControlToScope(next, systemId, draft.controlId) : next;
 }
 
 export function updateFinding(runtime: RuntimeFacts, findingId: Finding["id"], patch: Partial<FindingDraft>): RuntimeFacts {

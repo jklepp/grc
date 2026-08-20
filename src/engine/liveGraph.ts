@@ -60,7 +60,8 @@ export interface RuntimeFacts {
   expectedClassification: Record<SystemId, ClassificationTier>;
   // What a runtime system's controls are actually evaluated against — absent
   // until someone calls the evaluateControl helpers in runtimeMutations.ts,
-  // same as their YAML-authored counterparts being authored sparsely.
+  // same as their YAML-authored counterparts being authored sparsely. A YAML
+  // system can also grow a runtime scope row when a walk expands it.
   implementationMechanisms: ImplementationMechanism[];
   evidence: RawEvidence[];
   evidenceArtifacts: EvidenceArtifact[];
@@ -110,6 +111,14 @@ export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts 
       .map((asset) => asset.id)
   );
   const runtimeActorIds = new Set(runtime.actors.map((actor) => actor.id));
+  // Scope rows can land in runtime without a matching runtime system — that
+  // is how evaluateControl expands a YAML-authored engagement. Replace the
+  // YAML scope for those systems the same way a wizard-created system is
+  // replaced, so the declared list and the supporting facts stay paired.
+  const overriddenScopeSystemIds = new Set([
+    ...overriddenSystemIds,
+    ...runtime.assessmentScopes.map((scope) => scope.systemId),
+  ]);
   return pruneDanglingAssetEdges({
     ...base,
     systems: [...base.systems.filter((s) => !overriddenSystemIds.has(s.id)), ...runtime.systems],
@@ -119,7 +128,7 @@ export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts 
     actorAccess: [...base.actorAccess.filter((edge) => !overriddenArchitectureAssetIds.has(edge.assetId)), ...runtime.actorAccess],
     dataFlows: [...base.dataFlows.filter((flow) => !overriddenArchitectureAssetIds.has(flow.from) && !overriddenArchitectureAssetIds.has(flow.to)), ...runtime.dataFlows],
     agenticIdentities: [...base.agenticIdentities.filter((agent) => !overriddenArchitectureSystemIds.has(agent.systemId)), ...runtime.agenticIdentities],
-    assessmentScopes: [...base.assessmentScopes.filter((scope) => !overriddenSystemIds.has(scope.systemId)), ...runtime.assessmentScopes],
+    assessmentScopes: [...base.assessmentScopes.filter((scope) => !overriddenScopeSystemIds.has(scope.systemId)), ...runtime.assessmentScopes],
     expectedClassification: { ...base.expectedClassification, ...runtime.expectedClassification },
     implementationMechanisms: [...base.implementationMechanisms, ...runtime.implementationMechanisms],
     evidence: [...base.evidence, ...runtime.evidence],

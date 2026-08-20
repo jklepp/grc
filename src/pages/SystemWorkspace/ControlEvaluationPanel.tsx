@@ -3,7 +3,7 @@ import type { CSSProperties, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Link2, BookOpenText, Layers, FileCheck2, Wrench, Gauge, Plus, Pencil, Trash2, ChevronDown, ChevronRight,
-  ScrollText, Network,
+  ChevronLeft, ScrollText, Network, ClipboardCheck,
 } from "lucide-react";
 import { C } from "../../theme";
 import {
@@ -16,6 +16,7 @@ import {
   evaluateControl, addPrismaOverride, updateEvidence, removeEvidence, addFinding, updateFinding, commitRuntimeFacts,
 } from "../../engine";
 import { loadRuntimeFacts } from "../../engine/runtimeFactsStore";
+import { useLiveEngine } from "../../engine/useLiveEngine";
 import { PRINCIPLE_DOMAINS, STATUS_META as PRINCIPLE_STATUS_META } from "../../data/securityPrinciples";
 import { STATUS_META, IMPLEMENTATION_META, RESPONSIBILITY_META, ratingColor, assetName, evidenceHealthForRow } from "./controlMeta";
 import { POLICY_BY_CONTROL, PROCEDURE_BY_CONTROL } from "./policyLookup";
@@ -568,18 +569,133 @@ function FindingForm({ initial, assetOptions, onCancel, onSubmit }: FindingFormP
   );
 }
 
+interface RecordAssessmentFormProps {
+  assetOptions: AssetOption[];
+  isProgramScoped: boolean;
+  onSubmit: (input: { decision: RecordDecision; source: string; evidenceType: EvidenceType; assetId: AssetId | ""; reason: string }, continueWalk: boolean) => void;
+  canContinue: boolean;
+  continueLabel: string;
+}
+
+function RecordAssessmentForm({ assetOptions, isProgramScoped, onSubmit, canContinue, continueLabel }: RecordAssessmentFormProps) {
+  const [decision, setDecision] = useState<RecordDecision>("holds");
+  const [source, setSource] = useState("");
+  const [evidenceType, setEvidenceType] = useState<EvidenceType>("Auditor examination");
+  const [assetId, setAssetId] = useState<AssetId | "">(assetOptions[0]?.assetId ?? "");
+  const [reason, setReason] = useState("");
+  const missingImplementation = decision === "not-implemented";
+  const ready = missingImplementation
+    ? Boolean(reason.trim() && assetId)
+    : Boolean(source.trim() && (isProgramScoped || assetOptions.length > 0));
+
+  function submit(continueWalk: boolean) {
+    if (!ready) return;
+    onSubmit({ decision, source: source.trim(), evidenceType, assetId, reason: reason.trim() }, continueWalk);
+  }
+
+  return (
+    <div className="rounded-lg p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+      <div className="text-[11px] leading-snug mb-3" style={{ color: C.muted }}>
+        Recording a fact puts this control in the engagement scope. Scores are derived from that fact — not typed here.
+      </div>
+      <div className="flex flex-wrap gap-2 mb-3">
+        {([
+          ["holds", "Holds"],
+          ["partial", "Partial"],
+          ...((!isProgramScoped && assetOptions.length > 0) ? [["not-implemented", "Not implemented"] as const] : []),
+        ] as const).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setDecision(value)}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg"
+            style={{
+              background: decision === value ? C.accent : C.panel,
+              color: decision === value ? "#fff" : C.ink,
+              border: `1px solid ${decision === value ? C.accent : C.border}`,
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {missingImplementation ? (
+        <div className="grid grid-cols-2 gap-2">
+          {!isProgramScoped && (
+            <div>{fieldLabel("Asset")}
+              <select style={inputStyle()} value={assetId} onChange={(e) => setAssetId(e.target.value as AssetId)}>
+                {assetOptions.map((a) => <option key={a.assetId} value={a.assetId}>{a.label}</option>)}
+              </select>
+            </div>
+          )}
+          <div className={isProgramScoped ? "col-span-2" : ""}>{fieldLabel("Reason")}
+            <input style={inputStyle()} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why this control is not implemented on this boundary" />
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <div>{fieldLabel("Source")}
+            <input style={inputStyle()} value={source} onChange={(e) => setSource(e.target.value)} placeholder="e.g. Assessor review — J. Ortiz" />
+          </div>
+          <div>{fieldLabel("Evidence type")}
+            <select style={inputStyle()} value={evidenceType} onChange={(e) => setEvidenceType(selectedValue(EVIDENCE_TYPES, e.target.value, evidenceType))}>
+              {EVIDENCE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+        </div>
+      )}
+      {!missingImplementation && (
+        <div className="text-[10.5px] mt-2 leading-snug" style={{ color: C.muted }}>
+          Default type is auditor examination, which scores Implemented as Partial unless the type is at or above API configuration observation. Override a PRISMA lane after saving if the derived rating is wrong.
+        </div>
+      )}
+      {!isProgramScoped && assetOptions.length === 0 && (
+        <div className="text-[10.5px] mt-2 leading-snug" style={{ color: C.amber }}>
+          No asset in this boundary requires this control, so it cannot be recorded here.
+        </div>
+      )}
+      <div className="flex items-center gap-2 mt-3">
+        <button
+          type="button"
+          className="text-xs font-semibold px-3 py-1.5 rounded-lg"
+          style={{ background: ready && canContinue ? C.accent : C.border, color: "#fff" }}
+          disabled={!ready || !canContinue}
+          onClick={() => submit(true)}
+        >
+          {continueLabel}
+        </button>
+        <button
+          type="button"
+          className="text-xs font-semibold px-3 py-1.5 rounded-lg"
+          style={{ background: ready ? C.accentBg : C.panel, color: ready ? C.accent : C.muted, border: `1px solid ${C.border}` }}
+          disabled={!ready}
+          onClick={() => submit(false)}
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
 const STEPS = [
+  { id: "record", label: "Record Assessment", icon: ClipboardCheck },
   { id: "requirement", label: "Control Overview", icon: BookOpenText },
   { id: "implementation", label: "Implementation Coverage", icon: Layers },
   { id: "evidence", label: "Evidence", icon: FileCheck2 },
   { id: "findings", label: "Findings & Remediation", icon: Wrench },
 ] as const;
 type EvaluationStep = (typeof STEPS)[number]["id"];
+type RecordDecision = "holds" | "partial" | "not-implemented";
 
 interface ControlEvaluationPanelProps {
   row: ControlMatrixRow;
   system: WorkspaceSystem;
   onClose: () => void;
+  queueIndex?: number | null;
+  queueLength?: number;
+  onNext?: () => void;
+  onPrev?: () => void;
 }
 
 // Full-space operator panel for a single control row, organized as the
@@ -590,8 +706,10 @@ interface ControlEvaluationPanelProps {
 // through the same dry-run-then-save path as that wizard: mutate a
 // RuntimeFacts copy, validate it with buildLiveEngine, and only persist +
 // reload once that comes back clean.
-export function ControlEvaluationPanel({ row, system, onClose }: ControlEvaluationPanelProps) {
-  const [activeStep, setActiveStep] = useState<EvaluationStep>("requirement");
+export function ControlEvaluationPanel({
+  row, system, onClose, queueIndex = null, queueLength = 0, onNext, onPrev,
+}: ControlEvaluationPanelProps) {
+  const [activeStep, setActiveStep] = useState<EvaluationStep>(row.status === "unassessed" ? "record" : "requirement");
   const [attachingEvidence, setAttachingEvidence] = useState(false);
   const [editingEvidenceId, setEditingEvidenceId] = useState<EvidenceId | null>(null);
   const [expandedEvidenceId, setExpandedEvidenceId] = useState<EvidenceId | null>(null);
@@ -600,6 +718,9 @@ export function ControlEvaluationPanel({ row, system, onClose }: ControlEvaluati
   const [creatingFinding, setCreatingFinding] = useState(false);
   const [editingFindingId, setEditingFindingId] = useState<FindingId | null>(null);
   const [saveError, setSaveError] = useState<string[] | null>(null);
+  const inQueue = queueIndex != null && queueIndex >= 0;
+  const canContinue = Boolean(onNext);
+  const liveEngine = useLiveEngine();
 
   const governingPolicy = POLICY_BY_CONTROL[row.control.id];
   const governingProcedure = PROCEDURE_BY_CONTROL[row.control.id];
@@ -618,6 +739,10 @@ export function ControlEvaluationPanel({ row, system, onClose }: ControlEvaluati
   const assetOptions = row.instances.length > 0
     ? row.instances.map((inst) => ({ assetId: inst.assetId, label: assetName(system, inst.assetId) }))
     : assetsForSystem(system.id).map((a) => ({ assetId: a.id, label: a.name }));
+  const requiredAssetOptions = (liveEngine.graph.assetsBySystem[system.id] ?? [])
+    .filter((asset) => liveEngine.applicability.resolveApplicability(asset.id, row.control.id).required)
+    .map((asset) => ({ assetId: asset.id, label: asset.name }));
+  const recordAssetOptions = requiredAssetOptions;
   // A single evidence record can cover many assets at once (assetIds: [...]),
   // so it appears once per instance here — the same e.id repeats, and needs a
   // per-instance key of its own rather than e.id alone.
@@ -632,20 +757,21 @@ export function ControlEvaluationPanel({ row, system, onClose }: ControlEvaluati
     row.instances.flatMap((inst) => (inst.applicability?.reasons ?? []).map((r) => r.rationale))
   )];
 
-  function saveMutation(mutate: (existing: RuntimeFacts) => RuntimeFacts) {
+  function saveMutation(mutate: (existing: RuntimeFacts) => RuntimeFacts): boolean {
     setSaveError(null);
     const existing = loadRuntimeFacts();
     const runtime = mutate(existing);
     const { engine, problems } = commitRuntimeFacts(runtime);
     if (!engine) {
       setSaveError(problems);
-      return;
+      return false;
     }
     setAttachingEvidence(false);
     setEditingEvidenceId(null);
     setCreatingFinding(false);
     setEditingFindingId(null);
     setOverridingLevel(null);
+    return true;
   }
 
   function handleAttachEvidence(draft: ControlEvidenceDraft) {
@@ -677,7 +803,42 @@ export function ControlEvaluationPanel({ row, system, onClose }: ControlEvaluati
   }
 
   function handleCreateFinding(draft: Omit<FindingDraft, "controlId">) {
-    saveMutation((existing) => addFinding(existing, { ...draft, controlId: row.control.id }));
+    saveMutation((existing) => addFinding(existing, { ...draft, controlId: row.control.id }, system.id));
+  }
+
+  function handleRecordAssessment(
+    input: { decision: RecordDecision; source: string; evidenceType: EvidenceType; assetId: AssetId | ""; reason: string },
+    continueWalk: boolean,
+  ) {
+    const fallbackAssetId = input.assetId || recordAssetOptions[0]?.assetId;
+    const saved = saveMutation((existing) => {
+      if (input.decision === "not-implemented") {
+        if (!fallbackAssetId) throw new Error("Not implemented requires an asset in this boundary");
+        return evaluateControl(existing, {
+          systemId: system.id,
+          controlId: row.control.id,
+          notImplemented: { assetId: fallbackAssetId, reason: input.reason },
+        });
+      }
+      const evidence: ControlEvidenceDraft = {
+        source: input.source,
+        evidenceType: input.evidenceType,
+        result: input.decision === "holds" ? "pass" : "partial",
+        coveragePct: 100,
+        independence: "internal",
+        collectorType: "manual",
+        assetIds: isProgramScoped ? [] : recordAssetOptions.map((a) => a.assetId),
+        note: `Key-control walk: ${input.decision}.`,
+      };
+      return evaluateControl(existing, {
+        systemId: system.id,
+        controlId: row.control.id,
+        evidenceEntries: [evidence],
+      });
+    });
+    if (!saved) return;
+    if (continueWalk) onNext?.();
+    else setActiveStep("requirement");
   }
 
   function handleUpdateFinding(findingId: FindingId, patch: Omit<FindingDraft, "controlId">) {
@@ -708,6 +869,13 @@ export function ControlEvaluationPanel({ row, system, onClose }: ControlEvaluati
               </span>
             )}
             <GlancePill Icon={Gauge} label="Assurance" value={row.score != null ? `${row.score}${row.assessment?.band?.label ? ` · ${row.assessment.band.label}` : ""}` : "—"} />
+            {queueLength > 0 && (
+              <GlancePill
+                Icon={ClipboardCheck}
+                label="Key controls left"
+                value={inQueue ? `${queueIndex + 1} of ${queueLength}` : String(queueLength)}
+              />
+            )}
           </div>
         </div>
         <ModalCloseButton onClose={onClose} />
@@ -747,6 +915,52 @@ export function ControlEvaluationPanel({ row, system, onClose }: ControlEvaluati
               <ul className="list-disc pl-4">
                 {saveError.map((problem, i) => <li key={i} className="text-[11px]" style={{ color: C.red }}>{problem}</li>)}
               </ul>
+            </div>
+          )}
+
+          {/* ===== Record Assessment ===== */}
+          {activeStep === "record" && (
+            <div className="space-y-4">
+              <div>
+                <SectionLabel icon={ClipboardCheck}>Record this control</SectionLabel>
+                {row.keyControl ? (
+                  <>
+                    <p className="text-[12.5px] leading-relaxed mb-3" style={{ color: C.muted }}>
+                      {row.status === "unassessed"
+                        ? "This key control is applicable and not yet in the engagement. Attach a fact to score it, then continue to the next one."
+                        : "This control is already in scope. Record another fact, or skip to the next unassessed key control."}
+                    </p>
+                    <RecordAssessmentForm
+                      assetOptions={recordAssetOptions}
+                      isProgramScoped={isProgramScoped}
+                      canContinue={canContinue}
+                      continueLabel={inQueue && queueIndex === queueLength - 1 ? "Save and finish" : "Save and continue"}
+                      onSubmit={handleRecordAssessment}
+                    />
+                  </>
+                ) : (
+                  <p className="text-[12.5px] leading-relaxed" style={{ color: C.muted }}>
+                    Only key controls carry per-control evidence. This row stays unassessed until a later catalog pass covers the rest of the applicable set.
+                  </p>
+                )}
+              </div>
+              {assessment?.assessed && (
+                <div>
+                  <SectionLabel icon={Gauge}>Derived PRISMA</SectionLabel>
+                  <div className="grid grid-cols-5 gap-2">
+                    {PRISMA_LEVELS.map((level) => {
+                      const L = assessment.levels[level];
+                      return (
+                        <div key={level} className="rounded-lg p-2.5" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+                          <div className="text-[10px] font-semibold" style={{ color: C.muted }}>{level}</div>
+                          <div className="text-lg font-semibold tabular-nums mt-0.5" style={{ color: ratingColor(L.rating), fontFamily: "'IBM Plex Mono', monospace" }}>{L.rating}</div>
+                          <div className="text-[9.5px] mt-0.5 leading-tight" style={{ color: C.muted }}>{COMPLIANCE_LABELS[L.rating]}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1262,6 +1476,34 @@ export function ControlEvaluationPanel({ row, system, onClose }: ControlEvaluati
               )}
             </div>
           )}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between px-6 py-3.5" style={{ borderTop: `1px solid ${C.border}`, background: C.panel2 }}>
+        <span className="text-[11px] font-mono" style={{ color: C.muted }}>
+          {queueLength > 0
+            ? (inQueue ? `KEY CONTROL ${queueIndex + 1} OF ${queueLength} REMAINING` : `${queueLength} KEY CONTROLS REMAINING`)
+            : "KEY-CONTROL WALK"}
+        </span>
+        <div className="flex gap-2.5">
+          <button
+            type="button"
+            onClick={onPrev}
+            disabled={!onPrev}
+            className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-4 py-2"
+            style={{ border: `1px solid ${C.border}`, color: C.ink, opacity: onPrev ? 1 : 0.4 }}
+          >
+            <ChevronLeft size={14} /> Previous
+          </button>
+          <button
+            type="button"
+            onClick={onNext}
+            disabled={!onNext}
+            className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-4 py-2"
+            style={{ background: C.accent, color: "#fff", opacity: onNext ? 1 : 0.4 }}
+          >
+            {inQueue && queueIndex === queueLength - 1 ? "Finish" : "Next"} <ChevronRight size={14} />
+          </button>
         </div>
       </div>
     </Modal>

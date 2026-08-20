@@ -76,6 +76,43 @@ export interface SystemRole {
   note?: string;
 }
 
+// Five-factor criticality lives on the system, not the asset. FIPS 199
+// security categorization is a boundary activity: confidentiality, integrity,
+// and availability of the information system, plus the regulatory and business
+// dependency that no CIA triad captures on its own. Each factor is 0-100 with
+// a reason; engine/assurance.ts blends them into one score.
+export interface CriticalityFactor {
+  score: number;
+  reason: string;
+}
+
+export const CRITICALITY_FACTOR_NAMES = [
+  "confidentiality",
+  "integrity",
+  "availability",
+  "regulatory",
+  "businessDependency",
+] as const;
+export type CriticalityFactorName = (typeof CRITICALITY_FACTOR_NAMES)[number];
+
+export interface CriticalityFactors {
+  confidentiality: CriticalityFactor;
+  integrity: CriticalityFactor;
+  availability: CriticalityFactor;
+  regulatory: CriticalityFactor;
+  businessDependency: CriticalityFactor;
+}
+
+export function defaultCriticalityFactors(): CriticalityFactors {
+  return {
+    confidentiality: { score: 50, reason: "" },
+    integrity: { score: 50, reason: "" },
+    availability: { score: 50, reason: "" },
+    regulatory: { score: 50, reason: "" },
+    businessDependency: { score: 50, reason: "" },
+  };
+}
+
 // How much downtime this boundary can tolerate before it's a business
 // failure, not just an incident — the axis the Resilience section's RPO/RTO
 // targets get judged against.
@@ -193,6 +230,7 @@ export interface System {
   mfaEnforced: string;
   internetFacing: boolean;
   availabilityTier: AvailabilityTier;
+  criticalityFactors: CriticalityFactors;
   userCount: number;
   regions: string[];
   dataProfile: SystemDataProfile;

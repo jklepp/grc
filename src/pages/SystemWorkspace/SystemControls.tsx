@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { RadioTower, Layers, AlertTriangle, ChevronUp, ChevronDown, ChevronsUpDown, ClipboardCheck, ListChecks } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -599,9 +599,15 @@ interface SystemControlsProps {
   posture: { assurance: number | null; compliance: number; coverage: number };
   findingsByControl?: FindingsByControl;
   onSelectRow: (row: ControlMatrixRow) => void;
+  keyControlRemaining?: number;
+  onStartAssessment?: () => void;
+  walkActive?: boolean;
 }
 
-export function SystemControls({ matrix, statusCounts, applicabilitySummary, posture, findingsByControl = {}, onSelectRow }: SystemControlsProps) {
+export function SystemControls({
+  matrix, statusCounts, applicabilitySummary, posture, findingsByControl = {}, onSelectRow,
+  keyControlRemaining = 0, onStartAssessment, walkActive = false,
+}: SystemControlsProps) {
   const resp = applicabilitySummary?.byResponsibility;
   const remediationCount = REMEDIATION_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
   const assessmentCount = statusCounts.unassessed ?? 0;
@@ -612,6 +618,11 @@ export function SystemControls({ matrix, statusCounts, applicabilitySummary, pos
 
   const domainOptions = useMemo(() => [...new Set(matrix.map((r) => r.control.domain))].sort(), [matrix]);
   const frameworkOptions = useMemo(() => [...new Set(matrix.flatMap((r) => r.control.frameworks.map((f) => f.standard)))].sort(), [matrix]);
+  const keyControlTotal = useMemo(() => matrix.filter((row) => row.keyControl).length, [matrix]);
+
+  useEffect(() => {
+    if (walkActive) setSelection(ASSESSMENT_SELECTION);
+  }, [walkActive]);
 
   function toggleSelection(next: ControlSelection) {
     setSelection((prev) => {
@@ -632,13 +643,27 @@ export function SystemControls({ matrix, statusCounts, applicabilitySummary, pos
         icon={Layers}
         title="Control Posture"
         description="Assurance, compliance, assessment coverage, applicability, and the work required to close control gaps."
+        aside={
+          onStartAssessment ? (
+            <button
+              type="button"
+              onClick={onStartAssessment}
+              className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3.5 py-2"
+              style={{ background: C.accent, color: "#fff" }}
+            >
+              <ClipboardCheck size={14} /> Assess {keyControlRemaining} key control{keyControlRemaining === 1 ? "" : "s"}
+            </button>
+          ) : keyControlTotal > 0 && keyControlRemaining === 0 ? (
+            <span className="text-xs font-semibold" style={{ color: C.green }}>Key-control walk complete</span>
+          ) : null
+        }
       />
 
       {applicabilitySummary && posture && (
         <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
           <ControlPostureCard assurance={posture.assurance} compliance={posture.compliance} coverage={posture.coverage} />
           <WorkQueueTile count={remediationCount} label="Remediate" sublabel={`${statusCounts.deficient} deficient · ${statusCounts.partial} partial`} icon={AlertTriangle} color={C.amber} background={C.amberBg} target={DEFAULT_SELECTION} selection={selection} onToggle={toggleSelection} />
-          <WorkQueueTile count={assessmentCount} label="Assess" sublabel="Awaiting assessment" icon={ClipboardCheck} color={C.accent} background={C.accentBg} target={ASSESSMENT_SELECTION} selection={selection} onToggle={toggleSelection} />
+          <WorkQueueTile count={assessmentCount} label="Assess" sublabel={keyControlRemaining > 0 ? `${keyControlRemaining} key control${keyControlRemaining === 1 ? "" : "s"} remaining` : "Awaiting assessment"} icon={ClipboardCheck} color={C.accent} background={C.accentBg} target={ASSESSMENT_SELECTION} selection={selection} onToggle={toggleSelection} />
           <WorkQueueTile count={pendingCount} label="Scope" sublabel="Applicability pending" icon={ListChecks} color={C.ink} background={C.panel2} target={SCOPE_SELECTION} selection={selection} onToggle={toggleSelection} />
         </div>
       )}

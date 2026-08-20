@@ -38,21 +38,28 @@ function Markers() {
   );
 }
 
+function impactShort(asset: DiagramNode["ref"]): string {
+  if (!("impactLevel" in asset) || !asset.impactLevel) return "";
+  if (asset.impactLevel === "high") return "H";
+  if (asset.impactLevel === "moderate") return "M";
+  return "L";
+}
+
 function AssetNode({ node }: { node: DiagramNode }) {
   const asset = node.ref;
-  if (!("criticality" in asset)) return null;
-  // Criticality, not assurance. An asset no longer has an assurance score —
-  // the control that applies to it is scored at the system boundary instead —
-  // so what a node can honestly colour by is how much its compromise would
-  // cost, which is derived from the asset's own factors and nothing else.
+  if (!("impactLevel" in asset)) return null;
+  // FIPS 199 impact level, not assurance. An asset no longer has an assurance
+  // score — the control that applies to it is scored at the system boundary
+  // instead — so what a node can honestly colour by is how much its compromise
+  // would cost.
   const bandColors: Record<string, string> = { green: LIGHT.green, amber: LIGHT.amber, red: LIGHT.red, na: LIGHT.na };
-  const bandColor = bandColors[asset.criticalityBand?.color] || LIGHT.na;
+  const bandColor = bandColors[asset.impactLevelBand?.color] || LIGHT.na;
   return (
     <g>
       <rect x={node.x} y={node.y} width={node.w} height={node.h} rx={8} fill={LIGHT.panel} stroke={node.branch ? LIGHT.na : LIGHT.border} strokeWidth={1} strokeDasharray={node.branch ? "3,3" : undefined} />
       <rect x={node.x} y={node.y} width={4} height={node.h} rx={2} fill={bandColor} />
       <text x={node.x + 12} y={node.y + 20} fontSize={9} fontWeight="bold" fill={LIGHT.accent} fontFamily="Courier New, monospace">{asset.code}</text>
-      <text x={node.x + node.w - 10} y={node.y + 20} fontSize={9} fontWeight="bold" fill={bandColor} textAnchor="end" fontFamily="Courier New, monospace">{asset.criticality}</text>
+      <text x={node.x + node.w - 10} y={node.y + 20} fontSize={9} fontWeight="bold" fill={bandColor} textAnchor="end" fontFamily="Courier New, monospace">{impactShort(asset)}</text>
       <text x={node.x + 12} y={node.y + 36} fontSize={11} fontWeight="bold" fill={LIGHT.ink}>
         {asset.name.length > 26 ? asset.name.slice(0, 25) + "…" : asset.name}
       </text>
@@ -65,7 +72,7 @@ function AssetNode({ node }: { node: DiagramNode }) {
 
 function ActorNode({ node }: { node: DiagramNode }) {
   const actor = node.ref;
-  if ("criticality" in actor) return null;
+  if ("impactLevel" in actor) return null;
   const isHuman = actor.kind === "human";
   return (
     <g>

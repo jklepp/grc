@@ -11,7 +11,7 @@ export function SystemAssets({ systemId }: { systemId: SystemId }) {
         <SectionHeader
           icon={Boxes}
           title="Asset Inventory"
-          description="Resources inside this system's boundary, grouped by architecture lane with criticality, verification, and inherent risk."
+          description="Resources inside this system's boundary, grouped by architecture lane with FIPS 199 impact level, verification, and inherent risk."
         />
       </div>
       <AssetRegister systemId={systemId} />

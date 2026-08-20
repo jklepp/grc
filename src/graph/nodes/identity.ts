@@ -4,8 +4,8 @@
 // next to "3 of 31 privileged users lack phishing-resistant MFA."
 //
 // A population row is an aggregate observation, not one row per real human —
-// consistent with how criticalityFactors already scores at the aggregate
-// level rather than enumerating every asset instance.
+// consistent with how system criticalityFactors already scores at the
+// boundary rather than enumerating every asset instance.
 import type { SystemId, OrgId } from "../ids";
 
 export const IDENTITY_TYPES = [

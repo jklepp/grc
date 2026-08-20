@@ -27,9 +27,9 @@ import {
 } from "./nodes/taxonomy";
 import {
   HOSTING_TYPES, INHERITED_DOMAINS, AVAILABILITY_TIERS, DATA_SUBJECT_TYPES,
-  SYSTEM_REGULATORY_CONTEXTS, NETWORK_EXPOSURES,
+  SYSTEM_REGULATORY_CONTEXTS, NETWORK_EXPOSURES, CRITICALITY_FACTOR_NAMES,
 } from "./nodes/systems";
-import { ASSET_KINDS } from "./nodes/assets";
+import { ASSET_KINDS, IMPACT_LEVELS } from "./nodes/assets";
 import { REGULATORY_FLAGS } from "./nodes/dataTypes";
 import { DOMAINS, FRAMEWORKS } from "./nodes/controls";
 import { CERTIFICATION_REPORT_TYPES, HITRUST_R2_STANDARD } from "./nodes/providerCertifications";
@@ -86,6 +86,13 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
       check(has(graph.orgById, r.ownerId), `system ${s.id} role "${r.role}": ownerId "${r.ownerId}" is not an org`)
     );
     check(AVAILABILITY_TIERS.includes(s.availabilityTier), `system ${s.id}: availabilityTier "${s.availabilityTier}" is not one of ${AVAILABILITY_TIERS.join(", ")}`);
+    CRITICALITY_FACTOR_NAMES.forEach((factor) => {
+      const entry = s.criticalityFactors?.[factor];
+      check(Boolean(entry), `system ${s.id}: criticalityFactors.${factor} is missing`);
+      if (!entry) return;
+      check(Number.isFinite(entry.score) && entry.score >= 0 && entry.score <= 100, `system ${s.id}: criticalityFactors.${factor}.score must be 0-100`);
+      check(typeof entry.reason === "string", `system ${s.id}: criticalityFactors.${factor}.reason must be a string`);
+    });
     check(Number.isInteger(s.userCount) && s.userCount >= 0, `system ${s.id}: userCount must be a non-negative integer`);
     check(s.regions.length > 0, `system ${s.id}: regions must name at least one region`);
     check(s.dataProfile.approxRecords >= 0, `system ${s.id}: dataProfile.approxRecords must be non-negative`);
@@ -109,6 +116,7 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
   graph.assets.forEach((a) => {
     check(has(graph.systemById, a.systemId), `asset ${a.id}: systemId "${a.systemId}" is not a system`);
     check(ASSET_KINDS.includes(a.kind), `asset ${a.id}: kind "${a.kind}" is not one of ASSET_KINDS — an unknown kind matches no applicability rule, which would silently exempt this asset from every control`);
+    check(IMPACT_LEVELS.includes(a.impactLevel), `asset ${a.id}: impactLevel "${a.impactLevel}" is not one of ${IMPACT_LEVELS.join(", ")} (FIPS 199 Low / Moderate / High)`);
     check((graph.dataTypesByAsset[a.id] ?? []).length > 0, `asset ${a.id}: has no data-type edges, so its classification cannot be derived`);
   });
 

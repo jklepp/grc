@@ -4,7 +4,7 @@ import { X, Boxes, Search, Rows3, Waypoints } from "lucide-react";
 import { C } from "../theme";
 import { PageHeader, SectionHeading } from "../components/Headings";
 import { ClassificationTag } from "../components/SystemBadges";
-import { getAllAssets, getControl, getDataFlows, INSTANCE_STATUS_META } from "../engine";
+import { getAllAssets, getControl, getDataFlows, INSTANCE_STATUS_META, IMPACT_LEVEL_LABELS } from "../engine";
 import type { AssetRollup } from "../engine/rollups";
 import type { AssetId, SystemId } from "../graph/ids";
 import { useLiveEngine } from "../engine/useLiveEngine";
@@ -31,6 +31,10 @@ interface AssetLaneGroup {
   id: ArchitectureLaneId;
   label: string;
   assets: AssetRollup[];
+}
+
+function impactLevelLabel(asset: AssetRollup): string {
+  return IMPACT_LEVEL_LABELS[asset.impactLevel];
 }
 
 function colorFor(key: string): { color: string; bg: string } {
@@ -79,7 +83,7 @@ function AssetCard({ asset, selected, onSelect }: AssetSelectProps) {
         {asset.classification && <ClassificationTag level={asset.classification} />}
       </div>
       <div className="grid grid-cols-3 gap-2 mt-3">
-        <MetricChip label="Criticality" value={asset.criticality} band={asset.criticalityBand} />
+        <MetricChip label="Impact Level" value={impactLevelLabel(asset)} band={asset.impactLevelBand} />
         {/* Not a score. How many of the controls that apply here were actually
             verified on this asset — the sampling result, not a judgment about
             the asset itself. */}
@@ -100,7 +104,7 @@ function AssetCard({ asset, selected, onSelect }: AssetSelectProps) {
 // SelectSystem's SystemRow: the columns and click target (opens the slideout
 // here, navigates there) are different enough that sharing would mean a prop
 // escape hatch on both sides for no real reuse.
-const ASSET_COLUMNS = "110px 2.2fr 110px 130px 130px";
+const ASSET_COLUMNS = "110px 2.2fr 130px 130px 130px";
 
 function StatCell({ value, band }: { value: ReactNode; band: DisplayBand }) {
   const { color } = colorFor(band.color);
@@ -134,7 +138,7 @@ function AssetRow({ asset, onSelect, selected }: AssetSelectProps) {
         </div>
         <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{asset.type} · {asset.provider}</div>
       </div>
-      <StatCell value={asset.criticality} band={asset.criticalityBand} />
+      <StatCell value={impactLevelLabel(asset)} band={asset.impactLevelBand} />
       <StatCell value={`${asset.implementedCount}/${asset.applicableControlCount}`} band={verificationBand(asset)} />
       <StatCell value={asset.inherentRisk.score} band={asset.inherentRisk.band} />
     </button>
@@ -151,7 +155,7 @@ function AssetTable({ assets, groups, selectedId, onSelect }: { assets: AssetRol
       >
         <div>ID</div>
         <div>Asset</div>
-        <div>Criticality</div>
+        <div>Impact Level</div>
         <div>Verified</div>
         <div>Inherent Risk</div>
       </div>
@@ -241,20 +245,6 @@ function InstanceRow({ inst }: { inst: AssetControlInstance }) {
   );
 }
 
-type CriticalityFactor = AssetRollup["criticalityFactors"][keyof AssetRollup["criticalityFactors"]];
-
-function FactorRow({ label, factor }: { label: string; factor: CriticalityFactor }) {
-  return (
-    <div className="flex items-start justify-between gap-3 py-1.5">
-      <div className="min-w-0">
-        <div className="text-xs font-medium" style={{ color: C.ink }}>{label}</div>
-        <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{factor.reason}</div>
-      </div>
-      <div className="text-sm font-semibold shrink-0" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{factor.score}</div>
-    </div>
-  );
-}
-
 function RiskCard({ title, risk }: { title: string; risk: AssetRollup["inherentRisk"] }) {
   const { color, bg } = colorFor(risk.band.color);
   return (
@@ -272,13 +262,6 @@ function RiskCard({ title, risk }: { title: string; risk: AssetRollup["inherentR
 
 function AssetDetailPanel({ asset, onClose }: { asset: AssetRollup; onClose: () => void }) {
   const [showAllControls, setShowAllControls] = useState(false);
-  const factorLabels: Record<keyof AssetRollup["criticalityFactors"], string> = {
-    confidentiality: "Confidentiality",
-    integrity: "Integrity",
-    availability: "Availability",
-    regulatory: "Regulatory Sensitivity",
-    businessDependency: "Business Dependency",
-  };
   const sortedControls = [...asset.controls]
     .sort((a, b) => INSTANCE_ORDER.indexOf(a.status) - INSTANCE_ORDER.indexOf(b.status));
   const visibleControls = showAllControls ? sortedControls : sortedControls.slice(0, 5);
@@ -300,10 +283,10 @@ function AssetDetailPanel({ asset, onClose }: { asset: AssetRollup; onClose: () 
       {/* An asset has no assurance score. It is not scored at all — the
           controls that apply to it are scored once against its system, and this
           asset is one of the samples behind that. What it can honestly report
-          is consequence (criticality, intrinsic) and what each control actually
+          is consequence (FIPS 199 impact level) and what each control actually
           showed here. */}
       <div className="px-5 py-4 grid grid-cols-2 gap-2" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <MetricChip label="Asset Criticality" value={asset.criticality} band={asset.criticalityBand} />
+        <MetricChip label="Impact Level" value={impactLevelLabel(asset)} band={asset.impactLevelBand} />
         <MetricChip
           label="Controls Verified"
           value={`${asset.implementedCount} / ${asset.applicableControlCount}`}
@@ -332,19 +315,10 @@ function AssetDetailPanel({ asset, onClose }: { asset: AssetRollup; onClose: () 
         )}
       </div>
 
-      <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Asset Criticality Factors</div>
-        <div className="divide-y" style={{ borderColor: C.border }}>
-          {(Object.keys(asset.criticalityFactors) as Array<keyof AssetRollup["criticalityFactors"]>).map((k) => (
-            <FactorRow key={k} label={factorLabels[k]} factor={asset.criticalityFactors[k]} />
-          ))}
-        </div>
-      </div>
-
       <div className="px-5 py-4">
         <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: C.muted }}>Inherent Risk</div>
         <div className="text-[11px] mb-2" style={{ color: C.muted }}>
-          Impact is fixed to this asset&apos;s criticality — what happens if it is compromised, which
+          Impact is fixed to this asset&apos;s FIPS 199 impact level — what happens if it is compromised, which
           does not move because controls improved. Residual risk is no longer computed per asset:
           it needed an asset score, and it is answered properly on the Risk Register from the
           controls actually mapped to each scenario.
@@ -376,7 +350,7 @@ export default function AssetRegister({ systemId }: { systemId?: SystemId }) {
     return assets.filter((asset) => [asset.id, asset.name, asset.type, asset.provider]
       .some((value) => value.toLowerCase().includes(query)));
   }, [assets, search]);
-  const criticalCount = assets.filter((asset) => asset.criticalityBand.label === "Critical").length;
+  const highImpactCount = assets.filter((asset) => asset.impactLevel === "high").length;
   const sparseVerificationCount = assets.filter((asset) => verificationBand(asset).label === "Sparse").length;
   const laneByAsset = useMemo(() => {
     const lanes = new Map<AssetId, ArchitectureLaneId>();
@@ -411,7 +385,7 @@ export default function AssetRegister({ systemId }: { systemId?: SystemId }) {
           <PageHeader
             icon={Boxes}
             title="Asset Register"
-            description="Individual resources inside each system's boundary. An asset carries no assurance score of its own — the controls that apply to it are assessed once against its system, and each asset is one of the samples behind that. What it reports here is consequence, and what every applicable control actually showed on it."
+            description="Individual resources inside each system's boundary. An asset carries no assurance score of its own — the controls that apply to it are assessed once against its system, and each asset is one of the samples behind that. What it reports here is FIPS 199 impact level, and what every applicable control actually showed on it."
             right={
               <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
                 {assets.length} assets across {groups.length} systems
@@ -424,7 +398,7 @@ export default function AssetRegister({ systemId }: { systemId?: SystemId }) {
           <div className="flex items-center justify-between gap-4 flex-wrap rounded-lg px-4 py-3" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
             <div className="flex items-center gap-4 text-xs" style={{ color: C.muted }}>
               <span><b style={{ color: C.ink }}>{assets.length}</b> assets</span>
-              <span><b style={{ color: C.ink }}>{criticalCount}</b> critical</span>
+              <span><b style={{ color: C.ink }}>{highImpactCount}</b> high impact</span>
               <span><b style={{ color: C.ink }}>{sparseVerificationCount}</b> sparse verification</span>
             </div>
             <div className="flex items-center gap-2 flex-wrap">

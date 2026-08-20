@@ -176,11 +176,11 @@ export function createSelectors(
         label: "Enterprise assurance",
         value: rollups.enterprise.assurance,
         basis: BASIS.MEASURED,
-        formula: "Criticality-weighted mean of every system's assurance, where a system's weight is the total criticality of the assets inside it.",
+        formula: "Criticality-weighted mean of every system's assurance, where a system's weight is its own five-factor criticality score.",
         steps: rollups.systemRollups.map((s) => ({
           label: s.name,
           value: s.overallAssurance,
-          weight: s.assets.reduce((a, x) => a + x.criticality, 0),
+          weight: s.criticality,
           basis: BASIS.MEASURED,
           next: { type: "system", id: s.id },
         })),
@@ -218,7 +218,7 @@ export function createSelectors(
         label: `${asset.name} — control instances`,
         value: null,
         basis: BASIS.MEASURED,
-        formula: `An asset is not scored. It is the sampling population for the controls that apply to it: ${asset.implementedCount} of ${asset.applicableControlCount} verified, ${asset.evidenceCoveragePct}% of required controls carrying any evidence. Its criticality (${asset.criticality}) still weights the enterprise rollup.`,
+        formula: `An asset is not scored. It is the sampling population for the controls that apply to it: ${asset.implementedCount} of ${asset.applicableControlCount} verified, ${asset.evidenceCoveragePct}% of required controls carrying any evidence. Its FIPS 199 impact level is ${asset.impactLevel}; the parent system's criticality weights the enterprise rollup.`,
         steps: asset.controls.map((i) => ({
           label: `${i.controlId} — ${graph.controlById[i.controlId]?.name ?? ""}`,
           value: null,

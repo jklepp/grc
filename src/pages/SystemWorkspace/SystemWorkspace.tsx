@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { TabBar } from "../../components/Headings";
 import { getAllSystems } from "../../engine";
 import { SUB_TABS } from "./tabs";
@@ -17,6 +17,7 @@ import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
 import AddSystemWizard from "../../components/AddSystemWizard";
 import type { ControlId, SystemId } from "../../graph/ids";
 import type { SystemWorkspaceTab } from "./tabs";
+import type { ControlMatrixRow } from "./types";
 import { useLiveEngine } from "../../engine/useLiveEngine";
 
 const SYSTEMS = getAllSystems();
@@ -32,14 +33,28 @@ interface SystemWorkspaceProps {
   onSelectSystem?: (systemId: SystemId) => void;
   initialSubTab?: SystemWorkspaceTab | null;
   onNavigate?: (target: string) => void;
+  startAssessment?: boolean;
 }
 
-export default function SystemWorkspace({ systemId: controlledSystemId, onSelectSystem, initialSubTab, onNavigate }: SystemWorkspaceProps) {
+function keyControlAssessmentQueue(
+  matrix: ControlMatrixRow[],
+  systemAssets: ReadonlyArray<{ id: string }>,
+  isRequired: (assetId: string, controlId: ControlId) => boolean,
+): ControlMatrixRow[] {
+  return matrix.filter((row) => {
+    if (!row.keyControl || row.status !== "unassessed") return false;
+    if (row.keyControl.scope === "program") return true;
+    return systemAssets.some((asset) => isRequired(asset.id, row.controlId));
+  });
+}
+
+export default function SystemWorkspace({ systemId: controlledSystemId, onSelectSystem, initialSubTab, onNavigate, startAssessment = false }: SystemWorkspaceProps) {
   const [localSystemId, setLocalSystemId] = useState(DEFAULT_SYSTEM_ID);
   const systemId = controlledSystemId ?? localSystemId;
   const [subTab, setSubTab] = useState<SystemWorkspaceTab>(SUB_TABS.some((t) => t.id === initialSubTab) ? initialSubTab! : SUB_TABS[0].id);
   const [selectedControlId, setSelectedControlId] = useState<ControlId | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
+  const assessmentStarted = useRef(false);
   const liveEngine = useLiveEngine();
   const systems = liveEngine.rollups.systemRollups;
 
@@ -85,6 +100,47 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
     matrix.forEach((r) => { counts[r.status] += 1; });
     return counts;
   }, [matrix]);
+  const assessmentQueue = useMemo(
+    () => keyControlAssessmentQueue(
+      matrix,
+      liveEngine.graph.assetsBySystem[system.id] ?? [],
+      (assetId, controlId) => liveEngine.applicability.resolveApplicability(assetId, controlId).required,
+    ),
+    [matrix, liveEngine, system.id]
+  );
+  const queueIndex = selectedControlId ? assessmentQueue.findIndex((row) => row.controlId === selectedControlId) : -1;
+
+  useEffect(() => {
+    if (!startAssessment || assessmentStarted.current) return;
+    assessmentStarted.current = true;
+    setSubTab("controls");
+    const first = assessmentQueue[0];
+    if (first) setSelectedControlId(first.controlId);
+  }, [startAssessment, assessmentQueue]);
+
+  function openAssessmentWalk() {
+    setSubTab("controls");
+    const current = selectedControlId ? assessmentQueue.find((row) => row.controlId === selectedControlId) : null;
+    setSelectedControlId((current ?? assessmentQueue[0])?.controlId ?? null);
+  }
+
+  function goToQueuedControl(offset: number) {
+    if (assessmentQueue.length === 0) {
+      setSelectedControlId(null);
+      return;
+    }
+    const from = queueIndex >= 0 ? queueIndex : offset > 0 ? -1 : 0;
+    const nextIndex = from + offset;
+    if (nextIndex < 0) {
+      setSelectedControlId(assessmentQueue[0].controlId);
+      return;
+    }
+    if (nextIndex >= assessmentQueue.length) {
+      setSelectedControlId(null);
+      return;
+    }
+    setSelectedControlId(assessmentQueue[nextIndex].controlId);
+  }
 
   const findings = useMemo(() => liveEngine.findings.findingsForSystem(system.id), [liveEngine, system]);
   // Open findings per control, so the table can show a count without every
@@ -167,6 +223,9 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           matrix={matrix} statusCounts={statusCounts}
           applicabilitySummary={applicabilitySummary} posture={posture}
           findingsByControl={findingsByControl}
+          keyControlRemaining={assessmentQueue.length}
+          onStartAssessment={assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
+          walkActive={Boolean(selectedControlId) && queueIndex >= 0}
           onSelectRow={(row) => setSelectedControlId(row.controlId)}
         />
       )}
@@ -175,7 +234,18 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
 
       {subTab === "assets" && <SystemAssets systemId={systemId} />}
 
-      {selectedRow && <ControlEvaluationPanel row={selectedRow} system={system} onClose={() => setSelectedControlId(null)} />}
+      {selectedRow && (
+        <ControlEvaluationPanel
+          key={selectedRow.controlId}
+          row={selectedRow}
+          system={system}
+          onClose={() => setSelectedControlId(null)}
+          queueIndex={queueIndex >= 0 ? queueIndex : null}
+          queueLength={assessmentQueue.length}
+          onNext={assessmentQueue.length > 0 ? () => goToQueuedControl(1) : undefined}
+          onPrev={queueIndex > 0 ? () => goToQueuedControl(-1) : undefined}
+        />
+      )}
 
       <AddSystemWizard open={editorOpen} onClose={() => setEditorOpen(false)} onCreated={() => setEditorOpen(false)} editingSystemId={systemId} />
     </div>

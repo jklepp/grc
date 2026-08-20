@@ -47,8 +47,8 @@ import type { ApplicabilityApi } from "./applicability";
 import type { AssessmentApi, ControlAssessment } from "./assessment";
 import type { FindingsApi } from "./findings";
 import {
-  criticalityScore, criticalityBand, assuranceBand,
-  impactFromCriticality, riskScore, riskBand, mean, weightedMean, display,
+  criticalityScore, criticalityBand, impactLevelBand, assuranceBand,
+  impactFromImpactLevel, riskScore, riskBand, mean, weightedMean, display,
   CRITICALITY_FACTORS, ASSURANCE_TARGET,
 } from "./assurance";
 import type { AssetId, SystemId } from "../graph/ids";
@@ -100,11 +100,11 @@ export function createRollups(
   // work of assessing twenty-six things individually is the reason the whole
   // exercise gets skipped.
   //
-  // What an asset carries instead is what it can honestly say. Criticality and
-  // classification, both derived from the asset's own facts and from nothing
-  // about controls — a statement about consequence, not about posture. And a
-  // list of every control that applies to it, each with the status it showed
-  // and the evidence behind that status.
+  // What an asset carries instead is what it can honestly say. Classification
+  // (from the data it holds) and a FIPS 199 impact level (Low / Moderate /
+  // High) — statements about consequence, not about posture. And a list of
+  // every control that applies to it, each with the status it showed and the
+  // evidence behind that status.
   //
   // That list is the answer to the question this change was made for: "as part
   // of the system's assurance, was this S3 bucket shown compliant against
@@ -112,21 +112,12 @@ export function createRollups(
   // level sampled, reached from the other end, so the asset view and the control
   // view cannot disagree — there is one object and two ways in.
   //
-  // criticality survives as a WEIGHT at the enterprise hop. A weight is not a
-  // score: it says how much this boundary's number should count, not how well
-  // anything is doing.
+  // System criticality survives as a WEIGHT at the enterprise hop. A weight is
+  // not a score: it says how much this boundary's number should count, not how
+  // well anything is doing.
   function assetRollup(assetId: AssetId) {
     const asset = graph.assetById[assetId];
     const system = graph.systemById[asset.systemId];
-
-    // CriticalityFactors is already a typed interface with exactly these five
-    // keys — reading them directly by name, rather than looping Object.keys()
-    // and casting the result back to a shape TypeScript already knew, keeps the
-    // compiler checking the property access instead of being told to trust it.
-    const factors: Record<string, number> = Object.fromEntries(
-      CRITICALITY_FACTORS.map((f) => [f, asset.criticalityFactors[f].score])
-    );
-    const criticality = criticalityScore(factors);
 
     const controls = assessment.instancesForAsset(assetId);
     const required = applicability.requiredControlsForAsset(assetId);
@@ -138,7 +129,7 @@ export function createRollups(
     // actually looked at", asked without implying an answer about quality.
     const evidenceCoveragePct = required.length === 0 ? 0 : Math.round((evidenced.length / required.length) * 100);
 
-    const impact = impactFromCriticality(criticality);
+    const impact = impactFromImpactLevel(asset.impactLevel);
     const inherentScore = riskScore(asset.inherentLikelihood, impact);
 
     return {
@@ -146,8 +137,7 @@ export function createRollups(
       system,
       classification: classification.assetClassification(assetId),
       classificationDetail: classification.assetClassificationDetail(assetId),
-      criticality,
-      criticalityBand: criticalityBand(criticality),
+      impactLevelBand: impactLevelBand(asset.impactLevel),
 
       // The diagnostic. One entry per control that applies to this asset,
       // carrying a status and a sentence — never a number.
@@ -263,7 +253,10 @@ export function createRollups(
         .map((c) => ({ value: categories[c].raw as number, weight: weights[c] }))
     );
     const assurance = display(rawAssurance);
-    const criticality = display(weightedMean(assets.map((a) => ({ value: a.criticality, weight: 1 }))));
+    const factors: Record<string, number> = Object.fromEntries(
+      CRITICALITY_FACTORS.map((f) => [f, system.criticalityFactors[f].score])
+    );
+    const criticality = criticalityScore(factors);
 
     const assessments = assessment.assessmentsForSystem(systemId);
     const scoredAssessments = assessments.filter((a) => a.assessed);
@@ -304,7 +297,7 @@ export function createRollups(
       rawAssurance,
       assuranceBand: assuranceBand(assurance),
       criticality,
-      criticalityBand: criticalityBand(criticality as number),
+      criticalityBand: criticalityBand(criticality),
       categories,
       categoryScores,
       categoryWeights: weights,
@@ -350,10 +343,10 @@ export function createRollups(
   const enterpriseRaw = weightedMean(
     systemRollups.map((s) => ({
       value: s.rawAssurance as number,
-      // A system's weight is the total criticality it contains, so a boundary
-      // holding eight critical assets outweighs one holding seven moderate ones
-      // without anyone having to declare that separately.
-      weight: s.assets.reduce((a, x) => a + x.criticality, 0),
+      // A system's weight is its own criticality, so a Restricted-tier
+      // production boundary outweighs a low-stakes internal one without
+      // averaging the boxes inside it.
+      weight: s.criticality,
     }))
   );
 
@@ -385,15 +378,15 @@ export function createRollups(
   };
 
   // Each category averaged across systems rather than across assets — the
-  // figures the Executive Dashboard shows. Weighted by the criticality each
-  // system contains, the same weight the enterprise hop uses, so a category is
+  // figures the Executive Dashboard shows. Weighted by each system's own
+  // criticality, the same weight the enterprise hop uses, so a category is
   // not reported as healthy because the small boundary is good at it.
   const categoryPortfolioAverages = ASSURANCE_CATEGORIES.map((label) => {
     const entries = systemRollups
       .filter((s) => s.categories[label].raw !== null)
       .map((s) => ({
         value: s.categories[label].raw as number,
-        weight: s.assets.reduce((a, x) => a + x.criticality, 0),
+        weight: s.criticality,
       }));
     const raw = weightedMean(entries);
     return { label, pct: display(raw), raw };

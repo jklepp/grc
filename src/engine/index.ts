@@ -213,11 +213,13 @@ export { REGULATORY_FLAGS } from "../graph/nodes/dataTypes";
 export {
   AVAILABILITY_TIERS, HOSTING_TYPES, INHERITED_DOMAINS, DATA_SUBJECT_TYPES,
   CLOUD_REGIONS, RETENTION_OPTIONS, RESIDENCY_OPTIONS, SYSTEM_REGULATORY_CONTEXTS,
-  NETWORK_EXPOSURES,
+  NETWORK_EXPOSURES, CRITICALITY_FACTOR_NAMES, defaultCriticalityFactors,
 } from "../graph/nodes/systems";
+export type { CriticalityFactors, CriticalityFactor } from "../graph/nodes/systems";
 export { RESPONSIBILITIES, SHARED_RESPONSIBILITY_DOMAINS } from "../graph/edges/controlImplementations";
 export type { Responsibility } from "../graph/edges/controlImplementations";
-export { ASSET_KINDS, ASSET_TYPE_CATEGORIES, ASSET_TYPES } from "../graph/nodes/assets";
+export { ASSET_KINDS, ASSET_TYPE_CATEGORIES, ASSET_TYPES, IMPACT_LEVELS, IMPACT_LEVEL_LABELS, IMPACT_LEVEL_SHORT } from "../graph/nodes/assets";
+export type { ImpactLevel } from "../graph/nodes/assets";
 export type { CockpitItem } from "./cockpit";
 export {
   SEVERITY_VALUE, LIKELIHOOD_VALUE, score, isMaterial,

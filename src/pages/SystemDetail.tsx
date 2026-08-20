@@ -17,11 +17,12 @@ const INITIAL_SUBTAB_BY_LEGACY_TAB: Record<LegacySystemTab, SystemWorkspaceTab> 
 interface SystemDetailProps {
   systemId: SystemId;
   initialTab?: LegacySystemTab;
+  startAssessment?: boolean;
   onBack: () => void;
   onNavigate?: (target: string) => void;
 }
 
-export default function SystemDetail({ systemId: initialSystemId, initialTab, onBack, onNavigate }: SystemDetailProps) {
+export default function SystemDetail({ systemId: initialSystemId, initialTab, startAssessment = false, onBack, onNavigate }: SystemDetailProps) {
   const [systemId, setSystemId] = useState<SystemId>(initialSystemId);
 
   return (
@@ -39,7 +40,8 @@ export default function SystemDetail({ systemId: initialSystemId, initialTab, on
       <SystemWorkspace
         systemId={systemId}
         onSelectSystem={setSystemId}
-        initialSubTab={initialTab ? INITIAL_SUBTAB_BY_LEGACY_TAB[initialTab] : undefined}
+        initialSubTab={startAssessment ? "controls" : (initialTab ? INITIAL_SUBTAB_BY_LEGACY_TAB[initialTab] : undefined)}
+        startAssessment={startAssessment}
         onNavigate={onNavigate}
       />
     </div>

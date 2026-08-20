@@ -49,6 +49,22 @@
   mfaEnforced: "compliant"
   internetFacing: true
   availabilityTier: "tier-1-critical"
+  criticalityFactors:
+    confidentiality:
+      score: 98
+      reason: "prod-customer-data S3 high-water mark: The platform's primary at-rest store of raw customer documents used for RAG ingestion"
+    integrity:
+      score: 95
+      reason: "KMS Key high-water mark: Unauthorized rotation or deletion could render the platform's data unrecoverable"
+    availability:
+      score: 92
+      reason: "API Gateway high-water mark: Every customer-facing AI feature depends on this single ingress point"
+    regulatory:
+      score: 95
+      reason: "prod-customer-data S3 high-water mark: Restricted-tier PII at rest"
+    businessDependency:
+      score: 95
+      reason: "API Gateway high-water mark: The sole entry point for the AI platform's revenue-generating features"
   userCount: 1842
   regions:
     - "us-east-1"
@@ -113,6 +129,22 @@
   mfaEnforced: "compliant"
   internetFacing: false
   availabilityTier: "tier-2-high"
+  criticalityFactors:
+    confidentiality:
+      score: 92
+      reason: "Integration Service Account high-water mark: A compromised service account grants broad programmatic access across the whole tenant"
+    integrity:
+      score: 88
+      reason: "Integration Service Account high-water mark: Misuse could silently read or alter HR and payroll data through the API"
+    availability:
+      score: 80
+      reason: "API Endpoint high-water mark: Every integration — payroll, identity, exports — depends on this single ingress point"
+    regulatory:
+      score: 85
+      reason: "Production Tenant high-water mark: GDPR-regulated personal data"
+    businessDependency:
+      score: 82
+      reason: "API Endpoint high-water mark: The sole integration entry point for every connected system"
   userCount: 412
   regions:
     - "us-east-1"

@@ -8,7 +8,7 @@ import { ClassificationTag, AssuranceBadge, SystemPicker } from "../components/S
 import {
   getAsset, getAllDataTypes, dataForAsset,
   INSTANCE_STATUS_META, PRISMA_LEVELS, ASSURANCE_TARGET,
-  ACTOR_KINDS, resilienceForSystem,
+  ACTOR_KINDS, resilienceForSystem, IMPACT_LEVEL_LABELS, IMPACT_LEVEL_SHORT,
 } from "../engine";
 import { buildDataFlowDiagram, buildControlPlaneMatrix } from "../utils/flowDiagramLayout";
 import FlowDiagramSVG, { FlowDiagramLegend } from "../components/FlowDiagramSVG";
@@ -132,10 +132,10 @@ interface NodeCardProps {
 }
 
 function NodeCard({ asset, footer, selected, onSelect, isBranch = false, compact = false, width = NODE_CARD_WIDTH, height }: NodeCardProps) {
-  // Criticality, not assurance. An asset has no assurance score — the controls
-  // that apply to it are scored once against its system — so the band a card
-  // can honestly carry is how much its compromise would cost.
-  const { color } = colorFor(asset.criticalityBand.color);
+  // FIPS 199 impact level, not assurance. An asset has no assurance score —
+  // the controls that apply to it are scored once against its system — so the
+  // band a card can honestly carry is how much its compromise would cost.
+  const { color } = colorFor(asset.impactLevelBand.color);
   const cardHeight = height !== undefined ? height : (compact ? undefined : NODE_CARD_HEIGHT);
   return (
     <button
@@ -149,7 +149,7 @@ function NodeCard({ asset, footer, selected, onSelect, isBranch = false, compact
             <span className="text-[10px] font-bold" style={{ color: "#fff" }}>{asset.code}</span>
           </div>
           <div className="flex-1 flex items-center justify-center" style={{ background: color }}>
-            <span className="text-[10px] font-bold" style={{ color: "#fff" }}>{asset.criticality}</span>
+            <span className="text-[10px] font-bold" style={{ color: "#fff" }}>{IMPACT_LEVEL_SHORT[asset.impactLevel]}</span>
           </div>
         </div>
         <div className="p-2 flex-1 flex flex-col min-w-0 justify-center">
@@ -687,7 +687,7 @@ function WeakestLinkBanner({ system }: { system: SystemRollup }) {
 function SystemDetailPanel({ assetId, onClose }: { assetId: AssetId; onClose: () => void }) {
   const asset = getAsset(assetId);
   if (!asset) return null;
-  const { color } = colorFor(asset.criticalityBand.color);
+  const { color } = colorFor(asset.impactLevelBand.color);
   const held = dataForAsset(assetId);
 
   return (
@@ -706,13 +706,13 @@ function SystemDetailPanel({ assetId, onClose }: { assetId: AssetId; onClose: ()
         </button>
       </div>
 
-      {/* Criticality is the headline an asset can honestly carry. It has no
-          assurance score: the controls that apply to it are assessed once
+      {/* FIPS 199 impact level is the headline an asset can honestly carry. It
+          has no assurance score: the controls that apply to it are assessed once
           against its system, and this asset is one of the samples behind that. */}
       <div className="px-5 py-4 flex items-center gap-4" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <div className="text-3xl font-bold" style={{ color, fontFamily: "'IBM Plex Mono', monospace" }}>{asset.criticality}</div>
+        <div className="text-3xl font-bold" style={{ color, fontFamily: "'IBM Plex Mono', monospace" }}>{IMPACT_LEVEL_SHORT[asset.impactLevel]}</div>
         <div>
-          <div className="text-sm font-semibold" style={{ color: C.ink }}>{asset.criticalityBand.label} Criticality</div>
+          <div className="text-sm font-semibold" style={{ color: C.ink }}>{IMPACT_LEVEL_LABELS[asset.impactLevel]} Impact</div>
           <div className="text-[11px]" style={{ color: C.muted }}>
             {asset.implementedCount} of {asset.applicableControlCount} applicable controls verified here
           </div>
@@ -740,7 +740,7 @@ function SystemDetailPanel({ assetId, onClose }: { assetId: AssetId; onClose: ()
       <div className="px-5 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
         <div className="text-[10px] uppercase tracking-wide mb-3" style={{ color: C.muted }}>Consequence and coverage</div>
         <div className="grid grid-cols-2 gap-2 mb-4">
-          <AssuranceChip label="Criticality" value={asset.criticality} band={asset.criticalityBand} />
+          <AssuranceChip label="Impact Level" value={IMPACT_LEVEL_LABELS[asset.impactLevel]} band={asset.impactLevelBand} />
           <AssuranceChip
             label="Controls Verified"
             value={`${asset.implementedCount}/${asset.applicableControlCount}`}

@@ -11,6 +11,7 @@ import {
   AVAILABILITY_TIERS, DATA_SUBJECT_TYPES, ASSET_TYPE_CATEGORIES, ASSET_TYPES,
   DATA_ROLE_META, getAllDataTypes, CLOUD_REGIONS, RETENTION_OPTIONS, RESIDENCY_OPTIONS,
   SYSTEM_REGULATORY_CONTEXTS, IDENTITY_TYPES, NETWORK_EXPOSURES,
+  IMPACT_LEVELS, IMPACT_LEVEL_LABELS, defaultCriticalityFactors,
   engine as appEngine, commitRuntimeFacts,
 } from "../engine";
 import { buildLiveEngine } from "../engine/liveGraph";
@@ -18,12 +19,12 @@ import type { RuntimeFacts } from "../engine/liveGraph";
 import { YAML_FACTS } from "../graph/sources/yaml";
 import { loadRuntimeFacts, nextSystemId, nextAssetId, nextActorId, nextActorAccessId, nextDataFlowId, nextAgenticIdentityId } from "../engine/runtimeFactsStore";
 import type { ActorId, AssetId, DataTypeId, OrgId, SystemId } from "../graph/ids";
-import type { Asset, AssetKind, CriticalityFactors } from "../graph/nodes/assets";
+import type { Asset, AssetKind, ImpactLevel } from "../graph/nodes/assets";
 import type { AssetDataType, DataRole } from "../graph/edges/assetDataTypes";
 import { DATA_ROLES } from "../graph/edges/assetDataTypes";
 import type { IdentityType } from "../graph/nodes/identity";
 import type {
-  AvailabilityTier, DataSubjectType, HostingType, NetworkExposure, System, SystemRegulatoryContext,
+  AvailabilityTier, CriticalityFactors, DataSubjectType, HostingType, NetworkExposure, System, SystemRegulatoryContext,
 } from "../graph/nodes/systems";
 import type { ClassificationTier } from "../graph/nodes/taxonomy";
 import type { AssessmentScope } from "../graph/nodes/assessmentScope";
@@ -58,7 +59,7 @@ interface AssetDraft {
   assetType: AssetType;
   kind: AssetKind;
   provider: string;
-  criticalityFactors: CriticalityFactors;
+  impactLevel: ImpactLevel;
   inherentLikelihood: number | string;
   dataTypes: Record<string, DataRole>;
   sourceType?: string | null;
@@ -200,13 +201,7 @@ function blankAsset(index: number): AssetDraft {
     assetType,
     kind: ASSET_TYPE_CATEGORIES[assetType][0],
     provider: "",
-    criticalityFactors: {
-      confidentiality: { score: 50, reason: "" },
-      integrity: { score: 50, reason: "" },
-      availability: { score: 50, reason: "" },
-      regulatory: { score: 50, reason: "" },
-      businessDependency: { score: 50, reason: "" },
-    },
+    impactLevel: "moderate",
     inherentLikelihood: 2,
     dataTypes: {}, // dataTypeId -> role ("" = not touched)
   };
@@ -316,6 +311,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   const [mission, setMission] = useState("");
   const [boundary, setBoundary] = useState("");
   const [availabilityTier, setAvailabilityTier] = useState<AvailabilityTier>(AVAILABILITY_TIERS[1]);
+  const [criticalityFactors, setCriticalityFactors] = useState<CriticalityFactors>(defaultCriticalityFactors);
   const [userCount, setUserCount] = useState<number | string>(0);
   const [regions, setRegions] = useState<string[]>([]);
   const [subjects, setSubjects] = useState<DataSubjectType[]>([]);
@@ -374,6 +370,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     setHostingType(source.hostingType);
     setProvider(source.provider);
     setAvailabilityTier(source.availabilityTier);
+    setCriticalityFactors(structuredClone(source.criticalityFactors));
     setUserCount(source.userCount);
     setRegions([...source.regions]);
     setSubjects([...source.dataProfile.subjects]);
@@ -405,7 +402,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       sourceKind: asset.kind,
       kind: asset.kind,
       provider: asset.provider,
-      criticalityFactors: structuredClone(asset.criticalityFactors),
+      impactLevel: asset.impactLevel,
       inherentLikelihood: asset.inherentLikelihood,
       dataTypes: Object.fromEntries(appEngine.classification.dataForAsset(asset.id).map((holding) => [holding.dataTypeId, holding.role])),
     })));
@@ -440,7 +437,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
   function reset() {
     setStep(1); setHostingType("cloud"); setProvider(""); setName(""); setMission(""); setBoundary("");
-    setAvailabilityTier(AVAILABILITY_TIERS[1]); setUserCount(0); setRegions([]); setSubjects([]);
+    setAvailabilityTier(AVAILABILITY_TIERS[1]); setCriticalityFactors(defaultCriticalityFactors()); setUserCount(0); setRegions([]); setSubjects([]);
     setApproxRecords(0); setRetention(RETENTION_OPTIONS[0]); setResidency(RESIDENCY_OPTIONS[0]);
     setSystemDataTypeIds([]); setDataSearch(""); setInternetFacing(false);
     setUsesAI(false); setAutonomousActions(false); setRegulatoryContext([]);
@@ -462,10 +459,8 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       ? { ...a, assetType, kind, sourceType: null, sourceKind: null, saved: false }
       : a)));
   }
-  function updateCrit(key: string, factor: CriticalityFactorKey, patch: Partial<CriticalityFactors[CriticalityFactorKey]>) {
-    setAssets((prev) => prev.map((a) => (a.key === key
-      ? { ...a, criticalityFactors: { ...a.criticalityFactors, [factor]: { ...a.criticalityFactors[factor], ...patch } }, saved: false }
-      : a)));
+  function updateSystemCrit(factor: CriticalityFactorKey, patch: Partial<CriticalityFactors[CriticalityFactorKey]>) {
+    setCriticalityFactors((current) => ({ ...current, [factor]: { ...current[factor], ...patch } }));
   }
   function toggleSystemDataType(dataTypeId: DataTypeId) {
     if (systemDataTypeIds.includes(dataTypeId)) {
@@ -563,6 +558,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       mfaEnforced: sourceSystem?.mfaEnforced ?? "compliant",
       internetFacing,
       availabilityTier,
+      criticalityFactors,
       userCount: Number(userCount) || 0,
       regions,
       dataProfile: {
@@ -596,7 +592,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       kind: a.kind,
       provider: a.provider.trim() || provider,
       code: `A${i + 1}`,
-      criticalityFactors: a.criticalityFactors,
+      impactLevel: a.impactLevel,
       inherentLikelihood: Number(a.inherentLikelihood) || 1,
     }));
     const assetIdByKey = new Map(assets.map((draft, index) => [draft.key, newAssets[index]?.id]));
@@ -872,6 +868,36 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                   <TextInput type="number" min={0} value={userCount} onChange={(e) => setUserCount(e.target.value)} />
                 </Field>
               </div>
+
+              <div className="text-[10px] uppercase tracking-wide font-mono mt-5 mb-2" style={{ color: C.muted }}>System criticality</div>
+              <p className="text-[10.5px] mb-3 max-w-[64ch]" style={{ color: C.muted }}>
+                FIPS 199 categorizes the information system, not each asset. Score the boundary on each factor; the engine blends them into one criticality rating.
+              </p>
+              <div className="grid gap-2" style={{ gridTemplateColumns: "128px 86px 1fr" }}>
+                {CRIT_FACTORS.map(([key, label]) => (
+                  <React.Fragment key={key}>
+                    <div className="text-xs flex items-center" style={{ color: C.ink }}>{label}</div>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={1}
+                      aria-label={`${label} criticality score`}
+                      value={criticalityFactors[key].score}
+                      onChange={(e) => updateSystemCrit(key, { score: Number(e.target.value) })}
+                      className="text-xs rounded px-2 py-1 outline-none"
+                      style={inputStyle}
+                    />
+                    <input
+                      value={criticalityFactors[key].reason}
+                      onChange={(e) => updateSystemCrit(key, { reason: e.target.value })}
+                      placeholder="reason"
+                      className="text-xs rounded px-2 py-1"
+                      style={inputStyle}
+                    />
+                  </React.Fragment>
+                ))}
+              </div>
             </div>
           )}
 
@@ -1029,7 +1055,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
               <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 7 of 7</div>
               <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Launch assessment</h2>
               <p className="text-xs mb-5 max-w-[60ch]" style={{ color: C.muted }}>
-                Assign the assessment and set its target date. {editingSystemId ? "Saving recalculates the system's scope without changing its recorded evidence." : "Creating the system launches an honest initial scope; controls remain unassessed until evidence or a supported inheritance actually evaluates them."}
+                Assign the assessment and set its target date. {editingSystemId ? "Saving recalculates the system's scope without changing its recorded evidence." : "Creating the system opens a key-control walk. Inherited domains are already scored; everything else in that set stays unassessed until you record a fact."}
               </p>
 
               <div className="rounded-xl p-4 mb-5 flex gap-3" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
@@ -1180,7 +1206,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                       </div>
                       {!a.expanded && (
                         <div className="text-[10.5px] mt-1 ml-8" style={{ color: C.muted }}>
-                          {a.assetType} · {a.kind.replace(/-/g, " ")} · {Object.keys(a.dataTypes).length} data type{Object.keys(a.dataTypes).length === 1 ? "" : "s"}
+                          {a.assetType} · {a.kind.replace(/-/g, " ")} · {IMPACT_LEVEL_LABELS[a.impactLevel]} impact · {Object.keys(a.dataTypes).length} data type{Object.keys(a.dataTypes).length === 1 ? "" : "s"}
                         </div>
                       )}
                     </div>
@@ -1213,31 +1239,24 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                     </Field>
                   </div>
 
-                  <div className="text-[10px] uppercase tracking-wide font-mono mb-2" style={{ color: C.muted }}>Criticality</div>
-                  <div className="grid gap-2 mb-1" style={{ gridTemplateColumns: "128px 86px 1fr" }}>
-                    {CRIT_FACTORS.map(([key, label]) => (
-                      <React.Fragment key={key}>
-                        <div className="text-xs flex items-center" style={{ color: C.ink }}>{label}</div>
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          step={5}
-                          aria-label={`${label} criticality score`}
-                          value={a.criticalityFactors[key].score}
-                          onChange={(e) => updateCrit(a.key, key, { score: Number(e.target.value) })}
-                          className="text-xs rounded px-2 py-1 outline-none"
-                          style={inputStyle}
-                        />
-                        <input
-                          value={a.criticalityFactors[key].reason}
-                          onChange={(e) => updateCrit(a.key, key, { reason: e.target.value })}
-                          placeholder="reason"
-                          className="text-xs rounded px-2 py-1"
-                          style={inputStyle}
-                        />
-                      </React.Fragment>
-                    ))}
+                  <div className="grid grid-cols-3 gap-3 mb-3.5">
+                    <Field
+                      label="Impact level"
+                      note="FIPS 199 potential impact for this component — Low, Moderate, or High. System criticality is scored on the boundary, not here."
+                    >
+                      <Select
+                        value={a.impactLevel}
+                        aria-label={`Impact level for ${a.name || `Asset ${i + 1}`}`}
+                        onChange={(e) => {
+                          const level = IMPACT_LEVELS.find((candidate) => candidate === e.target.value);
+                          if (level) updateAsset(a.key, { impactLevel: level });
+                        }}
+                      >
+                        {IMPACT_LEVELS.map((level) => (
+                          <option key={level} value={level}>{IMPACT_LEVEL_LABELS[level]}</option>
+                        ))}
+                      </Select>
+                    </Field>
                   </div>
 
                   <div className="flex items-end justify-between gap-4 mt-4 mb-2">

@@ -112,11 +112,11 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
 
   // An asset no longer has an assurance score or category scores to check —
   // it is a diagnostic now, not a scoring subject. What still has to resolve is
-  // everything derived from the asset's OWN facts, because criticality remains
-  // load-bearing as the enterprise-hop weight and classification still decides
-  // which controls apply.
+  // everything derived from the asset's OWN facts: FIPS 199 impact level (the
+  // inventory tag) and classification (which still decides which controls apply).
+  // System criticality, not asset criticality, is the enterprise-hop weight.
   rollups.assetRollups.forEach((a) => {
-    check(Number.isFinite(a.criticality), `asset ${a.id}: criticality did not resolve to a number`);
+    check(Boolean(a.impactLevelBand?.label), `asset ${a.id}: impactLevel did not resolve to a FIPS 199 band`);
     check(Boolean(a.classification), `asset ${a.id}: classification did not derive — check its data-type edges`);
     // Every control that is BOTH required here and inside this system's
     // assessment scope has to produce an instance. If it does not, the
@@ -285,6 +285,10 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
     check(
       Number.isFinite(s.rawAssurance),
       `system ${s.id}: assurance did not resolve to a number — every assurance category is empty, which means nothing was assessed`
+    );
+    check(
+      Number.isFinite(s.criticality),
+      `system ${s.id}: criticality did not resolve to a number`
     );
     check(
       s.coverage.applicable === s.coverage.assessed + s.coverage.unassessed,

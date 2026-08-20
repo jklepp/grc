@@ -21,10 +21,29 @@
 // shown verbatim while still resolving to the same `compute-service` rules as
 // any other container workload.
 //
-// criticalityFactors and inherentLikelihood stay — a judgment about what
-// happens if this specific resource is compromised is a genuine per-asset fact
-// with no upstream to derive it from.
+// impactLevel is the FIPS 199 potential-impact rating (Low / Moderate / High)
+// for this component. The five-factor criticality score lives on the system —
+// FIPS 199 security categorization is a boundary activity, not a per-box one.
+// inherentLikelihood stays: what happens if this specific resource is
+// compromised is still a genuine per-asset fact with no upstream to derive it
+// from.
 import type { AssetId, SystemId } from "../ids";
+
+// FIPS 199 potential impact. NIST uses Moderate, not Medium.
+export const IMPACT_LEVELS = ["low", "moderate", "high"] as const;
+export type ImpactLevel = (typeof IMPACT_LEVELS)[number];
+
+export const IMPACT_LEVEL_LABELS: Record<ImpactLevel, string> = {
+  low: "Low",
+  moderate: "Moderate",
+  high: "High",
+};
+
+export const IMPACT_LEVEL_SHORT: Record<ImpactLevel, string> = {
+  low: "L",
+  moderate: "M",
+  high: "H",
+};
 
 // The kinds applicability rules are allowed to reference. Anything not in this
 // list fails validation rather than silently matching no rule at all, which
@@ -138,19 +157,6 @@ export const BACKUP_RECOVERY_KINDS: AssetKind[] = ["backup-vault"];
 // and SOFTWARE_DELIVERY_KINDS already pull out into their own section.
 export const WORKFORCE_INGRESS_KINDS: AssetKind[] = ["identity-provider", "secure-web-gateway"];
 
-export interface CriticalityFactor {
-  score: number;
-  reason: string;
-}
-
-export interface CriticalityFactors {
-  confidentiality: CriticalityFactor;
-  integrity: CriticalityFactor;
-  availability: CriticalityFactor;
-  regulatory: CriticalityFactor;
-  businessDependency: CriticalityFactor;
-}
-
 export interface Asset {
   id: AssetId;
   systemId: SystemId;
@@ -159,6 +165,6 @@ export interface Asset {
   kind: AssetKind;
   provider: string;
   code: string;
-  criticalityFactors: CriticalityFactors;
+  impactLevel: ImpactLevel;
   inherentLikelihood: number;
 }
