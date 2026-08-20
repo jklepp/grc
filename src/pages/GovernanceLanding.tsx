@@ -106,33 +106,37 @@ export function GovernanceLanding({ onSelect }: { onSelect: (area: GovernanceAre
               key={area.id}
               type="button"
               onClick={() => onSelect(area.id)}
-              className="group rounded-xl overflow-hidden text-left transition-transform hover:-translate-y-0.5"
-              style={{ background: C.panel, border: `1px solid ${hasAttention ? `${C.amber}55` : C.border}`, minHeight: 205 }}
+              className="group text-left transition-transform hover:-translate-y-0.5"
             >
-              <div className="flex items-center justify-between gap-3 px-4 py-2.5" style={{ background: `linear-gradient(135deg, ${C.accentStrong} 0%, ${C.accent} 140%)` }}>
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0" style={{ background: "rgba(255,255,255,0.14)" }}>
-                    <Icon size={15} color="#FFFFFF" />
-                  </div>
-                  <h2 className="text-base leading-snug min-w-0 truncate" style={{ color: "#FFFFFF", fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>{area.label}</h2>
-                </div>
-                <span className="flex items-center gap-1 text-xs font-semibold shrink-0" style={{ color: "rgba(255,255,255,0.88)" }}>Open <ArrowRight size={13} /></span>
-              </div>
-              <div className="p-4 pt-3">
-                <p className="text-xs leading-relaxed min-h-10" style={{ color: C.muted }}>{area.description}</p>
-
-                <div className="grid grid-cols-3 gap-2 mt-3 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
-                  {summary.metrics.map((metric) => (
-                    <div key={metric.label}>
-                      <div className="text-xl font-semibold tabular-nums" style={{ color: metricColor(metric.tone), fontFamily: "'Source Serif 4', serif" }}>{metric.value}</div>
-                      <div className="text-[10px] leading-tight mt-1" style={{ color: C.muted }}>{metric.label}</div>
+              <div
+                className="rounded-xl overflow-hidden"
+                style={{ background: C.panel, border: `1px solid ${hasAttention ? `${C.amber}55` : C.border}`, minHeight: 205 }}
+              >
+                <div className="flex items-center justify-between gap-3 px-4 py-2.5" style={{ background: `linear-gradient(135deg, ${C.accentStrong} 0%, ${C.accent} 140%)` }}>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0" style={{ background: "rgba(255,255,255,0.14)" }}>
+                      <Icon size={15} color="#FFFFFF" />
                     </div>
-                  ))}
+                    <h2 className="text-base leading-snug min-w-0 truncate" style={{ color: "#FFFFFF", fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>{area.label}</h2>
+                  </div>
+                  <span className="flex items-center gap-1 text-xs font-semibold shrink-0" style={{ color: "rgba(255,255,255,0.88)" }}>Open <ArrowRight size={13} /></span>
                 </div>
+                <div className="p-4 pt-3">
+                  <p className="text-xs leading-relaxed min-h-10" style={{ color: C.muted }}>{area.description}</p>
 
-                <div className="flex items-center gap-2 mt-3 text-[11px]" style={{ color: hasAttention ? C.amber : C.green }}>
-                  {hasAttention ? <AlertTriangle size={12} /> : <CheckCircle2 size={12} />}
-                  {hasAttention ? `${summary.attention} ${summary.attentionLabel}` : summary.attentionLabel}
+                  <div className="grid grid-cols-3 gap-2 mt-3 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+                    {summary.metrics.map((metric) => (
+                      <div key={metric.label}>
+                        <div className="text-xl font-semibold tabular-nums" style={{ color: metricColor(metric.tone), fontFamily: "'Source Serif 4', serif" }}>{metric.value}</div>
+                        <div className="text-[10px] leading-tight mt-1" style={{ color: C.muted }}>{metric.label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-3 text-[11px]" style={{ color: hasAttention ? C.amber : C.green }}>
+                    {hasAttention ? <AlertTriangle size={12} /> : <CheckCircle2 size={12} />}
+                    {hasAttention ? `${summary.attention} ${summary.attentionLabel}` : summary.attentionLabel}
+                  </div>
                 </div>
               </div>
             </button>
