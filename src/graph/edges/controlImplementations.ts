@@ -82,12 +82,10 @@ export type Responsibility = (typeof RESPONSIBILITIES)[keyof typeof RESPONSIBILI
 // ImplementationMechanism.responsibility, the same way one can already
 // override the internal default.
 export const SHARED_RESPONSIBILITY_DOMAINS: string[] = [
-  "Cloud Security",
-  "Cryptographic Protections",
-  "Network Security",
+  "Change & Cloud Security",
   "Configuration Management",
-  "Change Management",
   "Endpoint Security",
+  "Network & Web Security",
 ];
 
 // ---- The per-implementation facts a person owns -------------------------------

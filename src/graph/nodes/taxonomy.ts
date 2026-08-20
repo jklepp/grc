@@ -14,9 +14,9 @@
 // one system.
 //
 // The same caveat those files carried still applies and is worth restating:
-// mapping an SCF domain to an assurance category, an implementation type, or a
+// mapping a control domain to an assurance category, an implementation type, or a
 // tool is a judgment call about how ACME chooses to report, not a fact carried
-// in the SCF source data.
+// in the catalog source data.
 
 // ---- Classification tiers ----------------------------------------------------
 // Ordered least to most sensitive. validate.js asserts this stays in lockstep
@@ -106,39 +106,26 @@ export const ASSURANCE_CATEGORIES = ["Data Protection", "Configuration", "Detect
 export type AssuranceCategory = (typeof ASSURANCE_CATEGORIES)[number];
 
 export const DOMAIN_ASSURANCE_CATEGORY: Record<string, AssuranceCategory> = {
-  "Security, Compliance & Resilience Governance": "Governance",
-  "Artificial Intelligence & Autonomous Technologies": "Governance",
-  "Asset Management": "Configuration",
-  "Business Continuity & Disaster Recovery": "Resilience",
-  "Capacity & Performance Planning": "Resilience",
-  "Change Management": "Configuration",
-  "Embedded Technology": "Configuration",
-  "Cloud Security": "Configuration",
-  Compliance: "Governance",
-  "Configuration Management": "Configuration",
-  "Continuous Monitoring": "Detection",
-  "Cryptographic Protections": "Data Protection",
-  "Data Classification & Handling": "Data Protection",
-  "Endpoint Security": "Detection",
-  "Human Resources Security": "Governance",
-  "Identification & Authentication": "Identity & Access",
-  "Incident Response": "Detection",
-  "Information Assurance": "Governance",
-  Maintenance: "Resilience",
-  "Mobile Device Management": "Identity & Access",
-  "Network Security": "Identity & Access",
-  "Physical & Environmental Security": "Resilience",
-  "Data Privacy": "Data Protection",
-  "Project & Resource Management": "Governance",
+  Governance: "Governance",
   "Risk Management": "Governance",
-  "Secure Engineering & Architecture": "Configuration",
-  "Security Operations": "Detection",
-  "Security Awareness & Training": "Governance",
-  "Technology Development & Acquisition": "Governance",
+  "AI & Autonomous Technologies": "Governance",
+  "Asset Management": "Configuration",
+  "Identity & Access": "Identity & Access",
+  "Data Protection": "Data Protection",
+  Privacy: "Data Protection",
+  "Configuration Management": "Configuration",
+  "Change & Cloud Security": "Configuration",
+  "Detection & Monitoring": "Detection",
+  "Endpoint Security": "Detection",
+  "Vulnerability Management": "Detection",
+  "Incident Response": "Detection",
+  "Business Continuity": "Resilience",
+  "Capacity & Performance": "Resilience",
+  "Physical & Maintenance": "Resilience",
+  "Network & Web Security": "Identity & Access",
+  "Secure Development": "Configuration",
+  "People Security": "Governance",
   "Third-Party Management": "Governance",
-  "Threat Management": "Detection",
-  "Vulnerability & Patch Management": "Detection",
-  "Web Security": "Identity & Access",
 };
 
 export function categoryForDomain(domain: string): AssuranceCategory {
@@ -158,56 +145,41 @@ export const IMPLEMENTATION_TYPES = {
 export type ImplementationType = (typeof IMPLEMENTATION_TYPES)[keyof typeof IMPLEMENTATION_TYPES];
 
 const DOMAIN_IMPLEMENTATION_TYPE: Record<string, ImplementationType> = {
-  "Security, Compliance & Resilience Governance": IMPLEMENTATION_TYPES.PROCESS,
-  "Artificial Intelligence & Autonomous Technologies": IMPLEMENTATION_TYPES.PROCESS,
-  "Asset Management": IMPLEMENTATION_TYPES.MANUAL,
-  "Business Continuity & Disaster Recovery": IMPLEMENTATION_TYPES.MANUAL,
-  "Capacity & Performance Planning": IMPLEMENTATION_TYPES.AUTOMATED,
-  "Change Management": IMPLEMENTATION_TYPES.MANUAL,
-  "Cloud Security": IMPLEMENTATION_TYPES.AUTOMATED,
-  Compliance: IMPLEMENTATION_TYPES.PROCESS,
-  "Configuration Management": IMPLEMENTATION_TYPES.AUTOMATED,
-  "Continuous Monitoring": IMPLEMENTATION_TYPES.AUTOMATED,
-  "Cryptographic Protections": IMPLEMENTATION_TYPES.AUTOMATED,
-  "Data Classification & Handling": IMPLEMENTATION_TYPES.MANUAL,
-  "Endpoint Security": IMPLEMENTATION_TYPES.AUTOMATED,
-  "Human Resources Security": IMPLEMENTATION_TYPES.PROCESS,
-  "Identification & Authentication": IMPLEMENTATION_TYPES.AUTOMATED,
-  "Incident Response": IMPLEMENTATION_TYPES.MANUAL,
-  "Information Assurance": IMPLEMENTATION_TYPES.PROCESS,
-  Maintenance: IMPLEMENTATION_TYPES.MANUAL,
-  "Mobile Device Management": IMPLEMENTATION_TYPES.AUTOMATED,
-  "Network Security": IMPLEMENTATION_TYPES.AUTOMATED,
-  "Physical & Environmental Security": IMPLEMENTATION_TYPES.MANUAL,
-  "Data Privacy": IMPLEMENTATION_TYPES.PROCESS,
-  "Project & Resource Management": IMPLEMENTATION_TYPES.PROCESS,
+  Governance: IMPLEMENTATION_TYPES.PROCESS,
   "Risk Management": IMPLEMENTATION_TYPES.PROCESS,
-  "Secure Engineering & Architecture": IMPLEMENTATION_TYPES.AUTOMATED,
-  "Security Operations": IMPLEMENTATION_TYPES.MANUAL,
-  "Security Awareness & Training": IMPLEMENTATION_TYPES.PROCESS,
-  "Technology Development & Acquisition": IMPLEMENTATION_TYPES.MANUAL,
+  "AI & Autonomous Technologies": IMPLEMENTATION_TYPES.PROCESS,
+  "Asset Management": IMPLEMENTATION_TYPES.MANUAL,
+  "Identity & Access": IMPLEMENTATION_TYPES.AUTOMATED,
+  "Data Protection": IMPLEMENTATION_TYPES.AUTOMATED,
+  Privacy: IMPLEMENTATION_TYPES.PROCESS,
+  "Configuration Management": IMPLEMENTATION_TYPES.AUTOMATED,
+  "Change & Cloud Security": IMPLEMENTATION_TYPES.AUTOMATED,
+  "Detection & Monitoring": IMPLEMENTATION_TYPES.AUTOMATED,
+  "Endpoint Security": IMPLEMENTATION_TYPES.AUTOMATED,
+  "Vulnerability Management": IMPLEMENTATION_TYPES.AUTOMATED,
+  "Incident Response": IMPLEMENTATION_TYPES.MANUAL,
+  "Business Continuity": IMPLEMENTATION_TYPES.MANUAL,
+  "Capacity & Performance": IMPLEMENTATION_TYPES.AUTOMATED,
+  "Physical & Maintenance": IMPLEMENTATION_TYPES.MANUAL,
+  "Network & Web Security": IMPLEMENTATION_TYPES.AUTOMATED,
+  "Secure Development": IMPLEMENTATION_TYPES.MANUAL,
+  "People Security": IMPLEMENTATION_TYPES.PROCESS,
   "Third-Party Management": IMPLEMENTATION_TYPES.PROCESS,
-  "Threat Management": IMPLEMENTATION_TYPES.MANUAL,
-  "Vulnerability & Patch Management": IMPLEMENTATION_TYPES.AUTOMATED,
-  "Web Security": IMPLEMENTATION_TYPES.AUTOMATED,
 };
 
 // Only populated for Automated domains — the primary tool that continuously
 // enforces controls in that domain, reusing the same tool stack referenced
 // throughout the Policy Center.
 const DOMAIN_TOOL_HINT: Record<string, string> = {
-  "Capacity & Performance Planning": "Azure Monitor",
-  "Cloud Security": "Microsoft Defender for Cloud",
+  "Identity & Access": "Entra ID / Okta",
+  "Data Protection": "Azure Key Vault",
   "Configuration Management": "Intune / Azure Policy",
-  "Continuous Monitoring": "Microsoft Sentinel",
-  "Cryptographic Protections": "Azure Key Vault",
+  "Change & Cloud Security": "Microsoft Defender for Cloud",
+  "Detection & Monitoring": "Microsoft Sentinel",
   "Endpoint Security": "Microsoft Defender for Endpoint",
-  "Identification & Authentication": "Entra ID / Okta",
-  "Mobile Device Management": "Microsoft Intune",
-  "Network Security": "Zscaler",
-  "Secure Engineering & Architecture": "Embedded architecture standard",
-  "Vulnerability & Patch Management": "Tenable / Intune",
-  "Web Security": "Cloudflare",
+  "Vulnerability Management": "Tenable / Intune",
+  "Capacity & Performance": "Azure Monitor",
+  "Network & Web Security": "Zscaler / Cloudflare",
 };
 
 export function getImplementationType(domain: string): ImplementationType {

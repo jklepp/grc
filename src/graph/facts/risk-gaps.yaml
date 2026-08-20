@@ -14,6 +14,6 @@ withoutAssets:
     asset here represents them, and inventing one to give the risk an edge would be worse than the
     gap."
 withoutControls:
-  RISK-013: "No key control covers physical access. Physical & Environmental Security is governed at
+  RISK-013: "No key control covers physical access. Physical & Maintenance is governed at
     the domain level by SOP-13 rather than tracked as a key control, so this risk's assurance is
     reported as unassessed rather than borrowed from an unrelated control."

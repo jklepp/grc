@@ -1,9 +1,9 @@
 // What one engagement actually assessed, on one system.
 //
 // The PRISMA model rates a control against a system boundary across five
-// maturity levels. Rating all 323 in-scope controls that way would require
-// implementation facts for all 323, and ACME has them for 27 — so the honest
-// answer is not to score the other 296 at zero, it is to say they were not
+// maturity levels. Rating every in-scope common control that way would require
+// implementation facts for all of them, and ACME has them for 27 — so the honest
+// answer is not to score the rest at zero, it is to say they were not
 // assessed. That is also how a real engagement works: a HITRUST r2 assessment
 // covers a chosen set of requirement statements, and the CSF has thousands.
 //

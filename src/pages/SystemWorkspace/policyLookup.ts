@@ -1,9 +1,10 @@
 import { POLICIES } from "../../data/policies";
 import { PROCEDURES } from "../../data/procedures";
 
-// Every visible SCF control belongs to exactly one policy's domain set (verified
-// when Policy Center was built — the 307 visible controls split cleanly across
-// the 19 policies with zero overlap), so this lookup is always a single hit.
+// Every in-scope common control is named by exactly one policy's controlIds
+// (the 100 catalog controls split across the 17 policies with no ID overlap),
+// so this lookup is always a single hit. Domain overlap is allowed — two
+// policies may govern the same area — but a given control id is cited once.
 export const POLICY_BY_CONTROL: Record<string, (typeof POLICIES)[number] | undefined> = {};
 POLICIES.forEach((p) => p.controlIds.forEach((id) => { POLICY_BY_CONTROL[id] = p; }));
 

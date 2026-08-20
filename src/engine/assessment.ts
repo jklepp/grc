@@ -25,7 +25,7 @@
 //   neither     applicable and not assessed. rawScore is NULL, never 0.
 //
 // That last one carries the weight of the whole design. There are facts for 27
-// of the 323 in-scope controls; rating the other 296 Non-Compliant would say
+// of the in-scope common controls; rating the rest Non-Compliant would say
 // ACME failed them when the truth is nobody looked. A null score and an honest
 // coverage figure beside it is the difference between a gap map and a lie.
 import type { Graph } from "../graph/types";

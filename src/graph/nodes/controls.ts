@@ -7,9 +7,9 @@
 // works very well on the KMS key and poorly on the RAG service, and there is no
 // single honest number for "how good is Least Privilege at ACME."
 //
-// This file owns no data. Every control comes from the real SCF import, and
-// every framework clause comes from that import's crosswalk — the same source
-// policies.js, procedures.js, and the Unified Compliance Matrix already read.
+// This file owns no data. Every control comes from the curated common-control
+// catalog, and every framework clause comes from that catalog's crosswalk —
+// the same source policies, procedures, and the Unified Compliance Matrix already read.
 import scf from "../../data/scfControls.json";
 import { categoryForDomain, getImplementationType, getToolHint, type AssuranceCategory, type ImplementationType } from "./taxonomy";
 import type { ControlId } from "../ids";

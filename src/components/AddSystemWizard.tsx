@@ -167,7 +167,7 @@ function defaultAssessmentTarget(): string {
 // validators treat as a build failure rather than a legitimate "just
 // onboarded" state — see the plan doc / liveGraph.ts comment.
 // A vendor whose certification happens to be a superset of a lighter hosting
-// type's required domains (Workday's SaaS cert covers cloud's two domains)
+// type's required domains (Workday's SaaS cert covers cloud's inherited domain)
 // still isn't a real option for that hosting type — the vendor's own
 // category has to match what the hosting type actually is.
 const HOSTING_VENDOR_CATEGORY: Partial<Record<HostingType, string>> = { cloud: "cloud-infrastructure", saas: "saas" };

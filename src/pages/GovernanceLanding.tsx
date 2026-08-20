@@ -109,12 +109,12 @@ export function GovernanceLanding({ onSelect }: { onSelect: (area: GovernanceAre
               className="group rounded-xl overflow-hidden text-left transition-transform hover:-translate-y-0.5"
               style={{ background: C.panel, border: `1px solid ${hasAttention ? `${C.amber}55` : C.border}`, minHeight: 205 }}
             >
-              <div className="flex items-center justify-between gap-3 px-4 py-3" style={{ background: `linear-gradient(135deg, ${C.accentStrong} 0%, ${C.accent} 140%)` }}>
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "rgba(255,255,255,0.14)" }}>
-                    <Icon size={17} color="#FFFFFF" />
+              <div className="flex items-center justify-between gap-3 px-4 py-2" style={{ background: `linear-gradient(135deg, ${C.accentStrong} 0%, ${C.accent} 140%)` }}>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0" style={{ background: "rgba(255,255,255,0.14)" }}>
+                    <Icon size={15} color="#FFFFFF" />
                   </div>
-                  <h2 className="text-lg truncate" style={{ color: "#FFFFFF", fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>{area.label}</h2>
+                  <h2 className="text-base leading-none truncate" style={{ color: "#FFFFFF", fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>{area.label}</h2>
                 </div>
                 <span className="flex items-center gap-1 text-xs font-semibold shrink-0" style={{ color: "rgba(255,255,255,0.88)" }}>Open <ArrowRight size={13} /></span>
               </div>

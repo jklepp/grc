@@ -122,7 +122,7 @@ const ACTIVITY_DEFS: ActivityDefinition[] = [
     title: "Critical-Tier Risk Register Review",
     type: "Governance & Risk",
     frequency: "Monthly",
-    controls: ["RSK-05", "RSK-07"],
+    controls: ["RSK-04"],
     procedureId: "control-ownership-assurance-review",
     description: "SOP-05's risk review cadence is tiered by severity — this tracks the Critical-tier slice, reviewed monthly. High-tier is quarterly and Medium/Low is annual; see those tabs.",
     instances: [
@@ -162,7 +162,7 @@ const ACTIVITY_DEFS: ActivityDefinition[] = [
     title: "Restricted-Area Access List Review",
     type: "Physical Security",
     frequency: "Quarterly",
-    controls: ["PES-05"],
+    controls: ["PES-03"],
     procedureId: "physical-environmental-security",
     description: "Facilities and the area owner confirm the badge access list for server/network rooms still matches who actually needs to be on it.",
     instances: [
@@ -207,7 +207,7 @@ const ACTIVITY_DEFS: ActivityDefinition[] = [
     title: "Monitoring Signal Quality Review",
     type: "Detection & Monitoring",
     frequency: "Quarterly",
-    controls: ["MON-06"],
+    controls: ["MON-01"],
     procedureId: "monitoring-alert-triage",
     description: "Review alert volume and false-positive rate so detection stays usable instead of becoming noise everyone tunes out.",
     instances: [
@@ -222,7 +222,7 @@ const ACTIVITY_DEFS: ActivityDefinition[] = [
     title: "High-Tier Risk Register Review",
     type: "Governance & Risk",
     frequency: "Quarterly",
-    controls: ["RSK-05", "RSK-07"],
+    controls: ["RSK-04"],
     procedureId: "control-ownership-assurance-review",
     description: "SOP-05's risk review cadence is tiered by severity — this tracks the High-tier slice, reviewed quarterly. Critical-tier is monthly; see that tab.",
     instances: [
@@ -249,7 +249,7 @@ const ACTIVITY_DEFS: ActivityDefinition[] = [
     title: "Incident Response Plan Test",
     type: "Incident Response",
     frequency: "Annual",
-    controls: ["IRO-05", "IRO-06"],
+    controls: ["IRO-04", "IRO-06"],
     procedureId: "incident-response-procedure",
     description: "ISIRT completes incident response training and exercises the IR plan itself through a tabletop or live drill — a plan that's only ever been read isn't a tested plan.",
     instances: [{ period: 1, dueDate: "2026-06-30", completedAt: "2026-05-20" }],
@@ -269,7 +269,7 @@ const ACTIVITY_DEFS: ActivityDefinition[] = [
     title: "Security Awareness Training Completion",
     type: "Workforce & Awareness",
     frequency: "Annual",
-    controls: ["SAT-01", "SAT-02"],
+    controls: ["SAT-02"],
     procedureId: "hr-security-awareness",
     description: "All employees complete security awareness training at hire and annually thereafter through KnowBe4, with completion tracked, not assumed.",
     instances: [{ period: 1, dueDate: "2026-03-31", completedAt: "2026-02-28" }],

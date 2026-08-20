@@ -2,9 +2,9 @@
 // individually, rather than covering at the domain level through a procedure.
 //
 // This file is the answer to a sizing problem with a real integrity dimension.
-// The full crosswalk is 518 controls; 323 are in scope for the standards ACME
-// certifies against. Authoring an implementation record for every one of those
-// against all 15 assets would mean ~4,800 rows that nobody assessed — the
+// The catalog is ~100 in-scope common controls. Authoring an implementation
+// record for every one of those against all 15 assets would still mean
+// thousands of rows that nobody assessed — the
 // machine-generated posture this app has always refused to ship. So the model
 // draws an explicit line instead:
 //

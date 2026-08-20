@@ -14,7 +14,7 @@
   friendlyName: "Encryption at Rest"
   scope: "asset"
   legacyTracked: true
-  domain: "Cryptographic Protections"
+  domain: "Data Protection"
   category: "Data Protection"
   name: "Encrypting Data At Rest"
   description: "Cryptographic mechanisms exist to prevent unauthorized disclosure of data at rest."
@@ -49,7 +49,7 @@
   friendlyName: "Encryption in Transit"
   scope: "asset"
   legacyTracked: true
-  domain: "Cryptographic Protections"
+  domain: "Data Protection"
   category: "Data Protection"
   name: "Transmission Confidentiality"
   description: "Cryptographic mechanisms exist to protect the confidentiality of data being transmitted."
@@ -94,7 +94,7 @@
 - id: "CRY-09"
   friendlyName: "Cryptographic Key Management"
   scope: "asset"
-  domain: "Cryptographic Protections"
+  domain: "Data Protection"
   category: "Data Protection"
   name: "Cryptographic Key Management"
   description: "Mechanisms exist to facilitate cryptographic key management controls to protect the
@@ -141,7 +141,7 @@
   friendlyName: "Retention & Disposal"
   scope: "asset"
   legacyTracked: true
-  domain: "Data Classification & Handling"
+  domain: "Data Protection"
   category: "Data Protection"
   name: "Media & Data Retention"
   description: "Mechanisms exist to retain media and data in accordance with applicable statutory,
@@ -179,7 +179,7 @@
 - id: "DCH-02"
   friendlyName: "Data & Asset Classification"
   scope: "program"
-  domain: "Data Classification & Handling"
+  domain: "Data Protection"
   category: "Data Protection"
   name: "Data & Asset Classification"
   description: "Mechanisms exist to ensure data and assets are categorized in accordance with
@@ -211,7 +211,7 @@
 - id: "PRI-05"
   friendlyName: "Personal Data Retention & Disposal"
   scope: "program"
-  domain: "Data Privacy"
+  domain: "Privacy"
   category: "Data Protection"
   name: "Personal Data (PD) Retention & Disposal"
   description: "Mechanisms exist to:\ 
@@ -406,7 +406,7 @@
 - id: "CHG-02"
   friendlyName: "Configuration Change Control"
   scope: "asset"
-  domain: "Change Management"
+  domain: "Change & Cloud Security"
   category: "Configuration"
   name: "Configuration Change Control"
   description: "Mechanisms exist to govern the technical configuration change control processes."
@@ -464,7 +464,7 @@
 - id: "CLD-06"
   friendlyName: "Multi-Tenant Isolation"
   scope: "asset"
-  domain: "Cloud Security"
+  domain: "Change & Cloud Security"
   category: "Configuration"
   name: "Multi-Tenant Environments"
   description: "Mechanisms exist to ensure multi-tenant owned or managed assets (physical and virtual)
@@ -549,7 +549,7 @@
   friendlyName: "Access Logging & Review"
   scope: "asset"
   legacyTracked: true
-  domain: "Continuous Monitoring"
+  domain: "Detection & Monitoring"
   category: "Detection"
   name: "Centralized Collection of Security Event Logs"
   description: "Mechanisms exist to utilize a Security Incident Event Manager (SIEM), or similar
@@ -589,7 +589,7 @@
 - id: "MON-03"
   friendlyName: "Event Log Content"
   scope: "asset"
-  domain: "Continuous Monitoring"
+  domain: "Detection & Monitoring"
   category: "Detection"
   name: "Content of Event Logs"
   description: "Mechanisms exist to configure Technology Assets, Applications and/or Services (TAAS)
@@ -642,7 +642,7 @@
 - id: "MON-08"
   friendlyName: "Protection of Event Logs"
   scope: "asset"
-  domain: "Continuous Monitoring"
+  domain: "Detection & Monitoring"
   category: "Detection"
   name: "Protection of Event Logs"
   description: "Mechanisms exist to protect event logs and audit tools from unauthorized access,
@@ -672,7 +672,7 @@
 - id: "VPM-05"
   friendlyName: "Software & Firmware Patching"
   scope: "asset"
-  domain: "Vulnerability & Patch Management"
+  domain: "Vulnerability Management"
   category: "Detection"
   name: "Software & Firmware Patching"
   description: "Mechanisms exist to conduct software patching for all deployed Technology Assets,
@@ -785,7 +785,7 @@
   friendlyName: "Least-Privilege Access"
   scope: "asset"
   legacyTracked: true
-  domain: "Identification & Authentication"
+  domain: "Identity & Access"
   category: "Identity & Access"
   name: "Least Privilege"
   description: "Mechanisms exist to utilize the concept of least privilege, allowing only authorized
@@ -847,7 +847,7 @@
 - id: "IAC-17"
   friendlyName: "Periodic Access Review"
   scope: "asset"
-  domain: "Identification & Authentication"
+  domain: "Identity & Access"
   category: "Identity & Access"
   name: "Periodic Review of Account Privileges"
   description: "Mechanisms exist to periodically-review the privileges assigned to individuals and
@@ -889,7 +889,7 @@
 - id: "IAC-10"
   friendlyName: "Authenticator Management"
   scope: "asset"
-  domain: "Identification & Authentication"
+  domain: "Identity & Access"
   category: "Identity & Access"
   name: "Authenticator Management"
   description: "Mechanisms exist to:
@@ -938,7 +938,7 @@
 - id: "IAC-20"
   friendlyName: "Access Enforcement"
   scope: "asset"
-  domain: "Identification & Authentication"
+  domain: "Identity & Access"
   category: "Identity & Access"
   name: "Access Enforcement"
   description: "Mechanisms exist to enforce Logical Access Control (LAC) permissions that conform to
@@ -975,7 +975,7 @@
 - id: "NET-03"
   friendlyName: "Boundary Protection"
   scope: "asset"
-  domain: "Network Security"
+  domain: "Network & Web Security"
   category: "Identity & Access"
   name: "Boundary Protection"
   description: "Mechanisms exist to monitor and control communications at the external network
@@ -1021,7 +1021,7 @@
   friendlyName: "DLP Monitoring"
   scope: "asset"
   legacyTracked: true
-  domain: "Network Security"
+  domain: "Network & Web Security"
   category: "Identity & Access"
   name: "Data Loss Prevention (DLP)"
   description: "Automated mechanisms exist to implement Data Loss Prevention (DLP) to protect
@@ -1178,7 +1178,7 @@
 - id: "AAT-01"
   friendlyName: "AI & Autonomous Technology Governance"
   scope: "program"
-  domain: "Artificial Intelligence & Autonomous Technologies"
+  domain: "AI & Autonomous Technologies"
   category: "Governance"
   name: "Artificial Intelligence (AI) & Autonomous Technologies Governance"
   description: "Mechanisms exist to ensure policies, processes, procedures and practices related to
@@ -1213,7 +1213,7 @@
 - id: "BCD-11"
   friendlyName: "Data Backups"
   scope: "asset"
-  domain: "Business Continuity & Disaster Recovery"
+  domain: "Business Continuity"
   category: "Resilience"
   name: "Data Backups"
   description: "Mechanisms exist to create recurring backups of data, software and/or system images,
@@ -1254,7 +1254,7 @@
 - id: "CAP-01"
   friendlyName: "Capacity & Performance Management"
   scope: "asset"
-  domain: "Capacity & Performance Planning"
+  domain: "Capacity & Performance"
   category: "Resilience"
   name: "Capacity & Performance Management"
   description: "Mechanisms exist to facilitate the implementation of capacity management controls to

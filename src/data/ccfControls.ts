@@ -18,11 +18,11 @@ interface ScfSource {
 // by standard name, so normalize that external boundary to a string record.
 const SCF_SOURCE = scf as ScfSource;
 
-// Real SCF import: every control gets a framework entry only where SCF's crosswalk
-// actually lists clauses. Shared by the Unified Compliance Matrix and the Data
-// Classification Register so both pages count against the same matched-control pool
-// (currently 323, but read CCF_VISIBLE_CONTROLS.length rather than trusting this
-// comment — it'll grow every time another framework crosswalk gets added).
+// Curated common-control catalog: every control gets a framework entry only where
+// the SCF crosswalk actually lists clauses. Shared by the Unified Compliance
+// Matrix and the Data Classification Register so both pages count against the
+// same matched-control pool (read CCF_VISIBLE_CONTROLS.length rather than a
+// hardcoded count).
 //
 // WHAT USED TO BE HERE, AND WHY IT ISN'T
 // ---------------------------------------

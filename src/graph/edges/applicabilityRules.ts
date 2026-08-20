@@ -8,7 +8,7 @@
 // Protection but not which controls that means or why.
 //
 // Rules are declarative rather than enumerated for a reason that matters at
-// this scale: 15 assets x 323 in-scope controls is ~4,800 applicability
+// this scale: 15 assets x ~100 in-scope controls is ~1,500 applicability
 // decisions. Hand-listing them would guarantee both false claims (a control
 // asserted against an asset it can't apply to) and silent omissions. Twenty-odd
 // rules that each state a condition and its rationale generate the same answer

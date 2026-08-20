@@ -54,16 +54,14 @@ export type HostingType = (typeof HOSTING_TYPES)[number];
 // the same kind of call as the domain maps in taxonomy.ts — but it is at least
 // a judgment about something nameable.
 export const INHERITED_DOMAINS: Record<HostingType, string[]> = {
-  cloud: ["Physical & Environmental Security", "Maintenance"],
+  cloud: ["Physical & Maintenance"],
   saas: [
-    "Physical & Environmental Security",
-    "Maintenance",
-    "Capacity & Performance Planning",
+    "Physical & Maintenance",
+    "Capacity & Performance",
     "Endpoint Security",
     "Configuration Management",
-    "Vulnerability & Patch Management",
-    "Secure Engineering & Architecture",
-    "Technology Development & Acquisition",
+    "Vulnerability Management",
+    "Secure Development",
   ],
   "on-prem": [],
 };

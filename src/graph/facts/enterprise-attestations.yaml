@@ -23,7 +23,7 @@
   assessedAt: "2026-04-01"
   validForDays: 365
   domains:
-    - "Artificial Intelligence & Autonomous Technologies"
+    - "AI & Autonomous Technologies"
   reference: >
     FY26 internal audit of the enterprise AI governance program — model risk
     tiering, use-case intake, and the AI use policy every system serving a
@@ -37,11 +37,12 @@
   assessedAt: "2026-03-10"
   validForDays: 365
   domains:
-    - "Identification & Authentication"
+    - "Identity & Access"
   reference: >
     FY26 internal audit of the enterprise identity program — SSO enrollment,
-    MFA enforcement, and joiner/mover/leaver provisioning run centrally through
-    Okta, rather than each system administering its own identity store.
+    MFA enforcement, joiner/mover/leaver provisioning, and Intune device trust
+    run centrally through Okta, rather than each system administering its own
+    identity store.
 
 - id: "ATT-SECOPS-2026"
   program: "Enterprise Security Operations Program"
@@ -51,8 +52,8 @@
   assessedAt: "2026-02-20"
   validForDays: 365
   domains:
-    - "Continuous Monitoring"
-    - "Vulnerability & Patch Management"
+    - "Detection & Monitoring"
+    - "Vulnerability Management"
   reference: >
     FY26 internal audit of the enterprise vulnerability management and
     security-monitoring program — the fleet-wide scan cadence and SIEM
@@ -81,8 +82,7 @@
   assessedAt: "2026-03-25"
   validForDays: 365
   domains:
-    - "Human Resources Security"
-    - "Security Awareness & Training"
+    - "People Security"
   reference: >
     FY26 review of the enterprise people-security program — background
     screening at hire, the security awareness curriculum, and annual training

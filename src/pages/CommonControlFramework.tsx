@@ -8,7 +8,7 @@ import { STANDARD_ABBR } from "../data/policies";
 import { IN_SCOPE_CONTROLS } from "../engine";
 import type { Control, ControlFramework } from "../graph/nodes/controls";
 
-// The catalog side of the control model: every SCF control ACME has in scope,
+// The catalog side of the control model: every common control ACME has in scope,
 // its domain, and the framework clauses it satisfies — independent of any one
 // system's assessment. How a given system scores against these lives on that
 // system's own Security Profile; this page answers "what do we have," not
@@ -113,8 +113,8 @@ export default function CommonControlFramework() {
             ))}
           </div>
         </div>
-        <Tile value={domains.length} label="Control domains" hint="Every SCF domain with at least one control in ACME's scope." />
-        <Tile value={CONTROLS.length} label="Common controls" hint="The full in-scope SCF control set, before any system-specific assessment." />
+        <Tile value={domains.length} label="Control domains" hint="Every control domain with at least one control in ACME's scope." />
+        <Tile value={CONTROLS.length} label="Common controls" hint="The full in-scope common-control set, before any system-specific assessment." />
       </div>
 
       <div className="px-8 flex gap-5 pb-12">
@@ -229,7 +229,7 @@ export default function CommonControlFramework() {
 
               <div className="rounded-lg p-3 mb-6" style={{ background: C.panel2 }}>
                 <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>
-                  {CONSOLIDATED_CONTROLS[selected.id] ? "Original SCF Description" : "SCF Control Description"}
+                  {CONSOLIDATED_CONTROLS[selected.id] ? "Original catalog description" : "Control description"}
                 </div>
                 <div className="text-sm leading-relaxed" style={{ color: C.ink }}>{selected.description}</div>
               </div>

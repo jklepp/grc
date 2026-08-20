@@ -147,8 +147,11 @@ try {
     ["assessment scope naming a control that isn't in scope for any standard", (f) => {
       // A control citing no framework clause is out of scope everywhere, so
       // assessing it would put a statement in the denominator that no standard
-      // asks for.
-      const unmapped = f.controls.find((c) => c.frameworks.length === 0);
+      // asks for. The catalog is curated to in-scope controls, so the sabotaged
+      // graph has to strip a real control's clauses first.
+      const scoped = new Set(f.assessmentScopes[0].controlIds);
+      const unmapped = f.controls.find((c) => !scoped.has(c.id));
+      unmapped.frameworks = [];
       f.assessmentScopes[0].controlIds.push(unmapped.id);
     }, /cites no framework clause/],
     ["assessment scope with a duplicate control", (f) => {
@@ -176,9 +179,9 @@ try {
       f.providerCertifications[0].provider = "Hooli";
     }, /does not match any system's provider/],
     ["an inherited domain no certification covers", (f) => {
-      // Drop Maintenance from every report; both systems inherit it.
+      // Drop Physical & Maintenance from every report; both systems inherit it.
       f.providerCertifications.forEach((c) => {
-        c.domains = c.domains.filter((d) => d !== "Maintenance");
+        c.domains = c.domains.filter((d) => d !== "Physical & Maintenance");
       });
     }, /inheritance without a report is an unbacked claim/],
     ["certification with a report type nobody issues", (f) => {

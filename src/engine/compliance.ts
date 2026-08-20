@@ -6,7 +6,7 @@
 //   controlBreakdown()  split a system's required-control count into Inherited /
 //                       Satisfied / Open Gaps / Not Implemented by applying the
 //                       compliant/partial/gap ratio of six tracked controls to
-//                       the whole 323-control total. So a system's compliance
+//                       the whole in-scope-control total. So a system's compliance
 //                       posture was six data points wearing a much larger
 //                       number's clothes.
 //

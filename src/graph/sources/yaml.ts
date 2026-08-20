@@ -16,7 +16,7 @@
 // same one the TypeScript source is held to, which is the entire point of
 // having ported it in the first place.
 //
-// WHAT ISN'T HERE: the 518-control SCF catalogue. It is a vendor catalogue
+// WHAT ISN'T HERE: the common-control catalogue. It is a vendor-derived catalogue
 // shared by every dataset built on this engine, not something ACME authors, so
 // it comes from the same module the TypeScript source reads it from rather than
 // being copied into our YAML.

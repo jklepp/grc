@@ -1,7 +1,7 @@
 # Provider certifications — what ACME's inherited controls actually stand on.
 #
 # INHERITED_DOMAINS in src/graph/nodes/systems.ts says a cloud system inherits
-# two SCF domains from its provider and a SaaS system eight. That claim now
+# the physical/maintenance domain from its provider and a SaaS system six. That claim now
 # scores, so it needs a report behind it: engine/validateDerivations.ts fails the
 # build if a system inherits a domain no certification held by its provider
 # covers.
@@ -21,8 +21,7 @@
   issuedAt: "2026-02-14"
   validForDays: 365
   domains:
-    - "Physical & Environmental Security"
-    - "Maintenance"
+    - "Physical & Maintenance"
   reference: >
     AWS SOC 2 Type II covering the period 2025-04-01 to 2026-01-31, retrieved from
     AWS Artifact. Reviewed for the data-center physical access and hardware
@@ -37,8 +36,7 @@
   issuedAt: "2026-03-15"
   validForDays: 730
   domains:
-    - "Physical & Environmental Security"
-    - "Maintenance"
+    - "Physical & Maintenance"
   reference: >
     AWS HITRUST r2 validated assessment covering the same physical and
     maintenance domains SYS-003 inherits. Complementary user entity controls
@@ -53,14 +51,12 @@
   issuedAt: "2026-03-02"
   validForDays: 365
   domains:
-    - "Physical & Environmental Security"
-    - "Maintenance"
-    - "Capacity & Performance Planning"
+    - "Physical & Maintenance"
+    - "Capacity & Performance"
     - "Endpoint Security"
     - "Configuration Management"
-    - "Vulnerability & Patch Management"
-    - "Secure Engineering & Architecture"
-    - "Technology Development & Acquisition"
+    - "Vulnerability Management"
+    - "Secure Development"
   reference: >
     Workday SOC 2 Type II FY26, obtained under NDA through the vendor trust site.
     Covers the platform ACME does not operate: the tenant infrastructure, its
