@@ -92,6 +92,7 @@ export interface ReviewWaveProjection {
   id: ReviewWave;
   label: string;
   remaining: ReviewWaveControl[];
+  decidedItems: ReviewWaveControl[];
   decided: number;
   total: number;
 }
@@ -204,14 +205,18 @@ export function createReview(
       label: string,
       items: ReviewWaveControl[],
     ): ReviewWaveProjection => {
-      const remaining = items.filter((item) => !decisionMade(item.review, systemId, id));
-      return { id, label, remaining, decided: items.length - remaining.length, total: items.length };
+      const remaining: ReviewWaveControl[] = [];
+      const decidedItems: ReviewWaveControl[] = [];
+      items.forEach((item) => {
+        (decisionMade(item.review, systemId, id) ? decidedItems : remaining).push(item);
+      });
+      return { id, label, remaining, decidedItems, decided: decidedItems.length, total: items.length };
     };
 
     const waves = {
       "not-applicable": project("not-applicable", "Not applicable", naItems),
-      "vendor-inherited": project("vendor-inherited", "Vendor inherited", vendorItems),
-      enterprise: project("enterprise", "Company-level", companyItems),
+      "vendor-inherited": project("vendor-inherited", "External inherited", vendorItems),
+      enterprise: project("enterprise", "Internal inherited", companyItems),
       "system-owned": project("system-owned", "Remaining technical", remainingItems),
     };
 

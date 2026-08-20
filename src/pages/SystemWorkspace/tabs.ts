@@ -1,4 +1,4 @@
-import { Info, Network, Database, Fingerprint, ShieldCheck, Crosshair, Layers, ClipboardCheck, TrendingUp, Boxes } from "lucide-react";
+import { Info, Network, Database, Fingerprint, ShieldCheck, Crosshair, Layers, TrendingUp, Boxes } from "lucide-react";
 
 export const SUB_TABS = [
   { id: "overview", label: "Overview", icon: Info },
@@ -8,7 +8,6 @@ export const SUB_TABS = [
   { id: "security", label: "Security", icon: ShieldCheck },
   { id: "testing", label: "Testing", icon: Crosshair },
   { id: "controls", label: "Controls", icon: Layers },
-  { id: "control-workspace", label: "Control Workspace", icon: ClipboardCheck },
   { id: "risk", label: "Risk", icon: TrendingUp },
   { id: "assets", label: "Assets", icon: Boxes },
 ] as const;

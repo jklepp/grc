@@ -1116,7 +1116,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
               <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 7 of 7</div>
               <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Launch assessment</h2>
               <p className="text-xs mb-5 max-w-[60ch]" style={{ color: C.muted }}>
-                Assign the assessment and set its target date. {editingSystemId ? "Saving recalculates the system's scope without changing its recorded evidence." : "Creating the system opens the Control Workspace. Inherited and company-level coverage stay unclaimed until an assessor confirms them."}
+                Assign the assessment and set its target date. {editingSystemId ? "Saving recalculates the system's scope without changing its recorded evidence." : "Creating the system opens Scope Review. External- and internal-inherited coverage stay unclaimed until an assessor confirms them."}
               </p>
 
               <div className="rounded-xl p-4 mb-5 flex gap-3" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
@@ -1725,13 +1725,13 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                     <div className="rounded-xl p-4 mb-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
                       <div className="text-sm font-semibold mb-1" style={{ color: C.ink }}>Proposed review queues</div>
                       <div className="text-[11px] mb-3" style={{ color: C.muted }}>
-                        After create, the assessor walks these on the system Control Workspace. The wizard does not grade controls.
+                        After create, the assessor walks these in Scope Review. The wizard does not grade controls.
                       </div>
                       <div className="grid grid-cols-4 gap-2">
                         {[
                           ["Not applicable", dryRun.proposedWaves.notApplicable, "Confirm the derived exclusions"],
-                          ["Vendor inherited", dryRun.proposedWaves.vendorInherited, "Confirm the provider split"],
-                          ["Company-level", dryRun.proposedWaves.companyLevel, "Confirm program incorporation"],
+                          ["External inherited", dryRun.proposedWaves.vendorInherited, "Confirm the provider split"],
+                          ["Internal inherited", dryRun.proposedWaves.companyLevel, "Confirm program incorporation"],
                           ["Remaining technical", dryRun.proposedWaves.remainingTechnical, "PRISMA grade what ACME still owns"],
                         ].map(([label, value, hint]) => (
                           <div key={label} className="rounded-lg px-3 py-2.5" style={{ background: C.panel }}>

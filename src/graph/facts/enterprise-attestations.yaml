@@ -1,4 +1,4 @@
-# Enterprise attestations — what ACME's Enterprise Inherited controls actually stand on.
+# Enterprise attestations — what ACME's Internal Inherited controls actually stand on.
 #
 # The counterpart to provider-certifications.yaml. INHERITED_DOMAINS
 # (src/graph/nodes/systems.ts) says a vendor covers a domain under its own

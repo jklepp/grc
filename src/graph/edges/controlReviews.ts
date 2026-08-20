@@ -2,7 +2,7 @@
 //
 // Same contract as PrismaLevelOverride: the derivation supplies the default,
 // a person records agreement or disagreement, and the gap stays visible.
-// Applicability, vendor inheritance, and enterprise program coverage are
+// Applicability, external inheritance, and internal program coverage are
 // proposals until a human stands behind them. An auditor will not accept
 // "the hosting-type map said this is inherited."
 //

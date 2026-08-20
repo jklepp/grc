@@ -48,15 +48,15 @@ export const STATUS_ORDER = ["inherited", "satisfied", "partial", "deficient", "
 export { STATUS_RANK };
 
 // Who runs the control, independent of the implementation status above — a
-// System Owned control and a Vendor Inherited one can carry the same status,
-// and conflating the two axes is exactly what made "most controls are out of
-// scope" read as true when the honest story was "most controls are someone
-// else's job, and that's still ACME's posture."
+// System Owned control and an External Inherited one can carry the same
+// status, and conflating the two axes is exactly what made "most controls
+// are out of scope" read as true when the honest story was "most controls
+// are someone else's job, and that's still ACME's posture."
 export const RESPONSIBILITY_META = {
   [RESPONSIBILITIES.INTERNAL]: meta({ label: "System Owned", Icon: User }, "ink", "panel2"),
   [RESPONSIBILITIES.SHARED]: meta({ label: "Shared Responsibility", Icon: Users }, "amber", "amberBg"),
-  [RESPONSIBILITIES.ENTERPRISE]: meta({ label: "Enterprise Inherited", Icon: Building2 }, "green", "greenBg"),
-  [RESPONSIBILITIES.VENDOR]: meta({ label: "Vendor Inherited", Icon: Cloud }, "accent", "accentBg"),
+  [RESPONSIBILITIES.ENTERPRISE]: meta({ label: "Internal Inherited", Icon: Building2 }, "green", "greenBg"),
+  [RESPONSIBILITIES.VENDOR]: meta({ label: "External Inherited", Icon: Cloud }, "accent", "accentBg"),
 };
 
 // Applicability, as opposed to implementation status — whether a control was

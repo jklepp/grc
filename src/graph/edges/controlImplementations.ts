@@ -62,14 +62,14 @@ import type { AssetId, ControlId, OrgId, FindingId, SystemId } from "../ids";
 // (auditor examination, 75). Same scale, same decay, same ceiling.
 export const RESPONSIBILITIES = {
   INTERNAL: "internal", // an ACME team runs it, scoped to this system — System Owned
-  VENDOR: "vendor", // the provider runs it; we review their evidence — Vendor Inherited
+  VENDOR: "vendor", // the provider runs it; we review their evidence — External Inherited
   SHARED: "shared", // provider secures the platform, ACME configures it — Shared Responsibility
   // A central ACME program runs it once, the same way, for every system in the
   // register — not this system's team, and not a vendor. Enterprise IAM,
   // vulnerability management, and incident response are the shape: one team,
   // one process, attested once (graph/nodes/enterpriseAttestations.ts) and
   // inherited by every boundary rather than re-proven per system.
-  ENTERPRISE: "enterprise", // Enterprise Inherited
+  ENTERPRISE: "enterprise", // Internal Inherited
 } as const;
 export type Responsibility = (typeof RESPONSIBILITIES)[keyof typeof RESPONSIBILITIES];
 

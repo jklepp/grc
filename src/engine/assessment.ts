@@ -336,8 +336,8 @@ export function createAssessment(
     const category = categoryForDomain(domain);
 
     const applicable = applicability.applicableControlsForSystem(systemId).some((c) => c.id === controlId);
-    // Vendor inheritance first — a domain a system's own hosting arrangement
-    // hands to its provider. Enterprise inheritance only applies where vendor
+    // External inheritance first — a domain a system's own hosting arrangement
+    // hands to its provider. Internal inheritance only applies where external
     // inheritance doesn't, so a domain can't claim two inheritance sources at
     // once.
     const vendorInherited = inheritsDomain(system.hostingType, domain);

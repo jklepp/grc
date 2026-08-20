@@ -656,14 +656,14 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
       if (r.bucket === "vendor-inherited") {
         check(
           inheritsDomain(system.hostingType, control.domain),
-          `controlReviews[${i}]: confirming vendor inheritance for ${r.controlId} but ${system.hostingType} does not inherit "${control.domain}"`
+          `controlReviews[${i}]: confirming external inheritance for ${r.controlId} but ${system.hostingType} does not inherit "${control.domain}"`
         );
       }
       if (r.bucket === "enterprise") {
         const programScoped = Boolean(graph.keyControlById[r.controlId] && graph.keyControlById[r.controlId].scope === "program");
         check(
           graph.enterpriseInheritedDomains.has(control.domain) || programScoped,
-          `controlReviews[${i}]: confirming company-level incorporation for ${r.controlId} but "${control.domain}" is not an enterprise-inherited domain and the control is not program-scoped`
+          `controlReviews[${i}]: confirming internal-inherited incorporation for ${r.controlId} but "${control.domain}" is not an internal-inherited domain and the control is not program-scoped`
         );
       }
     }

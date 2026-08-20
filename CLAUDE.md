@@ -17,10 +17,9 @@ Not a compliance checklist tool. Risk supports assurance; it is not the primary 
 - Reuse these; do not create parallel scoring/applicability/evidence paths.
 
 ## Development
-- Match existing patterns; narrow diffs; no drive-by refactors.
+- Match existing patterns; narrow diffs; no drive-by refactors unless they are necessary.
 - Start with files in the Code map and directly referenced dependencies; widen search only when required by the task.
 - Run only relevant checks for touched files unless the change is cross-cutting.
 
 ## Change control
-Give me a list of the files that will ultimately be changed, im a summary, before you proceede with changes.
 Trivial single-file copy/style fixes may proceed with minimal diff.

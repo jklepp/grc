@@ -14,9 +14,10 @@ import type { ControlId } from "../../graph/ids";
 import type { Responsibility } from "../../graph/edges/controlImplementations";
 import type { EvidenceHealthLevel } from "./controlMeta";
 import type { Control } from "../../graph/nodes/controls";
+import type { ReviewWave } from "../../engine/review";
 
 type ControlStatus = ControlMatrixRow["status"];
-type SelectionKind = "status" | "responsibility" | "not-applicable" | "pending" | "remediation-group" | "assessment-group" | "all";
+type SelectionKind = "status" | "responsibility" | "remediation-group" | "assessment-group" | "all";
 
 interface ControlSelection {
   kind: SelectionKind;
@@ -35,7 +36,6 @@ interface ControlFilters {
 type SortKey = "assurance" | "status" | "responsibility" | "evidence" | "findings";
 interface SortState { key: SortKey; dir: "asc" | "desc" }
 type FindingsByControl = Partial<Record<ControlId, number>>;
-type ReasonRow = ApplicabilitySummary["notApplicableControls"][number] | ApplicabilitySummary["pendingControls"][number];
 
 // Control | Status | Assurance | Responsibility | Evidence | Findings — the
 // operational read: what's weak, why, who owns it, what proves it, is there
@@ -141,14 +141,16 @@ const REMEDIATION_STATUS_SET: ReadonlySet<ControlStatus> = new Set(REMEDIATION_S
 // wrong" beats landing on an empty table or a 162-row unfiltered dump.
 const DEFAULT_SELECTION: ControlSelection = { kind: "remediation-group", label: "Remediation Required" };
 const ASSESSMENT_SELECTION: ControlSelection = { kind: "assessment-group", label: "Assessment Required" };
-const SCOPE_SELECTION: ControlSelection = { kind: "pending", key: "pending", label: "Applicability Review" };
 const ALL_SELECTION: ControlSelection = { kind: "all", label: "All Applicable Controls" };
 
 // Every chip on the summary card is a drill-down trigger. `selection` is
-// { kind: "status" | "responsibility" | "not-applicable" | "pending" |
-// "remediation-group" | "assessment-group" | "all", key, label } or null; clicking the active chip
+// { kind: "status" | "responsibility" | "remediation-group" |
+// "assessment-group" | "all", key, label } or null; clicking the active chip
 // again falls back to the default view rather than clearing to empty — this
-// table is never supposed to show nothing.
+// table is never supposed to show nothing. Applicability (Not Applicable /
+// Applicability Review) isn't part of this local selection at all — those
+// chips navigate straight into the Scope Review screen instead, since that's
+// the only place a pending or excluded call can actually be resolved.
 // No icon: this chip is always read alongside its own colored group (the
 // Control Status legend groups chips by the same color as their bar
 // segment), so the color already carries the meaning an icon would repeat.
@@ -223,21 +225,22 @@ function ControlPostureCard({ assurance, compliance, coverage }: { assurance: nu
 // doesn't just look like the loudest thing on the page — the color does
 // that work. Clicking it (or clicking it again) toggles the same
 // queue selection the table already defaults to.
-function WorkQueueTile({ count, label, sublabel, icon: Icon, color, background, target, selection, onToggle }: {
+function WorkQueueTile({ count, label, sublabel, icon: Icon, color, background, target, selection, onToggle, onClick }: {
   count: number;
   label: string;
   sublabel: string;
   icon: LucideIcon;
   color: string;
   background: string;
-  target: ControlSelection;
-  selection: ControlSelection;
-  onToggle: (selection: ControlSelection) => void;
+  target?: ControlSelection;
+  selection?: ControlSelection;
+  onToggle?: (selection: ControlSelection) => void;
+  onClick?: () => void;
 }) {
-  const active = selection.kind === target.kind && selection.key === target.key;
+  const active = !onClick && target && selection ? selection.kind === target.kind && selection.key === target.key : false;
   return (
     <button
-      onClick={() => onToggle(target)}
+      onClick={onClick ?? (() => target && onToggle?.(target))}
       className="rounded-xl p-5 flex items-center gap-4 text-left transition-colors"
       style={{ background, border: `1px solid ${active ? color : C.border}` }}
     >
@@ -257,13 +260,14 @@ function WorkQueueTile({ count, label, sublabel, icon: Icon, color, background, 
 // individual status as a drill-down chip, and Responsibility demoted to a
 // quieter footer line — still clickable, just not a peer of implementation
 // status.
-function StatusStrip({ statusCounts, applicabilitySummary, pendingCount, resp, selection, onToggle }: {
+function StatusStrip({ statusCounts, applicabilitySummary, pendingCount, resp, selection, onToggle, onOpenScopeReview }: {
   statusCounts: Record<ControlStatus, number>;
   applicabilitySummary: ApplicabilitySummary;
   pendingCount: number;
   resp: ApplicabilitySummary["byResponsibility"];
   selection: ControlSelection;
   onToggle: (selection: ControlSelection) => void;
+  onOpenScopeReview?: (wave: ReviewWave) => void;
 }) {
   const total = applicabilitySummary.total;
   const applicableTotal = total - applicabilitySummary.notApplicable;
@@ -347,16 +351,16 @@ function StatusStrip({ statusCounts, applicabilitySummary, pendingCount, resp, s
           count={pendingCount}
           color={C.ink}
           bg={C.panel2}
-          active={selection?.kind === "pending"}
-          onClick={() => onToggle(SCOPE_SELECTION)}
+          active={false}
+          onClick={() => onOpenScopeReview?.("not-applicable")}
         />
         <Chip
           label={NOT_APPLICABLE_META.label}
           count={applicabilitySummary.notApplicable}
           color={C.muted}
           bg={C.panel2}
-          active={selection?.kind === "not-applicable"}
-          onClick={() => onToggle({ kind: "not-applicable", key: "not-applicable", label: "Not Applicable controls" })}
+          active={false}
+          onClick={() => onOpenScopeReview?.("not-applicable")}
         />
       </div>
 
@@ -490,14 +494,13 @@ function sortRows(rows: ControlMatrixRow[], sort: SortState | null, findingsByCo
 
 // The dynamic drill-down table: whatever chip is selected up in the summary
 // card, its matching controls render here, filtered and sorted further by
-// the controls above the header row. Status/Responsibility/Attention/All
-// selections carry full matrix rows (real status, assurance, evidence,
-// findings, drawer detail); Not Applicable/Pending only ever had a control +
-// a reason, so they get a lighter table instead of forcing fake columns onto them.
+// the controls above the header row. Applicability (Not Applicable /
+// Applicability Review) is deliberately not a selection this table can show —
+// those are one-control-plus-a-reason, not a status to work through here, and
+// the only place to act on them is Scope Review.
 interface SelectedControlsTableProps {
   selection: ControlSelection;
   matrix: ControlMatrixRow[];
-  applicabilitySummary: ApplicabilitySummary;
   findingsByControl: FindingsByControl;
   onSelectRow: (row: ControlMatrixRow) => void;
   onSwitchToAll: () => void;
@@ -510,14 +513,10 @@ interface SelectedControlsTableProps {
 }
 
 function SelectedControlsTable({
-  selection, matrix, applicabilitySummary, findingsByControl, onSelectRow, onSwitchToAll,
+  selection, matrix, findingsByControl, onSelectRow, onSwitchToAll,
   filters, onFilterChange, domainOptions, frameworkOptions, sort, onSort,
 }: SelectedControlsTableProps) {
 
-  const isReasonBased = selection.kind === "not-applicable" || selection.kind === "pending";
-  const reasonRows: ReasonRow[] = selection.kind === "not-applicable" ? applicabilitySummary.notApplicableControls
-    : selection.kind === "pending" ? applicabilitySummary.pendingControls
-    : [];
   const baseRows: ControlMatrixRow[] = selection.kind === "status" ? matrix.filter((r) => r.status === selection.key)
     : selection.kind === "responsibility" ? matrix.filter((r) => r.responsibility === selection.key)
     : selection.kind === "remediation-group" ? matrix.filter((r) => REMEDIATION_STATUS_SET.has(r.status))
@@ -525,7 +524,6 @@ function SelectedControlsTable({
     : selection.kind === "all" ? matrix
     : [];
 
-  const filteredReasons = applySharedFilters(reasonRows, filters);
   const filtered = applyControlFilters(baseRows, filters);
   // Attention Required's whole point is not burying real deficiencies under
   // a pile of Not Assessed rows — default to worst-first unless the user
@@ -534,7 +532,7 @@ function SelectedControlsTable({
     ? [...filtered].sort((a, b) => (STATUS_RANK[a.status] ?? 99) - (STATUS_RANK[b.status] ?? 99))
     : filtered;
   const rows = sortRows(defaultSorted, sort, findingsByControl);
-  const rowCount = isReasonBased ? filteredReasons.length : rows.length;
+  const rowCount = rows.length;
 
   return (
     <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
@@ -549,39 +547,21 @@ function SelectedControlsTable({
           </button>
         )}
       </div>
-      <FilterBar filters={filters} onChange={onFilterChange} domainOptions={domainOptions} frameworkOptions={frameworkOptions} showStatusFilters={!isReasonBased} />
-      {isReasonBased ? (
-        <div style={{ maxHeight: 480, overflowY: "auto" }}>
-          {filteredReasons.map((item) => (
-            <div key={item.control.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.border}` }}>
-              <div className="flex items-center gap-2">
-                <span className="text-xs" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>{item.control.id}</span>
-                <span className="text-sm" style={{ color: C.ink }}>{item.control.name}</span>
-                <span className="text-[10px]" style={{ color: C.muted }}>· {item.control.domain}</span>
-              </div>
-              <div className="text-[11px] mt-1 leading-snug" style={{ color: C.muted }}>{item.reason}</div>
-            </div>
-          ))}
-          {filteredReasons.length === 0 && <div className="p-6 text-xs text-center" style={{ color: C.muted }}>None.</div>}
-        </div>
-      ) : (
-        <>
-          <div className="grid text-[11px] font-medium px-4 py-2.5" style={{ gridTemplateColumns: CONTROL_GRID, borderBottom: `1px solid ${C.border}`, color: C.muted }}>
-            <HeaderCell label="CONTROL" first />
-            <HeaderCell label="STATUS" sortKey="status" sort={sort} onSort={onSort} />
-            <HeaderCell label="ASSURANCE" sortKey="assurance" sort={sort} onSort={onSort} />
-            <HeaderCell label="RESPONSIBILITY" sortKey="responsibility" sort={sort} onSort={onSort} />
-            <HeaderCell label="EVIDENCE" sortKey="evidence" sort={sort} onSort={onSort} />
-            <HeaderCell label="FINDINGS" sortKey="findings" sort={sort} onSort={onSort} />
-          </div>
-          <div style={{ maxHeight: 480, overflowY: "auto" }}>
-            {rows.map((row) => (
-              <ControlRow key={row.control.id} row={row} onSelect={onSelectRow} findingsCount={findingsByControl[row.control.id]} />
-            ))}
-            {rows.length === 0 && <div className="p-6 text-xs text-center" style={{ color: C.muted }}>No controls match this filter.</div>}
-          </div>
-        </>
-      )}
+      <FilterBar filters={filters} onChange={onFilterChange} domainOptions={domainOptions} frameworkOptions={frameworkOptions} showStatusFilters />
+      <div className="grid text-[11px] font-medium px-4 py-2.5" style={{ gridTemplateColumns: CONTROL_GRID, borderBottom: `1px solid ${C.border}`, color: C.muted }}>
+        <HeaderCell label="CONTROL" first />
+        <HeaderCell label="STATUS" sortKey="status" sort={sort} onSort={onSort} />
+        <HeaderCell label="ASSURANCE" sortKey="assurance" sort={sort} onSort={onSort} />
+        <HeaderCell label="RESPONSIBILITY" sortKey="responsibility" sort={sort} onSort={onSort} />
+        <HeaderCell label="EVIDENCE" sortKey="evidence" sort={sort} onSort={onSort} />
+        <HeaderCell label="FINDINGS" sortKey="findings" sort={sort} onSort={onSort} />
+      </div>
+      <div style={{ maxHeight: 480, overflowY: "auto" }}>
+        {rows.map((row) => (
+          <ControlRow key={row.control.id} row={row} onSelect={onSelectRow} findingsCount={findingsByControl[row.control.id]} />
+        ))}
+        {rows.length === 0 && <div className="p-6 text-xs text-center" style={{ color: C.muted }}>No controls match this filter.</div>}
+      </div>
     </div>
   );
 }
@@ -602,11 +582,12 @@ interface SystemControlsProps {
   keyControlRemaining?: number;
   onStartAssessment?: () => void;
   walkActive?: boolean;
+  onOpenScopeReview?: (wave: ReviewWave) => void;
 }
 
 export function SystemControls({
   matrix, statusCounts, applicabilitySummary, posture, findingsByControl = {}, onSelectRow,
-  keyControlRemaining = 0, onStartAssessment, walkActive = false,
+  keyControlRemaining = 0, onStartAssessment, walkActive = false, onOpenScopeReview,
 }: SystemControlsProps) {
   const resp = applicabilitySummary?.byResponsibility;
   const remediationCount = REMEDIATION_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
@@ -664,7 +645,7 @@ export function SystemControls({
           <ControlPostureCard assurance={posture.assurance} compliance={posture.compliance} coverage={posture.coverage} />
           <WorkQueueTile count={remediationCount} label="Remediate" sublabel={`${statusCounts.deficient} deficient · ${statusCounts.partial} partial`} icon={AlertTriangle} color={C.amber} background={C.amberBg} target={DEFAULT_SELECTION} selection={selection} onToggle={toggleSelection} />
           <WorkQueueTile count={assessmentCount} label="Assess" sublabel={keyControlRemaining > 0 ? `${keyControlRemaining} key control${keyControlRemaining === 1 ? "" : "s"} remaining` : "Awaiting assessment"} icon={ClipboardCheck} color={C.accent} background={C.accentBg} target={ASSESSMENT_SELECTION} selection={selection} onToggle={toggleSelection} />
-          <WorkQueueTile count={pendingCount} label="Scope" sublabel="Applicability pending" icon={ListChecks} color={C.ink} background={C.panel2} target={SCOPE_SELECTION} selection={selection} onToggle={toggleSelection} />
+          <WorkQueueTile count={pendingCount} label="Scope" sublabel="Applicability pending" icon={ListChecks} color={C.ink} background={C.panel2} onClick={() => onOpenScopeReview?.("not-applicable")} />
         </div>
       )}
 
@@ -676,13 +657,13 @@ export function SystemControls({
           resp={resp}
           selection={selection}
           onToggle={toggleSelection}
+          onOpenScopeReview={onOpenScopeReview}
         />
       )}
 
       <SelectedControlsTable
         selection={selection}
         matrix={matrix}
-        applicabilitySummary={applicabilitySummary}
         findingsByControl={findingsByControl}
         onSelectRow={onSelectRow}
         onSwitchToAll={() => toggleSelection(ALL_SELECTION)}

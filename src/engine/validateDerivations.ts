@@ -260,7 +260,7 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
     if (r.stance === "confirm" && r.bucket === "vendor-inherited") {
       check(
         compliance.responsibilityForControl(r.systemId, r.controlId) === "vendor",
-        `controlReview ${r.systemId}/${r.controlId}: confirmed vendor inheritance, but responsibility is not vendor`
+        `controlReview ${r.systemId}/${r.controlId}: confirmed external inheritance, but responsibility is not vendor`
       );
     }
   });

@@ -153,7 +153,7 @@ export interface GraphFacts {
   // like the two above — these are primary facts about reports ACME holds.
   providerCertifications: ProviderCertification[];
 
-  // The enterprise-program counterpart: what an Enterprise Inherited domain
+  // The enterprise-program counterpart: what an Internal Inherited domain
   // stands on, when the domain is run centrally by an ACME program rather than
   // a vendor. Same rule as provider certifications — a domain claimed
   // inherited needs a real attestation behind it.

@@ -11,7 +11,7 @@ import { SystemIdentity } from "./SystemIdentity";
 import { SystemSecurity } from "./SystemSecurity";
 import { SystemTesting } from "./SystemTesting";
 import { SystemControls } from "./SystemControls";
-import { ControlReviewWorkbench } from "./ControlReviewWorkbench";
+import { ScopeReviewModal } from "./ScopeReviewModal";
 import { SystemRisk } from "./SystemRisk";
 import { SystemAssets } from "./SystemAssets";
 import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
@@ -19,6 +19,7 @@ import AddSystemWizard from "../../components/AddSystemWizard";
 import type { ControlId, SystemId } from "../../graph/ids";
 import type { SystemWorkspaceTab } from "./tabs";
 import type { ControlMatrixRow } from "./types";
+import type { ReviewWave } from "../../engine/review";
 import { useLiveEngine } from "../../engine/useLiveEngine";
 
 const SYSTEMS = getAllSystems();
@@ -54,6 +55,8 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   const systemId = controlledSystemId ?? localSystemId;
   const [subTab, setSubTab] = useState<SystemWorkspaceTab>(SUB_TABS.some((t) => t.id === initialSubTab) ? initialSubTab! : SUB_TABS[0].id);
   const [selectedControlId, setSelectedControlId] = useState<ControlId | null>(null);
+  const [scopeReviewOpen, setScopeReviewOpen] = useState(false);
+  const [requestedWave, setRequestedWave] = useState<ReviewWave | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const assessmentStarted = useRef(false);
   const liveEngine = useLiveEngine();
@@ -112,19 +115,24 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   const queueIndex = selectedControlId ? assessmentQueue.findIndex((row) => row.controlId === selectedControlId) : -1;
 
   const assessor = liveEngine.graph.assessmentScopeBySystem[system.id]?.assessor ?? "";
-  const reviewWalk = useMemo(() => liveEngine.review.wavesForSystem(system.id), [liveEngine, system.id]);
   const readiness = useMemo(() => liveEngine.review.auditReadinessForSystem(system.id), [liveEngine, system.id]);
 
   useEffect(() => {
     if (!startAssessment || assessmentStarted.current) return;
     assessmentStarted.current = true;
-    setSubTab("control-workspace");
+    setRequestedWave(null);
+    setScopeReviewOpen(true);
   }, [startAssessment]);
 
   function openAssessmentWalk() {
     setSubTab("controls");
     const current = selectedControlId ? assessmentQueue.find((row) => row.controlId === selectedControlId) : null;
     setSelectedControlId((current ?? assessmentQueue[0])?.controlId ?? null);
+  }
+
+  function openScopeReview(wave: ReviewWave = "not-applicable") {
+    setRequestedWave(wave);
+    setScopeReviewOpen(true);
   }
 
   function goToQueuedControl(offset: number) {
@@ -231,21 +239,22 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           onStartAssessment={assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
           walkActive={Boolean(selectedControlId) && queueIndex >= 0}
           onSelectRow={(row) => setSelectedControlId(row.controlId)}
-        />
-      )}
-
-      {subTab === "control-workspace" && (
-        <ControlReviewWorkbench
-          systemId={system.id}
-          assessor={assessor}
-          initialWave={startAssessment ? reviewWalk.firstIncomplete : null}
-          onGradeControl={(controlId) => setSelectedControlId(controlId)}
+          onOpenScopeReview={openScopeReview}
         />
       )}
 
       {subTab === "risk" && <SystemRisk system={system} topRisks={topRisks} />}
 
       {subTab === "assets" && <SystemAssets systemId={systemId} />}
+
+      <ScopeReviewModal
+        open={scopeReviewOpen}
+        systemId={system.id}
+        assessor={assessor}
+        initialWave={requestedWave}
+        onClose={() => setScopeReviewOpen(false)}
+        onStartTechnicalReview={openAssessmentWalk}
+      />
 
       {selectedRow && (
         <ControlEvaluationPanel
