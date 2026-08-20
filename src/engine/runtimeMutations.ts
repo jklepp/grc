@@ -25,6 +25,7 @@ import type { ImplementationMechanism, NotImplemented, Responsibility } from "..
 import type { RawEvidence } from "../graph/nodes/evidence";
 import type { EvidenceArtifact, EvidenceReview } from "../graph/nodes/evidenceProvenance";
 import type { PrismaLevelOverride } from "../graph/edges/prismaOverrides";
+import type { ControlReview } from "../graph/edges/controlReviews";
 import type { Finding } from "../graph/nodes/findings";
 import { nextEvidenceArtifactId, nextEvidenceId, nextEvidenceReviewId, nextFindingId } from "./runtimeFactsStore";
 
@@ -68,6 +69,7 @@ export function removeRuntimeSystem(runtime: RuntimeFacts, systemId: SystemId): 
     evidenceReviews: runtime.evidenceReviews.filter((review) => !removedEvidenceIds.has(review.evidenceId)),
     notImplemented: runtime.notImplemented.filter((entry) => !assetIds.has(entry.assetId)),
     prismaOverrides: runtime.prismaOverrides.filter((override) => override.systemId !== systemId),
+    controlReviews: runtime.controlReviews.filter((review) => review.systemId !== systemId),
     findings: runtime.findings.filter((finding) => !assetIds.has(finding.assetId)),
   };
 }
@@ -209,6 +211,13 @@ export function addPrismaOverride(runtime: RuntimeFacts, override: PrismaLevelOv
     (o) => !(o.systemId === override.systemId && o.controlId === override.controlId && o.level === override.level)
   );
   return { ...runtime, prismaOverrides: [...withoutExisting, override] };
+}
+
+export function upsertControlReview(runtime: RuntimeFacts, review: ControlReview): RuntimeFacts {
+  const withoutExisting = runtime.controlReviews.filter(
+    (r) => !(r.systemId === review.systemId && r.controlId === review.controlId)
+  );
+  return { ...runtime, controlReviews: [...withoutExisting, review] };
 }
 
 // Same replace-by-pair semantics as upsertImplementationMechanism — a pair is

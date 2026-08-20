@@ -12,7 +12,7 @@ import type { DataFlowDiagram, DiagramNode } from "../utils/flowDiagramLayout";
 // Plain SVG only (rect/path/text, no foreignObject or CSS) because the PDF
 // export path (svg2pdf.js) can only faithfully convert primitive SVG.
 
-const EDGE_KINDS = ["data", "control-plane", "actor-in", "actor-out", "actor-internal"] as const;
+const EDGE_KINDS = ["data", "control-plane", "actor-in", "actor-out", "actor-internal", "backup", "restore"] as const;
 type EdgeStyleKind = (typeof EDGE_KINDS)[number];
 
 const EDGE_STYLE: Record<EdgeStyleKind, { stroke: string; dash: string | null; marker: string; label: string }> = {
@@ -21,6 +21,8 @@ const EDGE_STYLE: Record<EdgeStyleKind, { stroke: string; dash: string | null; m
   "actor-in": { stroke: LIGHT.green, dash: null, marker: "arrow-in", label: "Actor — inbound (calls in)" },
   "actor-out": { stroke: LIGHT.amber, dash: null, marker: "arrow-out", label: "Actor — outbound (we call out)" },
   "actor-internal": { stroke: LIGHT.red, dash: "1,3", marker: "arrow-internal", label: "Actor — internal (standing access, not a request-path call)" },
+  backup: { stroke: LIGHT.green, dash: "4,3", marker: "arrow-backup", label: "Backup (asynchronous copy)" },
+  restore: { stroke: LIGHT.amber, dash: "4,3", marker: "arrow-restore", label: "Restore path" },
 };
 
 function Markers() {

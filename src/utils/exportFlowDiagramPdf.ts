@@ -48,6 +48,14 @@ export function buildDataFlowRows(layout: FlowLayout, getAssetLabel: AssetLabelG
   (layout.egressActors || []).forEach((a) =>
     rows.push({ id: `${a.assetId}->${a.actor.id}`, kind: "Actor (outbound)", from: getAssetLabel(a.assetId), to: a.actor.name, dataTypes: "", note: a.note || "" })
   );
+  (layout.backupRecovery || []).forEach((b) => {
+    b.backedUpFrom.forEach((source) =>
+      rows.push({ id: `backup:${source.id}->${b.asset.id}`, kind: "Backup", from: getAssetLabel(source.id), to: getAssetLabel(b.asset.id), dataTypes: "", note: `${source.code} backs up to ${b.asset.code}` })
+    );
+    b.restoresTo.forEach((target) =>
+      rows.push({ id: `restore:${b.asset.id}->${target.id}`, kind: "Restore", from: getAssetLabel(b.asset.id), to: getAssetLabel(target.id), dataTypes: "", note: `${b.asset.code} restores to ${target.code}` })
+    );
+  });
   return rows;
 }
 

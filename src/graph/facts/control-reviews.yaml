@@ -1,0 +1,8 @@
+# Control reviews — human confirmation or rejection of a derived control call.
+#
+# See src/graph/edges/controlReviews.ts. YAML-authored systems do not need a
+# row here: the curated graph is the existing human judgment. Runtime-created
+# systems (SYS-USR-*) start unconfirmed and accumulate reviews as the operator
+# walks Not Applicable, vendor inheritance, company-level incorporation, and
+# remaining technical controls.
+[]

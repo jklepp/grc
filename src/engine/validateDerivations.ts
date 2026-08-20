@@ -18,7 +18,7 @@ import type { Engine } from "./create";
 
 export function validateDerivations(engine: Engine, options: { throwOnFailure?: boolean } = {}): string[] {
   const { throwOnFailure = true } = options;
-  const { graph, classification, applicability, assessment, rollups, findings } = engine;
+  const { graph, classification, applicability, assessment, rollups, findings, compliance } = engine;
   const problems: string[] = [];
   const check = (condition: boolean, message: string) => {
     if (!condition) problems.push(message);
@@ -64,8 +64,9 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
     const stillPending = applicability
       .pendingControlsForSystem(p.systemId)
       .some((x) => x.control.id === p.controlId);
+    const reviewed = Boolean(graph.controlReviewByKey[`${p.systemId}::${p.controlId}`]);
     check(
-      stillPending,
+      stillPending || reviewed,
       `pendingApplicability ${p.systemId}/${p.controlId}: no framework or applicability rule ever matches this control on this system, so there is no open question to be pending about — remove it or fix what it was meant to gate`
     );
   });
@@ -246,6 +247,22 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
         `${id} has implementation facts on ${system.id} but is not in its declared assessment scope — either the scope is out of date, or those facts are filed against the wrong system`
       );
     });
+  });
+
+  graph.controlReviews.forEach((r) => {
+    if (r.stance === "confirm" && r.bucket === "not-applicable") {
+      const applicable = applicability.applicableControlsForSystem(r.systemId).some((c) => c.id === r.controlId);
+      check(
+        !applicable,
+        `controlReview ${r.systemId}/${r.controlId}: confirmed not-applicable, but the control still resolves applicable — reject the derived exclusion instead of confirming it`
+      );
+    }
+    if (r.stance === "confirm" && r.bucket === "vendor-inherited") {
+      check(
+        compliance.responsibilityForControl(r.systemId, r.controlId) === "vendor",
+        `controlReview ${r.systemId}/${r.controlId}: confirmed vendor inheritance, but responsibility is not vendor`
+      );
+    }
   });
 
   // ---- Every assessment resolves, and never to a misleading zero ---------------

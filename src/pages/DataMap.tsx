@@ -985,7 +985,11 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
                         onSelectNode={(k) => setSelectedKey((cur) => (cur === k ? null : k))}
                       />
                     </div>
-                    <FlowDiagramLegend kinds={layout.internalActors?.length ? ["data", "actor-in", "actor-out", "actor-internal"] : ["data", "actor-in", "actor-out"]} />
+                    <FlowDiagramLegend kinds={[
+                      "data", "actor-in", "actor-out",
+                      ...(layout.internalActors?.length ? ["actor-internal" as const] : []),
+                      ...(layout.backupRecovery?.length ? ["backup" as const, "restore" as const] : []),
+                    ]} />
                   </div>
 
                   {controlPlaneMatrix && (

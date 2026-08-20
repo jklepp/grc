@@ -93,6 +93,7 @@ export function loadRuntimeFacts(): RuntimeFacts {
       evidenceReviews: Array.isArray(parsed.evidenceReviews) ? parsed.evidenceReviews : empty.evidenceReviews,
       notImplemented: Array.isArray(parsed.notImplemented) ? parsed.notImplemented : empty.notImplemented,
       prismaOverrides: Array.isArray(parsed.prismaOverrides) ? parsed.prismaOverrides : empty.prismaOverrides,
+      controlReviews: Array.isArray(parsed.controlReviews) ? parsed.controlReviews : empty.controlReviews,
       findings: Array.isArray(parsed.findings) ? parsed.findings : empty.findings,
     };
   } catch {
@@ -122,6 +123,7 @@ export function hasRuntimeFacts(facts: RuntimeFacts): boolean {
     facts.evidenceReviews.length > 0 ||
     facts.notImplemented.length > 0 ||
     facts.prismaOverrides.length > 0 ||
+    facts.controlReviews.length > 0 ||
     facts.findings.length > 0
   );
 }

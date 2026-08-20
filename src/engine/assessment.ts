@@ -54,6 +54,7 @@ import type { ApplicabilityApi, ApplicabilityResolution } from "./applicability"
 import type { FindingsApi } from "./findings";
 import type { EngineContext } from "./context";
 import type { AssetId, ControlId, SystemId } from "../graph/ids";
+import { inheritanceClaimed } from "./review";
 
 export const INSTANCE_STATUS_META = {
   implemented: { label: "Implemented", color: "green" },
@@ -343,7 +344,11 @@ export function createAssessment(
     const enterpriseInherited = !vendorInherited && graph.enterpriseInheritedDomains.has(domain);
     const inherited = vendorInherited || enterpriseInherited;
     const inScope = graph.assessedPairs.has(`${systemId}::${controlId}`);
-    const assessed = inScope || inherited;
+    // Inheritance is a proposal until a human confirms it. Runtime-created
+    // systems start unclaimed; YAML-authored systems keep the curated claim
+    // unless a review rejects it. See engine/review.ts.
+    const claimed = inherited && inheritanceClaimed(graph, systemId, controlId);
+    const assessed = inScope || claimed;
 
     const owners = ownersFor(systemId, category);
     const id = `ASM-${systemId}-${controlId}`;

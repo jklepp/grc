@@ -26,6 +26,7 @@ import type { ProgramApplicabilityRule } from "../graph/edges/controlImplementat
 import { tierRank } from "../graph/nodes/taxonomy";
 import type { ClassificationApi } from "./classification";
 import type { AssetId, ControlId, SystemId } from "../graph/ids";
+import { isForcedApplicable, pendingResolvedAsApplicable, reviewFor } from "./review";
 
 interface ApplicabilityContext {
   kind: string;
@@ -329,9 +330,12 @@ export function createApplicability(graph: Graph, classification: Classification
     // what makes it pending rather than moot — but is held out of the
     // resolved applicable set until the open question behind it is answered.
     // pendingControlsForSystem (below) is where it's reported instead.
-    return graph.inScopeControls.filter(
-      (c) => byStandard.has(c.id) && !graph.pendingByPair[`${systemId}::${c.id}`]
-    ) as Control[];
+    return graph.inScopeControls.filter((c) => {
+      if (isForcedApplicable(graph, systemId, c.id)) return true;
+      const pending = graph.pendingByPair[`${systemId}::${c.id}`];
+      if (pending) return pendingResolvedAsApplicable(graph, systemId, c.id);
+      return byStandard.has(c.id);
+    }) as Control[];
   }
 
   // Controls that matched a system's applicability the same way any other
@@ -346,7 +350,7 @@ export function createApplicability(graph: Graph, classification: Classification
     (programBySystem[systemId] ?? []).forEach((id) => byStandard.add(id));
 
     return graph.pendingApplicability
-      .filter((p) => p.systemId === systemId && byStandard.has(p.controlId))
+      .filter((p) => p.systemId === systemId && byStandard.has(p.controlId) && !reviewFor(graph, p.systemId, p.controlId))
       .map((p) => ({ control: graph.controlById[p.controlId] as Control, reason: p.reason }));
   }
 

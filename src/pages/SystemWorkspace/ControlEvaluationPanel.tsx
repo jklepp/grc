@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { C } from "../../theme";
 import {
-  PRISMA_LEVELS, COMPLIANCE_LABELS, COMPLIANCE_RATINGS, findingsForSystem,
+  PRISMA_LEVELS, COMPLIANCE_LABELS, findingsForSystem,
   FINDING_SEVERITY_META, FINDING_REMEDIATION_STATUS_META, FINDING_SEVERITIES, FINDING_SOURCES, REMEDIATION_STATUSES,
   INSTANCE_STATUS_META,
   EVIDENCE_TYPES, EVIDENCE_RESULTS, INDEPENDENCE_LEVELS,
@@ -15,6 +15,9 @@ import {
   getEvidence, getEvidenceArtifacts, getEvidenceReviews, resolveProgramApplicability, assetsForSystem, getDataFlows, ORGS,
   evaluateControl, addPrismaOverride, updateEvidence, removeEvidence, addFinding, updateFinding, commitRuntimeFacts,
 } from "../../engine";
+import { upsertControlReview } from "../../engine/runtimeMutations";
+import { PrismaLaneGrader } from "./PrismaLaneGrader";
+import type { LaneGrade } from "./PrismaLaneGrader";
 import { loadRuntimeFacts } from "../../engine/runtimeFactsStore";
 import { useLiveEngine } from "../../engine/useLiveEngine";
 import { PRINCIPLE_DOMAINS, STATUS_META as PRINCIPLE_STATUS_META } from "../../data/securityPrinciples";
@@ -25,7 +28,7 @@ import Modal, { ModalCloseButton } from "../../components/Modal";
 import type { ControlAssessment, ControlEvidenceDraft, ControlInstance, EvidenceDraft, EngineFinding, FindingDraft, LevelRating, ScoredEvidence } from "../../engine";
 import type { RuntimeFacts } from "../../engine/liveGraph";
 import type { AssetId, ControlId, EvidenceId, FindingId, SystemId } from "../../graph/ids";
-import type { ComplianceRating, EvidenceType, PrismaLevel } from "../../graph/nodes/taxonomy";
+import type { EvidenceType, PrismaLevel } from "../../graph/nodes/taxonomy";
 import type { EvidenceCollectorType, EvidenceResult, IndependenceLevel } from "../../graph/nodes/evidence";
 import type { ArtifactSensitivity, EvidenceReviewDecision } from "../../graph/nodes/evidenceProvenance";
 import type { FindingSeverity, FindingSource, RemediationStatus } from "../../graph/nodes/findings";
@@ -74,6 +77,7 @@ function assetLayerMap(systemId: SystemId): Partial<Record<AssetId, string>> {
   layout.egress.forEach((e) => { map[e.asset.id] = "Web Egress"; });
   layout.softwareDeployment.forEach((s) => { map[s.asset.id] = "Software Deployment"; });
   layout.workforceIngress.forEach((w) => { map[w.asset.id] = "Ingress - Workforce"; });
+  layout.backupRecovery.forEach((b) => { map[b.asset.id] = "Backup & Restore"; });
   layout.branches.forEach((b) => { map[b.asset.id] = "Control Plane"; });
   return map;
 }
@@ -81,6 +85,7 @@ function assetLayerMap(systemId: SystemId): Partial<Record<AssetId, string>> {
 const LAYER_RANK = {
   "Web Ingress": 0, "Data Plane": 1000, "Web Egress": 1001,
   "Control Plane": 1002, "Software Deployment": 1003, "Ingress - Workforce": 1004,
+  "Backup & Restore": 1005,
   Unmapped: 9999,
 };
 function layerRank(label: string): number {
@@ -419,45 +424,6 @@ function EvidenceForm({ initial, assetOptions, isProgramScoped, onCancel, onSubm
   );
 }
 
-interface OverrideFormProps {
-  level: PrismaLevel;
-  current: LevelRating;
-  onCancel: () => void;
-  onSubmit: (result: { rating: ComplianceRating; note: string; assessedBy: string }) => void;
-}
-
-function OverrideForm({ level, current, onCancel, onSubmit }: OverrideFormProps) {
-  const [rating, setRating] = useState<ComplianceRating>(current.rating ?? current.derived ?? 50);
-  const [note, setNote] = useState("");
-  const [assessedBy, setAssessedBy] = useState("");
-  const ready = note.trim() && assessedBy.trim();
-
-  return (
-    <div className="rounded-lg p-3 mt-2" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-      <div className="grid grid-cols-2 gap-2">
-        <div>{fieldLabel(level ? `Assessor rating for ${level}` : "Assessor rating")}
-          <select style={inputStyle()} value={rating} onChange={(e) => setRating(COMPLIANCE_RATINGS.find((value) => value === Number(e.target.value)) ?? rating)}>
-            {COMPLIANCE_RATINGS.map((r) => <option key={r} value={r}>{r} — {COMPLIANCE_LABELS[r]}</option>)}
-          </select>
-        </div>
-        <div>{fieldLabel("Assessed by")}<input style={inputStyle()} value={assessedBy} onChange={(e) => setAssessedBy(e.target.value)} placeholder="Your name" /></div>
-      </div>
-      <div className="mt-2">{fieldLabel("Rationale (required)")}<input style={inputStyle()} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why does this differ from the derived rating?" /></div>
-      <div className="flex items-center gap-2 mt-3">
-        <button
-          className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-          style={{ background: ready ? C.accent : C.border, color: "#fff" }}
-          disabled={!ready}
-          onClick={() => onSubmit({ rating, note: note.trim(), assessedBy: assessedBy.trim() })}
-        >
-          Save
-        </button>
-        <button className="text-xs px-3 py-1.5 rounded-lg" style={{ color: C.muted }} onClick={onCancel}>Cancel</button>
-      </div>
-    </div>
-  );
-}
-
 interface FindingFormState {
   title: string;
   detail: string;
@@ -713,7 +679,6 @@ export function ControlEvaluationPanel({
   const [attachingEvidence, setAttachingEvidence] = useState(false);
   const [editingEvidenceId, setEditingEvidenceId] = useState<EvidenceId | null>(null);
   const [expandedEvidenceId, setExpandedEvidenceId] = useState<EvidenceId | null>(null);
-  const [overridingLevel, setOverridingLevel] = useState<PrismaLevel | null>(null);
   const [showMaturityDetails, setShowMaturityDetails] = useState(false);
   const [creatingFinding, setCreatingFinding] = useState(false);
   const [editingFindingId, setEditingFindingId] = useState<FindingId | null>(null);
@@ -770,7 +735,6 @@ export function ControlEvaluationPanel({
     setEditingEvidenceId(null);
     setCreatingFinding(false);
     setEditingFindingId(null);
-    setOverridingLevel(null);
     return true;
   }
 
@@ -790,16 +754,31 @@ export function ControlEvaluationPanel({
     saveMutation((existing) => removeEvidence(existing, evidenceId));
   }
 
-  function handleOverride(level: PrismaLevel, { rating, note, assessedBy }: { rating: ComplianceRating; note: string; assessedBy: string }) {
-    saveMutation((existing) => addPrismaOverride(existing, {
-      systemId: system.id,
-      controlId: row.control.id,
-      level,
-      rating,
-      note,
-      assessedBy,
-      assessedAt: new Date().toISOString().slice(0, 10),
-    }));
+  function handleLaneGrades({ grades, assessedBy, note }: { grades: LaneGrade[]; assessedBy: string; note: string }) {
+    saveMutation((existing) => {
+      let next = existing;
+      grades.forEach((grade) => {
+        if (grade.rating === grade.derived) return;
+        next = addPrismaOverride(next, {
+          systemId: system.id,
+          controlId: row.control.id,
+          level: grade.level,
+          rating: grade.rating,
+          note,
+          assessedBy,
+          assessedAt: new Date().toISOString().slice(0, 10),
+        });
+      });
+      return upsertControlReview(next, {
+        systemId: system.id,
+        controlId: row.control.id,
+        bucket: "system-owned",
+        stance: "confirm",
+        note: note || "Assessor accepted the derived PRISMA ratings.",
+        reviewedBy: assessedBy,
+        reviewedAt: new Date().toISOString().slice(0, 10),
+      });
+    });
   }
 
   function handleCreateFinding(draft: Omit<FindingDraft, "controlId">) {
@@ -946,19 +925,16 @@ export function ControlEvaluationPanel({
               </div>
               {assessment?.assessed && (
                 <div>
-                  <SectionLabel icon={Gauge}>Derived PRISMA</SectionLabel>
-                  <div className="grid grid-cols-5 gap-2">
-                    {PRISMA_LEVELS.map((level) => {
-                      const L = assessment.levels[level];
-                      return (
-                        <div key={level} className="rounded-lg p-2.5" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                          <div className="text-[10px] font-semibold" style={{ color: C.muted }}>{level}</div>
-                          <div className="text-lg font-semibold tabular-nums mt-0.5" style={{ color: ratingColor(L.rating), fontFamily: "'IBM Plex Mono', monospace" }}>{L.rating}</div>
-                          <div className="text-[9.5px] mt-0.5 leading-tight" style={{ color: C.muted }}>{COMPLIANCE_LABELS[L.rating]}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <SectionLabel icon={Gauge}>PRISMA lanes</SectionLabel>
+                  <p className="text-[11px] leading-snug mb-2" style={{ color: C.muted }}>
+                    Derived ratings are suggestions. Accept them, or pick 0 / 25 / 50 / 75 / 100 on each lane. Accepting the derived value is a review, not an override.
+                  </p>
+                  <PrismaLaneGrader
+                    levels={assessment.levels}
+                    assessedBy={liveEngine.graph.assessmentScopeBySystem[system.id]?.assessor ?? ""}
+                    note=""
+                    onSubmit={handleLaneGrades}
+                  />
                 </div>
               )}
             </div>
@@ -969,41 +945,16 @@ export function ControlEvaluationPanel({
             <div className="space-y-4">
               {assessment?.assessed && (
                 <div>
-                  <SectionLabel icon={Gauge}>Assurance Scoring</SectionLabel>
-                  <div className="grid grid-cols-5 gap-2">
-                    {PRISMA_LEVELS.map((level) => {
-                      const L = assessment.levels[level];
-                      const isOverriding = overridingLevel === level;
-                      return (
-                        <button
-                          key={level}
-                          onClick={() => setOverridingLevel(isOverriding ? null : level)}
-                          className="text-left rounded-lg p-2.5 transition-colors"
-                          style={{ background: C.panel2, border: `1px solid ${isOverriding ? C.accent : C.border}` }}
-                        >
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] font-semibold flex-1" style={{ color: C.muted }}>{level}</span>
-                            <Pencil size={9} color={C.muted} className="shrink-0" />
-                          </div>
-                          <div className="text-lg font-semibold tabular-nums mt-0.5" style={{ color: ratingColor(L.rating), fontFamily: "'IBM Plex Mono', monospace" }}>{L.rating}</div>
-                          <div className="text-[9.5px] mt-0.5 leading-tight" style={{ color: C.muted }}>{COMPLIANCE_LABELS[L.rating]}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {overridingLevel && (
-                    <div className="mt-2">
-                      <OverrideForm
-                        level={overridingLevel}
-                        current={assessment.levels[overridingLevel]}
-                        onCancel={() => setOverridingLevel(null)}
-                        onSubmit={(o) => { setOverridingLevel(null); handleOverride(overridingLevel, o); }}
-                      />
-                    </div>
-                  )}
-                  <div className="text-[10.5px] mt-1.5 leading-snug" style={{ color: C.muted }}>
-                    Click a lane above to override its assessor rating.
-                  </div>
+                  <SectionLabel icon={Gauge}>PRISMA lanes</SectionLabel>
+                  <p className="text-[11px] leading-snug mb-2" style={{ color: C.muted }}>
+                    Derived ratings are suggestions. Accept them, or pick 0 / 25 / 50 / 75 / 100 on each lane.
+                  </p>
+                  <PrismaLaneGrader
+                    levels={assessment.levels}
+                    assessedBy={liveEngine.graph.assessmentScopeBySystem[system.id]?.assessor ?? ""}
+                    note=""
+                    onSubmit={handleLaneGrades}
+                  />
                 </div>
               )}
 

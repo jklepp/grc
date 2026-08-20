@@ -6,6 +6,8 @@ import { StatTile } from "../shared/StatTile";
 import { StatRing } from "../shared/StatRing";
 import type { Band } from "../../../engine/assurance";
 import type { CockpitSummary, WorkspaceSystem } from "../types";
+import { AUDIT_READINESS_LABELS } from "../../../engine/review";
+import type { AuditReadinessBand, FrameworkReadiness } from "../../../engine/review";
 
 // Assurance and Target share one card so the gap between them — the thing
 // the whole cockpit is organized around — reads as a single fact instead of
@@ -34,22 +36,34 @@ function AssuranceTargetCard({ assurance, target, band }: { assurance?: number |
   );
 }
 
-export function AssuranceCockpit({ system, cockpit }: { system: WorkspaceSystem; cockpit: CockpitSummary }) {
+export function AssuranceCockpit({
+  system, cockpit, readiness,
+}: {
+  system: WorkspaceSystem;
+  cockpit: CockpitSummary;
+  readiness?: { overall: AuditReadinessBand; frameworks: FrameworkReadiness[] };
+}) {
   const risksAboveAppetite = cockpit.residualRisk.aboveAppetiteCount;
+  const readinessDetail = readiness?.frameworks.map((item) => `${item.standard}: ${AUDIT_READINESS_LABELS[item.band]}`).join(" · ");
   return (
     <div>
       <SectionHeader
         icon={Gauge}
         title="System Posture"
-        description="Assurance, assessment coverage, evidence coverage, and risks above appetite."
+        description="Assurance, assessment coverage, audit readiness, and risks above appetite."
       />
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
         <AssuranceTargetCard assurance={cockpit.assurance} target={cockpit.target} band={cockpit.assuranceBand} />
         <StatTile
           label="Assessment Coverage"
           value={`${cockpit.coverage?.assessedPct ?? 0}%`}
           sub={`${cockpit.coverage?.assessed ?? 0} of ${cockpit.coverage?.applicable ?? 0} controls`}
           pct={cockpit.coverage?.assessedPct}
+        />
+        <StatTile
+          label="Audit-ready"
+          value={readiness ? AUDIT_READINESS_LABELS[readiness.overall] : "—"}
+          sub={readinessDetail || "Per in-scope framework, not a single score"}
         />
         <StatTile
           label="Risks Above Appetite"

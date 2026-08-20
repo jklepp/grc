@@ -223,6 +223,11 @@ export function createCompliance(
       .find((m) => m?.responsibility)?.responsibility;
     if (explicit) return explicit;
 
+    const review = graph.controlReviewByKey[`${systemId}::${controlId}`];
+    if (review?.stance === "reject" && (review.bucket === "vendor-inherited" || review.bucket === "enterprise")) {
+      return RESPONSIBILITIES.INTERNAL;
+    }
+
     const domain = control.domain;
     if (inheritsDomain(system.hostingType, domain)) return RESPONSIBILITIES.VENDOR;
     if (graph.enterpriseInheritedDomains.has(domain)) return RESPONSIBILITIES.ENTERPRISE;

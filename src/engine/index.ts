@@ -75,7 +75,7 @@ export function commitRuntimeFacts(runtime: RuntimeFacts): { engine: Engine | nu
 const {
   selectors, profile, risk, compliance, findings, rollups, graph,
   identity, exposure, exceptions, vulnerabilities, securityTesting, resilience,
-  incidentResponse, vendors, sdlc, cockpit,
+  incidentResponse, vendors, sdlc, cockpit, review,
 } = engine;
 
 export { createEngine } from "./create";
@@ -181,6 +181,9 @@ export const vendorsForSystem = vendors.vendorsForSystem;
 export const sdlcForSystem = sdlc.sdlcForSystem;
 export const cockpitSummary = cockpit.cockpitSummary;
 
+export const wavesForSystem: typeof review.wavesForSystem = (...args) => engine.review.wavesForSystem(...args);
+export const auditReadinessForSystem: typeof review.auditReadinessForSystem = (...args) => engine.review.auditReadinessForSystem(...args);
+
 // Rollup totals
 export const TOTAL_FLOW_COUNT = rollups.TOTAL_FLOW_COUNT;
 export const TOTAL_ACTOR_COUNT = rollups.TOTAL_ACTOR_COUNT;
@@ -238,12 +241,17 @@ export { DATA_ROLE_META } from "../graph/edges/assetDataTypes";
 export { EVIDENCE_COLLECTOR_TYPES, EVIDENCE_RESULTS, INDEPENDENCE_LEVELS } from "../graph/nodes/evidence";
 export { ARTIFACT_SENSITIVITIES, EVIDENCE_REVIEW_DECISIONS } from "../graph/nodes/evidenceProvenance";
 export {
-  evaluateControl, addPrismaOverride, updateEvidence, removeEvidence, addFinding, updateFinding,
+  evaluateControl, addPrismaOverride, upsertControlReview, updateEvidence, removeEvidence, addFinding, updateFinding,
   addControlToScope, upsertImplementationMechanism, addEvidence, declareNotImplemented,
   removeRuntimeSystem, restoreBaselineSystems,
 } from "./runtimeMutations";
 export type { ControlEvidenceDraft, EvidenceArtifactDraft, EvidenceReviewDraft, EvidenceDraft, EvaluateControlInput, FindingDraft } from "./runtimeMutations";
 export type { PrismaLevelOverride } from "../graph/edges/prismaOverrides";
+export type { ControlReview, ReviewBucket, ReviewStance } from "../graph/edges/controlReviews";
+export {
+  REVIEW_WAVES, AUDIT_READINESS_BANDS, AUDIT_READINESS_LABELS, isRuntimeCreatedSystem,
+} from "./review";
+export type { ReviewWave, AuditReadinessBand, ReviewWaveProjection, FrameworkReadiness } from "./review";
 export type { Finding } from "../graph/nodes/findings";
 
 // Types pages reference

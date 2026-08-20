@@ -174,6 +174,8 @@ interface DryRunResult {
   assurance?: number | null;
   coverage?: { applicable: number; assessed: number; assessedPct: number; inherited: number } | null;
   applicability?: ReturnType<typeof appEngine.compliance.controlApplicabilitySummary>;
+  proposedWaves?: { notApplicable: number; vendorInherited: number; companyLevel: number; remainingTechnical: number };
+  readinessLabel?: string;
 }
 
 function defaultAssessmentTarget(): string {
@@ -741,6 +743,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       evidenceReviews: [...existing.evidenceReviews],
       notImplemented: [...existing.notImplemented],
       prismaOverrides: [...existing.prismaOverrides],
+      controlReviews: [...existing.controlReviews],
       findings: [...existing.findings],
     };
 
@@ -760,6 +763,8 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     }
     const rollup = engine.rollups.systemRollups.find((s) => s.id === systemId);
     const applicability = engine.compliance.controlApplicabilitySummary(systemId);
+    const walk = engine.review.wavesForSystem(systemId);
+    const readiness = engine.review.auditReadinessForSystem(systemId);
     setDryRun({
       problems: [],
       systemId,
@@ -767,6 +772,13 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       assurance: rollup?.overallAssurance ?? null,
       coverage: rollup?.coverage ?? null,
       applicability,
+      proposedWaves: {
+        notApplicable: walk.waves["not-applicable"].remaining.length,
+        vendorInherited: walk.waves["vendor-inherited"].remaining.length,
+        companyLevel: walk.waves.enterprise.remaining.length,
+        remainingTechnical: walk.waves["system-owned"].remaining.length,
+      },
+      readinessLabel: readiness.overall,
     });
     setChecking(false);
   }
@@ -834,7 +846,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
           <div className="text-xs mt-0.5" style={{ color: C.muted }}>
             {editingSystemId
               ? "Update declared facts; classification, scope, and assurance will be recalculated before anything is saved."
-              : "New systems are assessed the same way as every existing one — nothing here is scored by hand."}
+              : "The engine proposes what applies and what can be inherited. You confirm and grade those controls on the system screen after create."}
           </div>
         </div>
         <ModalCloseButton onClose={close} />
@@ -1104,7 +1116,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
               <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 7 of 7</div>
               <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Launch assessment</h2>
               <p className="text-xs mb-5 max-w-[60ch]" style={{ color: C.muted }}>
-                Assign the assessment and set its target date. {editingSystemId ? "Saving recalculates the system's scope without changing its recorded evidence." : "Creating the system opens a key-control walk. Inherited domains are already scored; everything else in that set stays unassessed until you record a fact."}
+                Assign the assessment and set its target date. {editingSystemId ? "Saving recalculates the system's scope without changing its recorded evidence." : "Creating the system opens the Control Workspace. Inherited and company-level coverage stay unclaimed until an assessor confirms them."}
               </p>
 
               <div className="rounded-xl p-4 mb-5 flex gap-3" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
@@ -1112,8 +1124,8 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                 <div>
                   <div className="text-[13px] font-semibold mb-1" style={{ color: C.ink }}>Initial assessment plan</div>
                   <div className="text-xs leading-relaxed" style={{ color: C.muted }}>
-                    Controls in {provider || "the chosen provider"}'s certified domains are assessed automatically from its own
-                    reports. No dedicated engagement is scoped yet — no controls are hand-marked satisfied.
+                    Controls in {provider || "the chosen provider"}'s certified domains are proposed as vendor-inherited from its
+                    reports. They are not a standing claim until an assessor confirms that split on the system screen.
                   </div>
                 </div>
               </div>
@@ -1652,7 +1664,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
               <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 6 of 7</div>
               <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Derived scope</h2>
               <p className="text-xs mb-5 max-w-[60ch]" style={{ color: C.muted }}>
-                This is the live engine resolving classification, applicability, responsibility and initial coverage from your entries.
+                Classification and the four review buckets are derived from your entries. Nothing here is a claimed assessment — an assessor confirms and grades these controls on the system screen after create.
               </p>
 
               {checking && <div className="text-sm" style={{ color: C.muted }}>Checking…</div>}
@@ -1669,16 +1681,16 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                     </div>
                     <div className="rounded-xl p-4 flex items-center justify-between" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
                       <div>
-                        <div className="text-lg font-bold" style={{ fontFamily: "'Source Serif 4', serif", color: C.ink }}>{dryRun.assurance ?? "—"}%</div>
-                        <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>Initial inherited assurance</div>
+                        <div className="text-lg font-bold" style={{ fontFamily: "'Source Serif 4', serif", color: C.ink }}>{dryRun.assurance ?? "—"}{dryRun.assurance != null ? "%" : ""}</div>
+                        <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>Proposed assurance (unconfirmed)</div>
                       </div>
                       {dryRun.assurance != null && <AssuranceBadge pct={dryRun.assurance} size={34} />}
                     </div>
                     <div className="rounded-xl p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                      <div className="text-lg font-bold" style={{ fontFamily: "'Source Serif 4', serif", color: C.ink }}>
-                        {dryRun.coverage ? `${dryRun.coverage.assessed} / ${dryRun.coverage.applicable}` : "—"}
+                      <div className="text-lg font-bold capitalize" style={{ fontFamily: "'Source Serif 4', serif", color: C.ink }}>
+                        {(dryRun.readinessLabel ?? "scope-unconfirmed").replace(/-/g, " ")}
                       </div>
-                      <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>Controls initially assessed</div>
+                      <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>Audit-ready preview</div>
                     </div>
                   </div>
                   {dryRun.applicability && (
@@ -1709,9 +1721,31 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                       </div>
                     </div>
                   )}
+                  {dryRun.proposedWaves && (
+                    <div className="rounded-xl p-4 mb-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+                      <div className="text-sm font-semibold mb-1" style={{ color: C.ink }}>Proposed review queues</div>
+                      <div className="text-[11px] mb-3" style={{ color: C.muted }}>
+                        After create, the assessor walks these on the system Control Workspace. The wizard does not grade controls.
+                      </div>
+                      <div className="grid grid-cols-4 gap-2">
+                        {[
+                          ["Not applicable", dryRun.proposedWaves.notApplicable, "Confirm the derived exclusions"],
+                          ["Vendor inherited", dryRun.proposedWaves.vendorInherited, "Confirm the provider split"],
+                          ["Company-level", dryRun.proposedWaves.companyLevel, "Confirm program incorporation"],
+                          ["Remaining technical", dryRun.proposedWaves.remainingTechnical, "PRISMA grade what ACME still owns"],
+                        ].map(([label, value, hint]) => (
+                          <div key={label} className="rounded-lg px-3 py-2.5" style={{ background: C.panel }}>
+                            <div className="text-lg font-bold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{value}</div>
+                            <div className="text-[10.5px] font-semibold" style={{ color: C.ink }}>{label}</div>
+                            <div className="text-[10px] mt-0.5" style={{ color: C.muted }}>{hint}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="flex items-start gap-2.5 rounded-lg px-4 py-3 text-[12.5px]" style={{ background: C.greenBg, color: C.green }}>
                     <Check size={16} className="shrink-0 mt-0.5" />
-                    <div><b>Derived scope validated.</b> Continue to assign the assessment and set its target date.</div>
+                    <div><b>Derived scope validated.</b> Continue to assign the assessor, then confirm and grade controls on the system screen.</div>
                   </div>
                 </>
               )}

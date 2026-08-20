@@ -33,17 +33,18 @@ import { createEngine, type Engine } from "./create";
 import { validateDerivations } from "./validateDerivations";
 import type { GraphFacts } from "../graph/types";
 import type { System } from "../graph/nodes/systems";
-import type { Asset } from "../graph/nodes/assets";
+import { BACKUP_RECOVERY_KINDS, type Asset } from "../graph/nodes/assets";
+import { FLOW_KINDS, type DataFlow } from "../graph/edges/dataFlows";
 import type { AssetDataType } from "../graph/edges/assetDataTypes";
 import type { Actor } from "../graph/nodes/actors";
 import type { ActorAccess } from "../graph/edges/actorAccess";
-import type { DataFlow } from "../graph/edges/dataFlows";
 import type { AgenticIdentity } from "../graph/nodes/agenticIdentities";
 import type { AssessmentScope } from "../graph/nodes/assessmentScope";
 import type { ImplementationMechanism, NotImplemented } from "../graph/edges/controlImplementations";
 import type { RawEvidence } from "../graph/nodes/evidence";
 import type { EvidenceArtifact, EvidenceReview } from "../graph/nodes/evidenceProvenance";
 import type { PrismaLevelOverride } from "../graph/edges/prismaOverrides";
+import type { ControlReview } from "../graph/edges/controlReviews";
 import type { Finding } from "../graph/nodes/findings";
 import type { SystemId } from "../graph/ids";
 import type { ClassificationTier } from "../graph/nodes/taxonomy";
@@ -68,13 +69,14 @@ export interface RuntimeFacts {
   evidenceReviews: EvidenceReview[];
   notImplemented: NotImplemented[];
   prismaOverrides: PrismaLevelOverride[];
+  controlReviews: ControlReview[];
   findings: Finding[];
 }
 
 export function emptyRuntimeFacts(): RuntimeFacts {
   return {
     systems: [], assets: [], assetDataTypes: [], actors: [], actorAccess: [], dataFlows: [], agenticIdentities: [], assessmentScopes: [], expectedClassification: {},
-    implementationMechanisms: [], evidence: [], evidenceArtifacts: [], evidenceReviews: [], notImplemented: [], prismaOverrides: [], findings: [],
+    implementationMechanisms: [], evidence: [], evidenceArtifacts: [], evidenceReviews: [], notImplemented: [], prismaOverrides: [], controlReviews: [], findings: [],
   };
 }
 
@@ -111,6 +113,20 @@ export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts 
       .map((asset) => asset.id)
   );
   const runtimeActorIds = new Set(runtime.actors.map((actor) => actor.id));
+  const runtimeAssetIds = new Set(runtime.assets.map((asset) => asset.id));
+  // The wizard cannot currently re-author recovery infrastructure. Replacing a
+  // YAML system used to drop backup-vault assets (and then prune their
+  // backup/restore edges), which removed the Backup & Recovery lane from the
+  // architecture diagram. Keep those baseline vaults — and the flows that
+  // name them — unless the runtime explicitly re-authored the same asset id.
+  const preservedRecoveryAssets = base.assets.filter(
+    (asset) =>
+      overriddenSystemIds.has(asset.systemId)
+      && (BACKUP_RECOVERY_KINDS as readonly string[]).includes(asset.kind)
+      && !runtimeAssetIds.has(asset.id)
+  );
+  const preservedRecoveryIds = new Set(preservedRecoveryAssets.map((asset) => asset.id));
+  const isRecoveryFlow = (flow: DataFlow) => flow.kind === FLOW_KINDS.BACKUP || flow.kind === FLOW_KINDS.RESTORE;
   // Scope rows can land in runtime without a matching runtime system — that
   // is how evaluateControl expands a YAML-authored engagement. Replace the
   // YAML scope for those systems the same way a wizard-created system is
@@ -122,11 +138,25 @@ export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts 
   return pruneDanglingAssetEdges({
     ...base,
     systems: [...base.systems.filter((s) => !overriddenSystemIds.has(s.id)), ...runtime.systems],
-    assets: [...base.assets.filter((a) => !overriddenSystemIds.has(a.systemId)), ...runtime.assets],
-    assetDataTypes: [...base.assetDataTypes.filter((edge) => !overriddenBaseAssetIds.has(edge.assetId)), ...runtime.assetDataTypes],
+    assets: [
+      ...base.assets.filter((a) => !overriddenSystemIds.has(a.systemId) || preservedRecoveryIds.has(a.id)),
+      ...runtime.assets,
+    ],
+    assetDataTypes: [
+      ...base.assetDataTypes.filter((edge) => !overriddenBaseAssetIds.has(edge.assetId) || preservedRecoveryIds.has(edge.assetId)),
+      ...runtime.assetDataTypes,
+    ],
     actors: [...base.actors.filter((actor) => !runtimeActorIds.has(actor.id)), ...runtime.actors],
     actorAccess: [...base.actorAccess.filter((edge) => !overriddenArchitectureAssetIds.has(edge.assetId)), ...runtime.actorAccess],
-    dataFlows: [...base.dataFlows.filter((flow) => !overriddenArchitectureAssetIds.has(flow.from) && !overriddenArchitectureAssetIds.has(flow.to)), ...runtime.dataFlows],
+    dataFlows: [
+      ...base.dataFlows.filter((flow) => {
+        if (isRecoveryFlow(flow) && (preservedRecoveryIds.has(flow.from) || preservedRecoveryIds.has(flow.to))) {
+          return !runtime.dataFlows.some((candidate) => candidate.id === flow.id);
+        }
+        return !overriddenArchitectureAssetIds.has(flow.from) && !overriddenArchitectureAssetIds.has(flow.to);
+      }),
+      ...runtime.dataFlows,
+    ],
     agenticIdentities: [...base.agenticIdentities.filter((agent) => !overriddenArchitectureSystemIds.has(agent.systemId)), ...runtime.agenticIdentities],
     assessmentScopes: [...base.assessmentScopes.filter((scope) => !overriddenScopeSystemIds.has(scope.systemId)), ...runtime.assessmentScopes],
     expectedClassification: { ...base.expectedClassification, ...runtime.expectedClassification },
@@ -136,13 +166,17 @@ export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts 
     evidenceReviews: [...base.evidenceReviews, ...runtime.evidenceReviews],
     notImplemented: [...base.notImplemented, ...runtime.notImplemented],
     prismaOverrides: [...base.prismaOverrides, ...runtime.prismaOverrides],
+    controlReviews: [
+      ...base.controlReviews.filter((review) => !runtime.controlReviews.some((r) => r.systemId === review.systemId && r.controlId === review.controlId)),
+      ...runtime.controlReviews,
+    ],
     findings: [...base.findings, ...runtime.findings],
   });
 }
 
-// A replaced system can drop assets the wizard did not re-author (backup vaults
-// are the usual case) while YAML flows still name them. Drop those dangling
-// edges so adding an unrelated system is not blocked by an earlier edit.
+// Drop edges that point at assets the merge no longer carries — leftover YAML
+// flows after a system replacement, except recovery infrastructure which
+// mergeFacts now preserves explicitly.
 function pruneDanglingAssetEdges(facts: GraphFacts): GraphFacts {
   const assetIds = new Set(facts.assets.map((asset) => asset.id));
   const hasAsset = (id: string) => assetIds.has(id);

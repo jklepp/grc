@@ -45,6 +45,7 @@ import type { EnterpriseAttestation } from "./nodes/enterpriseAttestations";
 import type { PendingApplicability } from "./nodes/pendingApplicability";
 import type { ScheduledActivityRecord } from "./nodes/scheduledActivities";
 import type { PrismaLevelOverride } from "./edges/prismaOverrides";
+import type { ControlReview } from "./edges/controlReviews";
 import type { RiskAsset, RiskControl } from "./edges/riskContributors";
 import type { AssuranceCategory, ClassificationTier, PrismaLevel, EvidenceType } from "./nodes/taxonomy";
 import type { IdentityPopulation, AccessReview } from "./nodes/identity";
@@ -118,6 +119,12 @@ export interface GraphFacts {
 
   // Where an assessor's PRISMA level rating differs from the derived one.
   prismaOverrides: PrismaLevelOverride[];
+
+  // Where an assessor confirmed or rejected a derived applicability /
+  // inheritance / incorporation call. Sparse: YAML-authored systems rely on
+  // the curated graph as the existing judgment; runtime systems accumulate
+  // these as the operator walks the four review waves.
+  controlReviews: ControlReview[];
 
   // The recurring activities the Managed level reads. Authored in src/data
   // alongside the policy and SOP libraries, for the same reason.
@@ -245,6 +252,7 @@ export interface Graph {
   readonly policies: readonly PolicyRecord[];
   readonly procedures: readonly ProcedureRecord[];
   readonly prismaOverrides: readonly PrismaLevelOverride[];
+  readonly controlReviews: readonly ControlReview[];
   readonly scheduledActivities: readonly ScheduledActivityRecord[];
   readonly assessmentScopes: readonly AssessmentScope[];
   readonly providerCertifications: readonly ProviderCertification[];
@@ -336,6 +344,8 @@ export interface Graph {
   readonly pendingByPair: Readonly<Record<string, PendingApplicability>>;
   // `${systemId}::${controlId}::${level}`, at most one per key.
   readonly prismaOverrideByKey: Readonly<Record<string, PrismaLevelOverride>>;
+  // `${systemId}::${controlId}`, at most one per key.
+  readonly controlReviewByKey: Readonly<Record<string, ControlReview>>;
   readonly activitiesByControl: Readonly<Record<ControlId, readonly ScheduledActivityRecord[]>>;
   readonly activitiesByProcedure: Readonly<Record<string, readonly ScheduledActivityRecord[]>>;
 

@@ -256,6 +256,7 @@ export function assembleGraph(facts: GraphFacts): Graph {
     policies: facts.policies,
     procedures: facts.procedures,
     prismaOverrides: facts.prismaOverrides,
+    controlReviews: facts.controlReviews,
     scheduledActivities: facts.scheduledActivities,
     assessmentScopes: facts.assessmentScopes,
     providerCertifications: facts.providerCertifications,
@@ -322,6 +323,7 @@ export function assembleGraph(facts: GraphFacts): Graph {
     })(),
     pendingByPair: keyBy(facts.pendingApplicability, (p) => pair(p.systemId, p.controlId)),
     prismaOverrideByKey: keyBy(facts.prismaOverrides, (o) => `${o.systemId}::${o.controlId}::${o.level}`),
+    controlReviewByKey: keyBy(facts.controlReviews, (o) => `${o.systemId}::${o.controlId}`),
     activitiesByControl: (() => {
       const byControl: Record<string, (typeof facts.scheduledActivities)[number][]> = {};
       facts.scheduledActivities.forEach((a) => {

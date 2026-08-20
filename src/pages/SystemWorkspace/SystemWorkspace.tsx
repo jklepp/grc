@@ -11,6 +11,7 @@ import { SystemIdentity } from "./SystemIdentity";
 import { SystemSecurity } from "./SystemSecurity";
 import { SystemTesting } from "./SystemTesting";
 import { SystemControls } from "./SystemControls";
+import { ControlReviewWorkbench } from "./ControlReviewWorkbench";
 import { SystemRisk } from "./SystemRisk";
 import { SystemAssets } from "./SystemAssets";
 import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
@@ -110,13 +111,15 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   );
   const queueIndex = selectedControlId ? assessmentQueue.findIndex((row) => row.controlId === selectedControlId) : -1;
 
+  const assessor = liveEngine.graph.assessmentScopeBySystem[system.id]?.assessor ?? "";
+  const reviewWalk = useMemo(() => liveEngine.review.wavesForSystem(system.id), [liveEngine, system.id]);
+  const readiness = useMemo(() => liveEngine.review.auditReadinessForSystem(system.id), [liveEngine, system.id]);
+
   useEffect(() => {
     if (!startAssessment || assessmentStarted.current) return;
     assessmentStarted.current = true;
-    setSubTab("controls");
-    const first = assessmentQueue[0];
-    if (first) setSelectedControlId(first.controlId);
-  }, [startAssessment, assessmentQueue]);
+    setSubTab("control-workspace");
+  }, [startAssessment]);
 
   function openAssessmentWalk() {
     setSubTab("controls");
@@ -199,6 +202,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           system={system} cockpit={cockpit} identity={identity} exposure={exposure}
           resilience={resilience} secTests={secTests} ir={ir} vendors={vendors}
           dataTypes={dataTypes} onNavigate={setSubTab} onGenerateIsoReport={generateIsoReport}
+          readiness={readiness}
         />
       )}
 
@@ -227,6 +231,15 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           onStartAssessment={assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
           walkActive={Boolean(selectedControlId) && queueIndex >= 0}
           onSelectRow={(row) => setSelectedControlId(row.controlId)}
+        />
+      )}
+
+      {subTab === "control-workspace" && (
+        <ControlReviewWorkbench
+          systemId={system.id}
+          assessor={assessor}
+          initialWave={startAssessment ? reviewWalk.firstIncomplete : null}
+          onGradeControl={(controlId) => setSelectedControlId(controlId)}
         />
       )}
 

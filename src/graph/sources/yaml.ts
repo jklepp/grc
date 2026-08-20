@@ -151,6 +151,7 @@ export const YAML_FACTS: GraphFacts = {
   risksWithoutControls: riskGaps.withoutControls,
 
   prismaOverrides: read("prisma-overrides"),
+  controlReviews: read("control-reviews"),
 
   // Curated expectations
   expectedClassification: read("expected-classification"),

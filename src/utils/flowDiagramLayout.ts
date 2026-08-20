@@ -74,7 +74,7 @@ interface RawDiagramEdge {
   id: string;
   from: string;
   to: string;
-  kind: "data" | "actor-in" | "actor-out" | "actor-internal";
+  kind: "data" | "actor-in" | "actor-out" | "actor-internal" | "backup" | "restore";
   dataTypeIds: readonly DataTypeId[];
   note?: string;
 }
@@ -197,10 +197,12 @@ export function buildDataFlowDiagram(layout: FlowLayout): DataFlowDiagram {
 
   let bandY = MARGIN + mainHeight;
   let bandBottom = MARGIN + mainHeight;
+  const categoryLabels: Array<{ label: string; x: number; y: number }> = [];
 
-  function layBand<T>(items: readonly T[] | undefined, getId: (item: T) => string, getRef: (item: T) => DiagramReference): void {
+  function layBand<T>(label: string, items: readonly T[] | undefined, getId: (item: T) => string, getRef: (item: T) => DiagramReference): void {
     if (!items || items.length === 0) return;
     bandY = bandBottom + BAND_GAP;
+    categoryLabels.push({ label, x: MARGIN, y: bandY - 18 });
     const totalW = items.length * NODE_W + Math.max(0, items.length - 1) * ROW_GAP;
     let bx = Math.max(MARGIN, MARGIN + (mainRight - MARGIN - totalW) / 2);
     items.forEach((it) => {
@@ -210,7 +212,9 @@ export function buildDataFlowDiagram(layout: FlowLayout): DataFlowDiagram {
     bandBottom = bandY + NODE_H;
   }
 
-  layBand(layout.dataPlane, (d) => d.asset.id, (d) => d.asset);
+  layBand("Data plane", layout.dataPlane, (d) => d.asset.id, (d) => d.asset);
+  layBand("Software Deployment", layout.softwareDeployment, (s) => s.asset.id, (s) => s.asset);
+  layBand("Backup & Restore", layout.backupRecovery, (b) => b.asset.id, (b) => b.asset);
 
   const width = Math.max(mainRight, MARGIN) + MARGIN;
   const height = bandBottom + MARGIN;
@@ -234,11 +238,42 @@ export function buildDataFlowDiagram(layout: FlowLayout): DataFlowDiagram {
       rawEdges.push({ id: `${a.actor.id}->${a.assetId}`, from: a.actor.id, to: a.assetId, kind: "actor-internal", dataTypeIds: [], note: a.note });
     }
   });
+  (layout.softwareDeployment || []).forEach((s) => {
+    s.deploysTo.forEach((target) => {
+      if (positions[s.asset.id] && positions[target.id]) {
+        rawEdges.push({
+          id: `deploys:${s.asset.id}->${target.id}`,
+          from: s.asset.id, to: target.id, kind: "data", dataTypeIds: [],
+          note: `${s.asset.code} deploys to ${target.code}`,
+        });
+      }
+    });
+  });
+  (layout.backupRecovery || []).forEach((b) => {
+    b.backedUpFrom.forEach((source) => {
+      if (positions[source.id] && positions[b.asset.id]) {
+        rawEdges.push({
+          id: `backup:${source.id}->${b.asset.id}`,
+          from: source.id, to: b.asset.id, kind: "backup", dataTypeIds: [],
+          note: `${source.code} backs up to ${b.asset.code}`,
+        });
+      }
+    });
+    b.restoresTo.forEach((target) => {
+      if (positions[b.asset.id] && positions[target.id]) {
+        rawEdges.push({
+          id: `restore:${b.asset.id}->${target.id}`,
+          from: b.asset.id, to: target.id, kind: "restore", dataTypeIds: [],
+          note: `${b.asset.code} restores to ${target.code}`,
+        });
+      }
+    });
+  });
 
   const edges = fanOutEdges(rawEdges, positions);
   const nodes = Object.entries(positions).map(([id, pos]) => ({ id, ...pos }));
 
-  return { width, height, nodes, edges };
+  return { width, height, nodes, edges, categoryLabels };
 }
 
 // Derived from asset `kind` (a real, already-modelled fact — see
@@ -257,7 +292,7 @@ const CONTROL_CATEGORY_BY_KIND: Record<string, string> = {
 const CONTROL_CATEGORY_FALLBACK = "Other Controls";
 const CONTROL_CATEGORY_ORDER = [
   "Encryption & Secrets", "Identity & Workload", "Observability & Detection",
-  "Ingress - Workforce", "Software Deployment", CONTROL_CATEGORY_FALLBACK,
+  "Ingress - Workforce", "Software Deployment", "Backup & Restore", CONTROL_CATEGORY_FALLBACK,
 ];
 
 export function controlPlaneCategory(kind: string): string {
@@ -312,7 +347,8 @@ export function buildControlPlaneMatrix(
   const branches = layout.branches || [];
   const workforceIngress = layout.workforceIngress || [];
   const softwareDeployment = layout.softwareDeployment || [];
-  if (branches.length === 0 && workforceIngress.length === 0 && softwareDeployment.length === 0) return null;
+  const backupRecovery = layout.backupRecovery || [];
+  if (branches.length === 0 && workforceIngress.length === 0 && softwareDeployment.length === 0 && backupRecovery.length === 0) return null;
 
   // Rows: protectors, grouped by category — same grouping the earlier
   // node-link version used, still meaningful here since it clusters rows
@@ -326,6 +362,7 @@ export function buildControlPlaneMatrix(
   });
   if (workforceIngress.length) groups["Ingress - Workforce"] = workforceIngress.map((w) => w.asset);
   if (softwareDeployment.length) groups["Software Deployment"] = softwareDeployment.map((s) => s.asset);
+  if (backupRecovery.length) groups["Backup & Restore"] = backupRecovery.map((b) => b.asset);
   const rows: MatrixRow[] = [];
   const categoryBreaks: MatrixCategoryBreak[] = [];
   CONTROL_CATEGORY_ORDER.filter((cat) => groups[cat]?.length).forEach((cat) => {
@@ -343,6 +380,10 @@ export function buildControlPlaneMatrix(
   (layout.stages || []).forEach((s) => s.nodes.forEach((n) => naturalOrder.push(n.id)));
   (layout.egress || []).forEach((e) => naturalOrder.push(e.asset.id));
   (layout.dataPlane || []).forEach((d) => naturalOrder.push(d.asset.id));
+  (layout.backupRecovery || []).forEach((b) => {
+    b.backedUpFrom.forEach((source) => naturalOrder.push(source.id));
+    b.restoresTo.forEach((target) => naturalOrder.push(target.id));
+  });
 
   // Software deployment's targets ride a `deploys-to` edge kind, not
   // `control-plane` — outside `layout.controlPlaneEdges` entirely — so they're
@@ -351,12 +392,24 @@ export function buildControlPlaneMatrix(
   softwareDeployment.forEach((s) => {
     deployTargets[s.asset.id] = s.deploysTo.map((t) => ({ to: t.id, note: `${s.asset.code} deploys to ${t.code}` }));
   });
+  const backupTargets: Record<string, Array<{ to: AssetId; note: string }>> = {};
+  backupRecovery.forEach((b) => {
+    const byTo: Record<string, string[]> = {};
+    b.backedUpFrom.forEach((source) => {
+      (byTo[source.id] ||= []).push(`${source.code} backs up to ${b.asset.code}`);
+    });
+    b.restoresTo.forEach((target) => {
+      (byTo[target.id] ||= []).push(`${b.asset.code} restores to ${target.code}`);
+    });
+    backupTargets[b.asset.id] = Object.entries(byTo).map(([to, notes]) => ({ to: to as AssetId, note: notes.join("; ") }));
+  });
 
   const targetIds = new Set<AssetId>();
   (layout.controlPlaneEdges || []).forEach((f) => {
     if (rowIds.has(f.from)) targetIds.add(f.to);
   });
   Object.values(deployTargets).forEach((list) => list.forEach((t) => targetIds.add(t.to)));
+  Object.values(backupTargets).forEach((list) => list.forEach((t) => targetIds.add(t.to)));
 
   const cols: MatrixColumn[] = [];
   const seenCol = new Set<AssetId>();
@@ -376,6 +429,11 @@ export function buildControlPlaneMatrix(
     if (rowIds.has(f.from) && seenCol.has(f.to)) cellByKey[`${f.from}::${f.to}`] = f;
   });
   Object.entries(deployTargets).forEach(([from, list]) => {
+    list.forEach(({ to, note }) => {
+      if (seenCol.has(to)) cellByKey[`${from}::${to}`] = { note };
+    });
+  });
+  Object.entries(backupTargets).forEach(([from, list]) => {
     list.forEach(({ to, note }) => {
       if (seenCol.has(to)) cellByKey[`${from}::${to}`] = { note };
     });

@@ -28,12 +28,14 @@ import {
 import {
   HOSTING_TYPES, INHERITED_DOMAINS, AVAILABILITY_TIERS, DATA_SUBJECT_TYPES,
   SYSTEM_REGULATORY_CONTEXTS, NETWORK_EXPOSURES, SECURITY_OBJECTIVES, isImpactLevel,
+  inheritsDomain,
 } from "./nodes/systems";
 import { ASSET_KINDS, IMPACT_LEVELS } from "./nodes/assets";
 import { REGULATORY_FLAGS } from "./nodes/dataTypes";
 import { DOMAINS, FRAMEWORKS } from "./nodes/controls";
 import { CERTIFICATION_REPORT_TYPES, HITRUST_R2_STANDARD } from "./nodes/providerCertifications";
 import { SHARED_RESPONSIBILITY_DOMAINS } from "./edges/controlImplementations";
+import { REVIEW_BUCKETS, REVIEW_STANCES } from "./edges/controlReviews";
 import { ACTIVITY_FREQUENCIES, PERIODS_PER_YEAR } from "./nodes/scheduledActivities";
 import { EVIDENCE_COLLECTOR_TYPES, EVIDENCE_RECORD_STATUSES, EVIDENCE_RESULTS, INDEPENDENCE_LEVELS } from "./nodes/evidence";
 import { ARTIFACT_SENSITIVITIES, EVIDENCE_REVIEW_DECISIONS } from "./nodes/evidenceProvenance";
@@ -632,6 +634,43 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
     const key = `${o.systemId}::${o.controlId}::${o.level}`;
     overrideKeys[key] = (overrideKeys[key] ?? 0) + 1;
     check(overrideKeys[key] === 1, `prismaOverrides: more than one override for ${o.systemId}/${o.controlId} at level ${o.level} — which one wins would be an accident of file order`);
+  });
+
+  // ---- Control reviews -------------------------------------------------------
+  const reviewKeys: Record<string, number> = {};
+  graph.controlReviews.forEach((r, i) => {
+    check(has(graph.systemById, r.systemId), `controlReviews[${i}]: systemId "${r.systemId}" is not a system`);
+    check(has(graph.controlById, r.controlId), `controlReviews[${i}]: controlId "${r.controlId}" is not a real control`);
+    check((REVIEW_BUCKETS as readonly string[]).includes(r.bucket), `controlReviews[${i}]: bucket "${r.bucket}" is not a review bucket (${REVIEW_BUCKETS.join(", ")})`);
+    check((REVIEW_STANCES as readonly string[]).includes(r.stance), `controlReviews[${i}]: stance "${r.stance}" is not a review stance (${REVIEW_STANCES.join(", ")})`);
+    check(r.reviewedBy.trim().length > 0, `controlReviews[${i}]: needs a reviewedBy`);
+    check(!Number.isNaN(Date.parse(r.reviewedAt)), `controlReviews[${i}]: reviewedAt "${r.reviewedAt}" is not a parseable date`);
+    check(
+      r.stance === "confirm" || r.note.trim().length > 0,
+      `controlReviews[${i}]: a reject needs a note — otherwise the derived call still stands and the disagreement is invisible`
+    );
+
+    const system = graph.systemById[r.systemId];
+    const control = graph.controlById[r.controlId];
+    if (system && control && r.stance === "confirm") {
+      if (r.bucket === "vendor-inherited") {
+        check(
+          inheritsDomain(system.hostingType, control.domain),
+          `controlReviews[${i}]: confirming vendor inheritance for ${r.controlId} but ${system.hostingType} does not inherit "${control.domain}"`
+        );
+      }
+      if (r.bucket === "enterprise") {
+        const programScoped = Boolean(graph.keyControlById[r.controlId] && graph.keyControlById[r.controlId].scope === "program");
+        check(
+          graph.enterpriseInheritedDomains.has(control.domain) || programScoped,
+          `controlReviews[${i}]: confirming company-level incorporation for ${r.controlId} but "${control.domain}" is not an enterprise-inherited domain and the control is not program-scoped`
+        );
+      }
+    }
+
+    const key = `${r.systemId}::${r.controlId}`;
+    reviewKeys[key] = (reviewKeys[key] ?? 0) + 1;
+    check(reviewKeys[key] === 1, `controlReviews: more than one review for ${r.systemId}/${r.controlId} — which one wins would be an accident of file order`);
   });
 
   graph.programApplicabilityRules.forEach((r, i) =>
