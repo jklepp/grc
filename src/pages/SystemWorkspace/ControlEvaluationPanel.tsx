@@ -754,7 +754,7 @@ export function ControlEvaluationPanel({
     saveMutation((existing) => removeEvidence(existing, evidenceId));
   }
 
-  function handleLaneGrades({ grades, assessedBy, note }: { grades: LaneGrade[]; assessedBy: string; note: string }) {
+  function handleLaneGrades({ grades, assessedBy, note, comment }: { grades: LaneGrade[]; assessedBy: string; note: string; comment: string }) {
     saveMutation((existing) => {
       let next = existing;
       grades.forEach((grade) => {
@@ -764,7 +764,7 @@ export function ControlEvaluationPanel({
           controlId: row.control.id,
           level: grade.level,
           rating: grade.rating,
-          note,
+          note: note || comment,
           assessedBy,
           assessedAt: new Date().toISOString().slice(0, 10),
         });
@@ -774,7 +774,7 @@ export function ControlEvaluationPanel({
         controlId: row.control.id,
         bucket: "system-owned",
         stance: "confirm",
-        note: note || "Assessor accepted the derived PRISMA ratings.",
+        note: comment,
         reviewedBy: assessedBy,
         reviewedAt: new Date().toISOString().slice(0, 10),
       });
@@ -933,6 +933,7 @@ export function ControlEvaluationPanel({
                     levels={assessment.levels}
                     assessedBy={liveEngine.graph.assessmentScopeBySystem[system.id]?.assessor ?? ""}
                     note=""
+                    comment=""
                     onSubmit={handleLaneGrades}
                   />
                 </div>
@@ -953,6 +954,7 @@ export function ControlEvaluationPanel({
                     levels={assessment.levels}
                     assessedBy={liveEngine.graph.assessmentScopeBySystem[system.id]?.assessor ?? ""}
                     note=""
+                    comment=""
                     onSubmit={handleLaneGrades}
                   />
                 </div>

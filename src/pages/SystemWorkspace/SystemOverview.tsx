@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { FileDown } from "lucide-react";
 import { C } from "../../theme";
-import { AssuranceCockpit } from "./overview/AssuranceCockpit";
+import { PrismaLadder } from "./overview/PrismaLadder";
 import { AttentionRequired } from "./overview/AttentionRequired";
 import { SystemSnapshot } from "./overview/SystemSnapshot";
 import { RecentSystemActivity } from "./overview/RecentSystemActivity";
@@ -12,12 +12,12 @@ import type {
   CockpitSummary, ExposurePosture, IdentityPosture, IncidentResponsePosture,
   ResiliencePosture, SecurityTestingPosture, VendorPosture, WorkspaceDataType, WorkspaceSystem,
 } from "./types";
-import type { AuditReadinessBand, FrameworkReadiness } from "../../engine/review";
 import type { SystemWorkspaceTab } from "./tabs";
 
 interface SystemOverviewProps {
   system: WorkspaceSystem;
   cockpit: CockpitSummary;
+  compliance: number | null;
   identity: IdentityPosture;
   exposure: ExposurePosture;
   resilience: ResiliencePosture;
@@ -27,11 +27,10 @@ interface SystemOverviewProps {
   dataTypes: WorkspaceDataType[];
   onNavigate: (tab: SystemWorkspaceTab) => void;
   onGenerateIsoReport: () => Promise<void>;
-  readiness?: { overall: AuditReadinessBand; frameworks: FrameworkReadiness[] };
 }
 
 export function SystemOverview(props: SystemOverviewProps) {
-  const { system, cockpit, identity, exposure, resilience, secTests, ir, vendors, dataTypes, onNavigate, onGenerateIsoReport, readiness } = props;
+  const { system, cockpit, compliance, identity, exposure, resilience, secTests, ir, vendors, dataTypes, onNavigate, onGenerateIsoReport } = props;
   const [generatingReport, setGeneratingReport] = useState(false);
 
   async function generateReport() {
@@ -45,7 +44,7 @@ export function SystemOverview(props: SystemOverviewProps) {
 
   return (
     <div className="px-8 pb-10 space-y-8">
-      <AssuranceCockpit system={system} cockpit={cockpit} readiness={readiness} />
+      <PrismaLadder system={system} compliance={compliance} assurance={cockpit.assurance} />
 
       <div className="grid grid-cols-2 gap-5">
         <SystemSnapshot system={system} exposure={exposure} dataTypes={dataTypes} />

@@ -25,24 +25,30 @@ interface PrismaLaneGraderProps {
   onAssessedByChange?: (value: string) => void;
   note: string;
   onNoteChange?: (value: string) => void;
-  onSubmit: (result: { grades: LaneGrade[]; assessedBy: string; note: string }) => void;
+  comment: string;
+  onCommentChange?: (value: string) => void;
+  onSubmit: (result: { grades: LaneGrade[]; assessedBy: string; note: string; comment: string }) => void;
   submitLabel?: string;
   disabled?: boolean;
 }
 
+const RATINGS_HIGH_TO_LOW = [...COMPLIANCE_RATINGS].reverse();
+
 export function PrismaLaneGrader({
-  levels, assessedBy: assessedByProp, onAssessedByChange, note: noteProp, onNoteChange, onSubmit, submitLabel = "Save PRISMA ratings", disabled = false,
+  levels, assessedBy: assessedByProp, onAssessedByChange, note: noteProp, onNoteChange, comment: commentProp, onCommentChange, onSubmit, submitLabel = "Save PRISMA ratings", disabled = false,
 }: PrismaLaneGraderProps) {
   const [ratings, setRatings] = useState<Record<PrismaLevel, ComplianceRating>>(
     Object.fromEntries(PRISMA_LEVELS.map((level) => [level, levels[level].rating ?? levels[level].derived ?? 50])) as Record<PrismaLevel, ComplianceRating>
   );
   const [assessedByLocal, setAssessedByLocal] = useState(assessedByProp);
   const [noteLocal, setNoteLocal] = useState(noteProp);
+  const [commentLocal, setCommentLocal] = useState(commentProp);
   const assessedBy = onAssessedByChange ? assessedByProp : assessedByLocal;
   const note = onNoteChange ? noteProp : noteLocal;
+  const comment = onCommentChange ? commentProp : commentLocal;
 
   const changed = PRISMA_LEVELS.some((level) => ratings[level] !== levels[level].derived);
-  const ready = Boolean(assessedBy.trim()) && (!changed || note.trim().length > 0);
+  const ready = Boolean(assessedBy.trim()) && (!changed || note.trim().length > 0) && comment.trim().length > 0;
 
   function setAssessedBy(value: string) {
     if (onAssessedByChange) onAssessedByChange(value);
@@ -51,6 +57,10 @@ export function PrismaLaneGrader({
   function setNote(value: string) {
     if (onNoteChange) onNoteChange(value);
     else setNoteLocal(value);
+  }
+  function setComment(value: string) {
+    if (onCommentChange) onCommentChange(value);
+    else setCommentLocal(value);
   }
 
   return (
@@ -62,7 +72,7 @@ export function PrismaLaneGrader({
             <div key={level}>
               <div className="text-[10px] font-semibold mb-1" style={{ color: C.muted }}>{level}</div>
               <div className="flex flex-col gap-1">
-                {COMPLIANCE_RATINGS.map((rating) => {
+                {RATINGS_HIGH_TO_LOW.map((rating) => {
                   const active = ratings[level] === rating;
                   return (
                     <button
@@ -99,6 +109,15 @@ export function PrismaLaneGrader({
           <input style={inputStyle()} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why a lane differs from the derived rating" />
         </div>
       </div>
+      <div className="mt-3">
+        <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Comment (required)</div>
+        <textarea
+          style={{ ...inputStyle(), minHeight: 72, resize: "vertical" }}
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Describe in detail why the system satisfies each PRISMA lane"
+        />
+      </div>
       <button
         type="button"
         className="text-xs font-semibold px-3 py-1.5 rounded-lg mt-3"
@@ -108,6 +127,7 @@ export function PrismaLaneGrader({
           grades: PRISMA_LEVELS.map((level) => ({ level, rating: ratings[level], derived: levels[level].derived })),
           assessedBy: assessedBy.trim(),
           note: note.trim(),
+          comment: comment.trim(),
         })}
       >
         {submitLabel}

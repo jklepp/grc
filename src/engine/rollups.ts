@@ -278,6 +278,22 @@ export function createRollups(
       ASSURANCE_CATEGORIES.map((c) => [c, categories[c].score])
     ) as Record<AssuranceCategory, number | null>;
 
+    // Same weighted-mean-of-categories shape as rawAssurance/assurance above,
+    // one PRISMA level at a time — so a system can say "strong at Policy, weak
+    // at Managed" instead of only the single composite score. Not a new
+    // scoring model: it's the same per-category levelAverages already
+    // computed above, rolled up one hop further for display.
+    const levelAverages = Object.fromEntries(
+      PRISMA_LEVELS.map((level) => [
+        level,
+        display(weightedMean(
+          ASSURANCE_CATEGORIES
+            .filter((c) => categories[c].raw !== null)
+            .map((c) => ({ value: categories[c].levelAverages[level] as number, weight: weights[c] }))
+        )),
+      ])
+    ) as Record<PrismaLevel, number | null>;
+
     return {
       ...system,
       // `assignment` is a display string resolved from the stored `ownerId`, so
@@ -300,6 +316,7 @@ export function createRollups(
       impactWeight,
       categories,
       categoryScores,
+      levelAverages,
       categoryWeights: weights,
       // The assessment behind the number, and how much of the applicable estate
       // it speaks for. Coverage travels with every score in this model — a 69

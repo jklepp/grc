@@ -115,7 +115,6 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   const queueIndex = selectedControlId ? assessmentQueue.findIndex((row) => row.controlId === selectedControlId) : -1;
 
   const assessor = liveEngine.graph.assessmentScopeBySystem[system.id]?.assessor ?? "";
-  const readiness = useMemo(() => liveEngine.review.auditReadinessForSystem(system.id), [liveEngine, system.id]);
 
   useEffect(() => {
     if (!startAssessment || assessmentStarted.current) return;
@@ -207,10 +206,9 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
 
       {subTab === "overview" && (
         <SystemOverview
-          system={system} cockpit={cockpit} identity={identity} exposure={exposure}
+          system={system} cockpit={cockpit} compliance={posture.compliance} identity={identity} exposure={exposure}
           resilience={resilience} secTests={secTests} ir={ir} vendors={vendors}
           dataTypes={dataTypes} onNavigate={setSubTab} onGenerateIsoReport={generateIsoReport}
-          readiness={readiness}
         />
       )}
 
