@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { FileDown } from "lucide-react";
 import { C } from "../../theme";
 import { AssuranceCockpit } from "./overview/AssuranceCockpit";
-import { AssuranceLanes } from "./overview/AssuranceLanes";
 import { AttentionRequired } from "./overview/AttentionRequired";
 import { SystemSnapshot } from "./overview/SystemSnapshot";
 import { RecentSystemActivity } from "./overview/RecentSystemActivity";
@@ -45,8 +44,6 @@ export function SystemOverview(props: SystemOverviewProps) {
   return (
     <div className="px-8 pb-10 space-y-8">
       <AssuranceCockpit system={system} cockpit={cockpit} />
-
-      <AssuranceLanes system={system} />
 
       <div className="grid grid-cols-2 gap-5">
         <SystemSnapshot system={system} exposure={exposure} dataTypes={dataTypes} />

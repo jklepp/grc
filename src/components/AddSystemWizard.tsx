@@ -414,7 +414,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       sourceKind: asset.kind,
       kind: asset.kind,
       provider: asset.provider,
-      impactLevel: asset.impactLevel,
+      impactLevel: IMPACT_LEVELS.find((level) => level === asset.impactLevel) ?? "moderate",
       inherentLikelihood: asset.inherentLikelihood,
       dataTypes: Object.fromEntries(appEngine.classification.dataForAsset(asset.id).map((holding) => [holding.dataTypeId, holding.role])),
     })));
@@ -637,7 +637,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       kind: a.kind,
       provider: a.provider.trim() || provider,
       code: `A${i + 1}`,
-      impactLevel: a.impactLevel,
+      impactLevel: IMPACT_LEVELS.find((level) => level === a.impactLevel) ?? "moderate",
       inherentLikelihood: Number(a.inherentLikelihood) || 1,
     }));
     const assetIdByKey = new Map(assets.map((draft, index) => [draft.key, newAssets[index]?.id]));

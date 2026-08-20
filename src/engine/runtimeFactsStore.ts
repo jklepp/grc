@@ -10,10 +10,15 @@
 import type { RuntimeFacts } from "./liveGraph";
 import { emptyRuntimeFacts } from "./liveGraph";
 import type { ActorId, AssetId, EvidenceArtifactId, EvidenceId, EvidenceReviewId, FindingId, SystemId } from "../graph/ids";
-import type { ImpactLevel } from "../graph/nodes/assets";
-import { defaultSecurityCategory, type SecurityCategory, type System } from "../graph/nodes/systems";
+import type { Asset, ImpactLevel } from "../graph/nodes/assets";
+import {
+  defaultSecurityCategory, isImpactLevel, overallImpactLevel,
+  type SecurityCategory, type System,
+} from "../graph/nodes/systems";
 
 const STORAGE_KEY = "grc-runtime-facts";
+
+type LegacyCriticalityFactors = Record<string, { score?: number; reason?: string }>;
 
 function impactFromLegacyScore(score: unknown): ImpactLevel {
   if (typeof score !== "number" || !Number.isFinite(score)) return "moderate";
@@ -22,26 +27,44 @@ function impactFromLegacyScore(score: unknown): ImpactLevel {
   return "low";
 }
 
+function securityCategoryFromLegacy(legacy: LegacyCriticalityFactors | undefined): SecurityCategory {
+  const rating = (objective: keyof SecurityCategory): SecurityCategory[keyof SecurityCategory] => ({
+    impact: impactFromLegacyScore(legacy?.[objective]?.score),
+    reason: typeof legacy?.[objective]?.reason === "string" ? legacy[objective].reason : "",
+  });
+  return {
+    confidentiality: rating("confidentiality"),
+    integrity: rating("integrity"),
+    availability: rating("availability"),
+  };
+}
+
 // Older runtime systems stored a five-factor 0-100 criticalityFactors blob.
 // Map CIA scores onto FIPS 199 impact levels and drop the extra lanes so a
 // previously saved system still loads against the current schema.
-function migrateSystem(system: System & { criticalityFactors?: Record<string, { score?: number; reason?: string }> }): System {
+function migrateSystem(system: System & { criticalityFactors?: LegacyCriticalityFactors }): System {
   const existing = system.securityCategory;
   if (existing?.confidentiality?.impact && existing?.integrity?.impact && existing?.availability?.impact) {
     const { criticalityFactors: _legacy, ...rest } = system;
     return rest;
   }
   const legacy = system.criticalityFactors;
-  const rating = (objective: keyof SecurityCategory): SecurityCategory[keyof SecurityCategory] => ({
-    impact: impactFromLegacyScore(legacy?.[objective]?.score),
-    reason: typeof legacy?.[objective]?.reason === "string" ? legacy[objective].reason : "",
-  });
   const { criticalityFactors: _legacy, ...rest } = system;
   return {
     ...rest,
-    securityCategory: legacy
-      ? { confidentiality: rating("confidentiality"), integrity: rating("integrity"), availability: rating("availability") }
-      : defaultSecurityCategory(),
+    securityCategory: legacy ? securityCategoryFromLegacy(legacy) : defaultSecurityCategory(),
+  };
+}
+
+// Assets used to carry the same five-factor blob. Collapse CIA onto one FIPS
+// 199 impact level (high-water mark) so an earlier edit of a YAML system
+// cannot block adding a new one.
+function migrateAsset(asset: Asset & { criticalityFactors?: LegacyCriticalityFactors }): Asset {
+  const { criticalityFactors: legacy, ...rest } = asset;
+  if (isImpactLevel(asset.impactLevel)) return rest;
+  return {
+    ...rest,
+    impactLevel: legacy ? overallImpactLevel(securityCategoryFromLegacy(legacy)) : "moderate",
   };
 }
 
@@ -53,7 +76,7 @@ export function loadRuntimeFacts(): RuntimeFacts {
     const empty = emptyRuntimeFacts();
     return {
       systems: Array.isArray(parsed.systems) ? parsed.systems.map(migrateSystem) : empty.systems,
-      assets: Array.isArray(parsed.assets) ? parsed.assets : empty.assets,
+      assets: Array.isArray(parsed.assets) ? parsed.assets.map(migrateAsset) : empty.assets,
       assetDataTypes: Array.isArray(parsed.assetDataTypes) ? parsed.assetDataTypes : empty.assetDataTypes,
       actors: Array.isArray(parsed.actors) ? parsed.actors : empty.actors,
       actorAccess: Array.isArray(parsed.actorAccess) ? parsed.actorAccess : empty.actorAccess,
