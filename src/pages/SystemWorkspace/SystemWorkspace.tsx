@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { TabBar } from "../../components/Headings";
+import { WorkspaceTabBar } from "./WorkspaceTabBar";
 import { getAllSystems } from "../../engine";
 import { SUB_TABS } from "./tabs";
 import { STATUS_ORDER } from "./controlMeta";
@@ -14,6 +14,7 @@ import { SystemControls, DEFAULT_SELECTION } from "./SystemControls";
 import type { ControlSelection } from "./SystemControls";
 import { ScopeReviewModal } from "./ScopeReviewModal";
 import { SystemRisk } from "./SystemRisk";
+import { SystemFindings } from "./SystemFindings";
 import { SystemAssets } from "./SystemAssets";
 import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
 import { ControlAssessmentWalk } from "./ControlAssessmentWalk";
@@ -189,7 +190,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         onBack={onBack}
       />
 
-      <TabBar tabs={SUB_TABS} active={subTab} onChange={changeSubTab} variant="secondary" />
+      <WorkspaceTabBar tabs={SUB_TABS} active={subTab} onChange={changeSubTab} />
 
       <div className="pt-6" />
 
@@ -197,8 +198,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         <SystemOverview
           system={system} cockpit={cockpit} compliance={posture.compliance}
           statusCounts={statusCounts} applicabilitySummary={applicabilitySummary}
-          identity={identity} exposure={exposure}
-          resilience={resilience} secTests={secTests} ir={ir} vendors={vendors}
+          exposure={exposure}
           dataTypes={dataTypes} onNavigate={changeSubTab}
           onOpenScopeReview={openScopeReview} onSelectControlsGroup={openControlsGroup}
           onStartAssessment={assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
@@ -212,14 +212,14 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
 
       {subTab === "data" && <SystemData system={system} dataTypes={dataTypes} resilience={resilience} backupRecovery={backupRecovery} />}
 
-      {subTab === "identity" && <SystemIdentity identity={identity} exposure={exposure} />}
+      {subTab === "identity" && <SystemIdentity system={system} identity={identity} exposure={exposure} />}
 
       {subTab === "security" && (
         <SystemSecurity exposure={exposure} sdlc={sdlc} vendors={vendors} onOpenExceptionRegister={() => onNavigate?.("exception-register")} />
       )}
 
       {subTab === "testing" && (
-        <SystemTesting secTests={secTests} vuln={vuln} ir={ir} resilience={resilience} vendors={vendors} />
+        <SystemTesting secTests={secTests} vuln={vuln} ir={ir} resilience={resilience} vendors={vendors} identity={identity} />
       )}
 
       {subTab === "controls" && (
@@ -236,7 +236,9 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         />
       )}
 
-      {subTab === "risk" && <SystemRisk system={system} topRisks={topRisks} />}
+      {subTab === "risk" && <SystemRisk topRisks={topRisks} />}
+
+      {subTab === "findings" && <SystemFindings findings={findings} />}
 
       {subTab === "assets" && <SystemAssets systemId={systemId} />}
 

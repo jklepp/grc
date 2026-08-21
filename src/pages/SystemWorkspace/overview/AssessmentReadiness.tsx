@@ -15,10 +15,41 @@ interface AssessmentReadinessProps {
   onRemediateClick: () => void;
 }
 
-function CheckRow({ icon: Icon, title, description, complete, count, onClick, first = false }: {
+function HeroCheckRow({ icon: Icon, title, description, complete, count, onClick }: {
   icon: typeof Target;
   title: string;
   description: string;
+  complete: boolean;
+  count: number;
+  onClick: () => void;
+}) {
+  const color = complete ? C.green : C.red;
+  const background = complete ? C.greenBg : C.redBg;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center gap-4 p-4 text-left rounded-xl transition-colors"
+      style={{ background }}
+    >
+      <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: C.panel, color }}>
+        <Icon size={20} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-base font-semibold" style={{ color: C.ink }}>{title}</div>
+        <div className="text-xs mt-0.5 leading-relaxed" style={{ color: C.muted }}>{description}</div>
+      </div>
+      <span className="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold whitespace-nowrap" style={{ color, background: C.panel }}>
+        {complete ? "Complete" : `Deficient · ${count}`}
+      </span>
+      <ChevronRight size={18} className="shrink-0" color={color} />
+    </button>
+  );
+}
+
+function SecondaryCheckRow({ icon: Icon, title, complete, count, onClick, first = false }: {
+  icon: typeof Target;
+  title: string;
   complete: boolean;
   count: number;
   onClick: () => void;
@@ -30,32 +61,62 @@ function CheckRow({ icon: Icon, title, description, complete, count, onClick, fi
     <button
       type="button"
       onClick={onClick}
-      className="w-full flex items-center gap-3 py-3 text-left rounded-lg transition-colors"
+      className="w-full flex items-center gap-2.5 py-2.5 text-left transition-colors"
       style={{ borderTop: first ? "none" : `1px solid ${C.border}` }}
     >
-      <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background, color }}>
-        <Icon size={16} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-semibold" style={{ color: C.ink }}>{title}</div>
-        <div className="text-xs mt-0.5 leading-relaxed" style={{ color: C.muted }}>{description}</div>
-      </div>
-      <span className="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap" style={{ color, background }}>
+      <Icon size={14} color={color} className="shrink-0" />
+      <span className="text-xs font-medium flex-1 min-w-0" style={{ color: C.ink }}>{title}</span>
+      <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap" style={{ color, background }}>
         {complete ? "Complete" : `Deficient · ${count}`}
       </span>
-      <ChevronRight size={16} className="shrink-0" color={C.muted} />
+      <ChevronRight size={14} className="shrink-0" color={C.muted} />
     </button>
   );
 }
+
+const CHECKS = ["scope", "assess", "remediate"] as const;
+type CheckId = (typeof CHECKS)[number];
 
 // A new read of data every count already exists elsewhere for (Scope from
 // applicability.pendingControlsForSystem, Assessment from statusCounts.unassessed,
 // Remediation from the same REMEDIATION_STATUSES SystemControls' work-queue tile
 // uses) — three independent Complete/Deficient checks, not a sequential wizard.
+// One primary CTA: the first deficient check in scope->assess->remediate order
+// (the natural workflow sequence) renders as a hero row; the rest stay compact.
 export function AssessmentReadiness({ statusCounts, applicabilitySummary, onScopeClick, onAssessClick, onRemediateClick }: AssessmentReadinessProps) {
   const pendingCount = applicabilitySummary?.pending ?? 0;
   const assessmentCount = statusCounts.unassessed ?? 0;
   const remediationCount = REMEDIATION_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
+
+  const checks: Record<CheckId, { icon: typeof Target; title: string; description: string; complete: boolean; count: number; onClick: () => void }> = {
+    scope: {
+      icon: Target,
+      title: "Scope Determination",
+      description: "All matched controls have an in-scope / out-of-scope decision on record.",
+      complete: pendingCount === 0,
+      count: pendingCount,
+      onClick: onScopeClick,
+    },
+    assess: {
+      icon: ClipboardCheck,
+      title: "Control Assessment",
+      description: "Applicable controls have been evaluated and PRISMA-scored.",
+      complete: assessmentCount === 0,
+      count: assessmentCount,
+      onClick: onAssessClick,
+    },
+    remediate: {
+      icon: Wrench,
+      title: "Remediation",
+      description: `${statusCounts.deficient ?? 0} deficient · ${statusCounts.partial ?? 0} partial on assessed controls`,
+      complete: remediationCount === 0,
+      count: remediationCount,
+      onClick: onRemediateClick,
+    },
+  };
+  const heroId = CHECKS.find((id) => !checks[id].complete);
+  const secondaryIds = CHECKS.filter((id) => id !== heroId);
+  const allComplete = !heroId;
 
   return (
     <div>
@@ -64,33 +125,18 @@ export function AssessmentReadiness({ statusCounts, applicabilitySummary, onScop
         title="System Readiness"
         description="Three independent checks toward an audit-ready system: has scope been decided, has it been evaluated, and does what was found still need fixing."
       />
-      <div>
-        <CheckRow
-          icon={Target}
-          title="Scope Determination"
-          description="All matched controls have an in-scope / out-of-scope decision on record."
-          complete={pendingCount === 0}
-          count={pendingCount}
-          onClick={onScopeClick}
-          first
-        />
-        <CheckRow
-          icon={ClipboardCheck}
-          title="Control Assessment"
-          description="Applicable controls have been evaluated and PRISMA-scored."
-          complete={assessmentCount === 0}
-          count={assessmentCount}
-          onClick={onAssessClick}
-        />
-        <CheckRow
-          icon={Wrench}
-          title="Remediation"
-          description={`${statusCounts.deficient ?? 0} deficient · ${statusCounts.partial ?? 0} partial on assessed controls`}
-          complete={remediationCount === 0}
-          count={remediationCount}
-          onClick={onRemediateClick}
-        />
-      </div>
+      {allComplete ? (
+        <div className="flex items-center gap-2 rounded-lg p-3 text-sm" style={{ background: C.greenBg, color: C.green }}>
+          <ShieldCheck size={16} /> Scoped, assessed, and remediated — this system is audit-ready.
+        </div>
+      ) : (
+        <div className="space-y-1">
+          <HeroCheckRow {...checks[heroId]} />
+          <div className="pt-1">
+            {secondaryIds.map((id, i) => <SecondaryCheckRow key={id} {...checks[id]} first={i === 0} />)}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

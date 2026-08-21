@@ -205,7 +205,10 @@ export * from "./assurance";
 export { effectivenessFactor, composeEvidenceConfidence } from "./evidence";
 export { INSTANCE_STATUS_META } from "./assessment";
 export { COVERAGE_STATUS_META, COVERAGE_STATES } from "./compliance";
-export { FINDING_REMEDIATION_STATUS_META, REMEDIATION_STATUSES, FINDING_SEVERITY_META } from "./findings";
+export {
+  FINDING_REMEDIATION_STATUS_META, REMEDIATION_STATUSES, FINDING_SEVERITY_META,
+  GAP_RATING_THRESHOLD, isGapRating, suggestedFindingSeverity,
+} from "./findings";
 export { FINDING_SEVERITIES, FINDING_SOURCES } from "../graph/nodes/findings";
 export { IDENTITY_TYPES } from "../graph/nodes/identity";
 export { EGRESS_POSTURE, ADMIN_POSTURE, API_POSTURE } from "../graph/nodes/exposure";

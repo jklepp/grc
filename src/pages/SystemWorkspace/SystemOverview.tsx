@@ -5,15 +5,11 @@ import { PrismaLadder } from "./overview/PrismaLadder";
 import { AssessmentReadiness } from "./overview/AssessmentReadiness";
 import { AttentionRequired } from "./overview/AttentionRequired";
 import { SystemSnapshot } from "./overview/SystemSnapshot";
-import { RecentSystemActivity } from "./overview/RecentSystemActivity";
-import { RolesResponsibilities } from "./overview/RolesResponsibilities";
 import { Panel } from "./shared/Panel";
-import { SectionHeader } from "./shared/SectionHeader";
 import { ASSESSMENT_SELECTION, DEFAULT_SELECTION } from "./SystemControls";
 import type { ControlSelection } from "./SystemControls";
 import type {
-  ApplicabilitySummary, CockpitSummary, ControlMatrixRow, ExposurePosture, IdentityPosture, IncidentResponsePosture,
-  ResiliencePosture, SecurityTestingPosture, VendorPosture, WorkspaceDataType, WorkspaceSystem,
+  ApplicabilitySummary, CockpitSummary, ControlMatrixRow, ExposurePosture, WorkspaceDataType, WorkspaceSystem,
 } from "./types";
 import type { SystemWorkspaceTab } from "./tabs";
 import type { ReviewWave } from "../../engine/review";
@@ -24,12 +20,7 @@ interface SystemOverviewProps {
   compliance: number | null;
   statusCounts: Record<ControlMatrixRow["status"], number>;
   applicabilitySummary: ApplicabilitySummary;
-  identity: IdentityPosture;
   exposure: ExposurePosture;
-  resilience: ResiliencePosture;
-  secTests: SecurityTestingPosture;
-  ir: IncidentResponsePosture;
-  vendors: VendorPosture;
   dataTypes: WorkspaceDataType[];
   onNavigate: (tab: SystemWorkspaceTab) => void;
   onOpenScopeReview: (wave: ReviewWave) => void;
@@ -40,8 +31,8 @@ interface SystemOverviewProps {
 
 export function SystemOverview(props: SystemOverviewProps) {
   const {
-    system, cockpit, compliance, statusCounts, applicabilitySummary, identity, exposure, resilience, secTests, ir,
-    vendors, dataTypes, onNavigate, onOpenScopeReview, onSelectControlsGroup, onStartAssessment, onGenerateIsoReport,
+    system, cockpit, compliance, statusCounts, applicabilitySummary, exposure,
+    dataTypes, onNavigate, onOpenScopeReview, onSelectControlsGroup, onStartAssessment, onGenerateIsoReport,
   } = props;
   const [generatingReport, setGeneratingReport] = useState(false);
 
@@ -75,30 +66,20 @@ export function SystemOverview(props: SystemOverviewProps) {
         <AttentionRequired cockpit={cockpit} onNavigate={onNavigate} />
       </div>
 
-      <RolesResponsibilities system={system} />
-
-      <RecentSystemActivity identity={identity} resilience={resilience} secTests={secTests} ir={ir} vendors={vendors} />
-
-      <Panel>
-        <SectionHeader
-          icon={FileDown}
-          title="ISO/IEC 27001 Assurance Report"
-          description="Export this system's scope, assets, risk, control implementation, evidence posture, findings, and supplemental assurance as a review-ready PDF."
-          aside={(
-            <button
-              type="button"
-              onClick={() => void generateReport()}
-              disabled={generatingReport}
-              className="rounded-lg px-4 py-2 text-xs font-semibold text-white transition-opacity disabled:cursor-wait disabled:opacity-60"
-              style={{ background: C.accentStrong }}
-            >
-              {generatingReport ? "Generating report..." : "Generate ISO/IEC 27001:2022 System Assurance & Control Implementation Report"}
-            </button>
-          )}
-        />
-        <div className="text-[11px] leading-relaxed -mt-1" style={{ color: C.muted }}>
-          Supports readiness and assurance review; it is not an ISO certificate or a complete organizational Statement of Applicability.
+      <Panel className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
+          <FileDown size={15} className="shrink-0" color={C.muted} />
+          <span className="text-xs" style={{ color: C.muted }}>ISO/IEC 27001 Assurance Report</span>
         </div>
+        <button
+          type="button"
+          onClick={() => void generateReport()}
+          disabled={generatingReport}
+          className="rounded-lg px-4 py-2 text-xs font-semibold text-white transition-opacity disabled:cursor-wait disabled:opacity-60 shrink-0"
+          style={{ background: C.accentStrong }}
+        >
+          {generatingReport ? "Generating report..." : "Generate Report"}
+        </button>
       </Panel>
     </div>
   );

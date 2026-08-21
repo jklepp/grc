@@ -7,9 +7,11 @@ import { IdentificationField } from "./shared/IdentificationField";
 import { CadenceBadge } from "./shared/CadenceBadge";
 import { CoverageBar } from "./shared/CoverageBar";
 import { SectionHeader } from "./shared/SectionHeader";
-import type { ExposurePosture, IdentityPosture } from "./types";
+import { RolesResponsibilities } from "./overview/RolesResponsibilities";
+import type { ExposurePosture, IdentityPosture, WorkspaceSystem } from "./types";
 
 interface SystemIdentityProps {
+  system: WorkspaceSystem;
   identity: IdentityPosture;
   exposure: ExposurePosture;
 }
@@ -132,7 +134,7 @@ function AgenticIdentityCard({ agent }: { agent: AgenticIdentity }) {
   );
 }
 
-export function SystemIdentity({ identity, exposure }: SystemIdentityProps) {
+export function SystemIdentity({ system, identity, exposure }: SystemIdentityProps) {
   const workforceTypes = new Set(["employee", "privileged", "contractor", "vendor"]);
   const nonHumanTypes = new Set(["service-account", "workload"]);
   const workforcePopulations = identity.populations.filter((population) => workforceTypes.has(population.identityType));
@@ -309,6 +311,8 @@ export function SystemIdentity({ identity, exposure }: SystemIdentityProps) {
           <div className="text-sm" style={{ color: C.muted }}>No emergency-access identities are recorded for this system.</div>
         )}
       </Panel>
+
+      <RolesResponsibilities system={system} />
     </div>
   );
 }

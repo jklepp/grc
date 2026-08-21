@@ -1,12 +1,12 @@
 import React from "react";
-import { TrendingUp, ListTodo } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 import { C } from "../../theme";
-import { POAMRow } from "./shared/POAMRow";
 import { SectionHeader } from "./shared/SectionHeader";
-import type { TopRisk, WorkspaceSystem } from "./types";
+import type { TopRisk } from "./types";
 
 // What could go wrong, how exposed are we, and what are we doing about it?
-export function SystemRisk({ system, topRisks }: { system: WorkspaceSystem; topRisks: TopRisk[] }) {
+// Open findings/CAPs derived from these risks live on the Findings tab.
+export function SystemRisk({ topRisks }: { topRisks: TopRisk[] }) {
   return (
     <div className="px-8 pb-10 space-y-8">
       <div>
@@ -33,24 +33,6 @@ export function SystemRisk({ system, topRisks }: { system: WorkspaceSystem; topR
           ))}
           {topRisks.length === 0 && <div className="text-sm" style={{ color: C.muted }}>No risk scenarios map to this system's assets.</div>}
         </div>
-      </div>
-
-      <div>
-        <SectionHeader
-          icon={ListTodo}
-          title="Plan of Action & Milestones (POA&M)"
-          description="Every control not yet fully implemented, with its remediation, responsible resource, and target date."
-        />
-        <p className="text-xs mb-3" style={{ color: C.muted }}>
-          Every control not yet fully implemented, with the planned remediation, the resource responsible, and a target date — pulled from ACME's live remediation tracker, not a static appendix.
-        </p>
-        {system.findings.length === 0 ? (
-          <div className="text-sm p-4 rounded-lg" style={{ background: C.greenBg, color: C.green }}>
-            No open items — every tracked control on this system is fully implemented.
-          </div>
-        ) : (
-          system.findings.map((item) => <POAMRow key={item.id} item={item} />)
-        )}
       </div>
     </div>
   );

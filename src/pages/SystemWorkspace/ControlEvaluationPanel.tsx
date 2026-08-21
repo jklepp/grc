@@ -9,6 +9,7 @@ import { C } from "../../theme";
 import {
   PRISMA_LEVELS, COMPLIANCE_LABELS, findingsForSystem,
   FINDING_SEVERITY_META, FINDING_REMEDIATION_STATUS_META, FINDING_SEVERITIES, FINDING_SOURCES, REMEDIATION_STATUSES,
+  isGapRating, suggestedFindingSeverity,
   INSTANCE_STATUS_META,
   EVIDENCE_TYPES, EVIDENCE_RESULTS, INDEPENDENCE_LEVELS,
   EVIDENCE_COLLECTOR_TYPES, ARTIFACT_SENSITIVITIES, EVIDENCE_REVIEW_DECISIONS,
@@ -628,8 +629,10 @@ export function ControlEvaluationPanel({
   const [editingLaneEvidenceId, setEditingLaneEvidenceId] = useState<EvidenceId | null>(null);
   const [showMaturityDetails, setShowMaturityDetails] = useState(false);
   const [creatingFinding, setCreatingFinding] = useState(false);
+  const [creatingFindingInitial, setCreatingFindingInitial] = useState<Partial<FindingFormState> | null>(null);
   const [editingFindingId, setEditingFindingId] = useState<FindingId | null>(null);
   const [saveError, setSaveError] = useState<string[] | null>(null);
+  const [gapNudge, setGapNudge] = useState<{ level: PrismaLevel; rating: ComplianceRating } | null>(null);
   const liveEngine = useLiveEngine();
   const walkRemaining = walk ? walk.domains.reduce((sum, d) => sum + d.remaining, 0) : 0;
   const walkReviewerMissing = Boolean(walk) && !walk!.reviewer.trim();
@@ -688,6 +691,7 @@ export function ControlEvaluationPanel({
     setAttachingLane(null);
     setEditingLaneEvidenceId(null);
     setCreatingFinding(false);
+    setCreatingFindingInitial(null);
     setEditingFindingId(null);
     return true;
   }
@@ -709,7 +713,7 @@ export function ControlEvaluationPanel({
   }
 
   function handleLaneGrades({ grades, assessedBy, note, comment }: { grades: LaneGrade[]; assessedBy: string; note: string; comment: string }) {
-    saveMutation((existing) => {
+    const saved = saveMutation((existing) => {
       let next = existing;
       grades.forEach((grade) => {
         if (grade.rating === grade.derived) return;
@@ -733,6 +737,14 @@ export function ControlEvaluationPanel({
         reviewedAt: new Date().toISOString().slice(0, 10),
       });
     });
+    if (!saved) return;
+    // Nudge off the ratings just submitted, not row.assessment — that prop
+    // may not have caught up with this save yet. Skipped once a finding
+    // already tracks this control's gap, so re-saving the same low grade
+    // doesn't re-nag.
+    const worst = [...grades].sort((a, b) => a.rating - b.rating)[0];
+    const alreadyTracked = controlFindings.some((f) => f.open);
+    setGapNudge(worst && isGapRating(worst.rating) && !alreadyTracked ? { level: worst.level, rating: worst.rating } : null);
   }
 
   function handleCreateFinding(draft: Omit<FindingDraft, "controlId">) {
@@ -979,6 +991,35 @@ export function ControlEvaluationPanel({
               first fact commits. */}
           {activeStep === "scoring" && assessment && (
             <div className="space-y-4">
+              {gapNudge && (
+                <div className="rounded-lg p-4 flex items-center gap-3" style={{ background: C.redBg, border: `1px solid ${C.red}55` }}>
+                  <div className="flex-1">
+                    <div className="text-[13px] font-semibold" style={{ color: C.ink }}>
+                      {gapNudge.level} scored {gapNudge.rating} — {COMPLIANCE_LABELS[gapNudge.rating]}. Log a finding to track remediation?
+                    </div>
+                  </div>
+                  <button
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg shrink-0"
+                    style={{ background: C.red, color: "#fff" }}
+                    onClick={() => {
+                      setActiveStep("findings");
+                      setCreatingFinding(true);
+                      setCreatingFindingInitial({
+                        title: `${gapNudge.level} below threshold`,
+                        detail: `${gapNudge.level} lane scored ${gapNudge.rating} — ${COMPLIANCE_LABELS[gapNudge.rating]}.`,
+                        severity: suggestedFindingSeverity(gapNudge.rating),
+                        source: "control-gap",
+                      });
+                      setGapNudge(null);
+                    }}
+                  >
+                    Log finding
+                  </button>
+                  <button className="text-xs px-3 py-1.5 rounded-lg shrink-0" style={{ color: C.muted }} onClick={() => setGapNudge(null)}>
+                    Dismiss
+                  </button>
+                </div>
+              )}
               {!assessed && (
                 <div className="rounded-lg p-4" style={{ background: C.amberBg, border: `1px solid ${C.amber}55` }}>
                   <div className="flex items-center gap-2">
@@ -1266,8 +1307,9 @@ export function ControlEvaluationPanel({
               {creatingFinding && (
                 <div className="mb-3">
                   <FindingForm
+                    initial={creatingFindingInitial ?? undefined}
                     assetOptions={assetOptions}
-                    onCancel={() => setCreatingFinding(false)}
+                    onCancel={() => { setCreatingFinding(false); setCreatingFindingInitial(null); }}
                     onSubmit={handleCreateFinding}
                   />
                 </div>

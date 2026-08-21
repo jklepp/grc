@@ -14,9 +14,10 @@
 // proves it's closed"), not a rediscovery of the same evidenceIds reverse
 // link, so it doesn't collapse into the convention above.
 import type { Graph } from "../graph/types";
-import { REMEDIATION_STATUSES, type Finding, type FindingSource } from "../graph/nodes/findings";
+import { REMEDIATION_STATUSES, type Finding, type FindingSeverity, type FindingSource } from "../graph/nodes/findings";
 import type { EngineContext } from "./context";
 import type { AssetId, ControlId, SystemId, RiskId } from "../graph/ids";
+import type { ComplianceRating } from "../graph/nodes/taxonomy";
 
 export const FINDING_REMEDIATION_STATUS_META = {
   Planned: { label: "Planned", color: "na" },
@@ -31,6 +32,21 @@ export const FINDING_SEVERITY_META = {
   medium: { label: "Medium", color: "amber" },
   low: { label: "Low", color: "muted" },
 };
+
+// A lane rated at or below this is a gap worth flagging as a Finding — the
+// same deterministic-threshold pattern applicability rules use, so the
+// grading UI can nudge an assessor without making a silent judgment call.
+export const GAP_RATING_THRESHOLD: ComplianceRating = 25;
+
+export function isGapRating(rating: ComplianceRating): boolean {
+  return rating <= GAP_RATING_THRESHOLD;
+}
+
+// A starting point the assessor sees and can still change in the form —
+// not an auto-submitted decision.
+export function suggestedFindingSeverity(rating: ComplianceRating): FindingSeverity {
+  return rating === 0 ? "high" : "medium";
+}
 
 export function createFindings(graph: Graph, ctx: EngineContext) {
   function riskIdsFor(assetId: AssetId, controlId: ControlId): RiskId[] {

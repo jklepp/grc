@@ -11,8 +11,9 @@ import { IdentificationField } from "./shared/IdentificationField";
 import { StatTile } from "./shared/StatTile";
 import { CadenceBadge } from "./shared/CadenceBadge";
 import { POAMRow } from "./shared/POAMRow";
+import { RecentSystemActivity } from "./overview/RecentSystemActivity";
 import type {
-  IncidentResponsePosture, ResiliencePosture, SecurityTestingPosture,
+  IdentityPosture, IncidentResponsePosture, ResiliencePosture, SecurityTestingPosture,
   VendorPosture, VulnerabilityPosture,
 } from "./types";
 import type { CadenceStatus } from "../../engine/assurance";
@@ -97,9 +98,10 @@ interface SystemTestingProps {
   ir: IncidentResponsePosture;
   resilience: ResiliencePosture;
   vendors: VendorPosture;
+  identity: IdentityPosture;
 }
 
-export function SystemTesting({ secTests, vuln, ir, resilience, vendors }: SystemTestingProps) {
+export function SystemTesting({ secTests, vuln, ir, resilience, vendors, identity }: SystemTestingProps) {
   const lastTabletop = ir.lastTabletop;
   const missingTabletopFunctions = lastTabletop
     ? (["legal", "customer-comms"] as const).filter((participatingFunction) => !lastTabletop.participatingFunctions.includes(participatingFunction))
@@ -434,6 +436,8 @@ export function SystemTesting({ secTests, vuln, ir, resilience, vendors }: Syste
           {vendors.vendors.length === 0 && <div className="text-sm" style={{ color: C.muted }}>No dependencies registered for this system.</div>}
         </div>
       </div>
+
+      <RecentSystemActivity identity={identity} resilience={resilience} secTests={secTests} ir={ir} vendors={vendors} />
     </div>
   );
 }
