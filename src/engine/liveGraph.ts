@@ -48,6 +48,8 @@ import type { ControlReview } from "../graph/edges/controlReviews";
 import type { Finding } from "../graph/nodes/findings";
 import type { SystemId } from "../graph/ids";
 import type { ClassificationTier } from "../graph/nodes/taxonomy";
+import type { BackupConfig, DrTest } from "../graph/nodes/resilience";
+import type { SdlcPosture } from "../graph/nodes/sdlc";
 
 export interface RuntimeFacts {
   systems: System[];
@@ -71,12 +73,22 @@ export interface RuntimeFacts {
   prismaOverrides: PrismaLevelOverride[];
   controlReviews: ControlReview[];
   findings: Finding[];
+  // System Register cockpit posture — sparse (0-or-1 backup config / SDLC
+  // posture row per system, any number of DR tests). A brand-new system has
+  // none of these until someone runs a DR test or records SDLC controls; a
+  // cloned system starts from its source's rows (see AddSystemWizard's
+  // buildCandidateRuntimeFacts) rather than silently losing them the way an
+  // earlier version of the clone did.
+  backupConfigs: BackupConfig[];
+  drTests: DrTest[];
+  sdlcPostures: SdlcPosture[];
 }
 
 export function emptyRuntimeFacts(): RuntimeFacts {
   return {
     systems: [], assets: [], assetDataTypes: [], actors: [], actorAccess: [], dataFlows: [], agenticIdentities: [], assessmentScopes: [], expectedClassification: {},
     implementationMechanisms: [], evidence: [], evidenceArtifacts: [], evidenceReviews: [], notImplemented: [], prismaOverrides: [], controlReviews: [], findings: [],
+    backupConfigs: [], drTests: [], sdlcPostures: [],
   };
 }
 
@@ -171,6 +183,21 @@ export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts 
       ...runtime.controlReviews,
     ],
     findings: [...base.findings, ...runtime.findings],
+    // Sparse, at most one row per system — replace (never append to) the
+    // baseline row for any system runtime declares one for, the same
+    // "supersede by systemId" discipline assessmentScopes above uses.
+    backupConfigs: [
+      ...base.backupConfigs.filter((b) => !runtime.backupConfigs.some((r) => r.systemId === b.systemId)),
+      ...runtime.backupConfigs,
+    ],
+    drTests: [
+      ...base.drTests.filter((t) => !overriddenSystemIds.has(t.systemId)),
+      ...runtime.drTests,
+    ],
+    sdlcPostures: [
+      ...base.sdlcPostures.filter((p) => !runtime.sdlcPostures.some((r) => r.systemId === p.systemId)),
+      ...runtime.sdlcPostures,
+    ],
   });
 }
 

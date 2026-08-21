@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentProps, CSSProperties, ReactNode } from "react";
 import {
   Info, Gauge, Layers, ClipboardCheck, Check, AlertTriangle, Plus, Trash2, ChevronLeft, ChevronRight, Network, Users, Bot,
+  DatabaseBackup,
 } from "lucide-react";
 import { C } from "../theme";
 import Modal, { ModalCloseButton } from "./Modal";
@@ -18,7 +19,9 @@ import {
 import { buildLiveEngine } from "../engine/liveGraph";
 import type { RuntimeFacts } from "../engine/liveGraph";
 import { YAML_FACTS } from "../graph/sources/yaml";
-import { loadRuntimeFacts, nextSystemId, nextAssetId, nextActorId, nextActorAccessId, nextDataFlowId, nextAgenticIdentityId } from "../engine/runtimeFactsStore";
+import { loadRuntimeFacts, nextSystemId, nextAssetId, nextActorId, nextActorAccessId, nextDataFlowId, nextAgenticIdentityId, nextDrTestId } from "../engine/runtimeFactsStore";
+import type { BackupConfig, DrTest } from "../graph/nodes/resilience";
+import type { SdlcPosture } from "../graph/nodes/sdlc";
 import type { ActorId, AssetId, DataTypeId, OrgId, SystemId } from "../graph/ids";
 import type { Asset, AssetKind, ImpactLevel } from "../graph/nodes/assets";
 import type { AssetDataType, DataRole } from "../graph/edges/assetDataTypes";
@@ -43,8 +46,9 @@ const STEPS = [
   { id: 3, title: "Data", detail: "What it processes", icon: Layers },
   { id: 4, title: "Assets", detail: "Where data lives", icon: Layers },
   { id: 5, title: "Architecture", detail: "Actors, flows & agents", icon: Network },
-  { id: 6, title: "Derived Scope", detail: "What applies & why", icon: ClipboardCheck },
-  { id: 7, title: "Launch", detail: "Start assessment", icon: Check },
+  { id: 6, title: "Resilience & SDLC", detail: "Backup, DR & secure dev", icon: DatabaseBackup },
+  { id: 7, title: "Derived Scope", detail: "What applies & why", icon: ClipboardCheck },
+  { id: 8, title: "Launch", detail: "Start assessment", icon: Check },
 ] as const;
 type WizardStep = (typeof STEPS)[number]["id"];
 type AssetType = string;
@@ -114,6 +118,61 @@ interface AgentDraft {
   tools: string;
 }
 
+interface DrTestDraft {
+  key: string;
+  saved: boolean;
+  expanded: boolean;
+  id?: string;
+  conductedAt: string;
+  cadenceDays: number | string;
+  scope: string;
+  restoreSuccessful: boolean;
+  actualRpoMinutes: number | string;
+  actualRtoMinutes: number | string;
+  issues: string;
+}
+
+// The ten SdlcPosture safeguard booleans, grouped as one object (like
+// securityCategory) rather than ten separate useState calls.
+interface SdlcSafeguards {
+  repoBranchProtection: boolean;
+  prReviewRequired: boolean;
+  sastEnabled: boolean;
+  scaEnabled: boolean;
+  dastEnabled: boolean;
+  containerScanningEnabled: boolean;
+  secretScanningEnabled: boolean;
+  iacScanningEnabled: boolean;
+  cicdIdentityHardened: boolean;
+  deployApprovalRequired: boolean;
+}
+
+const SDLC_SAFEGUARD_GROUPS: { label: string; keys: (keyof SdlcSafeguards)[] }[] = [
+  { label: "Source", keys: ["repoBranchProtection", "prReviewRequired", "secretScanningEnabled"] },
+  { label: "Build & Test", keys: ["sastEnabled", "scaEnabled", "dastEnabled", "containerScanningEnabled", "iacScanningEnabled"] },
+  { label: "Release", keys: ["cicdIdentityHardened", "deployApprovalRequired"] },
+];
+const SDLC_SAFEGUARD_LABELS: Record<keyof SdlcSafeguards, string> = {
+  repoBranchProtection: "Branch Protection",
+  prReviewRequired: "PR Review Required",
+  secretScanningEnabled: "Secret Scanning",
+  sastEnabled: "SAST",
+  scaEnabled: "SCA",
+  dastEnabled: "DAST",
+  containerScanningEnabled: "Container Scanning",
+  iacScanningEnabled: "IaC Scanning",
+  cicdIdentityHardened: "CI/CD Identity Hardened",
+  deployApprovalRequired: "Deploy Approval Required",
+};
+
+function blankSdlcSafeguards(): SdlcSafeguards {
+  return {
+    repoBranchProtection: false, prReviewRequired: false, sastEnabled: false, scaEnabled: false,
+    dastEnabled: false, containerScanningEnabled: false, secretScanningEnabled: false,
+    iacScanningEnabled: false, cicdIdentityHardened: false, deployApprovalRequired: false,
+  };
+}
+
 function draftKey(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -139,6 +198,24 @@ function blankAgent(ownerOrgId: OrgId | "" = ""): AgentDraft {
     privilegeLevel: "standard", credentialType: "workload-identity", loggingEnabled: true,
     revocationMechanism: "automated", tools: "",
   };
+}
+
+function blankDrTestDraft(): DrTestDraft {
+  return {
+    key: draftKey("drtest"), saved: false, expanded: true,
+    conductedAt: new Date().toISOString().slice(0, 10), cadenceDays: 180, scope: "",
+    restoreSuccessful: true, actualRpoMinutes: 0, actualRtoMinutes: 0, issues: "",
+  };
+}
+
+function drTestDraftIsValid(draft: DrTestDraft): boolean {
+  return Boolean(
+    draft.conductedAt && !Number.isNaN(Date.parse(draft.conductedAt))
+    && Number(draft.cadenceDays) > 0
+    && draft.scope.trim()
+    && Number(draft.actualRpoMinutes) >= 0 && Number(draft.actualRtoMinutes) >= 0
+    && (draft.restoreSuccessful || draft.issues.trim())
+  );
 }
 
 function assetDraftLabel(assets: AssetDraft[], key: string): string {
@@ -357,6 +434,30 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   const [flowDrafts, setFlowDrafts] = useState<FlowDraft[]>([]);
   const [agentDrafts, setAgentDrafts] = useState<AgentDraft[]>([]);
 
+  // Backup & Recovery — a system either has a backup configuration on record
+  // or it doesn't; there's nothing to fabricate for one that hasn't been set
+  // up yet.
+  const [trackBackup, setTrackBackup] = useState(false);
+  const [backupEnabled, setBackupEnabled] = useState(true);
+  const [backupCoveragePct, setBackupCoveragePct] = useState<number | string>(100);
+  const [backupImmutable, setBackupImmutable] = useState(false);
+  const [backupCrossRegion, setBackupCrossRegion] = useState(false);
+  const [backupRpoTargetMinutes, setBackupRpoTargetMinutes] = useState<number | string>(60);
+  const [backupRtoTargetMinutes, setBackupRtoTargetMinutes] = useState<number | string>(240);
+
+  // Disaster recovery test history — any number of records, same
+  // add/edit/save card pattern as assets/actors/flows/agents above.
+  const [drTestDrafts, setDrTestDrafts] = useState<DrTestDraft[]>([]);
+
+  // Secure development posture. `sdlcApplicable` (declared above, asked in
+  // Technology as "Custom software") already IS the fact SdlcPosture.applicable
+  // records, so it's reused rather than asked twice; this section only adds
+  // the safeguard detail behind that answer.
+  const [trackSdlc, setTrackSdlc] = useState(false);
+  const [sdlcNotApplicableReason, setSdlcNotApplicableReason] = useState("");
+  const [sdlcSafeguards, setSdlcSafeguards] = useState<SdlcSafeguards>(blankSdlcSafeguards);
+  const [lastThreatModelAt, setLastThreatModelAt] = useState("");
+
   const [dryRun, setDryRun] = useState<DryRunResult | null>(null);
   const [checking, setChecking] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -478,6 +579,37 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       credentialType: agent.credentialType, loggingEnabled: agent.loggingEnabled,
       revocationMechanism: agent.revocationMechanism, tools: agent.tools.join(", "),
     })));
+
+    const sourceBackup = appEngine.graph.backupConfigBySystem[sourceSystemId];
+    setTrackBackup(Boolean(sourceBackup));
+    setBackupEnabled(sourceBackup?.enabled ?? true);
+    setBackupCoveragePct(sourceBackup?.coveragePct ?? 100);
+    setBackupImmutable(sourceBackup?.immutable ?? false);
+    setBackupCrossRegion(sourceBackup?.crossRegion ?? false);
+    setBackupRpoTargetMinutes(sourceBackup?.rpoTargetMinutes ?? 60);
+    setBackupRtoTargetMinutes(sourceBackup?.rtoTargetMinutes ?? 240);
+
+    setDrTestDrafts((appEngine.graph.drTestsBySystem[sourceSystemId] ?? []).map((test) => ({
+      key: isClone ? draftKey("drtest") : test.id,
+      saved: true, expanded: false,
+      id: isClone ? undefined : test.id,
+      conductedAt: test.conductedAt, cadenceDays: test.cadenceDays, scope: test.scope,
+      restoreSuccessful: test.restoreSuccessful, actualRpoMinutes: test.actualRpoMinutes,
+      actualRtoMinutes: test.actualRtoMinutes, issues: test.issues ?? "",
+    })));
+
+    const sourceSdlc = appEngine.graph.sdlcPostureBySystem[sourceSystemId];
+    setTrackSdlc(Boolean(sourceSdlc));
+    setSdlcNotApplicableReason(sourceSdlc?.notApplicableReason ?? "");
+    setSdlcSafeguards(sourceSdlc ? {
+      repoBranchProtection: sourceSdlc.repoBranchProtection, prReviewRequired: sourceSdlc.prReviewRequired,
+      sastEnabled: sourceSdlc.sastEnabled, scaEnabled: sourceSdlc.scaEnabled, dastEnabled: sourceSdlc.dastEnabled,
+      containerScanningEnabled: sourceSdlc.containerScanningEnabled, secretScanningEnabled: sourceSdlc.secretScanningEnabled,
+      iacScanningEnabled: sourceSdlc.iacScanningEnabled, cicdIdentityHardened: sourceSdlc.cicdIdentityHardened,
+      deployApprovalRequired: sourceSdlc.deployApprovalRequired,
+    } : blankSdlcSafeguards());
+    setLastThreatModelAt(sourceSdlc?.lastThreatModelAt ?? "");
+
     setDryRun(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingSystemId, cloneFromSystemId, open]);
@@ -491,6 +623,10 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     setIdentityTypes([]); setNetworkExposure([]); setHasThirdPartyIntegration(false); setSdlcApplicable(false);
     setOwnerOrgId(ORGS[0]?.id ?? ""); setAssessor(""); setAssessmentTarget(defaultAssessmentTarget());
     setAssets([blankAsset(0)]); setActorDrafts([]); setFlowDrafts([]); setAgentDrafts([]); setDryRun(null);
+    setTrackBackup(false); setBackupEnabled(true); setBackupCoveragePct(100); setBackupImmutable(false);
+    setBackupCrossRegion(false); setBackupRpoTargetMinutes(60); setBackupRtoTargetMinutes(240);
+    setDrTestDrafts([]);
+    setTrackSdlc(false); setSdlcNotApplicableReason(""); setSdlcSafeguards(blankSdlcSafeguards()); setLastThreatModelAt("");
   }
 
   function close() { reset(); onClose(); }
@@ -606,6 +742,26 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   }
   function removeAgent(key: string) {
     setAgentDrafts((current) => current.filter((agent) => agent.key !== key));
+  }
+
+  function addDrTest() {
+    setDrTestDrafts((current) => [...current, blankDrTestDraft()]);
+  }
+  function updateDrTest(key: string, patch: Partial<DrTestDraft>) {
+    setDrTestDrafts((current) => current.map((t) => (t.key === key ? { ...t, ...patch, saved: false } : t)));
+  }
+  function expandDrTest(key: string) {
+    setDrTestDrafts((current) => current.map((t) => (t.key === key ? { ...t, expanded: true } : t)));
+  }
+  function saveDrTest(key: string) {
+    setDrTestDrafts((current) => current.map((t) => t.key === key && drTestDraftIsValid(t)
+      ? { ...t, saved: true, expanded: false } : t));
+  }
+  function removeDrTest(key: string) {
+    setDrTestDrafts((current) => current.filter((t) => t.key !== key));
+  }
+  function updateSdlcSafeguard(key: keyof SdlcSafeguards, value: boolean) {
+    setSdlcSafeguards((current) => ({ ...current, [key]: value }));
   }
 
   // Builds an upsert candidate for either a new or existing system. Nothing is
@@ -739,6 +895,48 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       idFacts = { ...idFacts, agenticIdentities: [...idFacts.agenticIdentities, agent] };
     });
 
+    // Backup configuration, DR test history, and SDLC posture live in their
+    // own System Register cockpit fact domains, keyed purely by system id —
+    // they are not part of the architecture (assets/flows) built above. The
+    // Resilience & SDLC step (6) is what the user actually edited; a clone or
+    // edit only pre-filled that step's state (see the prefill useEffect), so
+    // by the time we get here it already reflects whatever the user changed
+    // or left as-is. A from-scratch new system that never turns these
+    // sections on correctly ends up with none of these rows — it hasn't run
+    // a DR test yet.
+    const newBackupConfigs: BackupConfig[] = trackBackup ? [{
+      systemId,
+      enabled: backupEnabled,
+      coveragePct: Math.max(0, Math.min(100, Number(backupCoveragePct) || 0)),
+      immutable: backupImmutable,
+      crossRegion: backupCrossRegion,
+      rpoTargetMinutes: Math.max(1, Number(backupRpoTargetMinutes) || 1),
+      rtoTargetMinutes: Math.max(1, Number(backupRtoTargetMinutes) || 1),
+    }] : [];
+    const newSdlcPostures: SdlcPosture[] = trackSdlc ? [{
+      systemId,
+      applicable: sdlcApplicable,
+      notApplicableReason: sdlcApplicable ? undefined : (sdlcNotApplicableReason.trim() || "Not applicable"),
+      ...sdlcSafeguards,
+      lastThreatModelAt: lastThreatModelAt || undefined,
+    }] : [];
+    const newDrTests: DrTest[] = [];
+    drTestDrafts.filter((t) => t.saved).forEach((draft) => {
+      const id = draft.id ?? nextDrTestId(idFacts);
+      const drTest: DrTest = {
+        id, systemId,
+        conductedAt: draft.conductedAt,
+        cadenceDays: Math.max(1, Number(draft.cadenceDays) || 1),
+        scope: draft.scope.trim(),
+        restoreSuccessful: draft.restoreSuccessful,
+        actualRpoMinutes: Math.max(0, Number(draft.actualRpoMinutes) || 0),
+        actualRtoMinutes: Math.max(0, Number(draft.actualRtoMinutes) || 0),
+        issues: draft.restoreSuccessful ? undefined : (draft.issues.trim() || undefined),
+      };
+      newDrTests.push(drTest);
+      idFacts = { ...idFacts, drTests: [...idFacts.drTests, drTest] };
+    });
+
     const assessmentScope: AssessmentScope = {
       systemId,
       engagement: sourceScope?.engagement ?? `Onboarding — ${system.name}`,
@@ -783,6 +981,9 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       prismaOverrides: [...existing.prismaOverrides],
       controlReviews: [...existing.controlReviews],
       findings: [...existing.findings],
+      backupConfigs: [...existing.backupConfigs.filter((b) => b.systemId !== systemId), ...newBackupConfigs],
+      drTests: [...existing.drTests.filter((t) => t.systemId !== systemId), ...newDrTests],
+      sdlcPostures: [...existing.sdlcPostures.filter((p) => p.systemId !== systemId), ...newSdlcPostures],
     };
 
     return { runtime, systemId };
@@ -822,7 +1023,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   }
 
   function goNext() {
-    if (step === 5) { runDryRun(); setStep(6); return; }
+    if (step === 6) { runDryRun(); setStep(7); return; }
     const nextStep = STEPS.find((candidate) => candidate.id === step + 1)?.id;
     if (nextStep) setStep(nextStep);
   }
@@ -836,8 +1037,9 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     if (n === 3 && canAdvanceFrom1 && canAdvanceFrom2) { setStep(3); return; }
     if (n === 4 && canAdvanceFrom1 && canAdvanceFrom2 && canAdvanceFrom3) { setStep(4); return; }
     if (n === 5 && canAdvanceFrom4) { setStep(5); return; }
-    if (n === 6 && canAdvanceFrom5) { runDryRun(); setStep(6); return; }
-    if (n === 7 && dryRun && dryRun.problems.length === 0) setStep(7);
+    if (n === 6 && canAdvanceFrom5) { setStep(6); return; }
+    if (n === 7 && canAdvanceFrom6) { runDryRun(); setStep(7); return; }
+    if (n === 8 && dryRun && dryRun.problems.length === 0) setStep(8);
   }
 
   function handleCreate() {
@@ -848,7 +1050,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     if (!engine) {
       setDryRun((current) => ({ ...(current ?? { systemId: null }), problems }));
       setSaving(false);
-      setStep(6);
+      setStep(7);
       return;
     }
     setSaving(false);
@@ -864,6 +1066,13 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   const flowsValid = assets.length <= 1 || (flowDrafts.length > 0 && flowDrafts.every((flow) => flow.saved && flowDraftIsValid(flow)));
   const agentsValid = !usesAI || agentDrafts.every((agent) => agent.saved && agentDraftIsValid(agent, autonomousActions));
   const canAdvanceFrom5 = actorsValid && flowsValid && agentsValid;
+  const backupValid = !trackBackup || (
+    Number(backupCoveragePct) >= 0 && Number(backupCoveragePct) <= 100
+    && Number(backupRpoTargetMinutes) > 0 && Number(backupRtoTargetMinutes) > 0
+  );
+  const drTestsValid = drTestDrafts.every((t) => t.saved && drTestDraftIsValid(t));
+  const sdlcValid = !trackSdlc || sdlcApplicable || Boolean(sdlcNotApplicableReason.trim());
+  const canAdvanceFrom6 = backupValid && drTestsValid && sdlcValid;
   const canLaunch = Boolean(assessor.trim() && assessmentTarget);
   const nextDisabled =
     (step === 1 && !canAdvanceFrom1) ||
@@ -871,7 +1080,8 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     (step === 3 && !canAdvanceFrom3) ||
     (step === 4 && !canAdvanceFrom4) ||
     (step === 5 && !canAdvanceFrom5) ||
-    (step === 6 && (!dryRun || dryRun.problems.length > 0));
+    (step === 6 && !canAdvanceFrom6) ||
+    (step === 7 && (!dryRun || dryRun.problems.length > 0));
 
   return (
     <Modal open={open} onClose={close} width={960} height={700}>
@@ -932,7 +1142,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
         <div ref={contentPaneRef} className="p-6 overflow-y-auto">
           {step === 1 && (
             <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 1 of 7</div>
+              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 1 of 8</div>
               <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>System basics</h2>
               <p className="text-xs mb-5 max-w-[60ch]" style={{ color: C.muted }}>
                 Core facts about the system. Its classification, assurance and PRISMA level are never entered here — they're
@@ -1006,7 +1216,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
           {step === 2 && (
             <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 2 of 7</div>
+              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 2 of 8</div>
               <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Technology & exposure</h2>
               <p className="text-xs mb-5 max-w-[64ch]" style={{ color: C.muted }}>
                 Capture the system's operating environment. Your choices determine which controls apply and which ones may be inherited from a provider.
@@ -1153,9 +1363,9 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
             </div>
           )}
 
-          {step === 7 && (
+          {step === 8 && (
             <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 7 of 7</div>
+              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 8 of 8</div>
               <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Launch assessment</h2>
               <p className="text-xs mb-5 max-w-[60ch]" style={{ color: C.muted }}>
                 Assign the assessment and set its target date. {editingSystemId ? "Saving recalculates the system's scope without changing its recorded evidence." : "Creating the system opens Scope Review. External- and internal-inherited coverage stay unclaimed until an assessor confirms them."}
@@ -1185,7 +1395,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
           {step === 3 && (
             <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 3 of 7</div>
+              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 3 of 8</div>
               <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>System data inventory</h2>
               <p className="text-xs mb-5 max-w-[64ch]" style={{ color: C.muted }}>
                 Identify every type of data this system stores, transmits, or processes. You will map these data types to individual assets next.
@@ -1281,7 +1491,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
           {step === 4 && (
             <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 4 of 7</div>
+              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 4 of 8</div>
               <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Assets & data mapping</h2>
               <p className="text-xs mb-5 max-w-[64ch]" style={{ color: C.muted }}>
                 Add the assets inside this boundary and map only the system data types each asset stores, transmits, or processes.
@@ -1462,7 +1672,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
           {step === 5 && (
             <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 5 of 7</div>
+              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 5 of 8</div>
               <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>System architecture</h2>
               <p className="text-xs mb-5 max-w-[70ch]" style={{ color: C.muted }}>
                 Connect the boundary you just described: who reaches it, how data and control relationships move between assets, and which authenticated agents operate inside it.
@@ -1703,7 +1913,173 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
           {step === 6 && (
             <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 6 of 7</div>
+              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 6 of 8</div>
+              <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Resilience & secure development</h2>
+              <p className="text-xs mb-5 max-w-[64ch]" style={{ color: C.muted }}>
+                Optional operational posture: backup configuration, proven disaster-recovery tests, and secure-development
+                safeguards. Leave a section off if it hasn't actually been set up yet — an absent record reads honestly
+                as "not yet on record," not a fabricated zero.
+              </p>
+
+              <div className="space-y-4">
+                <TechnologySection number={1} title="Backup & recovery" description="How durable this system's data is, and how quickly it can be restored.">
+                  <ToggleCard
+                    checked={trackBackup}
+                    onChange={setTrackBackup}
+                    title="Backup configuration on record"
+                    description="Turn this on once a backup job actually exists for this system."
+                  >
+                    {trackBackup && (
+                      <div className="grid grid-cols-2 gap-4 mt-3">
+                        <label className="flex items-center gap-2 text-[11.5px] col-span-2" style={{ color: C.ink }}>
+                          <input type="checkbox" checked={backupEnabled} onChange={(e) => setBackupEnabled(e.target.checked)} />
+                          Backups enabled
+                        </label>
+                        <Field label="Coverage %" note="Share of in-scope assets actually covered by a backup job.">
+                          <TextInput type="number" min={0} max={100} value={backupCoveragePct} onChange={(e) => setBackupCoveragePct(e.target.value)} />
+                        </Field>
+                        <div />
+                        <Field label="RPO target (minutes)">
+                          <TextInput type="number" min={1} value={backupRpoTargetMinutes} onChange={(e) => setBackupRpoTargetMinutes(e.target.value)} />
+                        </Field>
+                        <Field label="RTO target (minutes)">
+                          <TextInput type="number" min={1} value={backupRtoTargetMinutes} onChange={(e) => setBackupRtoTargetMinutes(e.target.value)} />
+                        </Field>
+                        <label className="flex items-center gap-2 text-[11.5px]" style={{ color: C.ink }}>
+                          <input type="checkbox" checked={backupImmutable} onChange={(e) => setBackupImmutable(e.target.checked)} />
+                          Immutable backups
+                        </label>
+                        <label className="flex items-center gap-2 text-[11.5px]" style={{ color: C.ink }}>
+                          <input type="checkbox" checked={backupCrossRegion} onChange={(e) => setBackupCrossRegion(e.target.checked)} />
+                          Cross-region copy
+                        </label>
+                        {!backupValid && (
+                          <div className="col-span-2 flex items-center gap-2 text-[10.5px]" style={{ color: C.amber }}>
+                            <Info size={13} /> Coverage must be 0-100%, and RPO/RTO targets must be positive.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </ToggleCard>
+                </TechnologySection>
+
+                <TechnologySection number={2} title="Disaster recovery tests" description="Proven restores, not just a green backup job — add one row per test conducted.">
+                  {drTestDrafts.map((t, i) => (
+                    <div key={t.key} className="rounded-lg p-3 mb-3" style={{ background: t.expanded ? C.panel2 : C.panel, border: `1px solid ${t.saved ? C.green : C.border}` }}>
+                      <div className={`flex items-center justify-between gap-3 ${t.expanded ? "mb-3" : ""}`}>
+                        <div className="text-[12.5px] font-semibold" style={{ color: C.ink }}>
+                          DR test {i + 1}{!t.expanded && t.conductedAt ? ` · ${t.conductedAt}` : ""}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {!t.expanded && t.saved && <span className="flex items-center gap-1 text-[10.5px] font-semibold" style={{ color: C.green }}><Check size={12} /> Added</span>}
+                          {!t.expanded && <button type="button" onClick={() => expandDrTest(t.key)} className="rounded-md px-3 py-1.5 text-[11px] font-semibold" style={{ color: C.accent, border: `1px solid ${C.border}` }}>View / edit</button>}
+                          <button type="button" onClick={() => removeDrTest(t.key)} aria-label={`Remove DR test ${i + 1}`} className="p-1.5 rounded" style={{ color: C.muted }}><Trash2 size={14} /></button>
+                        </div>
+                      </div>
+                      {t.expanded && (
+                        <>
+                          <div className="grid grid-cols-3 gap-3 mb-3">
+                            <Field label="Conducted"><TextInput type="date" value={t.conductedAt} onChange={(e) => updateDrTest(t.key, { conductedAt: e.target.value })} /></Field>
+                            <Field label="Cadence (days)"><TextInput type="number" min={1} value={t.cadenceDays} onChange={(e) => updateDrTest(t.key, { cadenceDays: e.target.value })} /></Field>
+                            <Field label="Restore successful">
+                              <Select value={t.restoreSuccessful ? "yes" : "no"} onChange={(e) => updateDrTest(t.key, { restoreSuccessful: e.target.value === "yes" })}>
+                                <option value="yes">Yes</option>
+                                <option value="no">No</option>
+                              </Select>
+                            </Field>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3 mb-3">
+                            <Field label="Actual RPO (minutes)"><TextInput type="number" min={0} value={t.actualRpoMinutes} onChange={(e) => updateDrTest(t.key, { actualRpoMinutes: e.target.value })} /></Field>
+                            <Field label="Actual RTO (minutes)"><TextInput type="number" min={0} value={t.actualRtoMinutes} onChange={(e) => updateDrTest(t.key, { actualRtoMinutes: e.target.value })} /></Field>
+                          </div>
+                          <Field label="Scope"><TextInput value={t.scope} onChange={(e) => updateDrTest(t.key, { scope: e.target.value })} placeholder="What this test exercised" /></Field>
+                          {!t.restoreSuccessful && (
+                            <div className="mt-3">
+                              <Field label="Issues" note="Required when the restore didn't succeed — what went wrong.">
+                                <TextArea value={t.issues} onChange={(e) => updateDrTest(t.key, { issues: e.target.value })} />
+                              </Field>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-end gap-2 mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
+                            {!drTestDraftIsValid(t) && <span className="mr-auto text-[10.5px]" style={{ color: C.amber }}>Enter a scope, a valid date, and (if the restore failed) what went wrong.</span>}
+                            <button
+                              type="button"
+                              disabled={!drTestDraftIsValid(t)}
+                              onClick={() => saveDrTest(t.key)}
+                              className="flex items-center gap-1.5 rounded-md px-3.5 py-2 text-[11.5px] font-semibold"
+                              style={{ background: C.accent, color: "#fff", opacity: drTestDraftIsValid(t) ? 1 : 0.45 }}
+                            >
+                              <Check size={13} /> Save test
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={addDrTest}
+                    disabled={drTestDrafts.some((t) => !t.saved)}
+                    className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-[12.5px] font-semibold disabled:cursor-default"
+                    style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentBg, opacity: drTestDrafts.some((t) => !t.saved) ? 0.45 : 1 }}
+                  >
+                    <Plus size={14} /> {drTestDrafts.length === 0 ? "Add DR test" : "Add another DR test"}
+                  </button>
+                </TechnologySection>
+
+                <TechnologySection number={3} title="Secure development posture" description={`Only meaningful if ACME writes code for this system — see "Custom software" on Technology.`}>
+                  <ToggleCard
+                    checked={trackSdlc}
+                    onChange={setTrackSdlc}
+                    title="Secure-development posture on record"
+                    description="Turn this on once someone has actually reviewed this system's SDLC safeguards."
+                  >
+                    {trackSdlc && (
+                      sdlcApplicable ? (
+                        <div className="mt-3">
+                          <div className="grid grid-cols-3 gap-3">
+                            {SDLC_SAFEGUARD_GROUPS.map((group) => (
+                              <div key={group.label} className="rounded-lg p-3" style={{ background: C.panel }}>
+                                <div className="text-[11.5px] font-semibold mb-2" style={{ color: C.ink }}>{group.label}</div>
+                                <div className="space-y-1.5">
+                                  {group.keys.map((key) => (
+                                    <label key={key} className="flex items-center gap-2 text-[11px]" style={{ color: C.ink }}>
+                                      <input type="checkbox" checked={sdlcSafeguards[key]} onChange={(e) => updateSdlcSafeguard(key, e.target.checked)} />
+                                      {SDLC_SAFEGUARD_LABELS[key]}
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-3">
+                            <Field label="Last threat model" note="Optional — leave blank if none is on record.">
+                              <TextInput type="date" value={lastThreatModelAt} onChange={(e) => setLastThreatModelAt(e.target.value)} />
+                            </Field>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-3">
+                          <Field label="Not-applicable reason" note="Required — why secure-development controls don't apply to this system.">
+                            <TextArea value={sdlcNotApplicableReason} onChange={(e) => setSdlcNotApplicableReason(e.target.value)} />
+                          </Field>
+                          {!sdlcValid && (
+                            <div className="flex items-center gap-2 text-[10.5px] mt-2" style={{ color: C.amber }}>
+                              <Info size={13} /> A reason is required.
+                            </div>
+                          )}
+                        </div>
+                      )
+                    )}
+                  </ToggleCard>
+                </TechnologySection>
+              </div>
+            </div>
+          )}
+
+          {step === 7 && (
+            <div>
+              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 7 of 8</div>
               <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Derived scope</h2>
               <p className="text-xs mb-5 max-w-[60ch]" style={{ color: C.muted }}>
                 Classification and the four review buckets are derived from your entries. Nothing here is a claimed assessment — an assessor confirms and grades these controls on the system screen after create.
@@ -1818,7 +2194,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       </div>
 
       <div className="flex items-center justify-between px-6 py-3.5" style={{ borderTop: `1px solid ${C.border}`, background: C.panel2 }}>
-        <span className="text-[11px] font-mono" style={{ color: C.muted }}>STEP {step} OF 7</span>
+        <span className="text-[11px] font-mono" style={{ color: C.muted }}>STEP {step} OF {STEPS.length}</span>
         <div className="flex gap-2.5">
           <button
             onClick={goBack}
@@ -1828,7 +2204,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
           >
             <ChevronLeft size={14} /> Back
           </button>
-          {step < 7 ? (
+          {step < STEPS.length ? (
             <button
               onClick={goNext}
               disabled={nextDisabled}

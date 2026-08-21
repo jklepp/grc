@@ -95,6 +95,9 @@ export function loadRuntimeFacts(): RuntimeFacts {
       prismaOverrides: Array.isArray(parsed.prismaOverrides) ? parsed.prismaOverrides : empty.prismaOverrides,
       controlReviews: Array.isArray(parsed.controlReviews) ? parsed.controlReviews : empty.controlReviews,
       findings: Array.isArray(parsed.findings) ? parsed.findings : empty.findings,
+      backupConfigs: Array.isArray(parsed.backupConfigs) ? parsed.backupConfigs : empty.backupConfigs,
+      drTests: Array.isArray(parsed.drTests) ? parsed.drTests : empty.drTests,
+      sdlcPostures: Array.isArray(parsed.sdlcPostures) ? parsed.sdlcPostures : empty.sdlcPostures,
     };
   } catch {
     return emptyRuntimeFacts();
@@ -124,7 +127,10 @@ export function hasRuntimeFacts(facts: RuntimeFacts): boolean {
     facts.notImplemented.length > 0 ||
     facts.prismaOverrides.length > 0 ||
     facts.controlReviews.length > 0 ||
-    facts.findings.length > 0
+    facts.findings.length > 0 ||
+    facts.backupConfigs.length > 0 ||
+    facts.drTests.length > 0 ||
+    facts.sdlcPostures.length > 0
   );
 }
 
@@ -161,6 +167,9 @@ export const nextDataFlowId = (existing: RuntimeFacts): string =>
 
 export const nextAgenticIdentityId = (existing: RuntimeFacts): string =>
   nextRuntimeStringId("AGENT-USR", existing.agenticIdentities.map((agent) => agent.id));
+
+export const nextDrTestId = (existing: RuntimeFacts): string =>
+  nextRuntimeStringId("DRTEST-USR", existing.drTests.map((test) => test.id));
 
 // EVD-USR-<n>, distinct from the YAML source's EVD-<domain>-<n> ids, same
 // reasoning as nextSystemId/nextAssetId above.
