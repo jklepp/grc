@@ -1,6 +1,4 @@
 import React, { useState } from "react";
-import { ArrowLeft } from "lucide-react";
-import { C } from "../theme";
 import SystemWorkspace from "./SystemWorkspace/SystemWorkspace";
 import type { SystemId } from "../graph/ids";
 import type { SystemWorkspaceTab } from "./SystemWorkspace/tabs";
@@ -13,7 +11,8 @@ const INITIAL_SUBTAB_BY_LEGACY_TAB: Record<LegacySystemTab, SystemWorkspaceTab> 
 
 // Full-page view for a single selected system. Its Architecture and Assets
 // are tabs inside SystemWorkspace itself now, alongside its other tabs —
-// this wrapper just adds the "All Systems" back-link above it.
+// this wrapper just threads the "All Systems" back-link into SystemHeader's
+// own eyebrow slot so it doesn't cost a full extra row.
 interface SystemDetailProps {
   systemId: SystemId;
   initialTab?: LegacySystemTab;
@@ -27,22 +26,13 @@ export default function SystemDetail({ systemId: initialSystemId, initialTab, st
 
   return (
     <div className="w-full">
-      <div className="px-8 pt-6">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 text-xs font-medium"
-          style={{ color: C.muted }}
-        >
-          <ArrowLeft size={13} /> All Systems
-        </button>
-      </div>
-
       <SystemWorkspace
         systemId={systemId}
         onSelectSystem={setSystemId}
         initialSubTab={startAssessment ? "controls" : (initialTab ? INITIAL_SUBTAB_BY_LEGACY_TAB[initialTab] : undefined)}
         startAssessment={startAssessment}
         onNavigate={onNavigate}
+        onBack={onBack}
       />
     </div>
   );

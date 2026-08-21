@@ -1,5 +1,5 @@
 import React from "react";
-import { ClipboardCheck, Pencil } from "lucide-react";
+import { ArrowLeft, ClipboardCheck, Pencil } from "lucide-react";
 import { C } from "../../theme";
 import { PageHeader } from "../../components/Headings";
 import { ClassificationTag, AssuranceBadge, SystemPicker } from "../../components/SystemBadges";
@@ -12,12 +12,23 @@ interface SystemHeaderProps {
   systemId: SystemId;
   onSelectSystem: (id: SystemId) => void;
   onEdit: () => void;
+  onBack?: () => void;
 }
 
-export function SystemHeader({ system, systems, systemId, onSelectSystem, onEdit }: SystemHeaderProps) {
+export function SystemHeader({ system, systems, systemId, onSelectSystem, onEdit, onBack }: SystemHeaderProps) {
   return (
     <PageHeader
       icon={ClipboardCheck}
+      eyebrow={onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-xs font-medium"
+          style={{ color: C.muted }}
+        >
+          <ArrowLeft size={13} /> All Systems
+        </button>
+      )}
       title={
         <span className="inline-flex items-center gap-3 flex-wrap">
           {system.name}

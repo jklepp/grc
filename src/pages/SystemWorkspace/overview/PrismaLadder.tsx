@@ -36,6 +36,35 @@ function ScoreTile({ label, sub, value, pct, gradient }: { label: string; sub: s
 const ASSURANCE_GRADIENT = `linear-gradient(135deg, ${C.accent} 0%, ${C.accentStrong} 100%)`;
 const COMPLIANCE_GRADIENT = `linear-gradient(135deg, ${C.amber} 0%, #2C4A78 100%)`;
 
+// A real curly-brace path (flat back against the grouped rows, tip poking
+// left) with an optional horizontal leader line running from the tip back to
+// `leaderX` (negative, reaching across the gap to the Compliance/Assurance
+// tile it summarizes). `tipY` lets the tip sit off-center within the curve
+// so the leader can land level with its tile while the curve itself still
+// spans the full row range it's bracketing — a diagonal leader would need
+// the whole curve to shift and drift off the rows, so instead only the tip
+// moves within a curve that keeps its top/bottom pinned to the row edges.
+function CurlyBrace({ height, width, color, strokeWidth = 2, tipY, leaderX }: { height: number; width: number; color: string; strokeWidth?: number; tipY?: number; leaderX?: number }) {
+  const tip = tipY ?? height / 2;
+  const r = Math.min(width, tip, height - tip) * 0.9;
+  const leaderPath = leaderX != null ? `M 0 ${tip} L ${leaderX} ${tip}` : "";
+  const d = `
+    ${leaderPath}
+    M ${width} 0
+    C ${width - r} 0, ${width - r} 0, ${width - r} ${r}
+    L ${width - r} ${tip - r}
+    C ${width - r} ${tip}, 0 ${tip}, 0 ${tip}
+    C ${width - r} ${tip}, ${width - r} ${tip}, ${width - r} ${tip + r}
+    L ${width - r} ${height - r}
+    C ${width - r} ${height}, ${width - r} ${height}, ${width} ${height}
+  `;
+  return (
+    <svg width={width} height={height} style={{ overflow: "visible" }}>
+      <path d={d} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 interface PrismaLadderProps {
   system: WorkspaceSystem;
   compliance: number | null;
@@ -61,13 +90,22 @@ export function PrismaLadder({ system, compliance, assurance }: PrismaLadderProp
         title="System Posture"
         description="Compliance and Assurance are two readings of the same five-rung maturity ladder, not two different scores — reading top to bottom, Policy to Managed."
       />
-      <div className="flex gap-6 items-start">
+      <div className="flex gap-3 items-start">
         <div className="w-[280px] shrink-0 flex flex-col gap-3">
           <ScoreTile label="Compliance" sub="Implemented level" value={compliance == null ? "—" : `${compliance}%`} pct={compliance} gradient={COMPLIANCE_GRADIENT} />
           <ScoreTile label="Assurance" sub="All five PRISMA levels" value={assurance == null ? "—" : `${assurance}%`} pct={assurance} gradient={ASSURANCE_GRADIENT} />
         </div>
 
         <div className="flex gap-4 items-stretch pt-1 min-w-0 flex-1">
+          <div className="relative w-[44px] shrink-0 h-[210px]">
+            <div className="absolute" style={{ left: 6, top: 0 }}>
+              <CurlyBrace height={122} width={14} color={C.amber} tipY={50} leaderX={-18} />
+            </div>
+            <div className="absolute" style={{ left: 26, top: 0 }}>
+              <CurlyBrace height={210} width={16} color={C.accent} tipY={160} leaderX={-38} />
+            </div>
+          </div>
+
           <div className="flex flex-col gap-2.5 flex-1 min-w-0 max-w-[520px]">
             {rows.map((row) => (
               <div key={row.level} className="flex items-center gap-2.5 h-[34px]">
@@ -75,21 +113,6 @@ export function PrismaLadder({ system, compliance, assurance }: PrismaLadderProp
                 <div className="flex-1 min-w-0"><CoverageBar pct={row.pct} color={row.color} /></div>
               </div>
             ))}
-          </div>
-
-          <div className="relative w-[150px] shrink-0 h-[210px]">
-            <div className="absolute rounded-full" style={{ left: 8, top: 0, width: 3, height: 210, background: C.accent }} />
-            <div className="absolute rounded-full" style={{ left: 20, top: 0, width: 3, height: 122, background: C.amber }} />
-            <div className="absolute flex items-center" style={{ left: 32, top: 0, height: 122 }}>
-              <div className="text-[10px] font-bold uppercase tracking-wide leading-tight" style={{ color: C.amber }}>
-                Compliance<br />{compliance == null ? "—" : `${compliance}%`}
-              </div>
-            </div>
-            <div className="absolute flex items-center" style={{ left: 32, top: 122, height: 88 }}>
-              <div className="text-[10px] font-bold uppercase tracking-wide leading-tight" style={{ color: C.accent }}>
-                Assurance<br />{assurance == null ? "—" : `${assurance}%`}
-              </div>
-            </div>
           </div>
         </div>
       </div>

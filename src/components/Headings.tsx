@@ -5,6 +5,7 @@ import { C } from "../theme";
 
 interface PageHeaderProps {
   icon?: LucideIcon;
+  eyebrow?: ReactNode;
   title: ReactNode;
   tagline?: ReactNode;
   description?: ReactNode;
@@ -20,11 +21,12 @@ interface PageHeaderProps {
 // `tagline` is optional flavor text for pages whose old h1 said something more
 // descriptive than the nav label — kept as a small line under the title
 // instead of being the title itself.
-export function PageHeader({ icon: Icon, title, tagline, description, descriptionClassName = "max-w-2xl", right, children }: PageHeaderProps) {
+export function PageHeader({ icon: Icon, eyebrow, title, tagline, description, descriptionClassName = "max-w-2xl", right, children }: PageHeaderProps) {
   return (
     <div className="px-8 pt-8 pb-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
+          {eyebrow && <div className="mb-1.5">{eyebrow}</div>}
           {/* Icon is paired only with the title line (never the tagline below it),
               so it centers against a single line of text the same way whether or
               not a page happens to have a tagline. */}
