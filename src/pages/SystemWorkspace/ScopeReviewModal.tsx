@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
-import { ArrowRight, Ban, Check } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowRight, Ban, Check, ListChecks, Search } from "lucide-react";
 import { C } from "../../theme";
 import { commitRuntimeFacts, RESPONSIBILITIES } from "../../engine";
 import { upsertControlReview } from "../../engine/runtimeMutations";
@@ -10,6 +10,16 @@ import Modal, { ModalCloseButton } from "../../components/Modal";
 import type { ReviewWave, ReviewWaveControl } from "../../engine/review";
 import type { ControlId, SystemId } from "../../graph/ids";
 import type { Control } from "../../graph/nodes/controls";
+
+// One row of the All Controls browser: every control the catalog defines
+// against this system, whether it currently applies or was excluded (by rule
+// or by a prior override), so an operator can find and flip any single one —
+// not just the ones a derived wave already surfaced as needing a decision.
+interface AllControlsRow {
+  control: Control;
+  inScope: boolean;
+  reason: string | null;
+}
 
 // The three buckets an operator actually decides card-by-card. "Remaining
 // technical" is not walked here — once these three are clear, this modal
@@ -72,6 +82,65 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
   const [saveError, setSaveError] = useState<string[] | null>(null);
   const timersRef = useRef<number[]>([]);
 
+  // The wizard's second mode: every control in the catalog, browsable and
+  // individually toggleable, rather than only the ones a derived wave
+  // surfaced. Reuses the exact same override (upsertControlReview, bucket
+  // "not-applicable") the wave walk above already writes — an operator can
+  // pull any control out of scope here, or put it back, and the wave walk
+  // picks up the result the next time it renders.
+  const [view, setView] = useState<"walk" | "all">("walk");
+  const [allQuery, setAllQuery] = useState("");
+  const [excludingId, setExcludingId] = useState<ControlId | null>(null);
+  const [excludeNote, setExcludeNote] = useState("");
+
+  const allControlsMatrix = liveEngine.compliance.systemControlMatrix(systemId);
+  const allControlsNotApplicable = liveEngine.compliance.notApplicableControlsForSystem(systemId);
+  const allControlRows: AllControlsRow[] = useMemo(() => {
+    const rows: AllControlsRow[] = [
+      ...allControlsMatrix.map((row) => ({ control: row.control, inScope: true, reason: null })),
+      ...allControlsNotApplicable.map((item) => ({ control: item.control, inScope: false, reason: item.reason })),
+    ];
+    return rows.sort((a, b) => (
+      a.control.domain === b.control.domain
+        ? a.control.id.localeCompare(b.control.id)
+        : a.control.domain.localeCompare(b.control.domain)
+    ));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [systemId, allControlsMatrix, allControlsNotApplicable]);
+
+  const filteredAllControlRows = useMemo(() => {
+    const q = allQuery.trim().toLowerCase();
+    if (!q) return allControlRows;
+    return allControlRows.filter((row) =>
+      row.control.id.toLowerCase().includes(q)
+      || row.control.name.toLowerCase().includes(q)
+      || row.control.domain.toLowerCase().includes(q)
+    );
+  }, [allControlRows, allQuery]);
+
+  function markControlOutOfScope(control: Control, note: string) {
+    setSaveError(null);
+    const runtime = upsertControlReview(loadRuntimeFacts(), {
+      systemId, controlId: control.id, bucket: "not-applicable", stance: "confirm",
+      note, reviewedBy: reviewer.trim() || assessor, reviewedAt: today(),
+    });
+    const { engine, problems } = commitRuntimeFacts(runtime);
+    if (!engine) { setSaveError(problems); return; }
+    setExcludingId(null);
+    setExcludeNote("");
+  }
+
+  function markControlInScope(control: Control) {
+    setSaveError(null);
+    const runtime = upsertControlReview(loadRuntimeFacts(), {
+      systemId, controlId: control.id, bucket: "not-applicable", stance: "reject",
+      note: "Pulled back into scope via the Control Scope Wizard.",
+      reviewedBy: reviewer.trim() || assessor, reviewedAt: today(),
+    });
+    const { engine, problems } = commitRuntimeFacts(runtime);
+    if (!engine) setSaveError(problems);
+  }
+
   function clearTimers() {
     timersRef.current.forEach((t) => window.clearTimeout(t));
     timersRef.current = [];
@@ -88,6 +157,10 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
     setRejectingId(null);
     setRejectNote("");
     setSaveError(null);
+    setView("walk");
+    setAllQuery("");
+    setExcludingId(null);
+    setExcludeNote("");
     const target = initialWave && SCOPE_WAVES.includes(initialWave) ? initialWave : null;
     setWave(target ?? SCOPE_WAVES.find((w) => walk.waves[w].remaining.length > 0) ?? SCOPE_WAVES[SCOPE_WAVES.length - 1]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -170,9 +243,9 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
             <Check size={17} />
           </div>
           <div className="min-w-0">
-            <div className="text-lg font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Scope Review</div>
+            <div className="text-lg font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Control Scope Wizard</div>
             <div className="text-xs mt-0.5 max-w-md leading-relaxed" style={{ color: C.muted }}>
-              Confirm which controls apply to this boundary before technical review begins. Every decision is recorded with who made it and when.
+              Confirm which controls apply to this boundary before technical review begins, or open All Controls to mark any control In Scope or Out of Scope directly. Every decision is recorded with who made it and when.
             </div>
           </div>
         </div>
@@ -202,9 +275,9 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
               <button
                 key={w}
                 type="button"
-                onClick={() => { if (!justDecided) setWave(w); }}
+                onClick={() => { if (!justDecided) { setWave(w); setView("walk"); } }}
                 className="w-full rounded-lg px-3 py-2.5 mb-1 flex items-center gap-2.5 text-left"
-                style={{ background: bg, boxShadow: state === "active" ? `inset 3px 0 0 ${C.accent}` : "none" }}
+                style={{ background: view === "walk" ? bg : "transparent", boxShadow: view === "walk" && state === "active" ? `inset 3px 0 0 ${C.accent}` : "none" }}
               >
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: iconBg, color: iconColor }}>
                   {isDone ? <Check size={13} /> : <meta.Icon size={13} />}
@@ -235,6 +308,25 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
               </div>
             </div>
           </button>
+
+          <div style={{ height: 1, background: C.border, margin: "8px 4px" }} />
+
+          <button
+            type="button"
+            onClick={() => setView("all")}
+            className="w-full rounded-lg px-3 py-2.5 mb-1 flex items-center gap-2.5 text-left"
+            style={{ background: view === "all" ? C.accentBg : "transparent", boxShadow: view === "all" ? `inset 3px 0 0 ${C.accent}` : "none" }}
+          >
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: view === "all" ? C.accent : C.border, color: view === "all" ? "#fff" : C.muted }}>
+              <ListChecks size={13} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[12.5px] font-semibold" style={{ color: view === "all" ? C.accent : C.ink }}>All Controls</div>
+              <div className="text-[10.5px] mt-0.5" style={{ color: view === "all" ? C.accent : C.muted }}>
+                Browse every control &middot; {allControlRows.length}
+              </div>
+            </div>
+          </button>
         </nav>
 
         <div className="px-9 py-7 flex flex-col min-w-0">
@@ -244,7 +336,113 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
             </div>
           )}
 
-          {scopeComplete && !justDecided ? (
+          {view === "all" ? (
+            <div className="flex flex-col flex-1 min-h-0">
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className="flex items-center gap-2 flex-1 rounded-lg px-3 py-2" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+                  <Search size={14} color={C.muted} />
+                  <input
+                    value={allQuery}
+                    onChange={(e) => setAllQuery(e.target.value)}
+                    placeholder="Search controls by id, name, or domain…"
+                    className="flex-1 bg-transparent text-[12.5px] outline-none"
+                    style={{ color: C.ink }}
+                  />
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[10.5px]" style={{ color: C.muted }}>Reviewer</span>
+                  <input
+                    value={reviewer}
+                    onChange={(e) => setReviewer(e.target.value)}
+                    className="rounded-lg px-2.5 py-1.5 text-[12px]"
+                    style={{ background: C.panel2, border: `1px solid ${C.border}`, color: C.ink, width: 180 }}
+                    placeholder="Assessor of record"
+                  />
+                </div>
+              </div>
+              {!canWrite && (
+                <div className="text-[11px] mb-3" style={{ color: C.amber }}>Name a reviewer to change any control's scope.</div>
+              )}
+              <div className="flex-1 min-h-0 overflow-y-auto rounded-lg" style={{ border: `1px solid ${C.border}` }}>
+                {filteredAllControlRows.length === 0 && (
+                  <div className="p-6 text-xs text-center" style={{ color: C.muted }}>No controls match "{allQuery}"</div>
+                )}
+                {filteredAllControlRows.map((row) => (
+                  <div key={row.control.id} className="px-4 py-3" style={{ borderBottom: `1px solid ${C.border}` }}>
+                    <div className="flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[13px] font-semibold" style={{ color: C.ink }}>{row.control.name}</div>
+                        <div className="text-[10px] mt-0.5" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
+                          {row.control.id} <span style={{ fontFamily: "inherit" }}>&middot; {row.control.domain}</span>
+                        </div>
+                      </div>
+                      <span
+                        className="inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-1 rounded shrink-0"
+                        style={{ background: row.inScope ? C.greenBg : C.panel2, color: row.inScope ? C.green : C.muted }}
+                      >
+                        {row.inScope ? <Check size={11} /> : <Ban size={11} />} {row.inScope ? "In Scope" : "Out of Scope"}
+                      </span>
+                      {row.inScope ? (
+                        <button
+                          type="button"
+                          disabled={!canWrite}
+                          onClick={() => { setExcludingId(row.control.id); setExcludeNote(""); }}
+                          className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg shrink-0"
+                          style={{ background: C.redBg, color: C.red, opacity: canWrite ? 1 : 0.5 }}
+                        >
+                          Mark Out of Scope
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={!canWrite}
+                          onClick={() => markControlInScope(row.control)}
+                          className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg shrink-0"
+                          style={{ background: C.accentBg, color: C.accent, opacity: canWrite ? 1 : 0.5 }}
+                        >
+                          Mark In Scope
+                        </button>
+                      )}
+                    </div>
+                    {!row.inScope && row.reason && (
+                      <div className="text-[11px] mt-1.5 leading-snug" style={{ color: C.muted }}>{row.reason}</div>
+                    )}
+                    {excludingId === row.control.id && (
+                      <div className="rounded-lg p-3 mt-2.5" style={{ background: C.redBg }}>
+                        <div className="text-[11px] font-semibold mb-1.5" style={{ color: C.red }}>Why is this control out of scope on this boundary?</div>
+                        <div className="flex gap-2">
+                          <input
+                            value={excludeNote}
+                            onChange={(e) => setExcludeNote(e.target.value)}
+                            placeholder="Reason (required)"
+                            className="flex-1 rounded-lg px-3 py-2 text-[12.5px]"
+                            style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.ink }}
+                          />
+                          <button
+                            type="button"
+                            disabled={!excludeNote.trim()}
+                            onClick={() => markControlOutOfScope(row.control, excludeNote.trim())}
+                            className="rounded-lg px-3 py-2 text-[12px] font-bold whitespace-nowrap"
+                            style={{ background: excludeNote.trim() ? C.red : C.border, color: "#fff" }}
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setExcludingId(null); setExcludeNote(""); }}
+                            className="text-[12px] px-2 py-2"
+                            style={{ color: C.muted }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : scopeComplete && !justDecided ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center">
               <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4" style={{ background: C.greenBg, color: C.green }}>
                 <Check size={26} />

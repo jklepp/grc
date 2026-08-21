@@ -123,6 +123,11 @@ export interface ControlAssessment {
   score: number | null;
   band: ReturnType<typeof assuranceBand>;
   instances: ControlInstance[];
+  // A program-scoped control has no asset population (see populationFor) so
+  // its evidence never appears in `instances` — this is that same evidence,
+  // read once for the whole boundary rather than per asset. Empty for every
+  // asset-scoped control, where `instances[].evidence` already carries it.
+  programEvidence: ScoredEvidence[];
   // Levels rated above the level below them. HITRUST does not cap, so this is
   // reported rather than enforced.
   ladderInversions: PrismaLevel[];
@@ -419,7 +424,7 @@ export function createAssessment(
         id, systemId, controlId, control, domain, category,
         applicable, assessed: false, inherited: false, certification: null,
         basis: BASIS.UNASSESSED, levels, rawScore: null, score: null,
-        band: assuranceBand(null), instances: [], ladderInversions: [], owners,
+        band: assuranceBand(null), instances: [], programEvidence: [], ladderInversions: [], owners,
         explanation: `${controlId} applies to ${system.name} and was not part of the ${graph.assessmentScopeBySystem[systemId]?.engagement ?? "current"} scope. It is reported as unassessed rather than scored.`,
       };
     }
@@ -429,6 +434,7 @@ export function createAssessment(
     let managedLevel: LevelRating;
     let certification: ProviderCertification | null = null;
     let hitrustR2Inheritance = false;
+    let programEvidence: ScoredEvidence[] = [];
 
     if (inherited && !inScope) {
       certification = vendorInherited ? certificationFor(systemId, domain) : enterpriseCertificationFor(domain);
@@ -480,6 +486,7 @@ export function createAssessment(
       const pool = counted.length > 0
         ? counted.flatMap((i) => i.evidence)
         : evidenceFor(null, controlId).map(scoreEvidence);
+      if (counted.length === 0) programEvidence = pool;
 
       if (counted.length === 0 && pool.length > 0) {
         const governingProgram = governingRecord(pool);
@@ -575,7 +582,7 @@ export function createAssessment(
       id, systemId, controlId, control, domain, category,
       applicable, assessed: true, inherited: inherited && !inScope, certification,
       basis, levels, rawScore: raw, score: display(raw), band: assuranceBand(display(raw)),
-      instances, ladderInversions, owners,
+      instances, programEvidence, ladderInversions, owners,
       explanation: PRISMA_LEVELS.map((l) => `${l} ${levels[l].rating}: ${levels[l].rationale}`).join(" "),
     };
   }

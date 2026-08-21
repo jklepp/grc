@@ -26,7 +26,7 @@ import type { ProgramApplicabilityRule } from "../graph/edges/controlImplementat
 import { tierRank } from "../graph/nodes/taxonomy";
 import type { ClassificationApi } from "./classification";
 import type { AssetId, ControlId, SystemId } from "../graph/ids";
-import { isForcedApplicable, pendingResolvedAsApplicable, reviewFor } from "./review";
+import { isForcedApplicable, isForcedNotApplicable, pendingResolvedAsApplicable, reviewFor } from "./review";
 
 interface ApplicabilityContext {
   kind: string;
@@ -332,6 +332,11 @@ export function createApplicability(graph: Graph, classification: Classification
     // pendingControlsForSystem (below) is where it's reported instead.
     return graph.inScopeControls.filter((c) => {
       if (isForcedApplicable(graph, systemId, c.id)) return true;
+      // Checked before the pending/rule read below so an operator's explicit
+      // out-of-scope call wins over a rule match the same way isForcedApplicable
+      // already wins the opposite direction — an override is never silently
+      // outvoted by the derivation it was written to override.
+      if (isForcedNotApplicable(graph, systemId, c.id)) return false;
       const pending = graph.pendingByPair[`${systemId}::${c.id}`];
       if (pending) return pendingResolvedAsApplicable(graph, systemId, c.id);
       return byStandard.has(c.id);

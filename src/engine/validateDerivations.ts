@@ -88,8 +88,23 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
   });
 
   // A finding lives under an implementation, so the implementation has to exist
-  // for something to be under.
+  // for something to be under. A program-scoped control has no per-asset
+  // implementation to check against (see assessment.ts's populationFor) —
+  // resolveApplicability(assetId, controlId) never returns true for one no
+  // matter which asset is named, because program controls are matched at the
+  // system level instead (resolveProgramApplicability). The asset on a
+  // program-scoped finding is only where it's tracked, so it's checked against
+  // the same system-level test evidence and PRISMA scoring already use.
   graph.findings.forEach((f) => {
+    const keyControl = graph.keyControlById[f.controlId];
+    if (keyControl?.scope === "program") {
+      const asset = graph.assetById[f.assetId];
+      check(
+        Boolean(asset) && applicability.resolveProgramApplicability(asset.systemId, f.controlId).required,
+        `finding ${f.id}: ${f.controlId} is program-scoped and not required for ${asset?.systemId ?? f.assetId}, so there is no assessment for this finding to live under`
+      );
+      return;
+    }
     check(
       applicability.resolveApplicability(f.assetId, f.controlId).required,
       `finding ${f.id}: ${f.controlId} is not required for ${f.assetId}, so there is no implementation for this finding to live under`

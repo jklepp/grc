@@ -41,6 +41,7 @@ import type { ApplicabilityApi } from "./applicability";
 import { mean, assuranceBand, display } from "./assurance";
 import { inheritsDomain } from "../graph/nodes/systems";
 import { RESPONSIBILITIES, SHARED_RESPONSIBILITY_DOMAINS, type Responsibility } from "../graph/edges/controlImplementations";
+import { reviewFor } from "./review";
 import type { SystemId, ControlId } from "../graph/ids";
 
 export const COVERAGE_STATES = ["measured", "inherited", "assessed", "unassessed"];
@@ -247,10 +248,19 @@ export function createCompliance(
     const pendingIds = new Set(applicability.pendingControlsForSystem(systemId).map((p) => p.control.id));
     return graph.inScopeControls
       .filter((c) => !applicableIds.has(c.id) && !pendingIds.has(c.id))
-      .map((control) => ({
-        control,
-        reason: `No framework ${system.name} certifies against (${system.standards.join(", ")}) cites ${control.id}, and no applicability rule matches an asset in this boundary.`,
-      }));
+      .map((control) => {
+        // A control an operator forced out of scope (Control Scope Wizard)
+        // reads its own stated reason rather than the generic rule-based one
+        // below, which would otherwise misreport why it's excluded here.
+        const review = reviewFor(graph, systemId, control.id);
+        if (review?.stance === "confirm" && review.bucket === "not-applicable" && review.note.trim()) {
+          return { control, reason: review.note };
+        }
+        return {
+          control,
+          reason: `No framework ${system.name} certifies against (${system.standards.join(", ")}) cites ${control.id}, and no applicability rule matches an asset in this boundary.`,
+        };
+      });
   }
 
   // The header block a Controls page reads: the full in-scope catalog against

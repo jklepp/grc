@@ -575,7 +575,17 @@ export function ControlEvaluationPanel({
   // A single evidence record can cover many assets at once (assetIds: [...]),
   // so it appears once per instance here — the same e.id repeats, and needs a
   // per-instance key of its own rather than e.id alone.
-  const allEvidence = row.instances.flatMap((inst) => inst.evidence.map((e) => ({ ...e, key: `${e.id}::${inst.assetId}`, assetLabel: assetName(system, inst.assetId), governing: inst.governing?.id === e.id })));
+  //
+  // Program-scoped controls have no per-asset instances at all (see
+  // assessment.ts's populationFor) — their evidence is recorded against the
+  // control itself (assetIds: []) and reaches scoring through the "program"
+  // sentinel key in graph.evidenceByPair, exposed on the assessment as
+  // programEvidence. Reading only row.instances here would leave every
+  // program control's Evidence tab reporting "no evidence on file" even when
+  // evidence exists and is actively scoring the control.
+  const allEvidence = isProgramScoped
+    ? (assessment?.programEvidence ?? []).map((e) => ({ ...e, key: `${e.id}::program`, assetLabel: undefined as string | undefined, governing: false }))
+    : row.instances.flatMap((inst) => inst.evidence.map((e) => ({ ...e, key: `${e.id}::${inst.assetId}`, assetLabel: assetName(system, inst.assetId) as string | undefined, governing: inst.governing?.id === e.id })));
   const linkedPrinciples = principlesForControl(row.control.id);
   const programReasons = programApplicability?.reasons ?? [];
 

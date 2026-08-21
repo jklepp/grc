@@ -49,6 +49,17 @@ export function isForcedApplicable(graph: Graph, systemId: SystemId, controlId: 
   return review?.stance === "reject" && review.bucket === "not-applicable";
 }
 
+// The symmetric override: an operator can pull a control that rules say
+// applies back OUT of scope, same as isForcedApplicable pulls one IN. Both
+// read the same ControlReview record — "not-applicable" confirmed is "out,"
+// "not-applicable" rejected is "in" — so a Control Scope Wizard can toggle
+// any control's scope with one mutation (upsertControlReview) regardless of
+// which way the underlying rules already called it.
+export function isForcedNotApplicable(graph: Graph, systemId: SystemId, controlId: ControlId): boolean {
+  const review = reviewFor(graph, systemId, controlId);
+  return review?.stance === "confirm" && review.bucket === "not-applicable";
+}
+
 export function pendingResolvedAsApplicable(graph: Graph, systemId: SystemId, controlId: ControlId): boolean {
   const review = reviewFor(graph, systemId, controlId);
   if (!review) return false;

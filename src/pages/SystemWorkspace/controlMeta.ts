@@ -87,7 +87,15 @@ export type EvidenceHealthLevel = (typeof EVIDENCE_HEALTH_ORDER)[number];
 type ControlMatrixRow = ReturnType<ComplianceApi["systemControlMatrix"]>[number];
 
 export function evidenceHealthForRow(row: ControlMatrixRow) {
-  const evidence = (row.instances ?? []).flatMap((i) => i.evidence ?? []);
+  // Program-scoped controls carry no per-asset instances (see assessment.ts's
+  // populationFor), so their evidence lives on the assessment's own
+  // programEvidence pool instead — reading only row.instances here would
+  // report every program control's evidence as permanently "Missing" no
+  // matter how much of it is actually on file.
+  const evidence = [
+    ...(row.instances ?? []).flatMap((i) => i.evidence ?? []),
+    ...(row.assessment?.programEvidence ?? []),
+  ];
   if (evidence.length === 0) {
     const level: EvidenceHealthLevel = "missing";
     return { level, ...EVIDENCE_HEALTH_META.missing, detail: null };

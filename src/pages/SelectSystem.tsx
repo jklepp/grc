@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Server, Plus, AlertTriangle, Search, Pencil, Trash2 } from "lucide-react";
+import { Server, Plus, AlertTriangle, Search, Pencil, Copy, Trash2 } from "lucide-react";
 import { C } from "../theme";
 import { PageHeader } from "../components/Headings";
 import { ClassificationTag, AssuranceBadge } from "../components/SystemBadges";
@@ -20,7 +20,7 @@ function coverageColor(pct: number): string {
 
 // No content-sized tracks: the table fills the page width instead of scrolling.
 // Fixed last track so Edit-only rows share a column with Delete+Edit rows.
-const COLUMNS = "minmax(0, 1.3fr) minmax(0, 1.2fr) 68px 72px 56px minmax(0, 1fr) 152px";
+const COLUMNS = "minmax(0, 1.3fr) minmax(0, 1.2fr) 68px 72px 56px minmax(0, 1fr) 208px";
 
 function SystemAvatar({ name }: { name: string }) {
   const initial = name.trim().charAt(0).toUpperCase();
@@ -38,11 +38,12 @@ interface SystemRowProps {
   system: SystemRollup;
   onSelect: (id: SystemId) => void;
   onEdit: (id: SystemId) => void;
+  onDuplicate: (id: SystemId) => void;
   onDelete?: (system: SystemRollup) => void;
   striped: boolean;
 }
 
-function SystemRow({ system, onSelect, onEdit, onDelete, striped }: SystemRowProps) {
+function SystemRow({ system, onSelect, onEdit, onDuplicate, onDelete, striped }: SystemRowProps) {
   const openFindings = system.findings.filter((f) => f.open).length;
   return (
     <div
@@ -110,6 +111,16 @@ function SystemRow({ system, onSelect, onEdit, onDelete, striped }: SystemRowPro
         )}
         <button
           type="button"
+          onClick={() => onDuplicate(system.id)}
+          className="flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold"
+          style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
+          aria-label={`Duplicate ${system.name}`}
+          title="Create a new system as an exact copy of this one"
+        >
+          <Copy size={11} /> Duplicate
+        </button>
+        <button
+          type="button"
           onClick={() => onEdit(system.id)}
           className="flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold"
           style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
@@ -133,6 +144,7 @@ export interface SystemSelectOptions {
 export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: SystemId, options?: SystemSelectOptions) => void }) {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editingSystemId, setEditingSystemId] = useState<SystemId | null>(null);
+  const [cloneFromSystemId, setCloneFromSystemId] = useState<SystemId | null>(null);
   const [pendingDelete, setPendingDelete] = useState<SystemRollup | null>(null);
   const [deleteProblems, setDeleteProblems] = useState<string[]>([]);
   const [restoreProblems, setRestoreProblems] = useState<string[]>([]);
@@ -148,17 +160,26 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
 
   function openAddSystem() {
     setEditingSystemId(null);
+    setCloneFromSystemId(null);
     setWizardOpen(true);
   }
 
   function openEditSystem(systemId: SystemId) {
     setEditingSystemId(systemId);
+    setCloneFromSystemId(null);
+    setWizardOpen(true);
+  }
+
+  function openDuplicateSystem(systemId: SystemId) {
+    setEditingSystemId(null);
+    setCloneFromSystemId(systemId);
     setWizardOpen(true);
   }
 
   function closeWizard() {
     setWizardOpen(false);
     setEditingSystemId(null);
+    setCloneFromSystemId(null);
   }
 
   function deletePendingSystem() {
@@ -272,6 +293,7 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
                   system={system}
                   onSelect={onSelectSystem}
                   onEdit={openEditSystem}
+                  onDuplicate={openDuplicateSystem}
                   onDelete={deletableSystemIds.has(system.id) ? setPendingDelete : undefined}
                   striped={i % 2 === 1}
                 />
@@ -281,7 +303,13 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
         </div>
       </div>
 
-      <AddSystemWizard open={wizardOpen} onClose={closeWizard} onCreated={handleWizardSaved} editingSystemId={editingSystemId} />
+      <AddSystemWizard
+        open={wizardOpen}
+        onClose={closeWizard}
+        onCreated={handleWizardSaved}
+        editingSystemId={editingSystemId}
+        cloneFromSystemId={cloneFromSystemId}
+      />
 
       <Modal
         open={pendingDelete !== null}

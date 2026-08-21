@@ -309,9 +309,15 @@ interface AddSystemWizardProps {
   onClose: () => void;
   onCreated?: (systemId: SystemId) => void;
   editingSystemId?: SystemId | null;
+  // Pre-fills every field from this system (basics, technology, data, assets,
+  // architecture) exactly like editingSystemId does, but always mints a brand
+  // new SystemId and fresh asset/actor/flow/agent ids rather than reusing the
+  // source's — so the result is an independent duplicate, not an in-place edit.
+  // Ignored whenever editingSystemId is set.
+  cloneFromSystemId?: SystemId | null;
 }
 
-export default function AddSystemWizard({ open, onClose, onCreated, editingSystemId = null }: AddSystemWizardProps) {
+export default function AddSystemWizard({ open, onClose, onCreated, editingSystemId = null, cloneFromSystemId = null }: AddSystemWizardProps) {
   const [step, setStep] = useState<WizardStep>(1);
   const contentPaneRef = useRef<HTMLDivElement>(null);
 
@@ -369,16 +375,21 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   );
   const unmappedSystemDataTypeIds = systemDataTypeIds.filter((id) => !mappedDataTypeIds.has(id));
 
+  const isClone = !editingSystemId && Boolean(cloneFromSystemId);
+
   useEffect(() => {
-    if (!open || !editingSystemId) return;
-    const source = appEngine.graph.systemById[editingSystemId];
+    const sourceSystemId = editingSystemId ?? cloneFromSystemId;
+    if (!open || !sourceSystemId) return;
+    const source = appEngine.graph.systemById[sourceSystemId];
     if (!source) return;
-    const sourceAssets = appEngine.graph.assetsBySystem[editingSystemId] ?? [];
-    const sourceDataTypeIds = appEngine.classification.dataTypesForSystem(editingSystemId).map((dt) => dt.id);
-    const scope = appEngine.graph.assessmentScopeBySystem[editingSystemId];
+    const sourceAssets = appEngine.graph.assetsBySystem[sourceSystemId] ?? [];
+    const sourceDataTypeIds = appEngine.classification.dataTypesForSystem(sourceSystemId).map((dt) => dt.id);
+    // A clone starts a fresh assessment engagement — the source's scope,
+    // assessor, and target date don't carry over the way its facts do.
+    const scope = editingSystemId ? appEngine.graph.assessmentScopeBySystem[sourceSystemId] : null;
 
     setStep(1);
-    setName(source.name);
+    setName(isClone ? `${source.name} (Copy)` : source.name);
     setMission(source.mission);
     setBoundary(source.boundary);
     setHostingType(source.hostingType);
@@ -404,42 +415,63 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     setOwnerOrgId(source.roles.find((role) => role.role === "System Owner")?.ownerId ?? ORGS[0]?.id ?? "");
     setAssessor(scope?.assessor ?? "");
     setAssessmentTarget(scope?.periodEnd ?? defaultAssessmentTarget());
-    setAssets(sourceAssets.map((asset) => ({
-      key: asset.id,
-      added: true,
-      saved: true,
-      expanded: false,
-      id: asset.id,
-      name: asset.name,
-      assetType: assetTypeForKind(asset.kind),
-      sourceType: asset.type,
-      sourceKind: asset.kind,
-      kind: asset.kind,
-      provider: asset.provider,
-      impactLevel: IMPACT_LEVELS.find((level) => level === asset.impactLevel) ?? "moderate",
-      inherentLikelihood: asset.inherentLikelihood,
-      dataTypes: Object.fromEntries(appEngine.classification.dataForAsset(asset.id).map((holding) => [holding.dataTypeId, holding.role])),
-    })));
+    // A clone's assets/actors/flows/agents carry every field forward but none
+    // of the source's real ids — draftKey() mints a synthetic key instead, and
+    // omitting id/actorId/accessId leaves buildCandidateRuntimeFacts to mint
+    // real ones scoped to the new system, so the duplicate never shares a
+    // fact with (or corrupts) the system it was copied from.
+    const assetKeyByOriginalId = new Map<string, string>();
+    setAssets(sourceAssets.map((asset) => {
+      const key = isClone ? draftKey("asset") : asset.id;
+      assetKeyByOriginalId.set(asset.id, key);
+      return {
+        key,
+        added: true,
+        saved: true,
+        expanded: false,
+        id: isClone ? undefined : asset.id,
+        name: asset.name,
+        assetType: assetTypeForKind(asset.kind),
+        sourceType: isClone ? undefined : asset.type,
+        sourceKind: isClone ? undefined : asset.kind,
+        kind: asset.kind,
+        provider: asset.provider,
+        impactLevel: IMPACT_LEVELS.find((level) => level === asset.impactLevel) ?? "moderate",
+        inherentLikelihood: asset.inherentLikelihood,
+        dataTypes: Object.fromEntries(appEngine.classification.dataForAsset(asset.id).map((holding) => [holding.dataTypeId, holding.role])),
+      };
+    }));
     const sourceAssetIds = new Set(sourceAssets.map((asset) => asset.id));
     setActorDrafts(appEngine.graph.actorAccess
       .filter((access) => sourceAssetIds.has(access.assetId))
       .map((access) => {
         const actor = appEngine.graph.actorById[access.actorId];
         return {
-          key: access.id, added: true, saved: true, expanded: false, actorId: access.actorId, accessId: access.id,
+          key: isClone ? draftKey("actor") : access.id,
+          added: true, saved: true, expanded: false,
+          actorId: isClone ? undefined : access.actorId,
+          accessId: isClone ? undefined : access.id,
           name: actor?.name ?? access.actorId, kind: actor?.kind ?? ACTOR_KINDS.MACHINE,
-          description: actor?.description ?? "External system actor", assetKey: access.assetId,
+          description: actor?.description ?? "External system actor",
+          assetKey: (isClone ? assetKeyByOriginalId.get(access.assetId) : access.assetId) ?? access.assetId,
           direction: access.direction, note: access.note ?? "",
         };
       }));
     setFlowDrafts(appEngine.graph.dataFlows
       .filter((flow) => sourceAssetIds.has(flow.from) && sourceAssetIds.has(flow.to))
       .map((flow) => ({
-        key: flow.id, added: true, saved: true, expanded: false, id: flow.id, fromKey: flow.from, toKey: flow.to,
+        key: isClone ? draftKey("flow") : flow.id,
+        added: true, saved: true, expanded: false,
+        id: isClone ? undefined : flow.id,
+        fromKey: (isClone ? assetKeyByOriginalId.get(flow.from) : flow.from) ?? flow.from,
+        toKey: (isClone ? assetKeyByOriginalId.get(flow.to) : flow.to) ?? flow.to,
         kind: flow.kind, dataTypeIds: [...flow.dataTypeIds], note: flow.note ?? "",
       })));
-    setAgentDrafts((appEngine.graph.agenticIdentitiesBySystem[editingSystemId] ?? []).map((agent) => ({
-      key: agent.id, added: true, saved: true, expanded: false, id: agent.id, name: agent.name, purpose: agent.purpose,
+    setAgentDrafts((appEngine.graph.agenticIdentitiesBySystem[sourceSystemId] ?? []).map((agent) => ({
+      key: isClone ? draftKey("agent") : agent.id,
+      added: true, saved: true, expanded: false,
+      id: isClone ? undefined : agent.id,
+      name: agent.name, purpose: agent.purpose,
       ownerOrgId: agent.ownerOrgId ?? "", servicePrincipal: agent.servicePrincipal,
       autonomyLevel: agent.autonomyLevel, externalActions: agent.externalActions,
       canImpersonateUser: agent.canImpersonateUser, privilegeLevel: agent.privilegeLevel,
@@ -447,7 +479,8 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       revocationMechanism: agent.revocationMechanism, tools: agent.tools.join(", "),
     })));
     setDryRun(null);
-  }, [editingSystemId, open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingSystemId, cloneFromSystemId, open]);
 
   function reset() {
     setStep(1); setHostingType("cloud"); setProvider(""); setName(""); setMission(""); setBoundary("");
@@ -580,7 +613,12 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   function buildCandidateRuntimeFacts(): { runtime: RuntimeFacts; systemId: SystemId } {
     const existing = loadRuntimeFacts();
     const systemId = editingSystemId ?? nextSystemId(existing);
-    const sourceSystem = editingSystemId ? appEngine.graph.systemById[editingSystemId] : null;
+    // A clone copies the source's connections/standards/roles same as an edit
+    // would, but never its assessment scope — that's a fresh engagement on a
+    // system with its own new id, not a continuation of the source's.
+    const sourceSystem = (editingSystemId ?? cloneFromSystemId)
+      ? appEngine.graph.systemById[(editingSystemId ?? cloneFromSystemId)!]
+      : null;
     const sourceScope = editingSystemId ? appEngine.graph.assessmentScopeBySystem[editingSystemId] : null;
     const today = new Date().toISOString().slice(0, 10);
     const ownerRole = ownerOrgId ? [{ role: "System Owner", ownerId: ownerOrgId }] : [];
@@ -841,12 +879,14 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
         <div>
           <h1 className="text-lg font-bold flex items-center gap-2.5" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>
             <ClipboardCheck size={19} color={C.accent} />
-            {editingSystemId ? "Edit System" : "Add System"}
+            {editingSystemId ? "Edit System" : isClone ? "Duplicate System" : "Add System"}
           </h1>
           <div className="text-xs mt-0.5" style={{ color: C.muted }}>
             {editingSystemId
               ? "Update declared facts; classification, scope, and assurance will be recalculated before anything is saved."
-              : "The engine proposes what applies and what can be inherited. You confirm and grade those controls on the system screen after create."}
+              : isClone
+                ? "Every asset, actor, data flow, and agent is prefilled from the source system with new ids of its own — review and adjust, then launch a fresh assessment for it."
+                : "The engine proposes what applies and what can be inherited. You confirm and grade those controls on the system screen after create."}
           </div>
         </div>
         <ModalCloseButton onClose={close} />
