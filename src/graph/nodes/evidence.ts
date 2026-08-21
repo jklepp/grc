@@ -34,7 +34,7 @@
 // propagation work end to end: flip one to "fail" and the implementation, the
 // asset, its system, the enterprise score, that control's framework coverage,
 // and any risk it contributes to all move together.
-import type { EvidenceType } from "./taxonomy";
+import type { EvidenceType, PrismaLevel } from "./taxonomy";
 import type { EvidenceId, ControlId, AssetId, FindingId, EvidenceSourceId, EvidenceArtifactId } from "../ids";
 
 export const EVIDENCE_RESULTS = ["pass", "partial", "fail"] as const;
@@ -90,6 +90,14 @@ export interface RawEvidence {
   artifactIds?: EvidenceArtifactId[];
   recordStatus?: EvidenceRecordStatus;
   supersedesId?: EvidenceId;
+  // Which PRISMA lane this record substantiates. Absent means Implemented —
+  // the lane evidence has always fed — so every existing record keeps its
+  // meaning. Records tagged to any other lane are documentation for that
+  // lane's claim (the policy PDF, the SOP extract, the review minutes) and
+  // are deliberately kept OUT of the implementation sampling pool (see
+  // assemble.ts's evidenceByPair): attaching a policy document must never
+  // move the Implemented score.
+  prismaLevel?: PrismaLevel;
   coveragePct: number;
   result: EvidenceResult;
   independence: IndependenceLevel;

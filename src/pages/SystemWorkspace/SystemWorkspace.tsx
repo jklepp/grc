@@ -16,7 +16,7 @@ import { ScopeReviewModal } from "./ScopeReviewModal";
 import { SystemRisk } from "./SystemRisk";
 import { SystemAssets } from "./SystemAssets";
 import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
-import { ControlAssessmentModal } from "./ControlAssessmentModal";
+import { ControlAssessmentWalk } from "./ControlAssessmentWalk";
 import { keyControlAssessmentQueue } from "./recordAssessment";
 import AddSystemWizard from "../../components/AddSystemWizard";
 import type { ControlId, SystemId } from "../../graph/ids";
@@ -57,7 +57,6 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
     onSubTabChange?.(tab);
   }
   const [selectedControlId, setSelectedControlId] = useState<ControlId | null>(null);
-  const [quickAssessControlId, setQuickAssessControlId] = useState<ControlId | null>(null);
   const [scopeReviewOpen, setScopeReviewOpen] = useState(false);
   const [requestedWave, setRequestedWave] = useState<ReviewWave | null>(null);
   const [assessmentWalkOpen, setAssessmentWalkOpen] = useState(false);
@@ -117,7 +116,6 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
     ),
     [matrix, liveEngine, system.id]
   );
-  const queueIndex = selectedControlId ? assessmentQueue.findIndex((row) => row.controlId === selectedControlId) : -1;
 
   const assessor = liveEngine.graph.assessmentScopeBySystem[system.id]?.assessor ?? "";
 
@@ -140,24 +138,6 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   function openControlsGroup(selection: ControlSelection) {
     setControlsSelection(selection);
     changeSubTab("controls");
-  }
-
-  function goToQueuedControl(offset: number) {
-    if (assessmentQueue.length === 0) {
-      setSelectedControlId(null);
-      return;
-    }
-    const from = queueIndex >= 0 ? queueIndex : offset > 0 ? -1 : 0;
-    const nextIndex = from + offset;
-    if (nextIndex < 0) {
-      setSelectedControlId(assessmentQueue[0].controlId);
-      return;
-    }
-    if (nextIndex >= assessmentQueue.length) {
-      setSelectedControlId(null);
-      return;
-    }
-    setSelectedControlId(assessmentQueue[nextIndex].controlId);
   }
 
   const findings = useMemo(() => liveEngine.findings.findingsForSystem(system.id), [liveEngine, system]);
@@ -249,8 +229,8 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           findingsByControl={findingsByControl}
           keyControlRemaining={assessmentQueue.length}
           onStartAssessment={assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
-          walkActive={Boolean(selectedControlId) && queueIndex >= 0}
-          onSelectRow={(row) => setQuickAssessControlId(row.controlId)}
+          walkActive={assessmentWalkOpen}
+          onSelectRow={(row) => setSelectedControlId(row.controlId)}
           onOpenScopeReview={openScopeReview}
           initialSelection={controlsSelection ?? undefined}
         />
@@ -269,29 +249,13 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         onStartTechnicalReview={openAssessmentWalk}
       />
 
-      <ControlAssessmentModal
+      <ControlAssessmentWalk
         open={assessmentWalkOpen}
         systemId={system.id}
         onClose={() => setAssessmentWalkOpen(false)}
-        onOpenFullDetail={(controlId) => {
-          setAssessmentWalkOpen(false);
-          changeSubTab("controls");
-          setSelectedControlId(controlId);
-        }}
         onGoToRemediation={() => {
           setAssessmentWalkOpen(false);
           openControlsGroup(DEFAULT_SELECTION);
-        }}
-      />
-
-      <ControlAssessmentModal
-        open={quickAssessControlId != null}
-        systemId={system.id}
-        controlId={quickAssessControlId}
-        onClose={() => setQuickAssessControlId(null)}
-        onOpenFullDetail={(controlId) => {
-          setQuickAssessControlId(null);
-          setSelectedControlId(controlId);
         }}
       />
 
@@ -301,10 +265,6 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           row={selectedRow}
           system={system}
           onClose={() => setSelectedControlId(null)}
-          queueIndex={queueIndex >= 0 ? queueIndex : null}
-          queueLength={assessmentQueue.length}
-          onNext={assessmentQueue.length > 0 ? () => goToQueuedControl(1) : undefined}
-          onPrev={queueIndex > 0 ? () => goToQueuedControl(-1) : undefined}
         />
       )}
 

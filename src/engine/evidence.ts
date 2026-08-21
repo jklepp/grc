@@ -14,12 +14,13 @@
 // Freshness is measured against ctx.now rather than a module-level clock read
 // at import time. See engine/context.ts for why that mattered.
 import type { Graph } from "../graph/types";
-import type { EvidenceType } from "../graph/nodes/taxonomy";
+import type { EvidenceType, PrismaLevel } from "../graph/nodes/taxonomy";
+import { PRISMA_LEVELS } from "../graph/nodes/taxonomy";
 import type { Evidence } from "../graph/nodes/evidence";
 import { POLICY_REVIEW_INTERVAL_DAYS, type PolicyRecord } from "../graph/nodes/programArtifacts";
 import type { EngineContext } from "./context";
 import { evidenceBaseConfidence } from "./assurance";
-import type { AssetId, ControlId } from "../graph/ids";
+import type { AssetId, ControlId, SystemId } from "../graph/ids";
 
 export const DAY_MS = 86400000;
 
@@ -203,6 +204,24 @@ export function createEvidence(graph: Graph, ctx: EngineContext) {
     return [...(graph.evidenceByPair[`${assetId ?? "program"}::${controlId}`] ?? [])];
   }
 
+  // Every active record for one control on one system's boundary, grouped by
+  // the PRISMA lane it substantiates (absent = Implemented). This is the read
+  // path for lane-tagged records, which are deliberately excluded from
+  // evidenceByPair (see assemble.ts) so they never enter implementation
+  // sampling — the scoring index and this per-lane view are the same records
+  // partitioned, not two competing evidence stores.
+  function laneEvidenceForControl(systemId: SystemId, controlId: ControlId): Record<PrismaLevel, ScoredEvidence[]> {
+    const systemAssetIds = new Set((graph.assetsBySystem[systemId] ?? []).map((a) => a.id));
+    const byLane = Object.fromEntries(PRISMA_LEVELS.map((level) => [level, [] as ScoredEvidence[]])) as Record<PrismaLevel, ScoredEvidence[]>;
+    graph.evidence.forEach((e) => {
+      if (e.controlId !== controlId) return;
+      if ((e.recordStatus ?? "active") !== "active") return;
+      if (e.assetIds.length > 0 && !e.assetIds.some((id) => systemAssetIds.has(id))) return;
+      byLane[e.prismaLevel ?? "Implemented"].push(scoreEvidence(e));
+    });
+    return byLane;
+  }
+
   // The same question freshnessFactor asks of a collection, asked of a document.
   // It lives here rather than beside the policy types because "is this current
   // as of now" needs ctx, and ctx belongs to the engine.
@@ -211,7 +230,7 @@ export function createEvidence(graph: Graph, ctx: EngineContext) {
     return age > POLICY_REVIEW_INTERVAL_DAYS;
   }
 
-  return { ageInDays, freshnessFactor, scoreEvidence, evidenceFor, policyOverdue };
+  return { ageInDays, freshnessFactor, scoreEvidence, evidenceFor, laneEvidenceForControl, policyOverdue };
 }
 
 export type EvidenceApi = ReturnType<typeof createEvidence>;

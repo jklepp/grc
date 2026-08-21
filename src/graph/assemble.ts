@@ -162,14 +162,23 @@ export function assembleGraph(facts: GraphFacts): Graph {
   // Evidence with no assetIds covers a program-scoped control rather than any
   // one asset, and is filed under the "program" sentinel so evidenceFor() has a
   // single lookup shape for both cases.
+  //
+  // Only Implemented-lane records (prismaLevel absent or "Implemented") enter
+  // this index: it is what instance scoring and the Measured prevalence pool
+  // read, and a record tagged to a documentation lane (Policy, Procedure,
+  // Measured, Managed) substantiates that lane's claim without being an
+  // implementation sample. Lane-tagged records are read through
+  // engine/evidence.ts's laneEvidenceForControl instead.
   const evidenceByPair: Record<string, Evidence[]> = {};
-  evidence.filter((e) => (e.recordStatus ?? "active") === "active").forEach((e) => {
-    if (e.assetIds.length === 0) {
-      (evidenceByPair[pair("program", e.controlId)] ||= []).push(e);
-      return;
-    }
-    e.assetIds.forEach((assetId) => (evidenceByPair[pair(assetId, e.controlId)] ||= []).push(e));
-  });
+  evidence
+    .filter((e) => (e.recordStatus ?? "active") === "active" && (e.prismaLevel ?? "Implemented") === "Implemented")
+    .forEach((e) => {
+      if (e.assetIds.length === 0) {
+        (evidenceByPair[pair("program", e.controlId)] ||= []).push(e);
+        return;
+      }
+      e.assetIds.forEach((assetId) => (evidenceByPair[pair(assetId, e.controlId)] ||= []).push(e));
+    });
 
   // ---- What the maturity ceiling stands on -----------------------------------
   // Both inverted from links that were already authored and already validated —

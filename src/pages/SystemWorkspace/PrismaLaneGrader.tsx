@@ -78,12 +78,15 @@ export function PrismaLaneGrader({
                     <button
                       key={rating}
                       type="button"
+                      disabled={disabled}
                       onClick={() => setRatings((current) => ({ ...current, [level]: rating }))}
                       className="text-[10px] font-semibold px-1.5 py-1 rounded"
                       style={{
                         background: active ? ratingColor(rating) : C.panel2,
                         color: active ? "#fff" : C.ink,
                         border: `1px solid ${active ? ratingColor(rating) : C.border}`,
+                        opacity: disabled ? 0.55 : 1,
+                        cursor: disabled ? "not-allowed" : "pointer",
                       }}
                     >
                       {rating}
@@ -102,17 +105,18 @@ export function PrismaLaneGrader({
       <div className="grid grid-cols-2 gap-2 mt-3">
         <div>
           <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Assessed by</div>
-          <input style={inputStyle()} value={assessedBy} onChange={(e) => setAssessedBy(e.target.value)} placeholder="Your name" />
+          <input style={inputStyle()} disabled={disabled} value={assessedBy} onChange={(e) => setAssessedBy(e.target.value)} placeholder="Your name" />
         </div>
         <div>
           <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Note (required if you change a lane)</div>
-          <input style={inputStyle()} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why a lane differs from the derived rating" />
+          <input style={inputStyle()} disabled={disabled} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why a lane differs from the derived rating" />
         </div>
       </div>
       <div className="mt-3">
         <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Comment (required)</div>
         <textarea
           style={{ ...inputStyle(), minHeight: 72, resize: "vertical" }}
+          disabled={disabled}
           value={comment}
           onChange={(e) => setComment(e.target.value)}
           placeholder="Describe in detail why the system satisfies each PRISMA lane"

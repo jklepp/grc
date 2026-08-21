@@ -3,7 +3,7 @@ import type { CSSProperties, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Link2, BookOpenText, Layers, FileCheck2, Wrench, Gauge, Plus, Pencil, Trash2, ChevronDown, ChevronRight,
-  ChevronLeft, ScrollText, Network, ClipboardCheck,
+  Check, ScrollText, Network, ClipboardCheck,
 } from "lucide-react";
 import { C } from "../../theme";
 import {
@@ -18,6 +18,7 @@ import {
 import { upsertControlReview } from "../../engine/runtimeMutations";
 import { PrismaLaneGrader } from "./PrismaLaneGrader";
 import type { LaneGrade } from "./PrismaLaneGrader";
+import { RecordAssessmentSection } from "./recordAssessment";
 import { loadRuntimeFacts } from "../../engine/runtimeFactsStore";
 import { useLiveEngine } from "../../engine/useLiveEngine";
 import { PRINCIPLE_DOMAINS, STATUS_META as PRINCIPLE_STATUS_META } from "../../data/securityPrinciples";
@@ -30,7 +31,7 @@ import type { AssetOption } from "./formHelpers";
 import type { ControlAssessment, ControlEvidenceDraft, ControlInstance, EvidenceDraft, EngineFinding, FindingDraft, LevelRating, ScoredEvidence } from "../../engine";
 import type { RuntimeFacts } from "../../engine/liveGraph";
 import type { AssetId, ControlId, EvidenceId, FindingId, SystemId } from "../../graph/ids";
-import type { EvidenceType, PrismaLevel } from "../../graph/nodes/taxonomy";
+import type { ComplianceRating, EvidenceType, PrismaLevel } from "../../graph/nodes/taxonomy";
 import type { EvidenceCollectorType, EvidenceResult, IndependenceLevel } from "../../graph/nodes/evidence";
 import type { ArtifactSensitivity, EvidenceReviewDecision } from "../../graph/nodes/evidenceProvenance";
 import type { FindingSeverity, FindingSource, RemediationStatus } from "../../graph/nodes/findings";
@@ -168,7 +169,10 @@ function isRuntimeEvidence(evidenceId: EvidenceId): boolean {
 }
 
 // Compact evidence card: source, result, coverage, freshness, independence at
-// a glance, with edit/delete for records this panel itself added.
+// a glance, with edit/delete for records this panel itself added, and the
+// full provenance drill-down (collection details, artifact integrity, review
+// decision) behind a toggle — this absorbed the retired Evidence step's
+// table, so the lane list is the panel's only evidence surface.
 function EvidenceCard({ e, assetLabel, governing, onEdit, onDelete, readOnly }: {
   e: ScoredEvidence;
   assetLabel?: string;
@@ -177,7 +181,11 @@ function EvidenceCard({ e, assetLabel, governing, onEdit, onDelete, readOnly }: 
   onDelete?: (evidence: ScoredEvidence) => void;
   readOnly?: boolean;
 }) {
+  const [showProvenance, setShowProvenance] = useState(false);
   const editable = !readOnly && isRuntimeEvidence(e.id);
+  const artifacts = getEvidenceArtifacts(e.id);
+  const reviews = getEvidenceReviews(e.id);
+  const latestReview = reviews.at(-1);
   return (
     <div className="rounded-lg p-2.5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
       <div className="flex items-center gap-2">
@@ -197,13 +205,56 @@ function EvidenceCard({ e, assetLabel, governing, onEdit, onDelete, readOnly }: 
         <span>{e.ageDays === 0 ? "Collected today" : `Collected ${e.ageDays}d ago`}{e.stale && <span className="font-semibold ml-1" style={{ color: C.amber }}>STALE</span>}</span>
         <span className="capitalize">{e.independence} independence</span>
       </div>
-      {editable ? (
-        <div className="flex items-center gap-3 mt-1.5">
-          <button className="flex items-center gap-1 text-[10.5px]" style={{ color: C.muted }} onClick={() => onEdit?.(e)}><Pencil size={10} /> Edit</button>
-          <button className="flex items-center gap-1 text-[10.5px]" style={{ color: C.red }} onClick={() => onDelete?.(e)}><Trash2 size={10} /> Delete</button>
+      <div className="flex items-center gap-3 mt-1.5">
+        <button
+          className="flex items-center gap-1 text-[10.5px] font-semibold"
+          style={{ color: latestReview?.decision === "accepted" ? C.green : latestReview?.decision === "rejected" ? C.red : C.muted }}
+          onClick={() => setShowProvenance((open) => !open)}
+        >
+          {showProvenance ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+          {latestReview ? latestReview.decision.replace("-", " ") : "Needs review"}
+          <span className="font-normal" style={{ color: C.muted }}>
+            &middot; {artifacts.length} artifact{artifacts.length === 1 ? "" : "s"} &middot; {e.collectorType ?? e.independence}
+          </span>
+        </button>
+        {editable ? (
+          <>
+            <button className="flex items-center gap-1 text-[10.5px] ml-auto" style={{ color: C.muted }} onClick={() => onEdit?.(e)}><Pencil size={10} /> Edit</button>
+            <button className="flex items-center gap-1 text-[10.5px]" style={{ color: C.red }} onClick={() => onDelete?.(e)}><Trash2 size={10} /> Delete</button>
+          </>
+        ) : (
+          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded ml-auto" style={{ background: C.panel2, color: C.muted }}>REFERENCE</span>
+        )}
+      </div>
+      {showProvenance && (
+        <div className="grid grid-cols-3 gap-4 text-[10.5px] mt-2 pt-2" style={{ borderTop: `1px solid ${C.border}` }}>
+          <div>
+            <SectionLabel>Collection</SectionLabel>
+            <div style={{ color: C.ink }}>{e.collectorIdentity ?? "Collector identity not recorded"}</div>
+            <div style={{ color: C.muted }}>{e.collectionRunId ?? "No run ID"}{e.methodVersion ? ` · ${e.methodVersion}` : ""}</div>
+            <div style={{ color: C.muted }}>{e.periodStart && e.periodEnd ? `${e.periodStart.slice(0, 10)} to ${e.periodEnd.slice(0, 10)}` : "Coverage period not recorded"}</div>
+          </div>
+          <div>
+            <SectionLabel>Artifact integrity</SectionLabel>
+            {artifacts.length > 0 ? artifacts.map((artifact) => (
+              <div key={artifact.id} className="mb-1">
+                <div style={{ color: C.ink }}>{artifact.name} · v{artifact.version}</div>
+                <div className="font-mono truncate" title={artifact.sha256} style={{ color: C.muted }}>SHA-256 {artifact.sha256.slice(0, 14)}…</div>
+                <div style={{ color: C.muted }}>{artifact.sensitivity} · retained at {artifact.storageRef}</div>
+              </div>
+            )) : <div style={{ color: C.muted }}>No retained artifact metadata</div>}
+          </div>
+          <div>
+            <SectionLabel>Review</SectionLabel>
+            {latestReview ? (
+              <>
+                <div className="font-semibold capitalize" style={{ color: latestReview.decision === "accepted" ? C.green : latestReview.decision === "rejected" ? C.red : C.amber }}>{latestReview.decision.replace("-", " ")}</div>
+                <div style={{ color: C.ink }}>{latestReview.reviewer} · {latestReview.reviewedAt.slice(0, 10)}</div>
+                <div style={{ color: C.muted }}>{latestReview.comments ?? "No review comments"}</div>
+              </>
+            ) : <div style={{ color: C.amber }}>No review decision recorded</div>}
+          </div>
         </div>
-      ) : (
-        <div className="mt-1.5 text-[9px] font-semibold px-1.5 py-0.5 rounded inline-block" style={{ background: C.panel2, color: C.muted }}>REFERENCE</div>
       )}
     </div>
   );
@@ -251,11 +302,15 @@ interface EvidenceFormProps {
   initial?: Partial<EvidenceFormState> & { assetIds?: AssetId[] };
   assetOptions: AssetOption[];
   isProgramScoped: boolean;
+  // Tags the record to a PRISMA lane (see RawEvidence.prismaLevel). Set by
+  // the per-lane attach/edit flow; absent from the flat Evidence step, where
+  // records keep whatever lane they already carry (Implemented by default).
+  prismaLevel?: PrismaLevel;
   onCancel: () => void;
   onSubmit: (draft: ControlEvidenceDraft) => void;
 }
 
-function EvidenceForm({ initial, assetOptions, isProgramScoped, onCancel, onSubmit }: EvidenceFormProps) {
+function EvidenceForm({ initial, assetOptions, isProgramScoped, prismaLevel, onCancel, onSubmit }: EvidenceFormProps) {
   const [form, setForm] = useState<EvidenceFormState>({ ...EMPTY_EVIDENCE_FORM, ...initial });
   const [showProvenance, setShowProvenance] = useState(false);
   const [assetIds, setAssetIds] = useState<AssetId[]>(
@@ -363,6 +418,7 @@ function EvidenceForm({ initial, assetOptions, isProgramScoped, onCancel, onSubm
           style={{ background: C.accent, color: "#fff" }}
           onClick={() => onSubmit({
             source: form.source.trim(),
+            ...(prismaLevel ? { prismaLevel } : {}),
             evidenceType: form.evidenceType,
             result: form.result,
             coveragePct: Number(form.coveragePct) || 0,
@@ -516,21 +572,42 @@ function FindingForm({ initial, assetOptions, onCancel, onSubmit }: FindingFormP
 }
 
 const STEPS = [
-  { id: "requirement", label: "Control Overview", icon: BookOpenText },
+  { id: "requirements", label: "Control Requirements", icon: BookOpenText },
+  { id: "scoring", label: "Scoring and Evidence", icon: Gauge },
   { id: "implementation", label: "Implementation Coverage", icon: Layers },
-  { id: "evidence", label: "Evidence", icon: FileCheck2 },
   { id: "findings", label: "Findings & Remediation", icon: Wrench },
 ] as const;
 type EvaluationStep = (typeof STEPS)[number]["id"];
+
+export interface WalkDomainProgress {
+  domain: string;
+  total: number;
+  remaining: number;
+}
+
+// Everything the key-control walk (ControlAssessmentWalk) layers onto this
+// panel: the domain rail with per-domain progress, the assessed-so-far strip,
+// the reviewer of record, and the save/skip advance hooks. Absent for the
+// standalone row-click open — the panel itself is identical either way, so
+// the walk and the deep-dive can never drift into two different assessment
+// UIs again.
+export interface PanelWalkState {
+  domains: WalkDomainProgress[];
+  activeDomain: string;
+  onSelectDomain: (domain: string) => void;
+  decidedCount: number;
+  initialTotal: number;
+  reviewer: string;
+  onReviewerChange: (value: string) => void;
+  onRecorded: (rating: ComplianceRating, continueWalk: boolean) => void;
+  onSkip: (() => void) | null;
+}
 
 interface ControlEvaluationPanelProps {
   row: ControlMatrixRow;
   system: WorkspaceSystem;
   onClose: () => void;
-  queueIndex?: number | null;
-  queueLength?: number;
-  onNext?: () => void;
-  onPrev?: () => void;
+  walk?: PanelWalkState;
 }
 
 // Full-space operator panel for a single control row, organized as the
@@ -542,18 +619,20 @@ interface ControlEvaluationPanelProps {
 // RuntimeFacts copy, validate it with buildLiveEngine, and only persist +
 // reload once that comes back clean.
 export function ControlEvaluationPanel({
-  row, system, onClose, queueIndex = null, queueLength = 0, onNext, onPrev,
+  row, system, onClose, walk,
 }: ControlEvaluationPanelProps) {
-  const [activeStep, setActiveStep] = useState<EvaluationStep>("requirement");
-  const [attachingEvidence, setAttachingEvidence] = useState(false);
-  const [editingEvidenceId, setEditingEvidenceId] = useState<EvidenceId | null>(null);
-  const [expandedEvidenceId, setExpandedEvidenceId] = useState<EvidenceId | null>(null);
+  // Lands on Scoring and Evidence — the operator's stated job — with the
+  // requirement context one step up the rail rather than in the way.
+  const [activeStep, setActiveStep] = useState<EvaluationStep>("scoring");
+  const [attachingLane, setAttachingLane] = useState<PrismaLevel | null>(null);
+  const [editingLaneEvidenceId, setEditingLaneEvidenceId] = useState<EvidenceId | null>(null);
   const [showMaturityDetails, setShowMaturityDetails] = useState(false);
   const [creatingFinding, setCreatingFinding] = useState(false);
   const [editingFindingId, setEditingFindingId] = useState<FindingId | null>(null);
   const [saveError, setSaveError] = useState<string[] | null>(null);
-  const inQueue = queueIndex != null && queueIndex >= 0;
   const liveEngine = useLiveEngine();
+  const walkRemaining = walk ? walk.domains.reduce((sum, d) => sum + d.remaining, 0) : 0;
+  const walkReviewerMissing = Boolean(walk) && !walk!.reviewer.trim();
 
   const governingPolicy = POLICY_BY_CONTROL[row.control.id];
   const governingProcedure = PROCEDURE_BY_CONTROL[row.control.id];
@@ -569,25 +648,26 @@ export function ControlEvaluationPanel({
   const programApplicability = isProgramScoped ? resolveProgramApplicability(system.id, row.control.id) : null;
   const evidenceHealth = evidenceHealthForRow(row);
   const assessment = row.assessment;
+  const assessed = Boolean(assessment?.assessed);
   const assetOptions = row.instances.length > 0
     ? row.instances.map((inst) => ({ assetId: inst.assetId, label: assetName(system, inst.assetId) }))
     : assetsForSystem(system.id).map((a) => ({ assetId: a.id, label: a.name }));
-  // A single evidence record can cover many assets at once (assetIds: [...]),
-  // so it appears once per instance here — the same e.id repeats, and needs a
-  // per-instance key of its own rather than e.id alone.
-  //
-  // Program-scoped controls have no per-asset instances at all (see
-  // assessment.ts's populationFor) — their evidence is recorded against the
-  // control itself (assetIds: []) and reaches scoring through the "program"
-  // sentinel key in graph.evidenceByPair, exposed on the assessment as
-  // programEvidence. Reading only row.instances here would leave every
-  // program control's Evidence tab reporting "no evidence on file" even when
-  // evidence exists and is actively scoring the control.
-  const allEvidence = isProgramScoped
-    ? (assessment?.programEvidence ?? []).map((e) => ({ ...e, key: `${e.id}::program`, assetLabel: undefined as string | undefined, governing: false }))
-    : row.instances.flatMap((inst) => inst.evidence.map((e) => ({ ...e, key: `${e.id}::${inst.assetId}`, assetLabel: assetName(system, inst.assetId) as string | undefined, governing: inst.governing?.id === e.id })));
+  // An unassessed control has no instances yet (assessment.ts only builds
+  // them in scope), so recording a first fact needs the applicability-derived
+  // asset list — the same population the walk queue itself is built from.
+  const recordAssetOptions = (liveEngine.graph.assetsBySystem[system.id] ?? [])
+    .filter((asset) => liveEngine.applicability.resolveApplicability(asset.id, row.control.id).required)
+    .map((asset) => ({ assetId: asset.id, label: asset.name }));
+  const assessorOfRecord = liveEngine.graph.assessmentScopeBySystem[system.id]?.assessor ?? "";
+  // The record that governs an instance's status, so the lane list can badge
+  // it. Program-scoped controls have no instances and never badged one in the
+  // old flat table either, so their pool intentionally stays unmarked.
+  const governingEvidenceIds = new Set(
+    row.instances.map((inst) => inst.governing?.id).filter((id): id is EvidenceId => Boolean(id))
+  );
   const linkedPrinciples = principlesForControl(row.control.id);
   const programReasons = programApplicability?.reasons ?? [];
+  const laneEvidence = liveEngine.evidence.laneEvidenceForControl(system.id, row.control.id);
 
   // Every instance's applicability reasons are usually identical (the same
   // rule matched every asset the same way) — say it once at the section
@@ -605,8 +685,8 @@ export function ControlEvaluationPanel({
       setSaveError(problems);
       return false;
     }
-    setAttachingEvidence(false);
-    setEditingEvidenceId(null);
+    setAttachingLane(null);
+    setEditingLaneEvidenceId(null);
     setCreatingFinding(false);
     setEditingFindingId(null);
     return true;
@@ -687,27 +767,83 @@ export function ControlEvaluationPanel({
               </span>
             )}
             <GlancePill Icon={Gauge} label="Assurance" value={row.score != null ? `${row.score}${row.assessment?.band?.label ? ` · ${row.assessment.band.label}` : ""}` : "—"} />
-            {queueLength > 0 && (
-              <GlancePill
-                Icon={ClipboardCheck}
-                label="Key controls left"
-                value={inQueue ? `${queueIndex + 1} of ${queueLength}` : String(queueLength)}
-              />
-            )}
           </div>
         </div>
         <ModalCloseButton onClose={onClose} />
       </div>
 
+      {/* ---- Walk strip: overall progress + reviewer of record ---- */}
+      {walk && (
+        <div className="flex items-center gap-3 px-6 py-2.5" style={{ borderBottom: `1px solid ${C.border}`, background: C.panel2 }}>
+          <ClipboardCheck size={13} color={C.accent} className="shrink-0" />
+          <span className="text-[10.5px] uppercase tracking-wide font-semibold shrink-0" style={{ color: C.muted }}>
+            Assessed {walk.decidedCount} of {walk.initialTotal}
+          </span>
+          <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: C.border }}>
+            <div
+              className="h-full rounded-full"
+              style={{
+                background: C.accent,
+                width: `${walk.initialTotal ? Math.round((walk.decidedCount / walk.initialTotal) * 100) : 0}%`,
+                transition: "width 320ms ease",
+              }}
+            />
+          </div>
+          <span className="text-[10.5px] shrink-0" style={{ color: C.muted }}>Reviewer</span>
+          <input
+            value={walk.reviewer}
+            onChange={(e) => walk.onReviewerChange(e.target.value)}
+            className="rounded-lg px-2.5 py-1.5 text-[12px] shrink-0"
+            style={{ background: C.panel, border: `1px solid ${walkReviewerMissing ? C.amber : C.border}`, color: C.ink, width: 190 }}
+            placeholder="Assessor of record"
+          />
+        </div>
+      )}
+
       <div className="flex-1 min-h-0 grid" style={{ gridTemplateColumns: "220px 1fr" }}>
-        {/* ---- Step rail ---- */}
+        {/* ---- Rail: walk domains (walk mode only), then this control's steps ---- */}
         <nav className="p-3 overflow-y-auto" style={{ borderRight: `1px solid ${C.border}`, background: C.panel2 }}>
+          {walk && (
+            <>
+              <div className="text-[9.5px] uppercase tracking-wide font-semibold px-2.5 pb-1.5" style={{ color: C.muted }}>Domains</div>
+              {walk.domains.map((d) => {
+                const isDone = d.remaining === 0;
+                const isActive = d.domain === walk.activeDomain && !isDone;
+                return (
+                  <button
+                    key={d.domain}
+                    type="button"
+                    onClick={() => { if (!isDone) walk.onSelectDomain(d.domain); }}
+                    className="w-full rounded-lg px-2.5 py-2 mb-1 flex items-center gap-2 text-left"
+                    style={{
+                      background: isDone ? C.greenBg : isActive ? C.accentBg : "transparent",
+                      cursor: isDone ? "default" : "pointer",
+                    }}
+                  >
+                    <span
+                      className="w-5 h-5 rounded-md flex items-center justify-center shrink-0"
+                      style={{ background: isDone ? C.green : isActive ? C.accent : C.border, color: isDone || isActive ? "#fff" : C.muted }}
+                    >
+                      {isDone ? <Check size={11} /> : <ClipboardCheck size={11} />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[11.5px] font-semibold truncate" style={{ color: isDone ? C.green : isActive ? C.accent : C.ink }}>{d.domain}</span>
+                      <span className="block text-[10px] mt-0.5" style={{ color: isDone ? C.green : isActive ? C.accent : C.muted }}>
+                        {isDone ? `${d.total} decided` : `${d.remaining} of ${d.total} remaining`}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+              <div className="text-[9.5px] uppercase tracking-wide font-semibold px-2.5 pt-3 pb-1.5 mt-2" style={{ color: C.muted, borderTop: `1px solid ${C.border}` }}>
+                This control
+              </div>
+            </>
+          )}
           {STEPS.map((s) => {
             const Icon = s.icon;
             const isActive = s.id === activeStep;
-            const badge = s.id === "evidence" ? allEvidence.length
-              : s.id === "findings" ? controlFindings.length
-              : null;
+            const badge = s.id === "findings" ? controlFindings.length : null;
             return (
               <button
                 key={s.id}
@@ -736,84 +872,13 @@ export function ControlEvaluationPanel({
             </div>
           )}
 
-          {/* ===== Requirement ===== */}
-          {activeStep === "requirement" && (
+          {/* ===== Control Requirements ===== */}
+          {activeStep === "requirements" && (
             <div className="space-y-4">
-              {assessment?.assessed && (
-                <div>
-                  <SectionLabel icon={Gauge}>PRISMA lanes</SectionLabel>
-                  <p className="text-[11px] leading-snug mb-2" style={{ color: C.muted }}>
-                    Derived ratings are suggestions. Accept them, or pick 0 / 25 / 50 / 75 / 100 on each lane.
-                  </p>
-                  <PrismaLaneGrader
-                    levels={assessment.levels}
-                    assessedBy={liveEngine.graph.assessmentScopeBySystem[system.id]?.assessor ?? ""}
-                    note=""
-                    comment=""
-                    onSubmit={handleLaneGrades}
-                  />
-                </div>
-              )}
-
               <div>
                 <SectionLabel icon={BookOpenText}>Common Control Requirement</SectionLabel>
                 <div className="rounded-lg p-4" style={{ background: C.panel2 }}>
                   <div className="text-sm leading-relaxed" style={{ color: C.ink }}>{row.control.description}</div>
-                </div>
-              </div>
-
-              {row.control.toolHint && (
-                <div className="rounded-lg p-3" style={{ border: `1px solid ${C.border}` }}>
-                  <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Enforced By</div>
-                  <div className="text-sm" style={{ color: C.ink }}>{row.control.toolHint}</div>
-                </div>
-              )}
-
-              {linkedPrinciples.length > 0 && (
-                <div>
-                  <SectionLabel>Linked Assurance Practices</SectionLabel>
-                  <div className="space-y-1.5">
-                    {linkedPrinciples.map((p) => (
-                      <div key={`${p.domainTitle}-${p.id}`} className="rounded-lg p-2.5" style={{ background: C.panel2 }}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[9.5px] uppercase tracking-wide" style={{ color: C.muted }}>{p.domainTitle}</span>
-                          <span
-                            className="text-[9px] font-semibold px-1.5 py-0.5 rounded ml-auto"
-                            style={{ background: p.status === "operationalized" ? C.greenBg : p.status === "partial" ? C.amberBg : C.redBg, color: p.status === "operationalized" ? C.green : p.status === "partial" ? C.amber : C.red }}
-                          >
-                            {PRINCIPLE_STATUS_META[p.status]?.label ?? p.status}
-                          </span>
-                        </div>
-                        <div className="text-xs mt-1" style={{ color: C.ink }}>{p.statement}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* ===== Assessment ===== */}
-              <div className="rounded-lg p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="inline-flex items-center gap-1 text-sm font-semibold px-2.5 py-1 rounded" style={{ background: statusMeta.bg, color: statusMeta.color }}>
-                    <statusMeta.Icon size={13} /> {statusMeta.label}
-                  </span>
-                  <span className="ml-auto"><BasisTag basis={row.basis} /></span>
-                </div>
-                <div>
-                  {fieldLabel("Assessment rationale")}
-                  <div className="text-sm leading-relaxed" style={{ color: C.ink }}>
-                    {worst ? worst.rationale : row.explanation}
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4 mt-3">
-                  <div>
-                    {fieldLabel("Control owner")}
-                    <div className="text-xs" style={{ color: C.ink }}>{assessment && assessment.owners.length > 0 ? assessment.owners.map((o) => o.name).join(", ") : "Unassigned"}</div>
-                  </div>
-                  <div>
-                    {fieldLabel("Evidence confidence")}
-                    <div className="text-xs font-semibold" style={{ color: evidenceHealth.color }}>{evidenceHealth.label}</div>
-                  </div>
                 </div>
               </div>
 
@@ -905,6 +970,219 @@ export function ControlEvaluationPanel({
             </div>
           )}
 
+          {/* ===== Scoring and Evidence ===== */}
+          {/* The step renders the same sections whether or not a fact exists,
+              so the walk and the table open an identical page. Unassessed
+              controls add a banner naming WHY every lane reads 0 (nobody has
+              looked — the score is null, not zero), put the record-a-fact
+              form first, and lock the grader and per-lane attach until the
+              first fact commits. */}
+          {activeStep === "scoring" && assessment && (
+            <div className="space-y-4">
+              {!assessed && (
+                <div className="rounded-lg p-4" style={{ background: C.amberBg, border: `1px solid ${C.amber}55` }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide shrink-0" style={{ background: C.amber, color: "#fff" }}>Not Assessed</span>
+                    <span className="text-[13px] font-semibold" style={{ color: C.ink }}>The lanes below read 0 because nobody has assessed this control — not because it failed.</span>
+                  </div>
+                  <div className="text-[12px] mt-1.5 leading-relaxed" style={{ color: C.ink }}>
+                    No fact is recorded for {row.control.id} on this boundary, so its score is null and every PRISMA lane sits at 0 — Not Assessed. Record an assessment below to derive real lane ratings and unlock grading and evidence.
+                  </div>
+                </div>
+              )}
+
+              {!assessed && (
+                <div>
+                  <SectionLabel icon={ClipboardCheck}>Record assessment</SectionLabel>
+                  <RecordAssessmentSection
+                    key={row.control.id}
+                    systemId={system.id}
+                    controlId={row.control.id}
+                    isProgramScoped={Boolean(isProgramScoped)}
+                    assetOptions={recordAssetOptions}
+                    reviewer={walk ? walk.reviewer : assessorOfRecord}
+                    showContinue={Boolean(walk)}
+                    continueLabel={walk ? (walkRemaining === 1 ? "Save and finish" : "Save and continue") : "Save assessment"}
+                    disabled={walkReviewerMissing}
+                    onSaved={(rating, continueWalk) => walk?.onRecorded(rating, continueWalk)}
+                  />
+                  {walkReviewerMissing && (
+                    <div className="text-[10.5px] mt-2" style={{ color: C.amber }}>
+                      Enter the reviewer of record above before recording assessments.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <>
+                  <div>
+                    <SectionLabel icon={Gauge}>PRISMA lanes</SectionLabel>
+                    <p className="text-[11px] leading-snug mb-2" style={{ color: C.muted }}>
+                      {assessed
+                        ? "Derived ratings are suggestions. Accept them, or pick 0 / 25 / 50 / 75 / 100 on each lane."
+                        : "Locked at 0 — Not Assessed. The lanes unlock once a fact is recorded above."}
+                    </p>
+                    <PrismaLaneGrader
+                      levels={assessment.levels}
+                      assessedBy={assessorOfRecord}
+                      note=""
+                      comment=""
+                      disabled={!assessed}
+                      onSubmit={handleLaneGrades}
+                    />
+                  </div>
+
+                  {/* One evidence slot per PRISMA lane, in ladder order.
+                      Implemented-lane records are the ones the engine samples
+                      for scoring; records attached to the other four lanes
+                      document that lane's claim (the policy PDF, the SOP
+                      extract, the metric export, the review minutes) without
+                      entering the implementation pool — see
+                      RawEvidence.prismaLevel. */}
+                  <div>
+                    <SectionLabel icon={FileCheck2}>Evidence by lane</SectionLabel>
+                    <p className="text-[11px] leading-snug mb-2" style={{ color: C.muted }}>
+                      Substantiate each lane with an artifact — the policy document, the SOP extract, the test output, the metric, the review minutes. Implemented-lane records are sampled for scoring; the other lanes&rsquo; records document the claim behind the derived rating.
+                    </p>
+                    <div className="space-y-2">
+                      {PRISMA_LEVELS.map((level, idx) => {
+                        const L = assessment.levels[level];
+                        const records = laneEvidence[level];
+                        return (
+                          <div key={level} className="rounded-lg p-3" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+                            <div className="flex items-center gap-2.5">
+                              <span
+                                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0"
+                                style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}
+                              >
+                                {idx + 1}
+                              </span>
+                              <span className="text-[12.5px] font-semibold" style={{ color: C.ink }}>{level}</span>
+                              <span className="text-[11px] font-semibold tabular-nums" style={{ color: assessed ? ratingColor(L.rating) : C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
+                                {assessed ? `${L.rating} — ${COMPLIANCE_LABELS[L.rating]}` : "0 — Not Assessed"}
+                              </span>
+                              <span
+                                className="text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase"
+                                style={records.length === 0 ? { background: C.amberBg, color: C.amber } : { background: C.greenBg, color: C.green }}
+                              >
+                                {records.length === 0 ? "None attached" : `${records.length} attached`}
+                              </span>
+                              {attachingLane !== level && (
+                                <button
+                                  className="ml-auto flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg"
+                                  style={assessed
+                                    ? { background: C.accentBg, color: C.accent }
+                                    : { background: C.panel, color: C.muted, border: `1px solid ${C.border}`, cursor: "not-allowed" }}
+                                  disabled={!assessed}
+                                  title={assessed ? undefined : "Record an assessment first"}
+                                  onClick={() => { setAttachingLane(level); setEditingLaneEvidenceId(null); }}
+                                >
+                                  <Plus size={11} /> Attach evidence
+                                </button>
+                              )}
+                            </div>
+                            {records.length > 0 && (
+                              <div className="space-y-1.5 mt-2.5">
+                                {records.map((e) => editingLaneEvidenceId === e.id ? (
+                                  <EvidenceForm
+                                    key={e.id}
+                                    initial={{ ...e, exceptions: e.exceptions ?? "", population: e.population ?? "" }}
+                                    assetOptions={assetOptions}
+                                    isProgramScoped={isProgramScoped}
+                                    prismaLevel={level}
+                                    onCancel={() => setEditingLaneEvidenceId(null)}
+                                    onSubmit={(patch) => handleUpdateEvidence(e.id, patch)}
+                                  />
+                                ) : (
+                                  <EvidenceCard
+                                    key={e.id}
+                                    e={e}
+                                    governing={governingEvidenceIds.has(e.id)}
+                                    assetLabel={e.assetIds.length > 0
+                                      ? e.assetIds.slice(0, 2).map((id) => assetName(system, id)).join(", ")
+                                        + (e.assetIds.length > 2 ? ` +${e.assetIds.length - 2} more` : "")
+                                      : undefined}
+                                    onEdit={() => { setEditingLaneEvidenceId(e.id); setAttachingLane(null); }}
+                                    onDelete={() => handleDeleteEvidence(e.id)}
+                                  />
+                                ))}
+                              </div>
+                            )}
+                            {attachingLane === level && (
+                              <div className="mt-2.5">
+                                <EvidenceForm
+                                  assetOptions={assetOptions}
+                                  isProgramScoped={isProgramScoped}
+                                  prismaLevel={level}
+                                  onCancel={() => setAttachingLane(null)}
+                                  onSubmit={(draft) => handleAttachEvidence(draft)}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+
+              {row.control.toolHint && (
+                <div className="rounded-lg p-3" style={{ border: `1px solid ${C.border}` }}>
+                  <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Enforced By</div>
+                  <div className="text-sm" style={{ color: C.ink }}>{row.control.toolHint}</div>
+                </div>
+              )}
+
+              {linkedPrinciples.length > 0 && (
+                <div>
+                  <SectionLabel>Linked Assurance Practices</SectionLabel>
+                  <div className="space-y-1.5">
+                    {linkedPrinciples.map((p) => (
+                      <div key={`${p.domainTitle}-${p.id}`} className="rounded-lg p-2.5" style={{ background: C.panel2 }}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9.5px] uppercase tracking-wide" style={{ color: C.muted }}>{p.domainTitle}</span>
+                          <span
+                            className="text-[9px] font-semibold px-1.5 py-0.5 rounded ml-auto"
+                            style={{ background: p.status === "operationalized" ? C.greenBg : p.status === "partial" ? C.amberBg : C.redBg, color: p.status === "operationalized" ? C.green : p.status === "partial" ? C.amber : C.red }}
+                          >
+                            {PRINCIPLE_STATUS_META[p.status]?.label ?? p.status}
+                          </span>
+                        </div>
+                        <div className="text-xs mt-1" style={{ color: C.ink }}>{p.statement}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ===== Assessment ===== */}
+              <div className="rounded-lg p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="inline-flex items-center gap-1 text-sm font-semibold px-2.5 py-1 rounded" style={{ background: statusMeta.bg, color: statusMeta.color }}>
+                    <statusMeta.Icon size={13} /> {statusMeta.label}
+                  </span>
+                  <span className="ml-auto"><BasisTag basis={row.basis} /></span>
+                </div>
+                <div>
+                  {fieldLabel("Assessment rationale")}
+                  <div className="text-sm leading-relaxed" style={{ color: C.ink }}>
+                    {worst ? worst.rationale : row.explanation}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4 mt-3">
+                  <div>
+                    {fieldLabel("Control owner")}
+                    <div className="text-xs" style={{ color: C.ink }}>{assessment && assessment.owners.length > 0 ? assessment.owners.map((o) => o.name).join(", ") : "Unassigned"}</div>
+                  </div>
+                  <div>
+                    {fieldLabel("Evidence confidence")}
+                    <div className="text-xs font-semibold" style={{ color: evidenceHealth.color }}>{evidenceHealth.label}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ===== Implementation Coverage ===== */}
           {activeStep === "implementation" && (
             <div>
@@ -958,159 +1236,6 @@ export function ControlEvaluationPanel({
                 </div>
               ) : (
                 <div className="text-sm" style={{ color: C.muted }}>No in-scope assets carry this control.</div>
-              )}
-            </div>
-          )}
-
-          {/* ===== Evidence ===== */}
-          {activeStep === "evidence" && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: evidenceHealth.bg, color: evidenceHealth.color }}>
-                  {evidenceHealth.label}
-                </span>
-                {!attachingEvidence && (
-                  <button
-                    className="ml-auto flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg"
-                    style={{ background: C.accentBg, color: C.accent }}
-                    onClick={() => { setAttachingEvidence(true); setEditingEvidenceId(null); }}
-                  >
-                    <Plus size={11} /> Add Evidence
-                  </button>
-                )}
-              </div>
-              {allEvidence.length > 0 ? (
-                <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
-                  <table className="w-full text-left" style={{ borderCollapse: "collapse" }}>
-                    <thead>
-                      <tr style={{ background: C.panel2 }}>
-                        {["Source", "Asset", "Result", "Coverage", "Collected", "Provenance", "", ""].map((h, i) => (
-                          <th key={h || `spacer-${i}`} className="text-[9.5px] uppercase tracking-wide px-2.5 py-2" style={{ color: C.muted }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {allEvidence.map((e) => {
-                        if (editingEvidenceId === e.id) {
-                          return (
-                            <tr key={e.key}>
-                              <td colSpan={8} className="p-2.5" style={{ borderTop: `1px solid ${C.border}` }}>
-                                <EvidenceForm
-                                  initial={{ ...e, exceptions: e.exceptions ?? "", population: e.population ?? "" }}
-                                  assetOptions={assetOptions}
-                                  isProgramScoped={isProgramScoped}
-                                  onCancel={() => setEditingEvidenceId(null)}
-                                  onSubmit={(patch) => handleUpdateEvidence(e.id, patch)}
-                                />
-                              </td>
-                            </tr>
-                          );
-                        }
-                        const editable = isRuntimeEvidence(e.id);
-                        const artifacts = getEvidenceArtifacts(e.id);
-                        const reviews = getEvidenceReviews(e.id);
-                        const latestReview = reviews.at(-1);
-                        const expanded = expandedEvidenceId === e.id;
-                        return (
-                          <React.Fragment key={e.key}>
-                          <tr style={{ borderTop: `1px solid ${C.border}` }}>
-                            <td className="px-2.5 py-2">
-                              <div className="flex items-center gap-1.5">
-                                <Link2 size={11} color={C.muted} className="shrink-0" />
-                                <span className="text-xs font-semibold" style={{ color: C.ink }}>{e.source}</span>
-                                {e.governing && <span className="font-semibold px-1.5 py-0.5 rounded shrink-0 text-[9px]" style={{ background: C.accentBg, color: C.accent }}>GOVERNING</span>}
-                              </div>
-                            </td>
-                            <td className="px-2.5 py-2 text-[11px]" style={{ color: C.muted }}>{e.assetLabel ?? "—"}</td>
-                            <td className="px-2.5 py-2">
-                              <span
-                                className="text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase"
-                                style={{ background: e.result === "pass" ? C.greenBg : e.result === "partial" ? C.amberBg : C.redBg, color: e.result === "pass" ? C.green : e.result === "partial" ? C.amber : C.red }}
-                              >
-                                {e.result}
-                              </span>
-                            </td>
-                            <td className="px-2.5 py-2 text-[11px]" style={{ color: C.muted }}>
-                              {e.coveragePct}%{e.exceptionRate != null && ` (${e.exceptions}/${e.population})`}
-                            </td>
-                            <td className="px-2.5 py-2 text-[11px]" style={{ color: C.muted }}>
-                              {e.ageDays === 0 ? "Today" : `${e.ageDays}d ago`}{e.stale && <span className="font-semibold ml-1" style={{ color: C.amber }}>STALE</span>}
-                            </td>
-                            <td className="px-2.5 py-2">
-                              <button className="text-left" onClick={() => setExpandedEvidenceId(expanded ? null : e.id)}>
-                                <div className="flex items-center gap-1 text-[10.5px] font-semibold" style={{ color: latestReview?.decision === "accepted" ? C.green : latestReview?.decision === "rejected" ? C.red : C.muted }}>
-                                  {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-                                  {latestReview ? latestReview.decision.replace("-", " ") : "Needs review"}
-                                </div>
-                                <div className="text-[9.5px] mt-0.5" style={{ color: C.muted }}>{artifacts.length} artifact{artifacts.length === 1 ? "" : "s"} · {e.collectorType ?? e.independence}</div>
-                              </button>
-                            </td>
-                            <td className="px-2.5 py-2">
-                              {!editable && (
-                                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded inline-block" style={{ background: C.panel2, color: C.muted }}>REFERENCE</span>
-                              )}
-                            </td>
-                            <td className="px-2.5 py-2">
-                              {editable && (
-                                <div className="flex items-center gap-2.5 justify-end">
-                                  <button className="flex items-center gap-1 text-[10.5px]" style={{ color: C.muted }} onClick={() => { setEditingEvidenceId(e.id); setAttachingEvidence(false); }}><Pencil size={10} /> Edit</button>
-                                  <button className="flex items-center gap-1 text-[10.5px]" style={{ color: C.red }} onClick={() => handleDeleteEvidence(e.id)}><Trash2 size={10} /> Delete</button>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                          {expanded && (
-                            <tr style={{ background: C.panel2 }}>
-                              <td colSpan={8} className="px-4 py-3" style={{ borderTop: `1px solid ${C.border}` }}>
-                                <div className="grid grid-cols-3 gap-4 text-[10.5px]">
-                                  <div>
-                                    <SectionLabel>Collection</SectionLabel>
-                                    <div style={{ color: C.ink }}>{e.collectorIdentity ?? "Collector identity not recorded"}</div>
-                                    <div style={{ color: C.muted }}>{e.collectionRunId ?? "No run ID"}{e.methodVersion ? ` · ${e.methodVersion}` : ""}</div>
-                                    <div style={{ color: C.muted }}>{e.periodStart && e.periodEnd ? `${e.periodStart.slice(0, 10)} to ${e.periodEnd.slice(0, 10)}` : "Coverage period not recorded"}</div>
-                                  </div>
-                                  <div>
-                                    <SectionLabel>Artifact integrity</SectionLabel>
-                                    {artifacts.length > 0 ? artifacts.map((artifact) => (
-                                      <div key={artifact.id} className="mb-1">
-                                        <div style={{ color: C.ink }}>{artifact.name} · v{artifact.version}</div>
-                                        <div className="font-mono truncate" title={artifact.sha256} style={{ color: C.muted }}>SHA-256 {artifact.sha256.slice(0, 14)}…</div>
-                                        <div style={{ color: C.muted }}>{artifact.sensitivity} · retained at {artifact.storageRef}</div>
-                                      </div>
-                                    )) : <div style={{ color: C.muted }}>No retained artifact metadata</div>}
-                                  </div>
-                                  <div>
-                                    <SectionLabel>Review</SectionLabel>
-                                    {latestReview ? (
-                                      <>
-                                        <div className="font-semibold capitalize" style={{ color: latestReview.decision === "accepted" ? C.green : latestReview.decision === "rejected" ? C.red : C.amber }}>{latestReview.decision.replace("-", " ")}</div>
-                                        <div style={{ color: C.ink }}>{latestReview.reviewer} · {latestReview.reviewedAt.slice(0, 10)}</div>
-                                        <div style={{ color: C.muted }}>{latestReview.comments ?? "No review comments"}</div>
-                                      </>
-                                    ) : <div style={{ color: C.amber }}>No review decision recorded</div>}
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                          </React.Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-sm" style={{ color: C.muted }}>No evidence records are on file for this control.</div>
-              )}
-              {attachingEvidence && (
-                <div className="mt-2">
-                  <EvidenceForm
-                    assetOptions={assetOptions}
-                    isProgramScoped={isProgramScoped}
-                    onCancel={() => setAttachingEvidence(false)}
-                    onSubmit={(draft) => handleAttachEvidence(draft)}
-                  />
-                </div>
               )}
             </div>
           )}
@@ -1227,33 +1352,26 @@ export function ControlEvaluationPanel({
         </div>
       </div>
 
-      <div className="flex items-center justify-between px-6 py-3.5" style={{ borderTop: `1px solid ${C.border}`, background: C.panel2 }}>
-        <span className="text-[11px] font-mono" style={{ color: C.muted }}>
-          {queueLength > 0
-            ? (inQueue ? `KEY CONTROL ${queueIndex + 1} OF ${queueLength} REMAINING` : `${queueLength} KEY CONTROLS REMAINING`)
-            : "KEY-CONTROL WALK"}
-        </span>
-        <div className="flex gap-2.5">
-          <button
-            type="button"
-            onClick={onPrev}
-            disabled={!onPrev}
-            className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-4 py-2"
-            style={{ border: `1px solid ${C.border}`, color: C.ink, opacity: onPrev ? 1 : 0.4 }}
-          >
-            <ChevronLeft size={14} /> Previous
-          </button>
-          <button
-            type="button"
-            onClick={onNext}
-            disabled={!onNext}
-            className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-4 py-2"
-            style={{ background: C.accent, color: "#fff", opacity: onNext ? 1 : 0.4 }}
-          >
-            {inQueue && queueIndex === queueLength - 1 ? "Finish" : "Next"} <ChevronRight size={14} />
-          </button>
+      {/* Footer only exists in walk mode: the standalone panel closes when
+          you're done, but the walk needs a way past a control you can't
+          decide yet without recording a fact you don't stand behind. */}
+      {walk && (
+        <div className="flex items-center justify-between px-6 py-3" style={{ borderTop: `1px solid ${C.border}`, background: C.panel2 }}>
+          <span className="text-[11px] font-mono uppercase" style={{ color: C.muted }}>
+            {walk.activeDomain} · {walk.domains.find((d) => d.domain === walk.activeDomain)?.remaining ?? 0} left
+          </span>
+          {walk.onSkip && (
+            <button
+              type="button"
+              onClick={walk.onSkip}
+              className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-4 py-2"
+              style={{ border: `1px solid ${C.border}`, color: C.ink }}
+            >
+              Skip for now <ChevronRight size={14} />
+            </button>
+          )}
         </div>
-      </div>
+      )}
     </Modal>
   );
 }

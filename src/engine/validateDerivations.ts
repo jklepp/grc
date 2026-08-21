@@ -234,6 +234,11 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
     const assetIds = new Set((graph.assetsBySystem[system.id] ?? []).map((a) => a.id));
     const supported = new Set<string>();
     graph.evidence.forEach((e) => {
+      // A record tagged to a documentation lane (Policy/Procedure/Measured/
+      // Managed) substantiates that lane's claim but cannot feed a level
+      // above Procedure on its own — a policy PDF on file is not an
+      // assessment, so it doesn't make a control "supported" here.
+      if ((e.prismaLevel ?? "Implemented") !== "Implemented") return;
       if (e.assetIds.length === 0 || e.assetIds.some((a) => assetIds.has(a))) supported.add(e.controlId);
     });
     graph.implementationMechanisms.forEach((m) => { if (assetIds.has(m.assetId)) supported.add(m.controlId); });

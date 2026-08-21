@@ -258,7 +258,9 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 grid" style={{ gridTemplateColumns: "236px 1fr" }}>
+      {/* minmax(0,1fr) row: an implicit auto row would grow to its content and
+          defeat the panes' own overflow-y-auto scrolling. */}
+      <div className="flex-1 min-h-0 grid" style={{ gridTemplateColumns: "236px 1fr", gridTemplateRows: "minmax(0, 1fr)" }}>
         <nav className="p-2.5 overflow-y-auto" style={{ background: C.panel2, borderRight: `1px solid ${C.border}` }}>
           {SCOPE_WAVES.map((w) => {
             const meta = BUCKET_META[w];

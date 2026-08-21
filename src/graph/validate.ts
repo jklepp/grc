@@ -140,6 +140,7 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
     check(has(graph.controlById, e.controlId), `evidence ${e.id}: controlId "${e.controlId}" is not a real control`);
     check(has(graph.keyControlById, e.controlId), `evidence ${e.id}: controlId "${e.controlId}" is not a key control — only key controls carry per-implementation evidence`);
     check(EVIDENCE_TYPES.includes(e.evidenceType), `evidence ${e.id}: evidenceType "${e.evidenceType}" is not a known evidence type`);
+    if (e.prismaLevel) check(PRISMA_LEVELS.includes(e.prismaLevel), `evidence ${e.id}: prismaLevel "${e.prismaLevel}" is not a PRISMA level`);
     check(EVIDENCE_RESULTS.includes(e.result), `evidence ${e.id}: result "${e.result}" must be one of ${EVIDENCE_RESULTS.join(", ")}`);
     check(INDEPENDENCE_LEVELS.includes(e.independence), `evidence ${e.id}: independence "${e.independence}" is not a known level`);
     check(e.coveragePct >= 0 && e.coveragePct <= 100, `evidence ${e.id}: coveragePct ${e.coveragePct} is outside 0-100`);

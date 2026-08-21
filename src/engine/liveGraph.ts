@@ -231,16 +231,34 @@ export function buildLiveEngine(baseFacts: GraphFacts, runtime: RuntimeFacts): B
   // whichever systems the control is applicable to, not just the ones that
   // happened to exist when it was recorded.
   const enterpriseSupportedControlIds = new Set(
-    graph.evidence.filter((e) => e.assetIds.length === 0).map((e) => e.controlId)
+    graph.evidence
+      .filter((e) => e.assetIds.length === 0 && (e.prismaLevel ?? "Implemented") === "Implemented")
+      .map((e) => e.controlId)
   );
-  const correctedAssessmentScopes = runtime.assessmentScopes.map((scope) => {
+  // Correct every system's scope, not just the ones already overridden in
+  // runtime: a YAML-authored system the user never touched keeps its YAML
+  // scope, and recording program evidence elsewhere would otherwise fail its
+  // "supported, undeclared" check. A YAML scope needing additions is copied
+  // into runtime copy-on-write, the same way addControlToScope does it;
+  // untouched YAML scopes stay out of runtime entirely.
+  const runtimeScopeSystemIds = new Set(runtime.assessmentScopes.map((s) => s.systemId));
+  const allScopes = [
+    ...runtime.assessmentScopes,
+    ...baseFacts.assessmentScopes.filter((s) => !runtimeScopeSystemIds.has(s.systemId)),
+  ];
+  const correctedAssessmentScopes: RuntimeFacts["assessmentScopes"] = [];
+  allScopes.forEach((scope) => {
     const applicableIds = new Set(
       trialEngine.applicability.applicableControlsForSystem(scope.systemId).map((c) => c.id)
     );
     const additions = [...enterpriseSupportedControlIds].filter(
       (id) => applicableIds.has(id) && !scope.controlIds.includes(id)
     );
-    return additions.length > 0 ? { ...scope, controlIds: [...scope.controlIds, ...additions] } : scope;
+    if (additions.length > 0) {
+      correctedAssessmentScopes.push({ ...scope, controlIds: [...scope.controlIds, ...additions] });
+    } else if (runtimeScopeSystemIds.has(scope.systemId)) {
+      correctedAssessmentScopes.push(scope);
+    }
   });
 
   const correctedRuntime: RuntimeFacts = {

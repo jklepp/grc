@@ -22,6 +22,15 @@ export default function Modal({ open, onClose, width = 960, height = 700, childr
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  // Lock the page behind the scrim: without this, wheel events the modal
+  // doesn't consume scroll the document underneath it.
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, [open]);
+
   if (!open) return null;
 
   return (
