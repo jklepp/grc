@@ -13,11 +13,11 @@ export const DARK = {
   borderStrong: "#2C2B31",
   ink: "#EDEBE7",
   muted: "#948F87",
-  accent: "#3D74B0",
+  accent: "#7A5CC7",
   // A deeper shade of accent for surfaces that need a solid fill rather than
   // a text/border color — e.g. the active pill on a selected tab, where the
   // base accent reads too light against dark ink text on top of it.
-  accentStrong: "#2A5183",
+  accentStrong: "#5B3F9E",
   green: "#5FB98A",
   // Severity escalation now runs green -> teal -> blue -> indigo instead of
   // the traffic-light green -> amber -> red. No hue in this ramp reads as a
@@ -28,13 +28,13 @@ export const DARK = {
   // (criticality/risk/assurance bands, dozens of pages) — renaming those
   // keys isn't worth the blast radius since only the rendered hex is
   // user-visible, not the internal name.
-  amber: "#7A5CC7",
+  amber: "#3D74B0",
   red: "#3E4F9E",
   na: "#4A5265",
   greenBg: "rgba(95,185,138,0.12)",
-  amberBg: "rgba(122,92,199,0.12)",
+  amberBg: "rgba(61,116,176,0.12)",
   redBg: "rgba(62,79,158,0.12)",
-  accentBg: "rgba(61,116,176,0.15)",
+  accentBg: "rgba(122,92,199,0.15)",
 };
 
 export const LIGHT = {
@@ -45,16 +45,16 @@ export const LIGHT = {
   borderStrong: "#C7BEAF",
   ink: "#211E19",
   muted: "#6E685F",
-  accent: "#23558F",
-  accentStrong: "#16375E",
+  accent: "#5E3FA8",
+  accentStrong: "#402876",
   green: "#1F9254",
-  amber: "#5E3FA8", // same violet family as DARK.amber, darkened/saturated to match this palette's contrast pattern
+  amber: "#23558F", // same blue family as DARK.amber, darkened/saturated to match this palette's contrast pattern
   red: "#2C3B85", // same indigo family as DARK.red, darkened/saturated to match this palette's contrast pattern
   na: "#9AA2B0",
   greenBg: "rgba(31,146,84,0.10)",
-  amberBg: "rgba(94,63,168,0.10)",
+  amberBg: "rgba(35,85,143,0.10)",
   redBg: "rgba(44,59,133,0.10)",
-  accentBg: "rgba(35,85,143,0.10)",
+  accentBg: "rgba(94,63,168,0.10)",
 };
 
 // Mutable — start dark, mutated in place by applyTheme()

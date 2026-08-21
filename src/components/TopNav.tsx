@@ -14,8 +14,8 @@ const TB = {
   border: "rgba(255,255,255,0.06)",
   ink: "#F3F1ED",
   muted: "#A39D93",
-  accent: "#3D74B0",
-  accentBg: "rgba(61,116,176,0.16)",
+  accent: "#7A5CC7",
+  accentBg: "rgba(122,92,199,0.16)",
   green: "#5FB98A",
 };
 
