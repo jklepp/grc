@@ -17,15 +17,31 @@ const TABS = [
 
 type OverviewTab = (typeof TABS)[number]["id"];
 
+// Route ids App understands for each in-page tab, so switching tabs updates
+// the URL hash (deep links and back/forward) instead of staying invisible.
+const ROUTE_ID_BY_TAB: Record<OverviewTab, string> = {
+  dashboard: "executive-dashboard",
+  "risk-register": "risk-register",
+  footprint: "data-footprint",
+};
+
 export default function Overview({ onNavigate, initialTab }: { onNavigate?: (target: string) => void; initialTab?: OverviewTab }) {
   const [tab, setTab] = useState<OverviewTab>(TABS.some((t) => t.id === initialTab) ? initialTab ?? "dashboard" : "dashboard");
+
+  function changeTab(next: OverviewTab) {
+    if (onNavigate) {
+      onNavigate(ROUTE_ID_BY_TAB[next]);
+      return;
+    }
+    setTab(next);
+  }
 
   // ExecutiveDashboard's internal links to "risk-register" should switch the
   // in-page tab rather than trying to reach a sidebar page id that no longer
   // exists; every other target still goes up to the app-level navigator.
   function handleDashboardNavigate(target: string) {
     if (target === "risk-register") {
-      setTab("risk-register");
+      changeTab("risk-register");
       return;
     }
     onNavigate?.(target);
@@ -33,7 +49,7 @@ export default function Overview({ onNavigate, initialTab }: { onNavigate?: (tar
 
   return (
     <div className="w-full">
-      <TabBar tabs={TABS} active={tab} onChange={setTab} />
+      <TabBar tabs={TABS} active={tab} onChange={changeTab} />
 
       {tab === "dashboard" && <ExecutiveDashboard onNavigate={handleDashboardNavigate} />}
       {tab === "risk-register" && <RiskRegister />}

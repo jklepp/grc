@@ -42,19 +42,33 @@ const INTERNAL_TABS: Record<string, GovernanceTab> = {
 
 // `initialTab` lets other pages deep-link into a specific tab via App.jsx's
 // legacy-id map.
+// Inverse of INTERNAL_TABS: the route id App understands for each area, so
+// switching areas updates the URL hash (deep links and back/forward).
+const ROUTE_ID_BY_AREA = Object.fromEntries(
+  Object.entries(INTERNAL_TABS).map(([routeId, tab]) => [tab, routeId])
+) as Record<GovernanceTab, string>;
+
 export default function Governance({ onNavigate, initialTab }: { onNavigate?: (target: string) => void; initialTab?: GovernanceTab }) {
   const [area, setArea] = useState<GovernanceTab | null>(initialTab ?? null);
+
+  function changeArea(next: GovernanceTab | null) {
+    if (onNavigate) {
+      onNavigate(next ? ROUTE_ID_BY_AREA[next] : "governance");
+      return;
+    }
+    setArea(next);
+  }
 
   function handleNavigate(target: string) {
     const internalTab = INTERNAL_TABS[target];
     if (internalTab) {
-      setArea(internalTab);
+      changeArea(internalTab);
       return;
     }
     onNavigate?.(target);
   }
 
-  if (!area) return <GovernanceLanding onSelect={setArea} />;
+  if (!area) return <GovernanceLanding onSelect={changeArea} />;
 
   const ActiveAreaPage = PAGE_BY_AREA[area];
   const activeArea = GOVERNANCE_AREAS.find((candidate) => candidate.id === area) ?? GOVERNANCE_AREAS[0];
@@ -62,14 +76,14 @@ export default function Governance({ onNavigate, initialTab }: { onNavigate?: (t
   return (
     <div className="w-full">
       <div className="px-8 pt-6 flex items-center justify-between gap-4">
-        <button type="button" onClick={() => setArea(null)} className="flex items-center gap-1.5 text-xs font-medium" style={{ color: C.muted }}>
+        <button type="button" onClick={() => changeArea(null)} className="flex items-center gap-1.5 text-xs font-medium" style={{ color: C.muted }}>
           <ArrowLeft size={13} /> All Governance Areas
         </button>
         <label className="flex items-center gap-2 text-xs" style={{ color: C.muted }}>
           Governance area
           <select
             value={activeArea.id}
-            onChange={(event) => setArea(event.target.value as GovernanceAreaId)}
+            onChange={(event) => changeArea(event.target.value as GovernanceAreaId)}
             className="rounded-lg px-3 py-2 outline-none text-sm font-medium"
             style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
           >

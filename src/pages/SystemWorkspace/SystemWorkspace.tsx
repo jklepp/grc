@@ -36,15 +36,26 @@ interface SystemWorkspaceProps {
   systemId?: SystemId | null;
   onSelectSystem?: (systemId: SystemId) => void;
   initialSubTab?: SystemWorkspaceTab | null;
+  onSubTabChange?: (tab: SystemWorkspaceTab) => void;
   onNavigate?: (target: string) => void;
   startAssessment?: boolean;
   onBack?: () => void;
 }
 
-export default function SystemWorkspace({ systemId: controlledSystemId, onSelectSystem, initialSubTab, onNavigate, startAssessment = false, onBack }: SystemWorkspaceProps) {
+export default function SystemWorkspace({ systemId: controlledSystemId, onSelectSystem, initialSubTab, onSubTabChange, onNavigate, startAssessment = false, onBack }: SystemWorkspaceProps) {
   const [localSystemId, setLocalSystemId] = useState(DEFAULT_SYSTEM_ID);
   const systemId = controlledSystemId ?? localSystemId;
   const [subTab, setSubTab] = useState<SystemWorkspaceTab>(SUB_TABS.some((t) => t.id === initialSubTab) ? initialSubTab! : SUB_TABS[0].id);
+  // The route (URL hash) can change the requested tab after mount — e.g. the
+  // browser back button — so follow it whenever it names a valid tab.
+  useEffect(() => {
+    if (initialSubTab && SUB_TABS.some((t) => t.id === initialSubTab)) setSubTab(initialSubTab);
+  }, [initialSubTab]);
+  // All user-driven tab changes go through here so the route stays in sync.
+  function changeSubTab(tab: SystemWorkspaceTab) {
+    setSubTab(tab);
+    onSubTabChange?.(tab);
+  }
   const [selectedControlId, setSelectedControlId] = useState<ControlId | null>(null);
   const [quickAssessControlId, setQuickAssessControlId] = useState<ControlId | null>(null);
   const [scopeReviewOpen, setScopeReviewOpen] = useState(false);
@@ -128,7 +139,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
 
   function openControlsGroup(selection: ControlSelection) {
     setControlsSelection(selection);
-    setSubTab("controls");
+    changeSubTab("controls");
   }
 
   function goToQueuedControl(offset: number) {
@@ -198,7 +209,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         onBack={onBack}
       />
 
-      <TabBar tabs={SUB_TABS} active={subTab} onChange={setSubTab} variant="secondary" />
+      <TabBar tabs={SUB_TABS} active={subTab} onChange={changeSubTab} variant="secondary" />
 
       <div className="pt-6" />
 
@@ -208,7 +219,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           statusCounts={statusCounts} applicabilitySummary={applicabilitySummary}
           identity={identity} exposure={exposure}
           resilience={resilience} secTests={secTests} ir={ir} vendors={vendors}
-          dataTypes={dataTypes} onNavigate={setSubTab}
+          dataTypes={dataTypes} onNavigate={changeSubTab}
           onOpenScopeReview={openScopeReview} onSelectControlsGroup={openControlsGroup}
           onStartAssessment={assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
           onGenerateIsoReport={generateIsoReport}
@@ -264,7 +275,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         onClose={() => setAssessmentWalkOpen(false)}
         onOpenFullDetail={(controlId) => {
           setAssessmentWalkOpen(false);
-          setSubTab("controls");
+          changeSubTab("controls");
           setSelectedControlId(controlId);
         }}
         onGoToRemediation={() => {

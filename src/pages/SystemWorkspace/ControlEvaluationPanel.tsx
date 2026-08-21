@@ -984,8 +984,8 @@ export function ControlEvaluationPanel({
                   <table className="w-full text-left" style={{ borderCollapse: "collapse" }}>
                     <thead>
                       <tr style={{ background: C.panel2 }}>
-                        {["Source", "Asset", "Result", "Coverage", "Collected", "Provenance", "", ""].map((h) => (
-                          <th key={h} className="text-[9.5px] uppercase tracking-wide px-2.5 py-2" style={{ color: C.muted }}>{h}</th>
+                        {["Source", "Asset", "Result", "Coverage", "Collected", "Provenance", "", ""].map((h, i) => (
+                          <th key={h || `spacer-${i}`} className="text-[9.5px] uppercase tracking-wide px-2.5 py-2" style={{ color: C.muted }}>{h}</th>
                         ))}
                       </tr>
                     </thead>

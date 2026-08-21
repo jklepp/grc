@@ -18,10 +18,20 @@ const PAGE_BY_AREA = {
 
 // `initialTab` lets other pages deep-link into a specific area (e.g. Executive
 // Dashboard's "Explore Assurance" button) via App.jsx's legacy-id map.
-export default function Controls({ initialTab }: { initialTab?: ControlAreaId }) {
+export default function Controls({ initialTab, onNavigate }: { initialTab?: ControlAreaId; onNavigate?: (target: string) => void }) {
   const [area, setArea] = useState<ControlAreaId | null>(initialTab ?? null);
 
-  if (!area) return <ControlsLanding onSelect={setArea} />;
+  // Area ids double as route ids in App's legacy-id map, so switching areas
+  // updates the URL hash (deep links and back/forward) when App is listening.
+  function changeArea(next: ControlAreaId | null) {
+    if (onNavigate) {
+      onNavigate(next ?? "assurance");
+      return;
+    }
+    setArea(next);
+  }
+
+  if (!area) return <ControlsLanding onSelect={changeArea} />;
 
   const ActiveAreaPage = PAGE_BY_AREA[area];
   const activeArea = CONTROL_AREAS.find((candidate) => candidate.id === area) ?? CONTROL_AREAS[0];
@@ -29,14 +39,14 @@ export default function Controls({ initialTab }: { initialTab?: ControlAreaId })
   return (
     <div className="w-full">
       <div className="px-8 pt-6 flex items-center justify-between gap-4">
-        <button type="button" onClick={() => setArea(null)} className="flex items-center gap-1.5 text-xs font-medium" style={{ color: C.muted }}>
+        <button type="button" onClick={() => changeArea(null)} className="flex items-center gap-1.5 text-xs font-medium" style={{ color: C.muted }}>
           <ArrowLeft size={13} /> All Control Areas
         </button>
         <label className="flex items-center gap-2 text-xs" style={{ color: C.muted }}>
           Control area
           <select
             value={activeArea.id}
-            onChange={(event) => setArea(event.target.value as ControlAreaId)}
+            onChange={(event) => changeArea(event.target.value as ControlAreaId)}
             className="rounded-lg px-3 py-2 outline-none text-sm font-medium"
             style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
           >

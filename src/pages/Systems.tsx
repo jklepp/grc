@@ -1,48 +1,49 @@
-import React, { useState } from "react";
+import React from "react";
 import SelectSystem from "./SelectSystem";
 import type { SystemSelectOptions } from "./SelectSystem";
 import SystemDetail from "./SystemDetail";
-import { DEFAULT_SYSTEM_ID } from "./SystemWorkspace/SystemWorkspace";
+import { useLiveEngine } from "../engine/useLiveEngine";
 import type { SystemId } from "../graph/ids";
+import type { SystemWorkspaceTab } from "./SystemWorkspace/tabs";
 
-type LegacySystemTab = "profile" | "map" | "assets";
-
-// Systems is a thin router: the selected system's workspace, with "All Systems"
-// as the way back to the picker. Post-login still opens Production AI Platform.
-// Clicking Systems in the sidebar remounts with pickerEpoch > 0 and lands on
-// the picker. `initialTab` still lets legacy deep-links land on a workspace tab.
+// Systems is a thin router driven entirely by the route App parses from the
+// URL hash: `systemId` null shows the picker, an id opens that system's
+// workspace. Selection and tab changes report upward so the hash stays the
+// single source of truth (deep links, refresh, and back/forward all work).
 export default function Systems({
-  initialTab,
+  systemId,
+  systemTab,
+  startAssessment = false,
+  onOpenSystem,
+  onShowPicker,
+  onSystemTabChange,
   onNavigate,
-  pickerEpoch = 0,
 }: {
-  initialTab?: LegacySystemTab;
+  systemId: SystemId | null;
+  systemTab?: SystemWorkspaceTab;
+  startAssessment?: boolean;
+  onOpenSystem: (id: SystemId, options?: SystemSelectOptions) => void;
+  onShowPicker: () => void;
+  onSystemTabChange?: (tab: SystemWorkspaceTab) => void;
   onNavigate?: (target: string) => void;
-  pickerEpoch?: number;
 }) {
-  const [selectedSystemId, setSelectedSystemId] = useState<SystemId | null>(
-    initialTab || pickerEpoch === 0 ? DEFAULT_SYSTEM_ID : null
-  );
-  const [startAssessment, setStartAssessment] = useState(false);
+  const liveEngine = useLiveEngine();
+  // A stale or mistyped deep-link (e.g. a deleted system) degrades to the
+  // picker instead of crashing the workspace.
+  const validSystemId = systemId && liveEngine.rollups.systemRollups.some((s) => s.id === systemId) ? systemId : null;
 
-  function selectSystem(id: SystemId, options?: SystemSelectOptions) {
-    setStartAssessment(Boolean(options?.startAssessment));
-    setSelectedSystemId(id);
-  }
-
-  if (!selectedSystemId) {
-    return <SelectSystem onSelectSystem={selectSystem} />;
+  if (!validSystemId) {
+    return <SelectSystem onSelectSystem={onOpenSystem} />;
   }
 
   return (
     <SystemDetail
-      systemId={selectedSystemId}
-      initialTab={initialTab}
+      systemId={validSystemId}
+      initialSubTab={systemTab}
       startAssessment={startAssessment}
-      onBack={() => {
-        setStartAssessment(false);
-        setSelectedSystemId(null);
-      }}
+      onBack={onShowPicker}
+      onSelectSystem={(id) => onOpenSystem(id)}
+      onSubTabChange={onSystemTabChange}
       onNavigate={onNavigate}
     />
   );
