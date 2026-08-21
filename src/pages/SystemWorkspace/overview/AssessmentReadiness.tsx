@@ -115,7 +115,6 @@ export function AssessmentReadiness({ statusCounts, applicabilitySummary, onScop
     },
   };
   const heroId = CHECKS.find((id) => !checks[id].complete);
-  const secondaryIds = CHECKS.filter((id) => id !== heroId);
   const allComplete = !heroId;
 
   return (
@@ -131,10 +130,14 @@ export function AssessmentReadiness({ statusCounts, applicabilitySummary, onScop
         </div>
       ) : (
         <div className="space-y-1">
-          <HeroCheckRow {...checks[heroId]} />
-          <div className="pt-1">
-            {secondaryIds.map((id, i) => <SecondaryCheckRow key={id} {...checks[id]} first={i === 0} />)}
-          </div>
+          {/* Fixed Scope -> Assess -> Remediate order, always — only the first
+              deficient check (heroId) gets the larger hero treatment, in place,
+              so the natural workflow sequence never reshuffles on screen. */}
+          {CHECKS.map((id, i) => (
+            id === heroId
+              ? <HeroCheckRow key={id} {...checks[id]} />
+              : <SecondaryCheckRow key={id} {...checks[id]} first={i === 0 || CHECKS[i - 1] === heroId} />
+          ))}
         </div>
       )}
     </div>

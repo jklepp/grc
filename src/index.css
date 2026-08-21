@@ -8,3 +8,27 @@
     cursor: pointer;
   }
 }
+
+/* --- Add / Edit System wizard --------------------------------------------
+   One focus, hover, and disabled treatment for every control in the flow.
+   The colors come from the runtime theme through the --wz-* custom properties
+   set on the wizard root, so these rules follow applyTheme() automatically
+   instead of hard-coding a second palette. */
+.wz-focusable:focus-visible {
+  outline: none;
+  /* Drawn entirely with box-shadow: the controls set their border inline, and
+     an inline border-color would out-specify anything declared here. */
+  box-shadow: 0 0 0 1px var(--wz-accent), 0 0 0 4px var(--wz-ring);
+}
+.wz-hover:hover:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--wz-hover);
+}
+.wz-lift:hover:not(:disabled):not([aria-disabled="true"]) {
+  filter: brightness(1.1);
+}
+.wz-focusable:disabled,
+.wz-focusable[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+}

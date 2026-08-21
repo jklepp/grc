@@ -71,6 +71,12 @@ export function removeRuntimeSystem(runtime: RuntimeFacts, systemId: SystemId): 
     prismaOverrides: runtime.prismaOverrides.filter((override) => override.systemId !== systemId),
     controlReviews: runtime.controlReviews.filter((review) => review.systemId !== systemId),
     findings: runtime.findings.filter((finding) => !assetIds.has(finding.assetId)),
+    // System Register cockpit domains are keyed by system id alone, not by
+    // asset — without these the rows outlive the system and the graph
+    // validator rejects the delete ("systemId … is not a system").
+    backupConfigs: runtime.backupConfigs.filter((config) => config.systemId !== systemId),
+    drTests: runtime.drTests.filter((test) => test.systemId !== systemId),
+    sdlcPostures: runtime.sdlcPostures.filter((posture) => posture.systemId !== systemId),
   };
 }
 

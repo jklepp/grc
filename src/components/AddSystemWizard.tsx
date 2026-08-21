@@ -1,12 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import type { ComponentProps, CSSProperties, ReactNode } from "react";
+import type { CSSProperties } from "react";
 import {
-  Info, Gauge, Layers, ClipboardCheck, Check, AlertTriangle, Plus, Trash2, ChevronLeft, ChevronRight, Network, Users, Bot,
-  DatabaseBackup,
+  Info, Gauge, Layers, ClipboardCheck, Check, AlertTriangle, ChevronLeft, ChevronRight, Network, Users, Bot,
+  DatabaseBackup, Boxes, Cloud, Database, History, KeyRound, ListChecks, ShieldCheck, SlidersHorizontal, UserCheck, Code2,
 } from "lucide-react";
 import { C } from "../theme";
 import Modal, { ModalCloseButton } from "./Modal";
 import { ClassificationTag, AssuranceBadge } from "./SystemBadges";
+import {
+  AddButton, Button, Callout, CheckRow, Checkbox, ChoiceChip, EmptyState, EntityCard, EntityList, Field, FieldGrid,
+  InlineHint, OptionCard, RemoveButton, Section, Select, StatTile, StatusPill, StepBody, StepHeader, TextArea,
+  TextInput, ToggleCard, TX, Well, WZ,
+} from "./wizard/WizardUI";
 import {
   ORGS, VENDORS, PROVIDER_CERTIFICATIONS, HOSTING_TYPES, INHERITED_DOMAINS,
   AVAILABILITY_TIERS, DATA_SUBJECT_TYPES, ASSET_TYPE_CATEGORIES, ASSET_TYPES,
@@ -305,81 +310,6 @@ function blankAsset(index: number): AssetDraft {
 }
 
 
-
-function Field({ label, note, span2 = false, children }: { label: string; note?: string; span2?: boolean; children: ReactNode }) {
-  return (
-    <div className={span2 ? "col-span-2" : ""}>
-      <label className="block text-[10px] uppercase tracking-wide font-mono mb-1.5" style={{ color: C.muted }}>{label}</label>
-      {children}
-      {note && <div className="text-[10.5px] mt-1" style={{ color: C.muted }}>{note}</div>}
-    </div>
-  );
-}
-
-const inputStyle: CSSProperties = { background: C.panel2, border: `1px solid ${C.border}`, color: C.ink };
-function TextInput({ className = "", style, ...props }: ComponentProps<"input">) {
-  return <input {...props} className={`w-full text-sm rounded-lg px-3 py-2 outline-none ${className}`} style={{ ...inputStyle, ...style }} />;
-}
-function TextArea(props: ComponentProps<"textarea">) {
-  return <textarea {...props} className="w-full text-sm rounded-lg px-3 py-2 outline-none resize-y" style={{ ...inputStyle, minHeight: 60 }} />;
-}
-function Select(props: ComponentProps<"select">) {
-  return <select {...props} className="w-full text-sm rounded-lg px-3 py-2 outline-none" style={inputStyle} />;
-}
-
-function ChoiceChip({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={onClick}
-      className="rounded-full px-3 py-1.5 text-xs font-medium capitalize transition-colors"
-      style={{
-        color: selected ? C.accent : C.ink,
-        background: selected ? C.accentBg : C.panel2,
-        border: `1px solid ${selected ? C.accent : C.border}`,
-      }}
-    >
-      {selected && <Check size={12} className="inline mr-1.5 -mt-0.5" />}
-      {children}
-    </button>
-  );
-}
-
-function ToggleCard({ checked, onChange, title, description, children }: { checked: boolean; onChange: (checked: boolean) => void; title: string; description: string; children?: ReactNode }) {
-  return (
-    <div
-      className="rounded-lg p-3 transition-colors"
-      style={{ background: checked ? C.accentBg : C.panel2, border: `1px solid ${checked ? C.accent : C.border}` }}
-    >
-      <label className="flex gap-3 cursor-pointer">
-        <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="mt-0.5" />
-        <span>
-          <span className="block text-[13px] font-semibold" style={{ color: checked ? C.accent : C.ink }}>{title}</span>
-          <span className="block text-[10.5px] leading-4 mt-0.5" style={{ color: C.muted }}>{description}</span>
-        </span>
-      </label>
-      {children && <div className="ml-6">{children}</div>}
-    </div>
-  );
-}
-
-function TechnologySection({ number, title, description, children }: { number: number; title: string; description: string; children: ReactNode }) {
-  return (
-    <section className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-      <div className="flex items-start gap-3 mb-4">
-        <div className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0" style={{ color: C.accent, background: C.accentBg }}>
-          {number}
-        </div>
-        <div>
-          <h3 className="text-[13px] font-semibold" style={{ color: C.ink }}>{title}</h3>
-          <p className="text-[10.5px] mt-0.5" style={{ color: C.muted }}>{description}</p>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
 
 interface AddSystemWizardProps {
   open: boolean;
@@ -1031,15 +961,13 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     const previousStep = STEPS.find((candidate) => candidate.id === step - 1)?.id;
     if (previousStep) setStep(previousStep);
   }
+  // Jumping forward requires every step in between to be complete, not just
+  // the one immediately before — otherwise the rail offers (say) Derived Scope
+  // on a system that has no assets yet, which is a dead end.
   function jumpTo(n: WizardStep) {
-    if (n < step) { setStep(n); return; }
-    if (n === 2 && canAdvanceFrom1) { setStep(2); return; }
-    if (n === 3 && canAdvanceFrom1 && canAdvanceFrom2) { setStep(3); return; }
-    if (n === 4 && canAdvanceFrom1 && canAdvanceFrom2 && canAdvanceFrom3) { setStep(4); return; }
-    if (n === 5 && canAdvanceFrom4) { setStep(5); return; }
-    if (n === 6 && canAdvanceFrom5) { setStep(6); return; }
-    if (n === 7 && canAdvanceFrom6) { runDryRun(); setStep(7); return; }
-    if (n === 8 && dryRun && dryRun.problems.length === 0) setStep(8);
+    if (!stepReachable(n)) return;
+    if (n === 7 && step < 7) runDryRun();
+    setStep(n);
   }
 
   function handleCreate() {
@@ -1083,269 +1011,331 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     (step === 6 && !canAdvanceFrom6) ||
     (step === 7 && (!dryRun || dryRun.problems.length > 0));
 
+  const total = STEPS.length;
+  const isLastStep = step === total;
+
+  // Whether a step has everything the next one depends on. `jumpTo` and the
+  // rail's disabled state both read this, so what looks clickable and what is
+  // clickable can never drift apart.
+  function stepComplete(target: WizardStep): boolean {
+    if (target === 1) return canAdvanceFrom1;
+    if (target === 2) return canAdvanceFrom2;
+    if (target === 3) return canAdvanceFrom3;
+    if (target === 4) return canAdvanceFrom4;
+    if (target === 5) return canAdvanceFrom5;
+    if (target === 6) return canAdvanceFrom6;
+    if (target === 7) return Boolean(dryRun && dryRun.problems.length === 0);
+    return true;
+  }
+  function stepReachable(target: WizardStep): boolean {
+    if (target <= step) return true;
+    return STEPS.every((candidate) => candidate.id >= target || stepComplete(candidate.id));
+  }
+
+  // Step-level validation lives in exactly one place — the footer, next to the
+  // control it blocks. Field-level problems stay on their own Field/EntityCard.
+  function blockingReason(): string | null {
+    if (step === 1 && !canAdvanceFrom1) return "Name, mission, boundary and system owner are all required.";
+    if (step === 2 && !canAdvanceFrom2) return "Select a provider and at least one deployment region.";
+    if (step === 3 && !canAdvanceFrom3) return "Select at least one data type this system handles.";
+    if (step === 4 && !canAdvanceFrom4) {
+      return unmappedSystemDataTypeIds.length > 0
+        ? `${unmappedSystemDataTypeIds.length} selected data type${unmappedSystemDataTypeIds.length === 1 ? " still needs" : "s still need"} an asset.`
+        : "Every asset needs a name, one data type, and to be saved.";
+    }
+    if (step === 5 && !canAdvanceFrom5) {
+      if (!actorsValid) return "Add and save at least one actor.";
+      if (!flowsValid) return "Add and save at least one relationship between assets.";
+      return "Save or remove every agentic identity draft.";
+    }
+    if (step === 6 && !canAdvanceFrom6) {
+      if (!backupValid) return "Backup coverage must be 0–100% with positive RPO and RTO targets.";
+      if (!drTestsValid) return "Save or remove every disaster-recovery test draft.";
+      return "Secure development needs a not-applicable reason.";
+    }
+    if (step === 7 && (!dryRun || dryRun.problems.length > 0)) return "Resolve the problems listed above before continuing.";
+    if (step === 8 && !canLaunch) return "Assign an assessor of record and a target completion date.";
+    return null;
+  }
+  const blockReason = blockingReason();
+
+  const coverageError = trackBackup && (Number(backupCoveragePct) < 0 || Number(backupCoveragePct) > 100)
+    ? "Enter a value between 0 and 100." : null;
+  const rpoError = trackBackup && !(Number(backupRpoTargetMinutes) > 0) ? "Enter a positive number of minutes." : null;
+  const rtoError = trackBackup && !(Number(backupRtoTargetMinutes) > 0) ? "Enter a positive number of minutes." : null;
+
   return (
-    <Modal open={open} onClose={close} width={960} height={700}>
-      <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <div>
-          <h1 className="text-lg font-bold flex items-center gap-2.5" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>
-            <ClipboardCheck size={19} color={C.accent} />
-            {editingSystemId ? "Edit System" : isClone ? "Duplicate System" : "Add System"}
-          </h1>
-          <div className="text-xs mt-0.5" style={{ color: C.muted }}>
-            {editingSystemId
-              ? "Update declared facts; classification, scope, and assurance will be recalculated before anything is saved."
-              : isClone
-                ? "Every asset, actor, data flow, and agent is prefilled from the source system with new ids of its own — review and adjust, then launch a fresh assessment for it."
-                : "The engine proposes what applies and what can be inherited. You confirm and grade those controls on the system screen after create."}
+    <Modal open={open} onClose={close} width={1000} height={720}>
+      {/* The --wz-* custom properties feed the shared focus / hover rules in
+          index.css, so every control in the wizard reacts identically and
+          still follows applyTheme(). */}
+      <div
+        className="flex flex-col flex-1 min-h-0"
+        style={{ "--wz-accent": C.accent, "--wz-ring": C.accentBg, "--wz-hover": C.panel2 } as CSSProperties}
+      >
+        <header className="flex items-start justify-between gap-4 px-6 py-4" style={{ borderBottom: `1px solid ${C.border}`, background: C.panel }}>
+          <div className="min-w-0">
+            <h1 className={`${TX.modalTitle} flex items-center gap-2.5`} style={{ color: C.ink, fontFamily: WZ.serif }}>
+              <ClipboardCheck size={18} color={C.accent} />
+              {editingSystemId ? "Edit System" : isClone ? "Duplicate System" : "Add System"}
+            </h1>
+            <p className={`${TX.help} mt-1.5 max-w-[90ch]`} style={{ color: C.muted }}>
+              {editingSystemId
+                ? "Update declared facts; classification, scope, and assurance are recalculated before anything is saved."
+                : isClone
+                  ? "Every asset, actor, data flow, and agent is prefilled from the source system with new ids of its own — review and adjust, then launch a fresh assessment for it."
+                  : "The engine proposes what applies and what can be inherited. You confirm and grade those controls on the system screen after create."}
+            </p>
           </div>
-        </div>
-        <ModalCloseButton onClose={close} />
-      </div>
+          <ModalCloseButton onClose={close} />
+        </header>
 
-      {/* minmax(0,1fr) row: an implicit auto row would grow to its content and
-          defeat the panes' own overflow-y-auto scrolling. */}
-      <div className="flex-1 min-h-0 grid" style={{ gridTemplateColumns: "188px 1fr", gridTemplateRows: "minmax(0, 1fr)" }}>
-        {/* ---- Step rail ---- */}
-        <nav className="p-3 overflow-y-auto" style={{ borderRight: `1px solid ${C.border}`, background: C.panel2 }}>
-          {STEPS.map((s, i) => {
-            const isActive = s.id === step;
-            const isDone = s.id < step;
-            return (
-              <React.Fragment key={s.id}>
-                <button
-                  onClick={() => jumpTo(s.id)}
-                  className="w-full text-left flex items-start gap-2.5 rounded-lg px-2.5 py-2.5 transition-colors"
-                  style={{ background: isActive ? C.accentBg : "transparent" }}
-                >
-                  <span
-                    className="w-[22px] h-[22px] rounded-full flex items-center justify-center shrink-0 text-[11px] font-mono font-semibold"
+        {/* minmax(0,1fr) row: an implicit auto row would grow to its content and
+            defeat the panes' own overflow-y-auto scrolling. */}
+        <div
+          className="flex-1 min-h-0 grid grid-cols-[172px_minmax(0,1fr)] lg:grid-cols-[208px_minmax(0,1fr)]"
+          style={{ gridTemplateRows: "minmax(0, 1fr)" }}
+        >
+          {/* ---- Step rail ---- */}
+          <nav aria-label="Wizard steps" className="p-3 overflow-y-auto" style={{ borderRight: `1px solid ${C.border}`, background: C.panel }}>
+            {STEPS.map((s, i) => {
+              const isActive = s.id === step;
+              const isDone = s.id < step;
+              const reachable = stepReachable(s.id);
+              return (
+                <React.Fragment key={s.id}>
+                  <button
+                    type="button"
+                    onClick={() => jumpTo(s.id)}
+                    disabled={!reachable}
+                    aria-label={`Step ${s.id}: ${s.title} — ${s.detail}`}
+                    aria-current={isActive ? "step" : undefined}
+                    className={`wz-focusable ${isActive ? "" : "wz-hover"} w-full text-left flex items-start gap-2.5 px-2.5 py-2 transition-colors`}
                     style={{
-                      border: `1.5px solid ${isActive ? C.accent : isDone ? C.green : C.border}`,
-                      background: isActive ? C.accent : isDone ? C.greenBg : "transparent",
-                      color: isActive ? "#fff" : isDone ? C.green : C.muted,
+                      background: isActive ? C.accentBg : undefined,
+                      border: `1px solid ${isActive ? C.accent : "transparent"}`,
+                      borderRadius: WZ.radius.control,
                     }}
                   >
-                    {isDone ? <Check size={12} /> : s.id}
-                  </span>
-                  <span className="pt-0.5">
-                    <div className="text-[12.5px] font-semibold" style={{ color: isActive ? C.ink : C.muted }}>{s.title}</div>
-                    <div className="text-[10.5px]" style={{ color: C.muted }}>{s.detail}</div>
-                  </span>
-                </button>
-                {i < STEPS.length - 1 && <div style={{ width: 1.5, height: 16, marginLeft: 21, background: C.border }} />}
-              </React.Fragment>
-            );
-          })}
-        </nav>
-
-        {/* ---- Content pane ---- */}
-        <div ref={contentPaneRef} className="p-6 overflow-y-auto">
-          {step === 1 && (
-            <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 1 of 8</div>
-              <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>System basics</h2>
-              <p className="text-xs mb-5 max-w-[60ch]" style={{ color: C.muted }}>
-                Core facts about the system. Its classification, assurance and PRISMA level are never entered here — they're
-                computed from the technology, data and assets you add later.
-              </p>
-
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="System name" span2><TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Analytics Data Lake" /></Field>
-                <Field label="Mission" span2><TextArea value={mission} onChange={(e) => setMission(e.target.value)} placeholder="What does this system do, and for whom?" /></Field>
-                <Field label="Boundary" span2><TextArea value={boundary} onChange={(e) => setBoundary(e.target.value)} placeholder="What's inside this boundary, and what isn't?" /></Field>
-
-                <Field label="System owner">
-                  <Select
-                    value={ownerOrgId}
-                    onChange={(e) => setOwnerOrgId(ORGS.find((org) => org.id === e.target.value)?.id ?? "")}
-                  >
-                    {ORGS.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-                  </Select>
-                </Field>
-                <Field label="Availability tier">
-                  <Select
-                    value={availabilityTier}
-                    onChange={(e) => {
-                      const tier = AVAILABILITY_TIERS.find((candidate) => candidate === e.target.value);
-                      if (tier) setAvailabilityTier(tier);
-                    }}
-                  >
-                    {AVAILABILITY_TIERS.map((t) => <option key={t} value={t}>{t.replace(/-/g, " ")}</option>)}
-                  </Select>
-                </Field>
-                <Field label="Users" note="Approximate active population for this boundary.">
-                  <TextInput type="number" min={0} value={userCount} onChange={(e) => setUserCount(e.target.value)} />
-                </Field>
-              </div>
-
-              <div className="text-[10px] uppercase tracking-wide font-mono mt-5 mb-2" style={{ color: C.muted }}>FIPS 199 security category</div>
-              <p className="text-[10.5px] mb-3 max-w-[64ch]" style={{ color: C.muted }}>
-                Rate confidentiality, integrity, and availability for this information system. The overall category is the high water mark of the three.
-              </p>
-              <div className="grid gap-2" style={{ gridTemplateColumns: "128px 110px 1fr" }}>
-                {SECURITY_OBJECTIVES.map((objective) => (
-                  <React.Fragment key={objective}>
-                    <div className="text-xs flex items-center" style={{ color: C.ink }}>{SECURITY_OBJECTIVE_LABELS[objective]}</div>
-                    <Select
-                      value={securityCategory[objective].impact}
-                      aria-label={`${SECURITY_OBJECTIVE_LABELS[objective]} impact`}
-                      onChange={(e) => {
-                        const level = IMPACT_LEVELS.find((candidate) => candidate === e.target.value);
-                        if (level) updateSecurityCategory(objective, { impact: level });
+                    <span
+                      className={`${TX.code} w-[22px] h-[22px] rounded-full flex items-center justify-center shrink-0`}
+                      style={{
+                        border: `1.5px solid ${isActive ? C.accent : isDone ? C.green : C.border}`,
+                        background: isActive ? C.accent : isDone ? C.greenBg : "transparent",
+                        color: isActive ? WZ.onAccent : isDone ? C.green : C.muted,
                       }}
                     >
-                      {IMPACT_LEVELS.map((level) => (
-                        <option key={level} value={level}>{IMPACT_LEVEL_LABELS[level]}</option>
-                      ))}
-                    </Select>
-                    <input
-                      value={securityCategory[objective].reason}
-                      onChange={(e) => updateSecurityCategory(objective, { reason: e.target.value })}
-                      placeholder="reason"
-                      className="text-xs rounded px-2 py-1"
-                      style={inputStyle}
-                    />
-                  </React.Fragment>
-                ))}
-              </div>
-              <p className="text-[10.5px] mt-2" style={{ color: C.muted }}>
-                Overall category: {IMPACT_LEVEL_LABELS[overallImpactLevel(securityCategory)]}
-              </p>
-            </div>
-          )}
+                      {isDone ? <Check size={11} /> : s.id}
+                    </span>
+                    <span className="min-w-0 pt-0.5">
+                      <span className={`block ${TX.railTitle}`} style={{ color: C.ink }}>{s.title}</span>
+                      <span className={`block ${TX.help} mt-1`} style={{ color: C.muted }}>{s.detail}</span>
+                    </span>
+                  </button>
+                  {i < STEPS.length - 1 && <div style={{ width: 1.5, height: 10, marginLeft: 21, background: C.border }} />}
+                </React.Fragment>
+              );
+            })}
+          </nav>
 
-          {step === 2 && (
-            <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 2 of 8</div>
-              <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Technology & exposure</h2>
-              <p className="text-xs mb-5 max-w-[64ch]" style={{ color: C.muted }}>
-                Capture the system's operating environment. Your choices determine which controls apply and which ones may be inherited from a provider.
-              </p>
-
-              <div className="space-y-4">
-                <TechnologySection number={1} title="Choose the hosting environment" description="Start with where the system runs, then select its provider and deployment region.">
-                  <div className="grid grid-cols-3 gap-2.5">
-                    {HOSTING_TYPES.map((h) => {
-                      const disabled = eligibleProviders(h).length === 0;
-                      const selected = hostingType === h;
-                      return (
-                        <button
-                          key={h}
-                          disabled={disabled}
-                          onClick={() => { setHostingType(h); setProvider(""); }}
-                          title={disabled ? "No certified provider covers this hosting type's inherited domains yet" : undefined}
-                          className="text-left rounded-lg px-3 py-2.5 transition-colors"
-                          style={{
-                            border: `1.5px solid ${selected ? C.accent : C.border}`,
-                            background: selected ? C.accentBg : C.panel2,
-                            opacity: disabled ? 0.45 : 1,
-                            cursor: disabled ? "not-allowed" : "pointer",
+          {/* ---- Content pane ---- */}
+          <div ref={contentPaneRef} className="p-6 overflow-y-auto" style={{ background: C.bg }}>
+            {step === 1 && (
+              <>
+                <StepHeader
+                  step={1}
+                  total={total}
+                  title="System basics"
+                  description="Core facts about the system. Its classification, assurance and PRISMA level are never entered here — they are computed from the technology, data and assets you add later."
+                />
+                <StepBody>
+                  <Section icon={Info} title="Identity & ownership" description="What this boundary is, what it does, and who is accountable for it.">
+                    <FieldGrid cols={1}>
+                      <Field label="System name">
+                        <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Analytics Data Lake" />
+                      </Field>
+                      <Field label="Mission">
+                        <TextArea value={mission} onChange={(e) => setMission(e.target.value)} placeholder="What does this system do, and for whom?" />
+                      </Field>
+                      <Field label="Boundary">
+                        <TextArea value={boundary} onChange={(e) => setBoundary(e.target.value)} placeholder="What's inside this boundary, and what isn't?" />
+                      </Field>
+                    </FieldGrid>
+                    <FieldGrid cols={3}>
+                      <Field label="System owner">
+                        <Select value={ownerOrgId} onChange={(e) => setOwnerOrgId(ORGS.find((org) => org.id === e.target.value)?.id ?? "")}>
+                          {ORGS.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                        </Select>
+                      </Field>
+                      <Field label="Availability tier">
+                        <Select
+                          value={availabilityTier}
+                          onChange={(e) => {
+                            const tier = AVAILABILITY_TIERS.find((candidate) => candidate === e.target.value);
+                            if (tier) setAvailabilityTier(tier);
                           }}
                         >
-                          <div className="text-[13px] font-semibold capitalize" style={{ color: selected ? C.accent : C.ink }}>{h.replace("-", " ")}</div>
-                          <div className="text-[10.5px] mt-0.5" style={{ color: C.muted }}>
-                            {disabled ? "Not configured" : `${eligibleProviders(h).length} eligible provider${eligibleProviders(h).length === 1 ? "" : "s"}`}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 mt-4">
-                    <Field label="Provider" note="Limited to providers with qualifying assurance on file.">
-                      <Select value={provider} onChange={(e) => setProvider(e.target.value)}>
-                        <option value="">Select a provider…</option>
-                        {providers.map((v) => <option key={v.id} value={v.name}>{v.name}</option>)}
-                      </Select>
-                    </Field>
-                    <Field label="Deployment regions" note="Select every region in this system boundary.">
-                      <div className="flex flex-wrap gap-2 pt-0.5">
-                        {CLOUD_REGIONS.map((r) => (
-                          <ChoiceChip
-                            key={r}
-                            selected={regions.includes(r)}
-                            onClick={() => setRegions((prev) => (prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]))}
-                          >
-                            <span className="font-mono normal-case">{r}</span>
-                          </ChoiceChip>
-                        ))}
-                      </div>
-                    </Field>
-                  </div>
-                  {!canAdvanceFrom2 && (
-                    <div className="flex items-center gap-2 text-[10.5px] mt-3" style={{ color: C.muted }}>
-                      <Info size={13} /> Select a provider and at least one deployment region to continue.
+                          {AVAILABILITY_TIERS.map((t) => <option key={t} value={t}>{t.replace(/-/g, " ")}</option>)}
+                        </Select>
+                      </Field>
+                      <Field label="Users" note="Approximate active population for this boundary.">
+                        <TextInput type="number" min={0} value={userCount} onChange={(e) => setUserCount(e.target.value)} />
+                      </Field>
+                    </FieldGrid>
+                  </Section>
+
+                  <Section
+                    icon={ShieldCheck}
+                    title="FIPS 199 security category"
+                    description="Rate confidentiality, integrity, and availability for this information system. The overall category is the high-water mark of the three."
+                    aside={<StatusPill tone="info">Overall · {IMPACT_LEVEL_LABELS[overallImpactLevel(securityCategory)]}</StatusPill>}
+                  >
+                    {SECURITY_OBJECTIVES.map((objective) => (
+                      <Well key={objective} className="flex flex-col gap-3.5">
+                        <div className={TX.itemTitle} style={{ color: C.ink }}>{SECURITY_OBJECTIVE_LABELS[objective]}</div>
+                        <FieldGrid cols={2}>
+                          <Field label="Potential impact">
+                            <Select
+                              value={securityCategory[objective].impact}
+                              aria-label={`${SECURITY_OBJECTIVE_LABELS[objective]} impact`}
+                              onChange={(e) => {
+                                const level = IMPACT_LEVELS.find((candidate) => candidate === e.target.value);
+                                if (level) updateSecurityCategory(objective, { impact: level });
+                              }}
+                            >
+                              {IMPACT_LEVELS.map((level) => <option key={level} value={level}>{IMPACT_LEVEL_LABELS[level]}</option>)}
+                            </Select>
+                          </Field>
+                          <Field label="Rationale">
+                            <TextInput
+                              value={securityCategory[objective].reason}
+                              aria-label={`${SECURITY_OBJECTIVE_LABELS[objective]} rationale`}
+                              onChange={(e) => updateSecurityCategory(objective, { reason: e.target.value })}
+                              placeholder="Why this level?"
+                            />
+                          </Field>
+                        </FieldGrid>
+                      </Well>
+                    ))}
+                  </Section>
+                </StepBody>
+              </>
+            )}
+
+            {step === 2 && (
+              <>
+                <StepHeader
+                  step={2}
+                  total={total}
+                  title="Technology & exposure"
+                  description="Capture the system's operating environment. Your choices determine which controls apply and which ones may be inherited from a provider."
+                />
+                <StepBody>
+                  <Section icon={Cloud} title="Hosting environment" description="Where the system runs, who provides it, and in which regions.">
+                    <div role="radiogroup" aria-label="Hosting type" className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+                      {HOSTING_TYPES.map((h) => {
+                        const count = eligibleProviders(h).length;
+                        return (
+                          <OptionCard
+                            key={h}
+                            selected={hostingType === h}
+                            disabled={count === 0}
+                            disabledTitle="No certified provider covers this hosting type's inherited domains yet"
+                            onClick={() => { setHostingType(h); setProvider(""); }}
+                            title={h.replace("-", " ")}
+                            hint={count === 0 ? "Not configured" : `${count} eligible provider${count === 1 ? "" : "s"}`}
+                          />
+                        );
+                      })}
                     </div>
-                  )}
-                </TechnologySection>
+                    <FieldGrid cols={2}>
+                      <Field label="Provider" note="Limited to providers with qualifying assurance on file.">
+                        <Select value={provider} onChange={(e) => setProvider(e.target.value)}>
+                          <option value="">Select a provider…</option>
+                          {providers.map((v) => <option key={v.id} value={v.name}>{v.name}</option>)}
+                        </Select>
+                      </Field>
+                      <Field label="Deployment regions" note="Select every region in this system boundary.">
+                        <div className="flex flex-wrap gap-2">
+                          {CLOUD_REGIONS.map((r) => (
+                            <ChoiceChip
+                              key={r}
+                              selected={regions.includes(r)}
+                              ariaLabel={r}
+                              onClick={() => setRegions((prev) => (prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]))}
+                            >
+                              <span className="font-mono normal-case">{r}</span>
+                            </ChoiceChip>
+                          ))}
+                        </div>
+                      </Field>
+                    </FieldGrid>
+                  </Section>
 
-                <TechnologySection number={2} title="Describe access and exposure" description="Choose every identity and network path that can reach the system.">
-                  <ToggleCard
-                    checked={internetFacing}
-                    onChange={setInternetFacing}
-                    title="Publicly reachable"
-                    description="The system, an endpoint, or a login surface is reachable from the open internet."
-                  />
-                  <div className="grid grid-cols-2 gap-4 mt-4">
-                    <Field label="Identity types" note="Who or what can authenticate to this boundary.">
-                      <div className="flex flex-wrap gap-2 pt-0.5">
-                        {IDENTITY_TYPES.map((t) => (
-                          <ChoiceChip
-                            key={t}
-                            selected={identityTypes.includes(t)}
-                            onClick={() => setIdentityTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]))}
-                          >
-                            {t.replace(/-/g, " ")}
-                          </ChoiceChip>
-                        ))}
-                      </div>
-                    </Field>
-                    <Field label="Network paths" note="How traffic reaches or leaves the system.">
-                      <div className="flex flex-wrap gap-2 pt-0.5">
-                        {NETWORK_EXPOSURES.map((n) => (
-                          <ChoiceChip
-                            key={n}
-                            selected={networkExposure.includes(n)}
-                            onClick={() => setNetworkExposure((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]))}
-                          >
-                            {n.replace(/-/g, " ")}
-                          </ChoiceChip>
-                        ))}
-                      </div>
-                    </Field>
-                  </div>
-                </TechnologySection>
+                  <Section icon={KeyRound} title="Access & exposure" description="Every identity and network path that can reach the system.">
+                    <ToggleCard
+                      checked={internetFacing}
+                      onChange={setInternetFacing}
+                      title="Publicly reachable"
+                      description="The system, an endpoint, or a login surface is reachable from the open internet."
+                    />
+                    <FieldGrid cols={2}>
+                      <Field label="Identity types" note="Who or what can authenticate to this boundary.">
+                        <div className="flex flex-wrap gap-2">
+                          {IDENTITY_TYPES.map((t) => (
+                            <ChoiceChip
+                              key={t}
+                              selected={identityTypes.includes(t)}
+                              onClick={() => setIdentityTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]))}
+                            >
+                              {t.replace(/-/g, " ")}
+                            </ChoiceChip>
+                          ))}
+                        </div>
+                      </Field>
+                      <Field label="Network paths" note="How traffic reaches or leaves the system.">
+                        <div className="flex flex-wrap gap-2">
+                          {NETWORK_EXPOSURES.map((n) => (
+                            <ChoiceChip
+                              key={n}
+                              selected={networkExposure.includes(n)}
+                              onClick={() => setNetworkExposure((prev) => (prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n]))}
+                            >
+                              {n.replace(/-/g, " ")}
+                            </ChoiceChip>
+                          ))}
+                        </div>
+                      </Field>
+                    </FieldGrid>
+                  </Section>
 
-                <TechnologySection number={3} title="Flag operational characteristics" description="These choices add targeted vendor, development, AI, and regulatory requirements.">
-                  <div className="grid grid-cols-3 gap-3">
-                    <ToggleCard
-                      checked={hasThirdPartyIntegration}
-                      onChange={setHasThirdPartyIntegration}
-                      title="Third-party integration"
-                      description="Exchanges data with or depends on another organization."
-                    />
-                    <ToggleCard
-                      checked={sdlcApplicable}
-                      onChange={setSdlcApplicable}
-                      title="Custom software"
-                      description="ACME develops or maintains code within this boundary."
-                    />
-                    <ToggleCard
-                      checked={usesAI}
-                      onChange={(checked) => { setUsesAI(checked); if (!checked) setAutonomousActions(false); }}
-                      title="AI usage"
-                      description="Contains or calls a model, agent, or RAG pipeline."
-                    >
-                    {usesAI && (
-                      <label className="flex items-start gap-1.5 text-[10.5px] mt-2" style={{ color: C.ink }}>
-                        <input type="checkbox" checked={autonomousActions} onChange={(e) => setAutonomousActions(e.target.checked)} />
-                        Can act without human approval
-                      </label>
-                    )}
-                    </ToggleCard>
-                  </div>
-                  <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${C.border}` }}>
-                    <Field label="Regulatory context" note="Select business obligations that apply beyond the data profile captured on the next page.">
-                      <div className="flex flex-wrap gap-2 pt-0.5">
+                  <Section icon={SlidersHorizontal} title="Operational characteristics" description="These choices add targeted vendor, development, AI, and regulatory requirements.">
+                    <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+                      <ToggleCard
+                        checked={hasThirdPartyIntegration}
+                        onChange={setHasThirdPartyIntegration}
+                        title="Third-party integration"
+                        description="Exchanges data with or depends on another organization."
+                      />
+                      <ToggleCard
+                        checked={sdlcApplicable}
+                        onChange={setSdlcApplicable}
+                        title="Custom software"
+                        description="ACME develops or maintains code within this boundary."
+                      />
+                      <ToggleCard
+                        checked={usesAI}
+                        onChange={(checked) => { setUsesAI(checked); if (!checked) setAutonomousActions(false); }}
+                        title="AI usage"
+                        description="Contains or calls a model, agent, or RAG pipeline."
+                      >
+                        {usesAI && (
+                          <CheckRow checked={autonomousActions} onChange={setAutonomousActions} label="Can act without human approval" />
+                        )}
+                      </ToggleCard>
+                    </div>
+                    <Field label="Regulatory context" note="Business obligations that apply beyond the data profile captured on the next step.">
+                      <div className="flex flex-wrap gap-2">
                         {SYSTEM_REGULATORY_CONTEXTS.map((r) => (
                           <ChoiceChip
                             key={r}
@@ -1357,873 +1347,831 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                         ))}
                       </div>
                     </Field>
-                  </div>
-                </TechnologySection>
-              </div>
-            </div>
-          )}
+                  </Section>
+                </StepBody>
+              </>
+            )}
 
-          {step === 8 && (
-            <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 8 of 8</div>
-              <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Launch assessment</h2>
-              <p className="text-xs mb-5 max-w-[60ch]" style={{ color: C.muted }}>
-                Assign the assessment and set its target date. {editingSystemId ? "Saving recalculates the system's scope without changing its recorded evidence." : "Creating the system opens Scope Review. External- and internal-inherited coverage stay unclaimed until an assessor confirms them."}
-              </p>
-
-              <div className="rounded-xl p-4 mb-5 flex gap-3" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                <Gauge size={18} color={C.accent} className="shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-[13px] font-semibold mb-1" style={{ color: C.ink }}>Initial assessment plan</div>
-                  <div className="text-xs leading-relaxed" style={{ color: C.muted }}>
-                    Controls in {provider || "the chosen provider"}'s certified domains are proposed as vendor-inherited from its
-                    reports. They are not a standing claim until an assessor confirms that split on the system screen.
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 max-w-[72ch]">
-                <Field label="Assessor of record" note="The person accountable for reviewing the evidence and recording the assessment.">
-                  <TextInput value={assessor} onChange={(e) => setAssessor(e.target.value)} placeholder="e.g. J. Ortiz — Security Engineering" />
-                </Field>
-                <Field label="Target completion" note="The assessment period ends on this date.">
-                  <TextInput type="date" value={assessmentTarget} onChange={(e) => setAssessmentTarget(e.target.value)} />
-                </Field>
-              </div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 3 of 8</div>
-              <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>System data inventory</h2>
-              <p className="text-xs mb-5 max-w-[64ch]" style={{ color: C.muted }}>
-                Identify every type of data this system stores, transmits, or processes. You will map these data types to individual assets next.
-              </p>
-
-              <div className="rounded-xl p-4 mb-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                <div className="text-[13px] font-semibold mb-3" style={{ color: C.ink }}>Boundary data profile</div>
-                <div className="grid grid-cols-2 gap-4">
-                  <Field label="Data subjects" span2>
-                    <div className="flex flex-wrap gap-2 pt-0.5">
-                      {DATA_SUBJECT_TYPES.map((s) => (
-                        <ChoiceChip
-                          key={s}
-                          selected={subjects.includes(s)}
-                          onClick={() => setSubjects((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))}
-                        >
-                          {s.replace("-", " ")}
-                        </ChoiceChip>
-                      ))}
-                    </div>
-                  </Field>
-                  <Field label="Approx. records"><TextInput type="number" min={0} value={approxRecords} onChange={(e) => setApproxRecords(e.target.value)} /></Field>
-                  <Field label="Retention">
-                    <Select value={retention} onChange={(e) => setRetention(e.target.value)}>
-                      {RETENTION_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                    </Select>
-                  </Field>
-                  <Field label="Residency" span2>
-                    <Select value={residency} onChange={(e) => setResidency(e.target.value)}>
-                      {RESIDENCY_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                    </Select>
-                  </Field>
-                </div>
-              </div>
-
-              <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
-                <div className="flex items-center justify-between gap-4 p-4" style={{ background: C.panel2, borderBottom: `1px solid ${C.border}` }}>
-                  <div>
-                    <div className="text-[13px] font-semibold" style={{ color: C.ink }}>Data types processed</div>
-                    <div className="text-[10.5px] mt-0.5" style={{ color: C.muted }}>
-                      {systemDataTypeIds.length} selected · choose all that apply to the system boundary
-                    </div>
-                  </div>
-                  <TextInput
-                    value={dataSearch}
-                    onChange={(e) => setDataSearch(e.target.value)}
-                    placeholder="Search data types…"
-                    aria-label="Search data types"
-                    style={{ width: 240 }}
-                  />
-                </div>
-                <div>
-                  {filteredDataTypes.map((dt, index) => {
-                    const selected = systemDataTypeIds.includes(dt.id);
-                    return (
-                      <label
-                        key={dt.id}
-                        className="flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors"
-                        style={{
-                          background: selected ? C.accentBg : C.panel,
-                          borderBottom: index < filteredDataTypes.length - 1 ? `1px solid ${C.border}` : "none",
-                        }}
-                      >
-                        <input type="checkbox" checked={selected} onChange={() => toggleSystemDataType(dt.id)} className="mt-1" />
-                        <span className="flex-1 min-w-0">
-                          <span className="flex items-center gap-2">
-                            <span className="text-[12.5px] font-semibold" style={{ color: C.ink }}>{dt.name}</span>
-                            <span className="text-[10px] font-mono capitalize" style={{ color: C.muted }}>{dt.kind.replace(/-/g, " ")}</span>
-                          </span>
-                          <span className="block text-[10.5px] mt-0.5" style={{ color: C.muted }}>{dt.description}</span>
-                        </span>
-                        <span className="flex items-center gap-2 shrink-0">
-                          {dt.regulatoryFlags.slice(0, 2).map((flag) => (
-                            <span key={flag} className="text-[9.5px] font-mono" style={{ color: C.muted }}>{flag}</span>
-                          ))}
-                          <ClassificationTag level={dt.sensitivity} />
-                        </span>
-                      </label>
-                    );
-                  })}
-                  {filteredDataTypes.length === 0 && (
-                    <div className="text-xs text-center py-8" style={{ color: C.muted }}>No data types match that search.</div>
-                  )}
-                </div>
-              </div>
-              {!canAdvanceFrom3 && (
-                <div className="flex items-center gap-2 text-[10.5px] mt-3" style={{ color: C.muted }}>
-                  <Info size={13} /> Select at least one data type to continue.
-                </div>
-              )}
-            </div>
-          )}
-
-          {step === 4 && (
-            <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 4 of 8</div>
-              <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Assets & data mapping</h2>
-              <p className="text-xs mb-5 max-w-[64ch]" style={{ color: C.muted }}>
-                Add the assets inside this boundary and map only the system data types each asset stores, transmits, or processes.
-              </p>
-
-              {unmappedSystemDataTypeIds.length > 0 && (
-                <div className="flex items-start gap-2.5 rounded-lg px-4 py-3 text-[11.5px] mb-4" style={{ background: C.accentBg, color: C.ink }}>
-                  <Info size={15} color={C.accent} className="shrink-0 mt-0.5" />
-                  <div>
-                    <b>{unmappedSystemDataTypeIds.length} data type{unmappedSystemDataTypeIds.length === 1 ? " still needs" : "s still need"} an asset.</b>
-                    <span style={{ color: C.muted }}> Use each asset's “Add data type” menu to identify where that data is stored, processed, or transmitted.</span>
-                  </div>
-                </div>
-              )}
-
-              {assets.map((a, i) => (
-                <div key={a.key} className="rounded-xl p-4 mb-3.5" style={{ background: a.expanded ? C.panel2 : C.panel, border: `1px solid ${a.saved ? C.green : C.border}` }}>
-                  <div className={`flex items-center justify-between gap-3 ${a.expanded ? "mb-3.5" : ""}`}>
-                    <div>
-                      <div className="text-[13px] font-bold flex items-center gap-2" style={{ color: C.ink }}>
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: C.accentBg, color: C.accent }}>
-                          {`A${i + 1}`}
-                        </span>
-                        {a.name || `Asset ${i + 1}`}
-                      </div>
-                      {!a.expanded && (
-                        <div className="text-[10.5px] mt-1 ml-8" style={{ color: C.muted }}>
-                          {a.assetType} · {a.kind.replace(/-/g, " ")} · {IMPACT_LEVEL_LABELS[a.impactLevel]} impact · {Object.keys(a.dataTypes).length} data type{Object.keys(a.dataTypes).length === 1 ? "" : "s"}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {!a.expanded && a.saved && <span className="flex items-center gap-1 text-[10.5px] font-semibold" style={{ color: C.green }}><Check size={12} /> Added</span>}
-                      {!a.expanded && <button type="button" onClick={() => expandAsset(a.key)} className="rounded-md px-3 py-1.5 text-[11px] font-semibold" style={{ color: C.accent, border: `1px solid ${C.border}` }}>View / edit</button>}
-                      {assets.length > 1 && <button type="button" onClick={() => removeAsset(a.key)} aria-label={`Remove ${a.name || `Asset ${i + 1}`}`} className="p-1.5 rounded" style={{ color: C.muted }}><Trash2 size={14} /></button>}
-                    </div>
-                  </div>
-
-                  {a.expanded && (
-                  <>
-                  <div className="grid grid-cols-3 gap-3 mb-3.5">
-                    <Field label="Name"><TextInput value={a.name} onChange={(e) => updateAsset(a.key, { name: e.target.value })} /></Field>
-                    <Field label="Type">
-                      <Select value={a.assetType} onChange={(e) => updateAssetType(a.key, e.target.value)}>
-                        {ASSET_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                      </Select>
-                    </Field>
-                    <Field label="Kind">
-                      <Select
-                        value={a.kind}
-                        onChange={(e) => {
-                          const kind = ASSET_TYPE_CATEGORIES[a.assetType]?.find((candidate) => candidate === e.target.value);
-                          if (kind) updateAsset(a.key, { kind, sourceType: null, sourceKind: null });
-                        }}
-                      >
-                        {ASSET_TYPE_CATEGORIES[a.assetType].map((k) => <option key={k} value={k}>{k.replace(/-/g, " ")}</option>)}
-                      </Select>
-                    </Field>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3 mb-3.5">
-                    <Field
-                      label="Impact level"
-                      note="FIPS 199 potential impact for this component — Low, Moderate, or High. The system's security category is scored on the boundary, not here."
-                    >
-                      <Select
-                        value={a.impactLevel}
-                        aria-label={`Impact level for ${a.name || `Asset ${i + 1}`}`}
-                        onChange={(e) => {
-                          const level = IMPACT_LEVELS.find((candidate) => candidate === e.target.value);
-                          if (level) updateAsset(a.key, { impactLevel: level });
-                        }}
-                      >
-                        {IMPACT_LEVELS.map((level) => (
-                          <option key={level} value={level}>{IMPACT_LEVEL_LABELS[level]}</option>
+            {step === 3 && (
+              <>
+                <StepHeader
+                  step={3}
+                  total={total}
+                  title="System data inventory"
+                  description="Identify every type of data this system stores, transmits, or processes. You will map these data types to individual assets next."
+                />
+                <StepBody>
+                  <Section icon={Layers} title="Boundary data profile" description="Who the data is about, roughly how much of it there is, and where it is kept.">
+                    <Field label="Data subjects">
+                      <div className="flex flex-wrap gap-2">
+                        {DATA_SUBJECT_TYPES.map((s) => (
+                          <ChoiceChip
+                            key={s}
+                            selected={subjects.includes(s)}
+                            onClick={() => setSubjects((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]))}
+                          >
+                            {s.replace("-", " ")}
+                          </ChoiceChip>
                         ))}
-                      </Select>
+                      </div>
                     </Field>
-                  </div>
+                    <FieldGrid cols={3}>
+                      <Field label="Approx. records">
+                        <TextInput type="number" min={0} value={approxRecords} onChange={(e) => setApproxRecords(e.target.value)} />
+                      </Field>
+                      <Field label="Retention">
+                        <Select value={retention} onChange={(e) => setRetention(e.target.value)}>
+                          {RETENTION_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                        </Select>
+                      </Field>
+                      <Field label="Residency">
+                        <Select value={residency} onChange={(e) => setResidency(e.target.value)}>
+                          {RESIDENCY_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                        </Select>
+                      </Field>
+                    </FieldGrid>
+                  </Section>
 
-                  <div className="flex items-end justify-between gap-4 mt-4 mb-2">
-                    <div>
-                      <div className="text-[10px] uppercase tracking-wide font-mono" style={{ color: C.muted }}>Data processed by this asset</div>
-                      <div className="text-[10.5px] mt-0.5" style={{ color: C.muted }}>Add from the system inventory selected on the previous step.</div>
-                    </div>
-                    <select
-                      value=""
-                      onChange={(e) => {
-                        const dataTypeId = systemDataTypeIds.find((candidate) => candidate === e.target.value) ?? "";
-                        addAssetDataType(a.key, dataTypeId);
-                      }}
-                      className="text-[11px] rounded-lg px-2.5 py-2"
-                      style={{ ...inputStyle, width: 210 }}
-                      aria-label={`Add data type to ${a.name || `Asset ${i + 1}`}`}
-                    >
-                      <option value="">+ Add data type…</option>
-                      {systemDataTypeIds
-                        .filter((id) => !Object.hasOwn(a.dataTypes, id))
-                        .flatMap((id) => {
-                          const dataType = dataTypes.find((candidate) => candidate.id === id);
-                          return dataType ? [dataType] : [];
-                        })
-                        .map((dt) => <option key={dt.id} value={dt.id}>{dt.name}</option>)}
-                    </select>
-                  </div>
-                  {Object.keys(a.dataTypes).length > 0 ? (
-                    <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
-                      {Object.entries(a.dataTypes).map(([dataTypeId, role], di, entries) => {
-                        const dt = dataTypes.find((item) => item.id === dataTypeId);
-                        if (!dt) return null;
+                  <Section
+                    icon={Database}
+                    title="Data types processed"
+                    description="Choose everything that applies to the system boundary."
+                    aside={<StatusPill tone={systemDataTypeIds.length > 0 ? "success" : "neutral"}>{systemDataTypeIds.length} selected</StatusPill>}
+                  >
+                    <TextInput
+                      value={dataSearch}
+                      onChange={(e) => setDataSearch(e.target.value)}
+                      placeholder="Search data types…"
+                      aria-label="Search data types"
+                      className="md:max-w-[300px]"
+                    />
+                    <Well padded={false} className="overflow-hidden">
+                      {filteredDataTypes.map((dt, index) => {
+                        const selected = systemDataTypeIds.includes(dt.id);
                         return (
-                        <div
-                          key={dataTypeId}
-                          className="flex items-center gap-2.5 px-3 py-2"
-                          style={{ borderBottom: di < entries.length - 1 ? `1px solid ${C.border}` : "none", background: C.panel }}
-                        >
-                          <span className="text-xs flex-1" style={{ color: C.ink }}>{dt.name}</span>
-                          <ClassificationTag level={dt.sensitivity} />
-                          <select
-                            value={role}
-                            onChange={(e) => {
-                              const nextRole = Object.values(DATA_ROLES).find((candidate) => candidate === e.target.value);
-                              if (nextRole) setDataTypeRole(a.key, dt.id, nextRole);
+                          <label
+                            key={dt.id}
+                            className={`${selected ? "wz-lift" : "wz-hover"} flex items-start gap-3 px-3.5 py-2.5 cursor-pointer transition-colors`}
+                            style={{
+                              background: selected ? C.accentBg : undefined,
+                              borderBottom: index < filteredDataTypes.length - 1 ? `1px solid ${C.border}` : undefined,
                             }}
-                            className="text-[11px] rounded px-2 py-1"
-                            style={{ ...inputStyle, width: 120 }}
                           >
-                            {Object.values(DATA_ROLES).map((roleOption) => (
-                              <option key={roleOption} value={roleOption}>{DATA_ROLE_META[roleOption].label}</option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            onClick={() => removeAssetDataType(a.key, dt.id)}
-                            aria-label={`Remove ${dt.name} from ${a.name || `Asset ${i + 1}`}`}
-                            className="p-1 rounded"
-                            style={{ color: C.muted }}
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
+                            <Checkbox
+                              checked={selected}
+                              ariaLabel={dt.name}
+                              onChange={() => toggleSystemDataType(dt.id)}
+                              className="mt-0.5"
+                            />
+                            <span className="flex-1 min-w-0">
+                              <span className="flex items-center gap-2">
+                                <span className={TX.body} style={{ color: C.ink, fontWeight: 600 }}>{dt.name}</span>
+                                <span className={`${TX.tag} capitalize`} style={{ color: C.muted }}>{dt.kind.replace(/-/g, " ")}</span>
+                              </span>
+                              <span className={`block ${TX.help} mt-1`} style={{ color: C.muted }}>{dt.description}</span>
+                            </span>
+                            <span className="flex items-center gap-2 shrink-0">
+                              {dt.regulatoryFlags.slice(0, 2).map((flag) => (
+                                <span key={flag} className={TX.tag} style={{ color: C.muted }}>{flag}</span>
+                              ))}
+                              <ClassificationTag level={dt.sensitivity} />
+                            </span>
+                          </label>
                         );
                       })}
-                    </div>
-                  ) : (
-                    <div className="rounded-lg px-3 py-3 text-[11px]" style={{ border: `1px dashed ${C.border}`, color: C.muted }}>
-                      No data types mapped to this asset yet.
-                    </div>
-                  )}
-                  <div className="flex items-center justify-end gap-2 mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
-                    {!assetDraftIsValid(a) && <span className="mr-auto text-[10.5px]" style={{ color: C.amber }}>Enter an asset name and map at least one data type.</span>}
-                    <button
-                      type="button"
-                      disabled={!assetDraftIsValid(a)}
-                      onClick={() => saveAsset(a.key)}
-                      className="flex items-center gap-1.5 rounded-md px-3.5 py-2 text-[11.5px] font-semibold"
-                      style={{ background: C.accent, color: "#fff", opacity: assetDraftIsValid(a) ? 1 : 0.45 }}
-                    >
-                      <Check size={13} /> {a.added ? "Save changes" : "Add asset"}
-                    </button>
-                  </div>
-                  </>
-                  )}
-                </div>
-              ))}
-
-              <button
-                type="button"
-                onClick={addAsset}
-                disabled={assets.some((asset) => !asset.saved)}
-                className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-[12.5px] font-semibold disabled:cursor-default"
-                style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentBg, opacity: assets.some((asset) => !asset.saved) ? 0.45 : 1 }}
-              >
-                <Plus size={14} /> Add another asset
-              </button>
-            </div>
-          )}
-
-          {step === 5 && (
-            <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 5 of 8</div>
-              <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>System architecture</h2>
-              <p className="text-xs mb-5 max-w-[70ch]" style={{ color: C.muted }}>
-                Connect the boundary you just described: who reaches it, how data and control relationships move between assets, and which authenticated agents operate inside it.
-              </p>
-
-              <section className="mb-6">
-                <div className="flex items-start gap-2 mb-3">
-                  <Users size={16} color={C.accent} className="mt-0.5" />
-                  <div>
-                    <div className="text-[13px] font-semibold" style={{ color: C.ink }}>Actors and access</div>
-                    <div className="text-[10.5px]" style={{ color: C.muted }}>At least one human or machine actor must identify where it touches the boundary.</div>
-                  </div>
-                </div>
-                {actorDrafts.map((actor, i) => (
-                  <div key={actor.key} className="rounded-xl p-4 mb-3.5" style={{ background: actor.expanded ? C.panel2 : C.panel, border: `1px solid ${actor.saved ? C.green : C.border}` }}>
-                    <div className={`flex items-center justify-between gap-3 ${actor.expanded ? "mb-3.5" : ""}`}>
-                      <div>
-                        <div className="text-[13px] font-bold flex items-center gap-2" style={{ color: C.ink }}>
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: C.accentBg, color: C.accent }}>
-                            {`U${i + 1}`}
-                          </span>
-                          {actor.name || `Actor ${i + 1}`}
-                        </div>
-                        {!actor.expanded && (
-                          <div className="text-[10.5px] mt-1 ml-8" style={{ color: C.muted }}>
-                            {actor.kind} · {actor.direction} · {assetDraftLabel(assets, actor.assetKey)}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {!actor.expanded && actor.saved && <span className="flex items-center gap-1 text-[10.5px] font-semibold" style={{ color: C.green }}><Check size={12} /> Added</span>}
-                        {!actor.expanded && <button type="button" onClick={() => expandActor(actor.key)} className="rounded-md px-3 py-1.5 text-[11px] font-semibold" style={{ color: C.accent, border: `1px solid ${C.border}` }}>View / edit</button>}
-                        <button type="button" onClick={() => removeActor(actor.key)} aria-label={`Remove ${actor.name || `Actor ${i + 1}`}`} className="p-1.5 rounded" style={{ color: C.muted }}><Trash2 size={14} /></button>
-                      </div>
-                    </div>
-                    {actor.expanded && (
-                      <>
-                        <div className="grid grid-cols-3 gap-2">
-                          <Field label="Actor name"><TextInput value={actor.name} onChange={(e) => updateActor(actor.key, { name: e.target.value })} placeholder="Customer, administrator, integration" /></Field>
-                          <Field label="Type"><Select value={actor.kind} onChange={(e) => updateActor(actor.key, { kind: Object.values(ACTOR_KINDS).find((value) => value === e.target.value) ?? actor.kind })}>{Object.values(ACTOR_KINDS).map((value) => <option key={value} value={value}>{value}</option>)}</Select></Field>
-                          <Field label="Direction"><Select value={actor.direction} onChange={(e) => updateActor(actor.key, { direction: Object.values(ACTOR_DIRECTIONS).find((value) => value === e.target.value) ?? actor.direction })}>{Object.values(ACTOR_DIRECTIONS).map((value) => <option key={value} value={value}>{value}</option>)}</Select></Field>
-                          <Field label="Touches asset"><Select value={actor.assetKey} onChange={(e) => updateActor(actor.key, { assetKey: e.target.value })}><option value="">Select asset</option>{assets.map((asset, index) => <option key={asset.key} value={asset.key}>{asset.name || `Asset ${index + 1}`}</option>)}</Select></Field>
-                          <Field label="Description"><TextInput value={actor.description} onChange={(e) => updateActor(actor.key, { description: e.target.value })} placeholder="Role in the architecture" /></Field>
-                          <Field label="Access note"><TextInput value={actor.note} onChange={(e) => updateActor(actor.key, { note: e.target.value })} placeholder="Authentication or path detail" /></Field>
-                        </div>
-                        <div className="flex items-center justify-end gap-2 mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
-                          {!actorDraftIsValid(actor) && <span className="mr-auto text-[10.5px]" style={{ color: C.amber }}>Name, description, and touched asset are required.</span>}
-                          <button
-                            type="button"
-                            disabled={!actorDraftIsValid(actor)}
-                            onClick={() => saveActor(actor.key)}
-                            className="flex items-center gap-1.5 rounded-md px-3.5 py-2 text-[11.5px] font-semibold"
-                            style={{ background: C.accent, color: "#fff", opacity: actorDraftIsValid(actor) ? 1 : 0.45 }}
-                          >
-                            <Check size={13} /> {actor.added ? "Save changes" : "Add actor"}
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ))}
-                {actorDrafts.length === 0 && (
-                  <div className="rounded-lg px-3 py-3 text-[11px] mb-3.5" style={{ border: `1px dashed ${C.amber}`, color: C.amber }}>
-                    Add at least one actor so the architecture has a real entry, exit, or administrative path.
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={addActor}
-                  disabled={actorDrafts.some((actor) => !actor.saved)}
-                  className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-[12.5px] font-semibold disabled:cursor-default"
-                  style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentBg, opacity: actorDrafts.some((actor) => !actor.saved) ? 0.45 : 1 }}
-                >
-                  <Plus size={14} /> {actorDrafts.length === 0 ? "Add actor" : "Add another actor"}
-                </button>
-              </section>
-
-              <section className="mb-6">
-                <div className="flex items-start gap-2 mb-3">
-                  <Network size={16} color={C.accent} className="mt-0.5" />
-                  <div>
-                    <div className="text-[13px] font-semibold" style={{ color: C.ink }}>Asset relationships</div>
-                    <div className="text-[10.5px]" style={{ color: C.muted }}>Flows drive architecture lanes and make data movement traceable.</div>
-                  </div>
-                </div>
-                {flowDrafts.map((flow, i) => (
-                  <div key={flow.key} className="rounded-xl p-4 mb-3.5" style={{ background: flow.expanded ? C.panel2 : C.panel, border: `1px solid ${flow.saved ? C.green : C.border}` }}>
-                    <div className={`flex items-center justify-between gap-3 ${flow.expanded ? "mb-3.5" : ""}`}>
-                      <div>
-                        <div className="text-[13px] font-bold flex items-center gap-2" style={{ color: C.ink }}>
-                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: C.accentBg, color: C.accent }}>
-                            {`F${i + 1}`}
-                          </span>
-                          {`${assetDraftLabel(assets, flow.fromKey)} → ${assetDraftLabel(assets, flow.toKey)}`}
-                        </div>
-                        {!flow.expanded && (
-                          <div className="text-[10.5px] mt-1 ml-8" style={{ color: C.muted }}>
-                            {flow.kind.replace(/-/g, " ")} · {flow.dataTypeIds.length} data type{flow.dataTypeIds.length === 1 ? "" : "s"}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {!flow.expanded && flow.saved && <span className="flex items-center gap-1 text-[10.5px] font-semibold" style={{ color: C.green }}><Check size={12} /> Added</span>}
-                        {!flow.expanded && <button type="button" onClick={() => expandFlow(flow.key)} className="rounded-md px-3 py-1.5 text-[11px] font-semibold" style={{ color: C.accent, border: `1px solid ${C.border}` }}>View / edit</button>}
-                        <button type="button" onClick={() => removeFlow(flow.key)} aria-label={`Remove relationship ${i + 1}`} className="p-1.5 rounded" style={{ color: C.muted }}><Trash2 size={14} /></button>
-                      </div>
-                    </div>
-                    {flow.expanded && (
-                      <>
-                        <div className="grid grid-cols-3 gap-2">
-                          <Field label="From"><Select value={flow.fromKey} onChange={(e) => updateFlow(flow.key, { fromKey: e.target.value })}>{assets.map((asset, index) => <option key={asset.key} value={asset.key}>{asset.name || `Asset ${index + 1}`}</option>)}</Select></Field>
-                          <Field label="Relationship"><Select value={flow.kind} onChange={(e) => updateFlow(flow.key, { kind: Object.values(FLOW_KINDS).find((value) => value === e.target.value) ?? flow.kind })}>{Object.values(FLOW_KINDS).map((value) => <option key={value} value={value}>{value.replace(/-/g, " ")}</option>)}</Select></Field>
-                          <Field label="To"><Select value={flow.toKey} onChange={(e) => updateFlow(flow.key, { toKey: e.target.value })}>{assets.map((asset, index) => <option key={asset.key} value={asset.key}>{asset.name || `Asset ${index + 1}`}</option>)}</Select></Field>
-                        </div>
-                        <div className="mt-2 flex items-end gap-2">
-                          <div className="flex-1"><Field label="Data carried"><div className="flex flex-wrap gap-1.5">{systemDataTypeIds.map((id) => { const dataType = dataTypes.find((item) => item.id === id); const selected = flow.dataTypeIds.includes(id); return <ChoiceChip key={id} selected={selected} onClick={() => updateFlow(flow.key, { dataTypeIds: selected ? flow.dataTypeIds.filter((item) => item !== id) : [...flow.dataTypeIds, id] })}>{dataType?.name ?? id}</ChoiceChip>; })}</div></Field></div>
-                          <div className="w-[34%]"><Field label="Relationship note"><TextInput value={flow.note} onChange={(e) => updateFlow(flow.key, { note: e.target.value })} placeholder="What moves or is protected" /></Field></div>
-                        </div>
-                        {flow.fromKey === flow.toKey && <div className="text-[10px] mt-1" style={{ color: C.red }}>A relationship must connect two different assets.</div>}
-                        <div className="flex items-center justify-end gap-2 mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
-                          {!flowDraftIsValid(flow) && <span className="mr-auto text-[10.5px]" style={{ color: C.amber }}>Choose different assets and at least one data type.</span>}
-                          <button
-                            type="button"
-                            disabled={!flowDraftIsValid(flow)}
-                            onClick={() => saveFlow(flow.key)}
-                            className="flex items-center gap-1.5 rounded-md px-3.5 py-2 text-[11.5px] font-semibold"
-                            style={{ background: C.accent, color: "#fff", opacity: flowDraftIsValid(flow) ? 1 : 0.45 }}
-                          >
-                            <Check size={13} /> {flow.added ? "Save changes" : "Add relationship"}
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ))}
-                {assets.length > 1 && flowDrafts.length === 0 && (
-                  <div className="rounded-lg px-3 py-3 text-[11px] mb-3.5" style={{ border: `1px dashed ${C.amber}`, color: C.amber }}>
-                    Add at least one relationship between the assets in this boundary.
-                  </div>
-                )}
-                {assets.length === 1 && <div className="text-[11px]" style={{ color: C.muted }}>A one-asset boundary does not require an internal relationship.</div>}
-                {assets.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={addFlow}
-                    disabled={flowDrafts.some((flow) => !flow.saved)}
-                    className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-[12.5px] font-semibold disabled:cursor-default"
-                    style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentBg, opacity: flowDrafts.some((flow) => !flow.saved) ? 0.45 : 1 }}
-                  >
-                    <Plus size={14} /> {flowDrafts.length === 0 ? "Add relationship" : "Add another relationship"}
-                  </button>
-                )}
-              </section>
-
-              {usesAI && (
-                <section>
-                  <div className="flex items-start gap-2 mb-3">
-                    <Bot size={16} color={C.accent} className="mt-0.5" />
-                    <div>
-                      <div className="text-[13px] font-semibold" style={{ color: C.ink }}>Agentic identities</div>
-                      <div className="text-[10.5px]" style={{ color: C.muted }}>Optional: record authenticated AI agents that can invoke tools or affect resources.</div>
-                    </div>
-                  </div>
-                  {agentDrafts.map((agent, i) => (
-                    <div key={agent.key} className="rounded-xl p-4 mb-3.5" style={{ background: agent.expanded ? C.panel2 : C.panel, border: `1px solid ${agent.saved ? C.green : C.border}` }}>
-                      <div className={`flex items-center justify-between gap-3 ${agent.expanded ? "mb-3.5" : ""}`}>
-                        <div>
-                          <div className="text-[13px] font-bold flex items-center gap-2" style={{ color: C.ink }}>
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: C.accentBg, color: C.accent }}>
-                              {`G${i + 1}`}
-                            </span>
-                            {agent.name || `Agent ${i + 1}`}
-                          </div>
-                          {!agent.expanded && (
-                            <div className="text-[10.5px] mt-1 ml-8" style={{ color: C.muted }}>
-                              {agent.autonomyLevel} · {agent.privilegeLevel} privilege · {agent.credentialType.replace(/-/g, " ")}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {!agent.expanded && agent.saved && <span className="flex items-center gap-1 text-[10.5px] font-semibold" style={{ color: C.green }}><Check size={12} /> Added</span>}
-                          {!agent.expanded && <button type="button" onClick={() => expandAgent(agent.key)} className="rounded-md px-3 py-1.5 text-[11px] font-semibold" style={{ color: C.accent, border: `1px solid ${C.border}` }}>View / edit</button>}
-                          <button type="button" onClick={() => removeAgent(agent.key)} aria-label={`Remove ${agent.name || `Agent ${i + 1}`}`} className="p-1.5 rounded" style={{ color: C.muted }}><Trash2 size={14} /></button>
-                        </div>
-                      </div>
-                      {agent.expanded && (
-                        <>
-                          <div className="grid grid-cols-3 gap-2">
-                            <Field label="Agent name"><TextInput value={agent.name} onChange={(e) => updateAgent(agent.key, { name: e.target.value })} /></Field>
-                            <Field label="Service principal"><TextInput value={agent.servicePrincipal} onChange={(e) => updateAgent(agent.key, { servicePrincipal: e.target.value })} placeholder="spn://system/agent" /></Field>
-                            <Field label="Owner"><Select value={agent.ownerOrgId} onChange={(e) => updateAgent(agent.key, { ownerOrgId: e.target.value })}><option value="">Unassigned</option>{ORGS.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</Select></Field>
-                            <Field label="Autonomy"><Select value={agent.autonomyLevel} onChange={(e) => updateAgent(agent.key, { autonomyLevel: AGENT_AUTONOMY_LEVELS.find((value) => value === e.target.value) ?? agent.autonomyLevel, externalActions: e.target.value === "recommend" ? false : agent.externalActions })}>{AGENT_AUTONOMY_LEVELS.filter((value) => value !== "autonomous" || autonomousActions).map((value) => <option key={value} value={value}>{value}</option>)}</Select></Field>
-                            <Field label="Privilege"><Select value={agent.privilegeLevel} onChange={(e) => updateAgent(agent.key, { privilegeLevel: AGENT_PRIVILEGE_LEVELS.find((value) => value === e.target.value) ?? agent.privilegeLevel })}>{AGENT_PRIVILEGE_LEVELS.map((value) => <option key={value} value={value}>{value}</option>)}</Select></Field>
-                            <Field label="Credential"><Select value={agent.credentialType} onChange={(e) => updateAgent(agent.key, { credentialType: AGENT_CREDENTIAL_TYPES.find((value) => value === e.target.value) ?? agent.credentialType })}>{AGENT_CREDENTIAL_TYPES.map((value) => <option key={value} value={value}>{value}</option>)}</Select></Field>
-                            <Field label="Purpose"><TextInput value={agent.purpose} onChange={(e) => updateAgent(agent.key, { purpose: e.target.value })} /></Field>
-                            <Field label="Tools / resources"><TextInput value={agent.tools} onChange={(e) => updateAgent(agent.key, { tools: e.target.value })} placeholder="Search, tickets, deployment" /></Field>
-                            <Field label="Revocation"><Select value={agent.revocationMechanism} onChange={(e) => updateAgent(agent.key, { revocationMechanism: AGENT_REVOCATION_MECHANISMS.find((value) => value === e.target.value) ?? agent.revocationMechanism })}>{AGENT_REVOCATION_MECHANISMS.map((value) => <option key={value} value={value}>{value}</option>)}</Select></Field>
-                          </div>
-                          <div className="flex items-center gap-4 mt-2 text-[11px]" style={{ color: C.ink }}>
-                            <label className="flex items-center gap-1.5"><input type="checkbox" checked={agent.externalActions} disabled={agent.autonomyLevel === "recommend"} onChange={(e) => updateAgent(agent.key, { externalActions: e.target.checked })} /> External actions</label>
-                            <label className="flex items-center gap-1.5"><input type="checkbox" checked={agent.canImpersonateUser} onChange={(e) => updateAgent(agent.key, { canImpersonateUser: e.target.checked })} /> Can impersonate user</label>
-                            <label className="flex items-center gap-1.5"><input type="checkbox" checked={agent.loggingEnabled} onChange={(e) => updateAgent(agent.key, { loggingEnabled: e.target.checked })} /> Activity logging</label>
-                          </div>
-                          <div className="flex items-center justify-end gap-2 mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
-                            {!agentDraftIsValid(agent, autonomousActions) && <span className="mr-auto text-[10.5px]" style={{ color: C.amber }}>Name, purpose, service principal, and tools are required.</span>}
-                            <button
-                              type="button"
-                              disabled={!agentDraftIsValid(agent, autonomousActions)}
-                              onClick={() => saveAgent(agent.key)}
-                              className="flex items-center gap-1.5 rounded-md px-3.5 py-2 text-[11.5px] font-semibold"
-                              style={{ background: C.accent, color: "#fff", opacity: agentDraftIsValid(agent, autonomousActions) ? 1 : 0.45 }}
-                            >
-                              <Check size={13} /> {agent.added ? "Save changes" : "Add agent"}
-                            </button>
-                          </div>
-                        </>
+                      {filteredDataTypes.length === 0 && (
+                        <div className={`${TX.help} text-center py-8`} style={{ color: C.muted }}>No data types match that search.</div>
                       )}
-                    </div>
-                  ))}
-                  {agentDrafts.length === 0 && (
-                    <div className="text-[11px] mb-3.5" style={{ color: C.muted }}>
-                      No agentic identity declared. AI use alone does not imply an agent can take action.
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={addAgent}
-                    disabled={agentDrafts.some((agent) => !agent.saved)}
-                    className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-[12.5px] font-semibold disabled:cursor-default"
-                    style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentBg, opacity: agentDrafts.some((agent) => !agent.saved) ? 0.45 : 1 }}
-                  >
-                    <Plus size={14} /> {agentDrafts.length === 0 ? "Add agent" : "Add another agent"}
-                  </button>
-                </section>
-              )}
-            </div>
-          )}
+                    </Well>
+                  </Section>
+                </StepBody>
+              </>
+            )}
 
-          {step === 6 && (
-            <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 6 of 8</div>
-              <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Resilience & secure development</h2>
-              <p className="text-xs mb-5 max-w-[64ch]" style={{ color: C.muted }}>
-                Optional operational posture: backup configuration, proven disaster-recovery tests, and secure-development
-                safeguards. Leave a section off if it hasn't actually been set up yet — an absent record reads honestly
-                as "not yet on record," not a fabricated zero.
-              </p>
-
-              <div className="space-y-4">
-                <TechnologySection number={1} title="Backup & recovery" description="How durable this system's data is, and how quickly it can be restored.">
-                  <ToggleCard
-                    checked={trackBackup}
-                    onChange={setTrackBackup}
-                    title="Backup configuration on record"
-                    description="Turn this on once a backup job actually exists for this system."
+            {step === 4 && (
+              <>
+                <StepHeader
+                  step={4}
+                  total={total}
+                  title="Assets & data mapping"
+                  description="Add the assets inside this boundary and map only the system data types each asset stores, transmits, or processes."
+                />
+                <StepBody>
+                  <Section
+                    icon={Boxes}
+                    title="Assets in this boundary"
+                    description="Every asset is saved before you can add the next one, so the inventory always reflects a complete record."
+                    aside={<StatusPill tone={canAdvanceFrom4 ? "success" : "neutral"}>{assets.length} asset{assets.length === 1 ? "" : "s"}</StatusPill>}
                   >
-                    {trackBackup && (
-                      <div className="grid grid-cols-2 gap-4 mt-3">
-                        <label className="flex items-center gap-2 text-[11.5px] col-span-2" style={{ color: C.ink }}>
-                          <input type="checkbox" checked={backupEnabled} onChange={(e) => setBackupEnabled(e.target.checked)} />
-                          Backups enabled
-                        </label>
-                        <Field label="Coverage %" note="Share of in-scope assets actually covered by a backup job.">
-                          <TextInput type="number" min={0} max={100} value={backupCoveragePct} onChange={(e) => setBackupCoveragePct(e.target.value)} />
-                        </Field>
-                        <div />
-                        <Field label="RPO target (minutes)">
-                          <TextInput type="number" min={1} value={backupRpoTargetMinutes} onChange={(e) => setBackupRpoTargetMinutes(e.target.value)} />
-                        </Field>
-                        <Field label="RTO target (minutes)">
-                          <TextInput type="number" min={1} value={backupRtoTargetMinutes} onChange={(e) => setBackupRtoTargetMinutes(e.target.value)} />
-                        </Field>
-                        <label className="flex items-center gap-2 text-[11.5px]" style={{ color: C.ink }}>
-                          <input type="checkbox" checked={backupImmutable} onChange={(e) => setBackupImmutable(e.target.checked)} />
-                          Immutable backups
-                        </label>
-                        <label className="flex items-center gap-2 text-[11.5px]" style={{ color: C.ink }}>
-                          <input type="checkbox" checked={backupCrossRegion} onChange={(e) => setBackupCrossRegion(e.target.checked)} />
-                          Cross-region copy
-                        </label>
-                        {!backupValid && (
-                          <div className="col-span-2 flex items-center gap-2 text-[10.5px]" style={{ color: C.amber }}>
-                            <Info size={13} /> Coverage must be 0-100%, and RPO/RTO targets must be positive.
-                          </div>
-                        )}
-                      </div>
+                    {unmappedSystemDataTypeIds.length > 0 && (
+                      <Callout
+                        tone="warning"
+                        title={`${unmappedSystemDataTypeIds.length} data type${unmappedSystemDataTypeIds.length === 1 ? " still needs" : "s still need"} an asset.`}
+                      >
+                        Use each asset's “Add data type” menu to identify where that data is stored, processed, or transmitted.
+                      </Callout>
                     )}
-                  </ToggleCard>
-                </TechnologySection>
 
-                <TechnologySection number={2} title="Disaster recovery tests" description="Proven restores, not just a green backup job — add one row per test conducted.">
-                  {drTestDrafts.map((t, i) => (
-                    <div key={t.key} className="rounded-lg p-3 mb-3" style={{ background: t.expanded ? C.panel2 : C.panel, border: `1px solid ${t.saved ? C.green : C.border}` }}>
-                      <div className={`flex items-center justify-between gap-3 ${t.expanded ? "mb-3" : ""}`}>
-                        <div className="text-[12.5px] font-semibold" style={{ color: C.ink }}>
-                          DR test {i + 1}{!t.expanded && t.conductedAt ? ` · ${t.conductedAt}` : ""}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {!t.expanded && t.saved && <span className="flex items-center gap-1 text-[10.5px] font-semibold" style={{ color: C.green }}><Check size={12} /> Added</span>}
-                          {!t.expanded && <button type="button" onClick={() => expandDrTest(t.key)} className="rounded-md px-3 py-1.5 text-[11px] font-semibold" style={{ color: C.accent, border: `1px solid ${C.border}` }}>View / edit</button>}
-                          <button type="button" onClick={() => removeDrTest(t.key)} aria-label={`Remove DR test ${i + 1}`} className="p-1.5 rounded" style={{ color: C.muted }}><Trash2 size={14} /></button>
-                        </div>
-                      </div>
-                      {t.expanded && (
-                        <>
-                          <div className="grid grid-cols-3 gap-3 mb-3">
-                            <Field label="Conducted"><TextInput type="date" value={t.conductedAt} onChange={(e) => updateDrTest(t.key, { conductedAt: e.target.value })} /></Field>
-                            <Field label="Cadence (days)"><TextInput type="number" min={1} value={t.cadenceDays} onChange={(e) => updateDrTest(t.key, { cadenceDays: e.target.value })} /></Field>
-                            <Field label="Restore successful">
-                              <Select value={t.restoreSuccessful ? "yes" : "no"} onChange={(e) => updateDrTest(t.key, { restoreSuccessful: e.target.value === "yes" })}>
-                                <option value="yes">Yes</option>
-                                <option value="no">No</option>
-                              </Select>
-                            </Field>
-                          </div>
-                          <div className="grid grid-cols-2 gap-3 mb-3">
-                            <Field label="Actual RPO (minutes)"><TextInput type="number" min={0} value={t.actualRpoMinutes} onChange={(e) => updateDrTest(t.key, { actualRpoMinutes: e.target.value })} /></Field>
-                            <Field label="Actual RTO (minutes)"><TextInput type="number" min={0} value={t.actualRtoMinutes} onChange={(e) => updateDrTest(t.key, { actualRtoMinutes: e.target.value })} /></Field>
-                          </div>
-                          <Field label="Scope"><TextInput value={t.scope} onChange={(e) => updateDrTest(t.key, { scope: e.target.value })} placeholder="What this test exercised" /></Field>
-                          {!t.restoreSuccessful && (
-                            <div className="mt-3">
-                              <Field label="Issues" note="Required when the restore didn't succeed — what went wrong.">
-                                <TextArea value={t.issues} onChange={(e) => updateDrTest(t.key, { issues: e.target.value })} />
+                    <EntityList>
+                      {assets.map((a, i) => {
+                        const mapped = Object.keys(a.dataTypes).length;
+                        const label = a.name.trim() || `Asset ${i + 1}`;
+                        return (
+                          <EntityCard
+                            key={a.key}
+                            code={`A${i + 1}`}
+                            title={label}
+                            summary={`${a.assetType} · ${a.kind.replace(/-/g, " ")} · ${IMPACT_LEVEL_LABELS[a.impactLevel]} impact · ${mapped} data type${mapped === 1 ? "" : "s"}`}
+                            expanded={a.expanded}
+                            saved={a.saved}
+                            onExpand={() => expandAsset(a.key)}
+                            onSave={() => saveAsset(a.key)}
+                            saveLabel={a.added ? "Save changes" : "Add asset"}
+                            canSave={assetDraftIsValid(a)}
+                            invalidReason="Enter an asset name and map at least one data type."
+                            onRemove={assets.length > 1 ? () => removeAsset(a.key) : undefined}
+                            removeLabel={`Remove ${label}`}
+                          >
+                            <FieldGrid cols={2}>
+                              <Field label="Name">
+                                <TextInput value={a.name} onChange={(e) => updateAsset(a.key, { name: e.target.value })} aria-label={`Name for asset ${i + 1}`} />
                               </Field>
-                            </div>
-                          )}
-                          <div className="flex items-center justify-end gap-2 mt-4 pt-3" style={{ borderTop: `1px solid ${C.border}` }}>
-                            {!drTestDraftIsValid(t) && <span className="mr-auto text-[10.5px]" style={{ color: C.amber }}>Enter a scope, a valid date, and (if the restore failed) what went wrong.</span>}
-                            <button
-                              type="button"
-                              disabled={!drTestDraftIsValid(t)}
-                              onClick={() => saveDrTest(t.key)}
-                              className="flex items-center gap-1.5 rounded-md px-3.5 py-2 text-[11.5px] font-semibold"
-                              style={{ background: C.accent, color: "#fff", opacity: drTestDraftIsValid(t) ? 1 : 0.45 }}
-                            >
-                              <Check size={13} /> Save test
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={addDrTest}
-                    disabled={drTestDrafts.some((t) => !t.saved)}
-                    className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-[12.5px] font-semibold disabled:cursor-default"
-                    style={{ border: `1px dashed ${C.accent}`, color: C.accent, background: C.accentBg, opacity: drTestDrafts.some((t) => !t.saved) ? 0.45 : 1 }}
-                  >
-                    <Plus size={14} /> {drTestDrafts.length === 0 ? "Add DR test" : "Add another DR test"}
-                  </button>
-                </TechnologySection>
+                              <Field label="Type">
+                                <Select value={a.assetType} aria-label={`Type for ${label}`} onChange={(e) => updateAssetType(a.key, e.target.value)}>
+                                  {ASSET_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                                </Select>
+                              </Field>
+                              <Field label="Kind">
+                                <Select
+                                  value={a.kind}
+                                  aria-label={`Kind for ${label}`}
+                                  onChange={(e) => {
+                                    const kind = ASSET_TYPE_CATEGORIES[a.assetType]?.find((candidate) => candidate === e.target.value);
+                                    if (kind) updateAsset(a.key, { kind, sourceType: null, sourceKind: null });
+                                  }}
+                                >
+                                  {ASSET_TYPE_CATEGORIES[a.assetType].map((k) => <option key={k} value={k}>{k.replace(/-/g, " ")}</option>)}
+                                </Select>
+                              </Field>
+                              <Field label="Impact level" note="FIPS 199 potential impact for this component. The system's security category is scored on the boundary, not here.">
+                                <Select
+                                  value={a.impactLevel}
+                                  aria-label={`Impact level for ${label}`}
+                                  onChange={(e) => {
+                                    const level = IMPACT_LEVELS.find((candidate) => candidate === e.target.value);
+                                    if (level) updateAsset(a.key, { impactLevel: level });
+                                  }}
+                                >
+                                  {IMPACT_LEVELS.map((level) => <option key={level} value={level}>{IMPACT_LEVEL_LABELS[level]}</option>)}
+                                </Select>
+                              </Field>
+                            </FieldGrid>
 
-                <TechnologySection number={3} title="Secure development posture" description={`Only meaningful if ACME writes code for this system — see "Custom software" on Technology.`}>
-                  <ToggleCard
-                    checked={trackSdlc}
-                    onChange={setTrackSdlc}
-                    title="Secure-development posture on record"
-                    description="Turn this on once someone has actually reviewed this system's SDLC safeguards."
-                  >
-                    {trackSdlc && (
-                      sdlcApplicable ? (
-                        <div className="mt-3">
-                          <div className="grid grid-cols-3 gap-3">
-                            {SDLC_SAFEGUARD_GROUPS.map((group) => (
-                              <div key={group.label} className="rounded-lg p-3" style={{ background: C.panel }}>
-                                <div className="text-[11.5px] font-semibold mb-2" style={{ color: C.ink }}>{group.label}</div>
-                                <div className="space-y-1.5">
-                                  {group.keys.map((key) => (
-                                    <label key={key} className="flex items-center gap-2 text-[11px]" style={{ color: C.ink }}>
-                                      <input type="checkbox" checked={sdlcSafeguards[key]} onChange={(e) => updateSdlcSafeguard(key, e.target.checked)} />
-                                      {SDLC_SAFEGUARD_LABELS[key]}
-                                    </label>
-                                  ))}
+                            <div>
+                              <div className="flex flex-wrap items-end justify-between gap-3 mb-2">
+                                <div className="min-w-0">
+                                  <div className={TX.label} style={{ color: C.muted }}>Data processed by this asset</div>
+                                  <div className={`${TX.help} mt-1.5`} style={{ color: C.muted }}>Add from the system inventory selected on the previous step.</div>
                                 </div>
+                                <Select
+                                  value=""
+                                  onChange={(e) => {
+                                    const dataTypeId = systemDataTypeIds.find((candidate) => candidate === e.target.value) ?? "";
+                                    addAssetDataType(a.key, dataTypeId);
+                                  }}
+                                  className="sm:max-w-[220px]"
+                                  aria-label={`Add data type to ${label}`}
+                                >
+                                  <option value="">+ Add data type…</option>
+                                  {systemDataTypeIds
+                                    .filter((id) => !Object.hasOwn(a.dataTypes, id))
+                                    .flatMap((id) => {
+                                      const dataType = dataTypes.find((candidate) => candidate.id === id);
+                                      return dataType ? [dataType] : [];
+                                    })
+                                    .map((dt) => <option key={dt.id} value={dt.id}>{dt.name}</option>)}
+                                </Select>
                               </div>
+                              {Object.keys(a.dataTypes).length > 0 ? (
+                                <Well hollow padded={false} className="overflow-hidden">
+                                  {Object.entries(a.dataTypes).map(([dataTypeId, role], di, entries) => {
+                                    const dt = dataTypes.find((item) => item.id === dataTypeId);
+                                    if (!dt) return null;
+                                    return (
+                                      <div
+                                        key={dataTypeId}
+                                        className="flex items-center gap-2.5 px-3 py-2"
+                                        style={{ borderBottom: di < entries.length - 1 ? `1px solid ${C.border}` : undefined }}
+                                      >
+                                        <span className={`${TX.body} flex-1 min-w-0 truncate`} style={{ color: C.ink }}>{dt.name}</span>
+                                        <span className="shrink-0"><ClassificationTag level={dt.sensitivity} /></span>
+                                        <Select
+                                          value={role}
+                                          aria-label={`Role of ${dt.name} in ${label}`}
+                                          onChange={(e) => {
+                                            const nextRole = Object.values(DATA_ROLES).find((candidate) => candidate === e.target.value);
+                                            if (nextRole) setDataTypeRole(a.key, dt.id, nextRole);
+                                          }}
+                                          style={{ width: 132, flex: "0 0 auto" }}
+                                        >
+                                          {Object.values(DATA_ROLES).map((roleOption) => (
+                                            <option key={roleOption} value={roleOption}>{DATA_ROLE_META[roleOption].label}</option>
+                                          ))}
+                                        </Select>
+                                        <RemoveButton
+                                          label={`Remove ${dt.name} from ${label}`}
+                                          onClick={() => removeAssetDataType(a.key, dt.id)}
+                                        />
+                                      </div>
+                                    );
+                                  })}
+                                </Well>
+                              ) : (
+                                <EmptyState>No data types mapped to this asset yet.</EmptyState>
+                              )}
+                            </div>
+                          </EntityCard>
+                        );
+                      })}
+                    </EntityList>
+
+                    <AddButton onClick={addAsset} disabled={assets.some((asset) => !asset.saved)}>Add another asset</AddButton>
+                  </Section>
+                </StepBody>
+              </>
+            )}
+
+            {step === 5 && (
+              <>
+                <StepHeader
+                  step={5}
+                  total={total}
+                  title="System architecture"
+                  description="Connect the boundary you just described: who reaches it, how data and control relationships move between assets, and which authenticated agents operate inside it."
+                />
+                <StepBody>
+                  <Section
+                    icon={Users}
+                    title="Actors & access"
+                    description="At least one human or machine actor must identify where it touches the boundary."
+                    aside={<StatusPill tone={actorsValid ? "success" : "neutral"}>{actorDrafts.length} actor{actorDrafts.length === 1 ? "" : "s"}</StatusPill>}
+                  >
+                    {actorDrafts.length === 0
+                      ? <EmptyState>No actors yet — add at least one so the architecture has a real entry, exit, or administrative path.</EmptyState>
+                      : (
+                        <EntityList>
+                          {actorDrafts.map((actor, i) => {
+                            const label = actor.name.trim() || `Actor ${i + 1}`;
+                            return (
+                              <EntityCard
+                                key={actor.key}
+                                code={`U${i + 1}`}
+                                title={label}
+                                summary={`${actor.kind} · ${actor.direction} · ${assetDraftLabel(assets, actor.assetKey)}`}
+                                expanded={actor.expanded}
+                                saved={actor.saved}
+                                onExpand={() => expandActor(actor.key)}
+                                onSave={() => saveActor(actor.key)}
+                                saveLabel={actor.added ? "Save changes" : "Add actor"}
+                                canSave={actorDraftIsValid(actor)}
+                                invalidReason="Name, description, and touched asset are required."
+                                onRemove={() => removeActor(actor.key)}
+                                removeLabel={`Remove ${label}`}
+                              >
+                                <FieldGrid cols={3}>
+                                  <Field label="Actor name">
+                                    <TextInput value={actor.name} onChange={(e) => updateActor(actor.key, { name: e.target.value })} placeholder="Customer, administrator, integration" />
+                                  </Field>
+                                  <Field label="Type">
+                                    <Select value={actor.kind} aria-label={`Type for ${label}`} onChange={(e) => updateActor(actor.key, { kind: Object.values(ACTOR_KINDS).find((value) => value === e.target.value) ?? actor.kind })}>
+                                      {Object.values(ACTOR_KINDS).map((value) => <option key={value} value={value}>{value}</option>)}
+                                    </Select>
+                                  </Field>
+                                  <Field label="Direction">
+                                    <Select value={actor.direction} aria-label={`Direction for ${label}`} onChange={(e) => updateActor(actor.key, { direction: Object.values(ACTOR_DIRECTIONS).find((value) => value === e.target.value) ?? actor.direction })}>
+                                      {Object.values(ACTOR_DIRECTIONS).map((value) => <option key={value} value={value}>{value}</option>)}
+                                    </Select>
+                                  </Field>
+                                  <Field label="Touches asset">
+                                    <Select value={actor.assetKey} aria-label={`Asset touched by ${label}`} onChange={(e) => updateActor(actor.key, { assetKey: e.target.value })}>
+                                      <option value="">Select asset</option>
+                                      {assets.map((asset, index) => <option key={asset.key} value={asset.key}>{asset.name || `Asset ${index + 1}`}</option>)}
+                                    </Select>
+                                  </Field>
+                                  <Field label="Description">
+                                    <TextInput value={actor.description} onChange={(e) => updateActor(actor.key, { description: e.target.value })} placeholder="Role in the architecture" />
+                                  </Field>
+                                  <Field label="Access note">
+                                    <TextInput value={actor.note} onChange={(e) => updateActor(actor.key, { note: e.target.value })} placeholder="Authentication or path detail" />
+                                  </Field>
+                                </FieldGrid>
+                              </EntityCard>
+                            );
+                          })}
+                        </EntityList>
+                      )}
+                    <AddButton onClick={addActor} disabled={actorDrafts.some((actor) => !actor.saved)}>
+                      {actorDrafts.length === 0 ? "Add actor" : "Add another actor"}
+                    </AddButton>
+                  </Section>
+
+                  <Section
+                    icon={Network}
+                    title="Asset relationships"
+                    description="Flows drive architecture lanes and make data movement traceable."
+                    aside={<StatusPill tone={flowsValid ? "success" : "neutral"}>{flowDrafts.length} relationship{flowDrafts.length === 1 ? "" : "s"}</StatusPill>}
+                  >
+                    {assets.length === 1 ? (
+                      <EmptyState>A one-asset boundary does not require an internal relationship.</EmptyState>
+                    ) : (
+                      <>
+                        {flowDrafts.length === 0
+                          ? <EmptyState>No relationships yet — add at least one between the assets in this boundary.</EmptyState>
+                          : (
+                            <EntityList>
+                              {flowDrafts.map((flow, i) => (
+                                <EntityCard
+                                  key={flow.key}
+                                  code={`F${i + 1}`}
+                                  title={`${assetDraftLabel(assets, flow.fromKey)} → ${assetDraftLabel(assets, flow.toKey)}`}
+                                  summary={`${flow.kind.replace(/-/g, " ")} · ${flow.dataTypeIds.length} data type${flow.dataTypeIds.length === 1 ? "" : "s"}`}
+                                  expanded={flow.expanded}
+                                  saved={flow.saved}
+                                  onExpand={() => expandFlow(flow.key)}
+                                  onSave={() => saveFlow(flow.key)}
+                                  saveLabel={flow.added ? "Save changes" : "Add relationship"}
+                                  canSave={flowDraftIsValid(flow)}
+                                  invalidReason="Connect two different assets and carry at least one data type."
+                                  onRemove={() => removeFlow(flow.key)}
+                                  removeLabel={`Remove relationship ${i + 1}`}
+                                >
+                                  <FieldGrid cols={3}>
+                                    <Field label="From" error={flow.fromKey === flow.toKey ? "A relationship must connect two different assets." : null}>
+                                      <Select value={flow.fromKey} aria-label={`Source asset for relationship ${i + 1}`} onChange={(e) => updateFlow(flow.key, { fromKey: e.target.value })}>
+                                        {assets.map((asset, index) => <option key={asset.key} value={asset.key}>{asset.name || `Asset ${index + 1}`}</option>)}
+                                      </Select>
+                                    </Field>
+                                    <Field label="Relationship">
+                                      <Select value={flow.kind} aria-label={`Kind for relationship ${i + 1}`} onChange={(e) => updateFlow(flow.key, { kind: Object.values(FLOW_KINDS).find((value) => value === e.target.value) ?? flow.kind })}>
+                                        {Object.values(FLOW_KINDS).map((value) => <option key={value} value={value}>{value.replace(/-/g, " ")}</option>)}
+                                      </Select>
+                                    </Field>
+                                    <Field label="To">
+                                      <Select value={flow.toKey} aria-label={`Target asset for relationship ${i + 1}`} onChange={(e) => updateFlow(flow.key, { toKey: e.target.value })}>
+                                        {assets.map((asset, index) => <option key={asset.key} value={asset.key}>{asset.name || `Asset ${index + 1}`}</option>)}
+                                      </Select>
+                                    </Field>
+                                  </FieldGrid>
+                                  <FieldGrid cols={1}>
+                                    <Field label="Data carried">
+                                      <div className="flex flex-wrap gap-2">
+                                        {systemDataTypeIds.map((id) => {
+                                          const dataType = dataTypes.find((item) => item.id === id);
+                                          const selected = flow.dataTypeIds.includes(id);
+                                          return (
+                                            <ChoiceChip
+                                              key={id}
+                                              selected={selected}
+                                              ariaLabel={dataType?.name ?? id}
+                                              onClick={() => updateFlow(flow.key, { dataTypeIds: selected ? flow.dataTypeIds.filter((item) => item !== id) : [...flow.dataTypeIds, id] })}
+                                            >
+                                              <span className="normal-case">{dataType?.name ?? id}</span>
+                                            </ChoiceChip>
+                                          );
+                                        })}
+                                      </div>
+                                    </Field>
+                                    <Field label="Relationship note">
+                                      <TextInput value={flow.note} onChange={(e) => updateFlow(flow.key, { note: e.target.value })} placeholder="What moves or is protected" />
+                                    </Field>
+                                  </FieldGrid>
+                                </EntityCard>
+                              ))}
+                            </EntityList>
+                          )}
+                        <AddButton onClick={addFlow} disabled={flowDrafts.some((flow) => !flow.saved)}>
+                          {flowDrafts.length === 0 ? "Add relationship" : "Add another relationship"}
+                        </AddButton>
+                      </>
+                    )}
+                  </Section>
+
+                  {usesAI && (
+                    <Section
+                      icon={Bot}
+                      title="Agentic identities"
+                      description="Optional: record authenticated AI agents that can invoke tools or affect resources."
+                      aside={<StatusPill tone={agentDrafts.length > 0 && agentsValid ? "success" : "neutral"}>{agentDrafts.length} agent{agentDrafts.length === 1 ? "" : "s"}</StatusPill>}
+                    >
+                      {agentDrafts.length === 0
+                        ? <EmptyState>No agentic identity declared. AI use alone does not imply an agent can take action.</EmptyState>
+                        : (
+                          <EntityList>
+                            {agentDrafts.map((agent, i) => {
+                              const label = agent.name.trim() || `Agent ${i + 1}`;
+                              return (
+                                <EntityCard
+                                  key={agent.key}
+                                  code={`G${i + 1}`}
+                                  title={label}
+                                  summary={`${agent.autonomyLevel} · ${agent.privilegeLevel} privilege · ${agent.credentialType.replace(/-/g, " ")}`}
+                                  expanded={agent.expanded}
+                                  saved={agent.saved}
+                                  onExpand={() => expandAgent(agent.key)}
+                                  onSave={() => saveAgent(agent.key)}
+                                  saveLabel={agent.added ? "Save changes" : "Add agent"}
+                                  canSave={agentDraftIsValid(agent, autonomousActions)}
+                                  invalidReason="Name, purpose, service principal, and tools are required."
+                                  onRemove={() => removeAgent(agent.key)}
+                                  removeLabel={`Remove ${label}`}
+                                >
+                                  <FieldGrid cols={3}>
+                                    <Field label="Agent name">
+                                      <TextInput value={agent.name} onChange={(e) => updateAgent(agent.key, { name: e.target.value })} aria-label={`Name for agent ${i + 1}`} />
+                                    </Field>
+                                    <Field label="Service principal">
+                                      <TextInput value={agent.servicePrincipal} onChange={(e) => updateAgent(agent.key, { servicePrincipal: e.target.value })} placeholder="spn://system/agent" />
+                                    </Field>
+                                    <Field label="Owner">
+                                      <Select value={agent.ownerOrgId} aria-label={`Owner for ${label}`} onChange={(e) => updateAgent(agent.key, { ownerOrgId: e.target.value })}>
+                                        <option value="">Unassigned</option>
+                                        {ORGS.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}
+                                      </Select>
+                                    </Field>
+                                    <Field label="Autonomy">
+                                      <Select
+                                        value={agent.autonomyLevel}
+                                        aria-label={`Autonomy for ${label}`}
+                                        onChange={(e) => updateAgent(agent.key, {
+                                          autonomyLevel: AGENT_AUTONOMY_LEVELS.find((value) => value === e.target.value) ?? agent.autonomyLevel,
+                                          externalActions: e.target.value === "recommend" ? false : agent.externalActions,
+                                        })}
+                                      >
+                                        {AGENT_AUTONOMY_LEVELS.filter((value) => value !== "autonomous" || autonomousActions).map((value) => <option key={value} value={value}>{value}</option>)}
+                                      </Select>
+                                    </Field>
+                                    <Field label="Privilege">
+                                      <Select value={agent.privilegeLevel} aria-label={`Privilege for ${label}`} onChange={(e) => updateAgent(agent.key, { privilegeLevel: AGENT_PRIVILEGE_LEVELS.find((value) => value === e.target.value) ?? agent.privilegeLevel })}>
+                                        {AGENT_PRIVILEGE_LEVELS.map((value) => <option key={value} value={value}>{value}</option>)}
+                                      </Select>
+                                    </Field>
+                                    <Field label="Credential">
+                                      <Select value={agent.credentialType} aria-label={`Credential for ${label}`} onChange={(e) => updateAgent(agent.key, { credentialType: AGENT_CREDENTIAL_TYPES.find((value) => value === e.target.value) ?? agent.credentialType })}>
+                                        {AGENT_CREDENTIAL_TYPES.map((value) => <option key={value} value={value}>{value}</option>)}
+                                      </Select>
+                                    </Field>
+                                    <Field label="Purpose">
+                                      <TextInput value={agent.purpose} onChange={(e) => updateAgent(agent.key, { purpose: e.target.value })} placeholder="What this agent is for" />
+                                    </Field>
+                                    <Field label="Tools / resources">
+                                      <TextInput value={agent.tools} onChange={(e) => updateAgent(agent.key, { tools: e.target.value })} placeholder="Search, tickets, deployment" />
+                                    </Field>
+                                    <Field label="Revocation">
+                                      <Select value={agent.revocationMechanism} aria-label={`Revocation for ${label}`} onChange={(e) => updateAgent(agent.key, { revocationMechanism: AGENT_REVOCATION_MECHANISMS.find((value) => value === e.target.value) ?? agent.revocationMechanism })}>
+                                        {AGENT_REVOCATION_MECHANISMS.map((value) => <option key={value} value={value}>{value}</option>)}
+                                      </Select>
+                                    </Field>
+                                  </FieldGrid>
+                                  <Well hollow className="grid gap-2.5 grid-cols-1 sm:grid-cols-3">
+                                    <CheckRow
+                                      checked={agent.externalActions}
+                                      onChange={(checked) => updateAgent(agent.key, { externalActions: checked })}
+                                      label="External actions"
+                                    />
+                                    <CheckRow
+                                      checked={agent.canImpersonateUser}
+                                      onChange={(checked) => updateAgent(agent.key, { canImpersonateUser: checked })}
+                                      label="Can impersonate user"
+                                    />
+                                    <CheckRow
+                                      checked={agent.loggingEnabled}
+                                      onChange={(checked) => updateAgent(agent.key, { loggingEnabled: checked })}
+                                      label="Activity logging"
+                                    />
+                                  </Well>
+                                </EntityCard>
+                              );
+                            })}
+                          </EntityList>
+                        )}
+                      <AddButton onClick={addAgent} disabled={agentDrafts.some((agent) => !agent.saved)}>
+                        {agentDrafts.length === 0 ? "Add agent" : "Add another agent"}
+                      </AddButton>
+                    </Section>
+                  )}
+                </StepBody>
+              </>
+            )}
+
+            {step === 6 && (
+              <>
+                <StepHeader
+                  step={6}
+                  total={total}
+                  title="Resilience & secure development"
+                  description="Optional operational posture: backup configuration, proven disaster-recovery tests, and secure-development safeguards. Leave a section off if it hasn't actually been set up yet — an absent record reads honestly as “not yet on record”, not a fabricated zero."
+                />
+                <StepBody>
+                  <Section icon={DatabaseBackup} title="Backup & recovery" description="How durable this system's data is, and how quickly it can be restored.">
+                    <ToggleCard
+                      checked={trackBackup}
+                      onChange={setTrackBackup}
+                      title="Backup configuration on record"
+                      description="Turn this on once a backup job actually exists for this system."
+                    >
+                      {trackBackup && (
+                        <div className="flex flex-col gap-4">
+                          <FieldGrid cols={3}>
+                            <Field label="Coverage %" note="Share of in-scope assets actually covered by a backup job." error={coverageError}>
+                              <TextInput type="number" min={0} max={100} value={backupCoveragePct} onChange={(e) => setBackupCoveragePct(e.target.value)} />
+                            </Field>
+                            <Field label="RPO target (minutes)" error={rpoError}>
+                              <TextInput type="number" min={1} value={backupRpoTargetMinutes} onChange={(e) => setBackupRpoTargetMinutes(e.target.value)} />
+                            </Field>
+                            <Field label="RTO target (minutes)" error={rtoError}>
+                              <TextInput type="number" min={1} value={backupRtoTargetMinutes} onChange={(e) => setBackupRtoTargetMinutes(e.target.value)} />
+                            </Field>
+                          </FieldGrid>
+                          <Well hollow className="grid gap-2.5 grid-cols-1 sm:grid-cols-3">
+                            <CheckRow checked={backupEnabled} onChange={setBackupEnabled} label="Backups enabled" />
+                            <CheckRow checked={backupImmutable} onChange={setBackupImmutable} label="Immutable backups" />
+                            <CheckRow checked={backupCrossRegion} onChange={setBackupCrossRegion} label="Cross-region copy" />
+                          </Well>
+                        </div>
+                      )}
+                    </ToggleCard>
+                  </Section>
+
+                  <Section
+                    icon={History}
+                    title="Disaster recovery tests"
+                    description="Proven restores, not just a green backup job — add one row per test conducted."
+                    aside={<StatusPill tone={drTestDrafts.length > 0 && drTestsValid ? "success" : "neutral"}>{drTestDrafts.length} test{drTestDrafts.length === 1 ? "" : "s"}</StatusPill>}
+                  >
+                    {drTestDrafts.length === 0
+                      ? <EmptyState>No disaster-recovery test on record yet.</EmptyState>
+                      : (
+                        <EntityList>
+                          {drTestDrafts.map((t, i) => (
+                            <EntityCard
+                              key={t.key}
+                              code={`DR${i + 1}`}
+                              title={`DR test ${i + 1}`}
+                              summary={`${t.conductedAt || "no date"} · ${t.restoreSuccessful ? "restore succeeded" : "restore failed"} · every ${t.cadenceDays} days`}
+                              expanded={t.expanded}
+                              saved={t.saved}
+                              onExpand={() => expandDrTest(t.key)}
+                              onSave={() => saveDrTest(t.key)}
+                              saveLabel="Save test"
+                              canSave={drTestDraftIsValid(t)}
+                              invalidReason="Enter a scope, a valid date, and — if the restore failed — what went wrong."
+                              onRemove={() => removeDrTest(t.key)}
+                              removeLabel={`Remove DR test ${i + 1}`}
+                            >
+                              <FieldGrid cols={3}>
+                                <Field label="Conducted">
+                                  <TextInput type="date" value={t.conductedAt} aria-label={`Date of DR test ${i + 1}`} onChange={(e) => updateDrTest(t.key, { conductedAt: e.target.value })} />
+                                </Field>
+                                <Field label="Cadence (days)">
+                                  <TextInput type="number" min={1} value={t.cadenceDays} aria-label={`Cadence of DR test ${i + 1}`} onChange={(e) => updateDrTest(t.key, { cadenceDays: e.target.value })} />
+                                </Field>
+                                <Field label="Restore successful">
+                                  <Select value={t.restoreSuccessful ? "yes" : "no"} aria-label={`Restore outcome of DR test ${i + 1}`} onChange={(e) => updateDrTest(t.key, { restoreSuccessful: e.target.value === "yes" })}>
+                                    <option value="yes">Yes</option>
+                                    <option value="no">No</option>
+                                  </Select>
+                                </Field>
+                                <Field label="Actual RPO (minutes)">
+                                  <TextInput type="number" min={0} value={t.actualRpoMinutes} aria-label={`Actual RPO of DR test ${i + 1}`} onChange={(e) => updateDrTest(t.key, { actualRpoMinutes: e.target.value })} />
+                                </Field>
+                                <Field label="Actual RTO (minutes)">
+                                  <TextInput type="number" min={0} value={t.actualRtoMinutes} aria-label={`Actual RTO of DR test ${i + 1}`} onChange={(e) => updateDrTest(t.key, { actualRtoMinutes: e.target.value })} />
+                                </Field>
+                                <Field label="Scope">
+                                  <TextInput value={t.scope} aria-label={`Scope of DR test ${i + 1}`} onChange={(e) => updateDrTest(t.key, { scope: e.target.value })} placeholder="What this test exercised" />
+                                </Field>
+                              </FieldGrid>
+                              {!t.restoreSuccessful && (
+                                <FieldGrid cols={1}>
+                                  <Field
+                                    label="Issues"
+                                    note="Required when the restore didn't succeed — what went wrong."
+                                    error={t.issues.trim() ? null : "Describe what went wrong."}
+                                  >
+                                    <TextArea value={t.issues} aria-label={`Issues from DR test ${i + 1}`} onChange={(e) => updateDrTest(t.key, { issues: e.target.value })} />
+                                  </Field>
+                                </FieldGrid>
+                              )}
+                            </EntityCard>
+                          ))}
+                        </EntityList>
+                      )}
+                    <AddButton onClick={addDrTest} disabled={drTestDrafts.some((t) => !t.saved)}>
+                      {drTestDrafts.length === 0 ? "Add DR test" : "Add another DR test"}
+                    </AddButton>
+                  </Section>
+
+                  <Section icon={Code2} title="Secure development posture" description={`Only meaningful if ACME writes code for this system — see “Custom software” on the Technology step.`}>
+                    <ToggleCard
+                      checked={trackSdlc}
+                      onChange={setTrackSdlc}
+                      title="Secure-development posture on record"
+                      description="Turn this on once someone has actually reviewed this system's SDLC safeguards."
+                    >
+                      {trackSdlc && (sdlcApplicable ? (
+                        <div className="flex flex-col gap-4">
+                          <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+                            {SDLC_SAFEGUARD_GROUPS.map((group) => (
+                              <Well key={group.label} className="flex flex-col gap-2.5">
+                                <div className={TX.label} style={{ color: C.muted }}>{group.label}</div>
+                                {group.keys.map((key) => (
+                                  <CheckRow
+                                    key={key}
+                                    checked={sdlcSafeguards[key]}
+                                    onChange={(checked) => updateSdlcSafeguard(key, checked)}
+                                    label={SDLC_SAFEGUARD_LABELS[key]}
+                                  />
+                                ))}
+                              </Well>
                             ))}
                           </div>
-                          <div className="mt-3">
+                          <FieldGrid cols={3}>
                             <Field label="Last threat model" note="Optional — leave blank if none is on record.">
                               <TextInput type="date" value={lastThreatModelAt} onChange={(e) => setLastThreatModelAt(e.target.value)} />
                             </Field>
-                          </div>
+                          </FieldGrid>
                         </div>
                       ) : (
-                        <div className="mt-3">
-                          <Field label="Not-applicable reason" note="Required — why secure-development controls don't apply to this system.">
+                        <FieldGrid cols={1}>
+                          <Field
+                            label="Not-applicable reason"
+                            note="Required — why secure-development controls don't apply to this system."
+                            error={sdlcValid ? null : "A reason is required."}
+                          >
                             <TextArea value={sdlcNotApplicableReason} onChange={(e) => setSdlcNotApplicableReason(e.target.value)} />
                           </Field>
-                          {!sdlcValid && (
-                            <div className="flex items-center gap-2 text-[10.5px] mt-2" style={{ color: C.amber }}>
-                              <Info size={13} /> A reason is required.
-                            </div>
-                          )}
-                        </div>
-                      )
-                    )}
-                  </ToggleCard>
-                </TechnologySection>
-              </div>
-            </div>
-          )}
+                        </FieldGrid>
+                      ))}
+                    </ToggleCard>
+                  </Section>
+                </StepBody>
+              </>
+            )}
 
-          {step === 7 && (
-            <div>
-              <div className="text-[10px] uppercase tracking-widest font-mono mb-1" style={{ color: C.accent }}>Step 7 of 8</div>
-              <h2 className="text-lg font-semibold mb-1" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Derived scope</h2>
-              <p className="text-xs mb-5 max-w-[60ch]" style={{ color: C.muted }}>
-                Classification and the four review buckets are derived from your entries. Nothing here is a claimed assessment — an assessor confirms and grades these controls on the system screen after create.
-              </p>
+            {step === 7 && (
+              <>
+                <StepHeader
+                  step={7}
+                  total={total}
+                  title="Derived scope"
+                  description="Classification and the four review buckets are derived from your entries. Nothing here is a claimed assessment — an assessor confirms and grades these controls on the system screen after create."
+                />
 
-              {checking && <div className="text-sm" style={{ color: C.muted }}>Checking…</div>}
+                {checking && <Callout tone="info" title="Checking…">Recomputing the derived scope from your entries.</Callout>}
 
-              {!checking && dryRun && dryRun.problems.length === 0 && (
-                <>
-                  <div className="grid grid-cols-3 gap-3 mb-5">
-                    <div className="rounded-xl p-4 flex items-center justify-between" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                      <div>
-                        <div className="text-lg font-bold" style={{ fontFamily: "'Source Serif 4', serif", color: C.ink }}>{dryRun.classification ?? "—"}</div>
-                        <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>Classification</div>
+                {!checking && dryRun && dryRun.problems.length === 0 && (
+                  <StepBody>
+                    <Section icon={Gauge} title="Derived posture" description="Computed from the facts you entered — not a recorded assessment result.">
+                      <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
+                        <StatTile
+                          label="Classification"
+                          value={dryRun.classification ?? "—"}
+                          aside={dryRun.classification ? <ClassificationTag level={dryRun.classification} /> : undefined}
+                        />
+                        <StatTile
+                          label="Proposed assurance"
+                          hint="Unconfirmed"
+                          value={`${dryRun.assurance ?? "—"}${dryRun.assurance != null ? "%" : ""}`}
+                          aside={dryRun.assurance != null ? <AssuranceBadge pct={dryRun.assurance} size={34} /> : undefined}
+                        />
+                        <StatTile
+                          label="Audit-ready preview"
+                          value={<span className="capitalize">{(dryRun.readinessLabel ?? "scope-unconfirmed").replace(/-/g, " ")}</span>}
+                        />
                       </div>
-                      {dryRun.classification && <ClassificationTag level={dryRun.classification} />}
-                    </div>
-                    <div className="rounded-xl p-4 flex items-center justify-between" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                      <div>
-                        <div className="text-lg font-bold" style={{ fontFamily: "'Source Serif 4', serif", color: C.ink }}>{dryRun.assurance ?? "—"}{dryRun.assurance != null ? "%" : ""}</div>
-                        <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>Proposed assurance (unconfirmed)</div>
-                      </div>
-                      {dryRun.assurance != null && <AssuranceBadge pct={dryRun.assurance} size={34} />}
-                    </div>
-                    <div className="rounded-xl p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                      <div className="text-lg font-bold capitalize" style={{ fontFamily: "'Source Serif 4', serif", color: C.ink }}>
-                        {(dryRun.readinessLabel ?? "scope-unconfirmed").replace(/-/g, " ")}
-                      </div>
-                      <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>Audit-ready preview</div>
-                    </div>
-                  </div>
-                  {dryRun.applicability && (
-                    <div className="rounded-xl p-4 mb-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <div className="text-sm font-semibold" style={{ color: C.ink }}>{dryRun.applicability.applicable} applicable controls</div>
-                          <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>
-                            Derived from framework scope, assets, exposure and declared operating characteristics.
-                          </div>
-                        </div>
-                        <div className="text-[11px]" style={{ color: C.muted }}>
-                          {dryRun.applicability.pending} pending applicability review
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-4 gap-2">
-                        {[
-                          ["System owned", dryRun.applicability.byResponsibility.owned],
-                          ["Shared", dryRun.applicability.byResponsibility.shared],
-                          ["Enterprise", dryRun.applicability.byResponsibility.enterprise],
-                          ["Vendor", dryRun.applicability.byResponsibility.vendor],
-                        ].map(([label, value]) => (
-                          <div key={label} className="rounded-lg px-3 py-2.5" style={{ background: C.panel }}>
-                            <div className="text-lg font-bold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{value}</div>
-                            <div className="text-[10.5px]" style={{ color: C.muted }}>{label}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {dryRun.proposedWaves && (
-                    <div className="rounded-xl p-4 mb-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                      <div className="text-sm font-semibold mb-1" style={{ color: C.ink }}>Proposed review queues</div>
-                      <div className="text-[11px] mb-3" style={{ color: C.muted }}>
-                        After create, the assessor walks these in Scope Review. The wizard does not grade controls.
-                      </div>
-                      <div className="grid grid-cols-4 gap-2">
-                        {[
-                          ["Not applicable", dryRun.proposedWaves.notApplicable, "Confirm the derived exclusions"],
-                          ["External inherited", dryRun.proposedWaves.vendorInherited, "Confirm the provider split"],
-                          ["Internal inherited", dryRun.proposedWaves.companyLevel, "Confirm program incorporation"],
-                          ["Remaining technical", dryRun.proposedWaves.remainingTechnical, "PRISMA grade what ACME still owns"],
-                        ].map(([label, value, hint]) => (
-                          <div key={label} className="rounded-lg px-3 py-2.5" style={{ background: C.panel }}>
-                            <div className="text-lg font-bold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{value}</div>
-                            <div className="text-[10.5px] font-semibold" style={{ color: C.ink }}>{label}</div>
-                            <div className="text-[10px] mt-0.5" style={{ color: C.muted }}>{hint}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex items-start gap-2.5 rounded-lg px-4 py-3 text-[12.5px]" style={{ background: C.greenBg, color: C.green }}>
-                    <Check size={16} className="shrink-0 mt-0.5" />
-                    <div><b>Derived scope validated.</b> Continue to assign the assessor, then confirm and grade controls on the system screen.</div>
-                  </div>
-                </>
-              )}
+                    </Section>
 
-              {!checking && dryRun && dryRun.problems.length > 0 && (
-                <>
-                  <div className="flex items-start gap-2.5 rounded-lg px-4 py-3 text-[12.5px] mb-3.5" style={{ background: C.redBg, color: C.red }}>
-                    <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-                    <div><b>{dryRun.problems.length} problem{dryRun.problems.length === 1 ? "" : "s"} found</b> — fix these before this system can be {editingSystemId ? "saved" : "created"}.</div>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {dryRun.problems.map((p, i) => (
-                      <div
-                        key={i}
-                        className="flex items-start gap-2.5 rounded-lg pl-3 pr-3.5 py-2.5 text-xs leading-relaxed"
-                        style={{ background: C.redBg, border: `1px solid ${C.border}`, borderLeftWidth: 3, borderLeftColor: C.red, color: C.ink }}
+                    {dryRun.applicability && (
+                      <Section
+                        icon={ClipboardCheck}
+                        title={`${dryRun.applicability.applicable} applicable controls`}
+                        description="Derived from framework scope, assets, exposure and declared operating characteristics."
+                        aside={<StatusPill tone="neutral">{dryRun.applicability.pending} pending review</StatusPill>}
                       >
-                        <AlertTriangle size={14} color={C.red} className="shrink-0 mt-0.5" />
-                        <span className="flex-1">{p}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+                        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+                          {([
+                            ["System owned", dryRun.applicability.byResponsibility.owned],
+                            ["Shared", dryRun.applicability.byResponsibility.shared],
+                            ["Enterprise", dryRun.applicability.byResponsibility.enterprise],
+                            ["Vendor", dryRun.applicability.byResponsibility.vendor],
+                          ] as const).map(([label, value]) => (
+                            <StatTile key={label} label={label} value={value} />
+                          ))}
+                        </div>
+                      </Section>
+                    )}
 
-      <div className="flex items-center justify-between px-6 py-3.5" style={{ borderTop: `1px solid ${C.border}`, background: C.panel2 }}>
-        <span className="text-[11px] font-mono" style={{ color: C.muted }}>STEP {step} OF {STEPS.length}</span>
-        <div className="flex gap-2.5">
-          <button
-            onClick={goBack}
-            disabled={step === 1}
-            className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-4 py-2"
-            style={{ border: `1px solid ${C.border}`, color: C.ink, opacity: step === 1 ? 0.4 : 1 }}
-          >
-            <ChevronLeft size={14} /> Back
-          </button>
-          {step < STEPS.length ? (
-            <button
-              onClick={goNext}
-              disabled={nextDisabled}
-              className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-4 py-2"
-              style={{ background: C.accent, color: "#fff", opacity: nextDisabled ? 0.4 : 1 }}
-            >
-              Next <ChevronRight size={14} />
-            </button>
-          ) : (
-            <button
-              onClick={handleCreate}
-              disabled={!dryRun || dryRun.problems.length > 0 || !canLaunch || saving}
-              className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-4 py-2"
-              style={{ background: C.accent, color: "#fff", opacity: (!dryRun || dryRun.problems.length > 0 || !canLaunch || saving) ? 0.4 : 1 }}
-            >
-              <Check size={14} /> {editingSystemId ? "Save Changes" : "Create System"}
-            </button>
-          )}
+                    {dryRun.proposedWaves && (
+                      <Section
+                        icon={ListChecks}
+                        title="Proposed review queues"
+                        description="After create, the assessor walks these in Scope Review. The wizard does not grade controls."
+                      >
+                        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+                          {([
+                            ["Not applicable", dryRun.proposedWaves.notApplicable, "Confirm the derived exclusions"],
+                            ["External inherited", dryRun.proposedWaves.vendorInherited, "Confirm the provider split"],
+                            ["Internal inherited", dryRun.proposedWaves.companyLevel, "Confirm program incorporation"],
+                            ["Remaining technical", dryRun.proposedWaves.remainingTechnical, "PRISMA grade what ACME still owns"],
+                          ] as const).map(([label, value, hint]) => (
+                            <StatTile key={label} label={label} value={value} hint={hint} />
+                          ))}
+                        </div>
+                      </Section>
+                    )}
+
+                    <Callout tone="success" title="Derived scope validated.">
+                      Continue to assign the assessor, then confirm and grade controls on the system screen.
+                    </Callout>
+                  </StepBody>
+                )}
+
+                {!checking && dryRun && dryRun.problems.length > 0 && (
+                  <StepBody>
+                    <Callout tone="danger" title={`${dryRun.problems.length} problem${dryRun.problems.length === 1 ? "" : "s"} found.`}>
+                      Fix these before this system can be {editingSystemId ? "saved" : "created"}.
+                    </Callout>
+                    <Section icon={AlertTriangle} title="What the graph rejected" description="Each line comes from the same validators that guard the committed graph.">
+                      <Well padded={false} className="overflow-hidden">
+                        {dryRun.problems.map((p, i) => (
+                          <div
+                            key={i}
+                            className="px-3.5 py-2.5"
+                            style={{ borderBottom: i < dryRun.problems.length - 1 ? `1px solid ${C.border}` : undefined }}
+                          >
+                            <InlineHint tone="danger">{p}</InlineHint>
+                          </div>
+                        ))}
+                      </Well>
+                    </Section>
+                  </StepBody>
+                )}
+              </>
+            )}
+
+            {step === 8 && (
+              <>
+                <StepHeader
+                  step={8}
+                  total={total}
+                  title="Launch assessment"
+                  description={`Assign the assessment and set its target date. ${editingSystemId ? "Saving recalculates the system's scope without changing its recorded evidence." : "Creating the system opens Scope Review. External- and internal-inherited coverage stay unclaimed until an assessor confirms them."}`}
+                />
+                <StepBody>
+                  <Section icon={Gauge} title="Initial assessment plan" description="What the engine will propose the moment this system exists.">
+                    <Callout tone="info" title="Proposed, not claimed.">
+                      Controls in {provider || "the chosen provider"}'s certified domains are proposed as vendor-inherited from its
+                      reports. They are not a standing claim until an assessor confirms that split on the system screen.
+                    </Callout>
+                  </Section>
+
+                  <Section icon={UserCheck} title="Assessment assignment" description="Who is accountable for the evidence, and when the assessment period ends.">
+                    <FieldGrid cols={2}>
+                      <Field label="Assessor of record" note="The person accountable for reviewing the evidence and recording the assessment.">
+                        <TextInput value={assessor} onChange={(e) => setAssessor(e.target.value)} placeholder="e.g. J. Ortiz — Security Engineering" />
+                      </Field>
+                      <Field label="Target completion" note="The assessment period ends on this date.">
+                        <TextInput type="date" value={assessmentTarget} onChange={(e) => setAssessmentTarget(e.target.value)} />
+                      </Field>
+                    </FieldGrid>
+                  </Section>
+                </StepBody>
+              </>
+            )}
+          </div>
         </div>
+
+        <footer className="flex items-center gap-4 px-6 py-3.5" style={{ borderTop: `1px solid ${C.border}`, background: C.panel }}>
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <span className={`${TX.eyebrow} shrink-0`} style={{ color: C.muted }}>Step {step} of {total}</span>
+            {blockReason && <InlineHint tone="warning">{blockReason}</InlineHint>}
+          </div>
+          <div className="flex items-center gap-2.5 shrink-0">
+            <Button icon={ChevronLeft} onClick={goBack} disabled={step === 1}>Back</Button>
+            {!isLastStep ? (
+              <Button variant="primary" iconRight={ChevronRight} onClick={goNext} disabled={nextDisabled}>Next</Button>
+            ) : (
+              <Button
+                variant="primary"
+                icon={Check}
+                onClick={handleCreate}
+                disabled={!dryRun || dryRun.problems.length > 0 || !canLaunch || saving}
+              >
+                {saving ? "Saving…" : editingSystemId ? "Save changes" : "Create system"}
+              </Button>
+            )}
+          </div>
+        </footer>
       </div>
     </Modal>
   );
