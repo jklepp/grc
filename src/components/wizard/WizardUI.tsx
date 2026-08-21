@@ -1,5 +1,6 @@
+import React from "react";
 import type { ComponentProps, CSSProperties, ReactNode } from "react";
-import { AlertTriangle, Check, Info, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, Info, Plus, Search, Trash2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { C } from "../../theme";
 
@@ -83,11 +84,16 @@ export function StepBody({ children }: { children: ReactNode }) {
   return <div className="flex flex-col gap-4">{children}</div>;
 }
 
-export function Section({ icon: Icon, title, description, aside, children }: {
-  icon: LucideIcon; title: string; description?: string; aside?: ReactNode; children: ReactNode;
+// `grow` lets a Section fill a flex column and hand its own body the height,
+// so a long list can scroll inside the card instead of the whole step.
+export function Section({ icon: Icon, title, description, aside, grow = false, children }: {
+  icon: LucideIcon; title: string; description?: string; aside?: ReactNode; grow?: boolean; children: ReactNode;
 }) {
   return (
-    <section style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: WZ.radius.card }}>
+    <section
+      className={grow ? "flex-1 min-h-0 flex flex-col" : undefined}
+      style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: WZ.radius.card }}
+    >
       <header className="flex items-start gap-3 px-4 py-3.5" style={{ borderBottom: `1px solid ${C.border}` }}>
         <span
           className="w-7 h-7 flex items-center justify-center shrink-0"
@@ -101,7 +107,7 @@ export function Section({ icon: Icon, title, description, aside, children }: {
         </div>
         {aside && <div className="shrink-0">{aside}</div>}
       </header>
-      <div className="p-4 flex flex-col gap-4">{children}</div>
+      <div className={`p-4 flex flex-col gap-4 ${grow ? "flex-1 min-h-0" : ""}`}>{children}</div>
     </section>
   );
 }
@@ -495,4 +501,289 @@ export function EntityCard({
 // The list wrapper every entity list uses: rows, then one AddButton.
 export function EntityList({ children }: { children: ReactNode }) {
   return <div className="flex flex-col gap-3">{children}</div>;
+}
+
+/* ------------------------------------------------------------ wizard shell -- */
+
+// The chrome every wizard modal shares: header / rail / body / footer, plus
+// the --wz-* custom properties that drive the focus, hover and disabled rules
+// in index.css. Wrapping the modal's children in one element also keeps the
+// header and footer out of the scrolling region.
+// Publishes the --wz-* custom properties the focus / hover / disabled rules in
+// index.css read. Any surface built from these primitives needs it, including
+// panels that live on a page rather than inside a modal.
+export function WizardTokens({ className, children }: { className?: string; children: ReactNode }) {
+  return (
+    <div
+      className={className}
+      style={{ "--wz-accent": C.accent, "--wz-ring": C.accentBg, "--wz-hover": C.panel2 } as CSSProperties}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function WizardChrome({ children }: { children: ReactNode }) {
+  return <WizardTokens className="flex flex-col flex-1 min-h-0">{children}</WizardTokens>;
+}
+
+export function WizardHeader({ icon: Icon, title, description, aside, onClose }: {
+  icon: LucideIcon; title: string; description: string; aside?: ReactNode; onClose?: ReactNode;
+}) {
+  return (
+    <header className="flex items-start justify-between gap-4 px-6 py-4" style={{ borderBottom: `1px solid ${C.border}`, background: C.panel }}>
+      <div className="flex items-start gap-3 min-w-0">
+        <span
+          className="w-8 h-8 flex items-center justify-center shrink-0"
+          style={{ background: C.accentBg, color: C.accent, borderRadius: WZ.radius.control }}
+        >
+          <Icon size={16} />
+        </span>
+        <div className="min-w-0">
+          <h1 className={TX.modalTitle} style={{ color: C.ink, fontFamily: WZ.serif }}>{title}</h1>
+          <p className={`${TX.help} mt-1.5 max-w-[90ch]`} style={{ color: C.muted }}>{description}</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-4 shrink-0">
+        {aside}
+        {onClose}
+      </div>
+    </header>
+  );
+}
+
+// A labelled control that sits in wizard chrome rather than in a form body —
+// the reviewer of record in a header, a search box above a list.
+export function InlineField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="flex items-center gap-2 shrink-0">
+      <span className={TX.label} style={{ color: C.muted }}>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+// A read-only counter in wizard chrome ("Scope decided 12 of 40").
+export function HeaderStat({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="text-right shrink-0">
+      <div className={TX.label} style={{ color: C.muted }}>{label}</div>
+      <div className={`${TX.body} font-semibold mt-1`} style={{ color: C.ink }}>{value}</div>
+    </div>
+  );
+}
+
+// minmax(0,1fr) row: an implicit auto row would grow to its content and defeat
+// the panes' own overflow-y-auto scrolling.
+export function WizardBody({ children }: { children: ReactNode }) {
+  return (
+    <div
+      className="flex-1 min-h-0 grid grid-cols-[172px_minmax(0,1fr)] lg:grid-cols-[208px_minmax(0,1fr)]"
+      style={{ gridTemplateRows: "minmax(0, 1fr)" }}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function WizardRail({ label = "Wizard steps", children }: { label?: string; children: ReactNode }) {
+  return (
+    <nav aria-label={label} className="p-3 overflow-y-auto" style={{ borderRight: `1px solid ${C.border}`, background: C.panel }}>
+      {children}
+    </nav>
+  );
+}
+
+// `connected` draws the vertical run between items — reserved for a real
+// sequence. An unordered set of destinations gets a `label` instead.
+export function RailGroup({ label, connected = false, children }: {
+  label?: string; connected?: boolean; children: ReactNode;
+}) {
+  const items = React.Children.toArray(children).filter(Boolean);
+  return (
+    <div className="mb-2 last:mb-0">
+      {label && <div className={`${TX.label} px-2.5 pb-2`} style={{ color: C.muted }}>{label}</div>}
+      {items.map((child, i) => (
+        <React.Fragment key={i}>
+          {child}
+          {connected && i < items.length - 1 && (
+            <div style={{ width: 1.5, height: 10, marginLeft: 21, background: C.border }} />
+          )}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+export type RailState = "active" | "done" | "pending";
+
+// The one rail row. `marker` is a step number, `icon` a glyph — done always
+// wins and shows a check, so "finished" reads the same in every wizard.
+export function RailItem({ icon: Icon, marker, title, detail, state, onClick, disabled, ariaLabel }: {
+  icon?: LucideIcon;
+  marker?: ReactNode;
+  title: string;
+  detail?: ReactNode;
+  state: RailState;
+  onClick?: () => void;
+  disabled?: boolean;
+  ariaLabel?: string;
+}) {
+  const isActive = state === "active";
+  const isDone = state === "done";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={ariaLabel ?? title}
+      title={title}
+      aria-current={isActive ? "step" : undefined}
+      className={`wz-focusable ${isActive ? "" : "wz-hover"} w-full text-left flex items-start gap-2.5 px-2.5 py-2 mb-1 transition-colors`}
+      style={{
+        background: isActive ? C.accentBg : undefined,
+        border: `1px solid ${isActive ? C.accent : "transparent"}`,
+        borderRadius: WZ.radius.control,
+      }}
+    >
+      <span
+        className={`${TX.code} w-[22px] h-[22px] rounded-full flex items-center justify-center shrink-0`}
+        style={{
+          border: `1.5px solid ${isActive ? C.accent : isDone ? C.green : C.border}`,
+          background: isActive ? C.accent : isDone ? C.greenBg : "transparent",
+          color: isActive ? WZ.onAccent : isDone ? C.green : C.muted,
+        }}
+      >
+        {isDone ? <Check size={11} /> : Icon ? <Icon size={11} /> : marker}
+      </span>
+      <span className="min-w-0 pt-0.5 flex-1">
+        <span className={`block ${TX.railTitle} truncate`} style={{ color: C.ink }}>{title}</span>
+        {detail && <span className={`block ${TX.help} mt-1`} style={{ color: C.muted }}>{detail}</span>}
+      </span>
+    </button>
+  );
+}
+
+// Step position on the left, blocking reason next to it, actions on the right —
+// the same footer grammar in every wizard.
+export function WizardFooter({ position, hint, children }: {
+  position: ReactNode; hint?: ReactNode; children?: ReactNode;
+}) {
+  return (
+    <footer className="flex items-center gap-4 px-6 py-3.5" style={{ borderTop: `1px solid ${C.border}`, background: C.panel }}>
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        <span className={`${TX.eyebrow} shrink-0`} style={{ color: C.muted }}>{position}</span>
+        {hint}
+      </div>
+      {children && <div className="flex items-center gap-2.5 shrink-0">{children}</div>}
+    </footer>
+  );
+}
+
+export function ProgressBar({ value, total, label }: { value: number; total: number; label?: string }) {
+  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+  return (
+    <div
+      className="flex-1 h-1 overflow-hidden"
+      role="progressbar"
+      aria-valuenow={value}
+      aria-valuemin={0}
+      aria-valuemax={total}
+      aria-label={label}
+      style={{ background: C.border, borderRadius: WZ.radius.pill }}
+    >
+      <div
+        className="h-full"
+        style={{ background: C.accent, width: `${pct}%`, borderRadius: WZ.radius.pill, transition: "width 320ms ease" }}
+      />
+    </div>
+  );
+}
+
+// Every wizard ends the same way: one green mark, the headline, what was
+// recorded, the tiles that prove it, who signed it, and the way onward.
+export function CompletionScreen({ title, description, tiles, signature, children }: {
+  title: string;
+  description: ReactNode;
+  tiles?: ReactNode;
+  signature?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center text-center px-2 py-6">
+      <div
+        className="w-14 h-14 rounded-full flex items-center justify-center mb-4"
+        style={{ background: C.greenBg, border: `1px solid ${C.green}44`, color: C.green }}
+      >
+        <Check size={26} />
+      </div>
+      <h2 className={TX.stepTitle} style={{ color: C.ink, fontFamily: WZ.serif }}>{title}</h2>
+      <p className={`${TX.lead} mt-2.5 max-w-[62ch]`} style={{ color: C.muted }}>{description}</p>
+      {tiles && <div className="mt-7 w-full max-w-2xl">{tiles}</div>}
+      {signature && <div className={`${TX.help} mt-6`} style={{ color: C.muted }}>{signature}</div>}
+      {children && <div className="flex items-center gap-2.5 mt-6 flex-wrap justify-center">{children}</div>}
+    </div>
+  );
+}
+
+// A two-line decision button — the choice a wizard offers on the item in
+// front of you. Same tone vocabulary as Button, sized for a pair side by side.
+export function ActionCard({ icon: Icon, title, description, tone = "secondary", onClick, disabled }: {
+  icon: LucideIcon; title: string; description: string;
+  tone?: "primary" | "secondary" | "danger"; onClick: () => void; disabled?: boolean;
+}) {
+  const edge = tone === "danger" ? C.red : tone === "primary" ? C.accent : C.border;
+  const ink = tone === "danger" ? C.red : tone === "primary" ? WZ.onAccent : C.ink;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={`${title} — ${description}`}
+      className={`wz-focusable ${tone === "primary" ? "wz-lift" : "wz-hover"} flex-1 min-w-0 text-left px-4 py-3.5 transition-colors`}
+      style={{
+        background: tone === "primary" ? C.accent : undefined,
+        border: `1px solid ${edge}`,
+        borderRadius: WZ.radius.control,
+      }}
+    >
+      <span className={`${TX.itemTitle} flex items-center gap-2`} style={{ color: ink }}>
+        <Icon size={14} className="shrink-0" /> {title}
+      </span>
+      <span className={`${TX.help} block mt-1.5`} style={{ color: tone === "primary" ? "rgba(255,255,255,0.78)" : C.muted }}>
+        {description}
+      </span>
+    </button>
+  );
+}
+
+// A search box that owns its own row. One search affordance for every wizard
+// list, rather than a bespoke bordered div per screen.
+export function SearchInput({ value, onChange, placeholder, ariaLabel, className = "" }: {
+  value: string; onChange: (value: string) => void; placeholder: string; ariaLabel: string; className?: string;
+}) {
+  return (
+    <div className={`relative min-w-0 ${className}`}>
+      <Search size={14} color={C.muted} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+      <TextInput
+        value={value}
+        aria-label={ariaLabel}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className="pl-9"
+      />
+    </div>
+  );
+}
+
+// The one way a failed commit is reported: the validator's own lines, in the
+// danger tone, above the thing that could not be saved.
+export function SaveErrorCallout({ problems }: { problems: readonly string[] }) {
+  return (
+    <Callout tone="danger" title="Couldn't save — the change would leave the assessment inconsistent.">
+      <ul className="mt-1.5 flex flex-col gap-1">
+        {problems.map((problem, i) => <li key={i} className={TX.help} style={{ color: C.ink }}>{problem}</li>)}
+      </ul>
+    </Callout>
+  );
 }

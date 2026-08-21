@@ -3,7 +3,7 @@ import type { CSSProperties, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Link2, BookOpenText, Layers, FileCheck2, Wrench, Gauge, Plus, Pencil, Trash2, ChevronDown, ChevronRight,
-  Check, ScrollText, Network, ClipboardCheck,
+  ScrollText, Network, ClipboardCheck,
 } from "lucide-react";
 import { C } from "../../theme";
 import {
@@ -27,6 +27,10 @@ import { STATUS_META, IMPLEMENTATION_META, RESPONSIBILITY_META, ratingColor, ass
 import { POLICY_BY_CONTROL, PROCEDURE_BY_CONTROL } from "./policyLookup";
 import { BasisTag } from "../../components/BasisTag";
 import Modal, { ModalCloseButton } from "../../components/Modal";
+import {
+  Button, InlineField, InlineHint, ProgressBar, RailGroup, RailItem, SaveErrorCallout, TextInput, TX,
+  WizardBody, WizardChrome, WizardFooter, WizardRail, WZ,
+} from "../../components/wizard/WizardUI";
 import { fieldLabel, inputStyle, selectedValue } from "./formHelpers";
 import type { AssetOption } from "./formHelpers";
 import type { ControlAssessment, ControlEvidenceDraft, ControlInstance, EvidenceDraft, EngineFinding, FindingDraft, LevelRating, ScoredEvidence } from "../../engine";
@@ -142,10 +146,13 @@ function remediationBadgeStyle(colorKey: string): CSSProperties {
 
 function GlancePill({ Icon, label, value, color }: { Icon: LucideIcon; label: ReactNode; value: ReactNode; color?: string }) {
   return (
-    <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+    <div
+      className="flex items-center gap-1.5 px-2.5 py-1.5"
+      style={{ background: C.panel2, border: `1px solid ${C.border}`, borderRadius: WZ.radius.control }}
+    >
       <Icon size={12} color={C.muted} className="shrink-0" />
-      <span className="text-[9.5px] uppercase tracking-wide" style={{ color: C.muted }}>{label}</span>
-      <span className="text-[11px] font-semibold" style={{ color: color ?? C.ink }}>{value}</span>
+      <span className={TX.label} style={{ color: C.muted }}>{label}</span>
+      <span className={`${TX.help} font-semibold`} style={{ color: color ?? C.ink }}>{value}</span>
     </div>
   );
 }
@@ -757,12 +764,13 @@ export function ControlEvaluationPanel({
 
   return (
     <Modal open onClose={onClose} width={1180} height={840}>
+      <WizardChrome>
       {/* ---- Header ---- */}
-      <div className="flex items-start justify-between px-6 py-4 gap-4" style={{ borderBottom: `1px solid ${C.border}` }}>
+      <div className="flex items-start justify-between px-6 py-4 gap-4" style={{ borderBottom: `1px solid ${C.border}`, background: C.panel }}>
         <div className="flex items-center justify-between gap-4 flex-1 min-w-0">
           <div className="min-w-0">
-            <div className="text-xs uppercase tracking-wide mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>{row.control.id} · {row.control.domain}</div>
-            <h2 className="text-xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>{row.control.name}</h2>
+            <div className={`${TX.eyebrow} mb-1.5`} style={{ color: C.accent }}>{row.control.id} · {row.control.domain}</div>
+            <h2 className={TX.modalTitle} style={{ color: C.ink, fontFamily: WZ.serif }}>{row.control.name}</h2>
           </div>
           <div className="flex items-center gap-2 flex-wrap shrink-0">
             <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded" style={{ background: statusMeta.bg, color: statusMeta.color }}>
@@ -786,103 +794,65 @@ export function ControlEvaluationPanel({
 
       {/* ---- Walk strip: overall progress + reviewer of record ---- */}
       {walk && (
-        <div className="flex items-center gap-3 px-6 py-2.5" style={{ borderBottom: `1px solid ${C.border}`, background: C.panel2 }}>
+        <div className="flex items-center gap-3 px-6 py-2.5" style={{ borderBottom: `1px solid ${C.border}`, background: C.panel }}>
           <ClipboardCheck size={13} color={C.accent} className="shrink-0" />
-          <span className="text-[10.5px] uppercase tracking-wide font-semibold shrink-0" style={{ color: C.muted }}>
+          <span className={`${TX.label} shrink-0`} style={{ color: C.muted }}>
             Assessed {walk.decidedCount} of {walk.initialTotal}
           </span>
-          <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: C.border }}>
-            <div
-              className="h-full rounded-full"
-              style={{
-                background: C.accent,
-                width: `${walk.initialTotal ? Math.round((walk.decidedCount / walk.initialTotal) * 100) : 0}%`,
-                transition: "width 320ms ease",
-              }}
+          <ProgressBar value={walk.decidedCount} total={walk.initialTotal} label="Key controls assessed" />
+          <InlineField label="Reviewer">
+            <TextInput
+              value={walk.reviewer}
+              onChange={(e) => walk.onReviewerChange(e.target.value)}
+              placeholder="Assessor of record"
+              aria-label="Reviewer of record"
+              style={{ width: 190, borderColor: walkReviewerMissing ? C.amber : C.border }}
             />
-          </div>
-          <span className="text-[10.5px] shrink-0" style={{ color: C.muted }}>Reviewer</span>
-          <input
-            value={walk.reviewer}
-            onChange={(e) => walk.onReviewerChange(e.target.value)}
-            className="rounded-lg px-2.5 py-1.5 text-[12px] shrink-0"
-            style={{ background: C.panel, border: `1px solid ${walkReviewerMissing ? C.amber : C.border}`, color: C.ink, width: 190 }}
-            placeholder="Assessor of record"
-          />
+          </InlineField>
         </div>
       )}
 
-      <div className="flex-1 min-h-0 grid" style={{ gridTemplateColumns: "220px 1fr" }}>
+      <WizardBody>
         {/* ---- Rail: walk domains (walk mode only), then this control's steps ---- */}
-        <nav className="p-3 overflow-y-auto" style={{ borderRight: `1px solid ${C.border}`, background: C.panel2 }}>
+        <WizardRail label="Assessment steps">
           {walk && (
-            <>
-              <div className="text-[9.5px] uppercase tracking-wide font-semibold px-2.5 pb-1.5" style={{ color: C.muted }}>Domains</div>
+            <RailGroup label="Domains">
               {walk.domains.map((d) => {
                 const isDone = d.remaining === 0;
-                const isActive = d.domain === walk.activeDomain && !isDone;
                 return (
-                  <button
+                  <RailItem
                     key={d.domain}
-                    type="button"
-                    onClick={() => { if (!isDone) walk.onSelectDomain(d.domain); }}
-                    className="w-full rounded-lg px-2.5 py-2 mb-1 flex items-center gap-2 text-left"
-                    style={{
-                      background: isDone ? C.greenBg : isActive ? C.accentBg : "transparent",
-                      cursor: isDone ? "default" : "pointer",
-                    }}
-                  >
-                    <span
-                      className="w-5 h-5 rounded-md flex items-center justify-center shrink-0"
-                      style={{ background: isDone ? C.green : isActive ? C.accent : C.border, color: isDone || isActive ? "#fff" : C.muted }}
-                    >
-                      {isDone ? <Check size={11} /> : <ClipboardCheck size={11} />}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[11.5px] font-semibold truncate" style={{ color: isDone ? C.green : isActive ? C.accent : C.ink }}>{d.domain}</span>
-                      <span className="block text-[10px] mt-0.5" style={{ color: isDone ? C.green : isActive ? C.accent : C.muted }}>
-                        {isDone ? `${d.total} decided` : `${d.remaining} of ${d.total} remaining`}
-                      </span>
-                    </span>
-                  </button>
+                    icon={ClipboardCheck}
+                    title={d.domain}
+                    detail={isDone ? `${d.total} decided` : `${d.remaining} of ${d.total} remaining`}
+                    state={isDone ? "done" : d.domain === walk.activeDomain ? "active" : "pending"}
+                    disabled={isDone}
+                    onClick={() => walk.onSelectDomain(d.domain)}
+                  />
                 );
               })}
-              <div className="text-[9.5px] uppercase tracking-wide font-semibold px-2.5 pt-3 pb-1.5 mt-2" style={{ color: C.muted, borderTop: `1px solid ${C.border}` }}>
-                This control
-              </div>
-            </>
+            </RailGroup>
           )}
-          {STEPS.map((s) => {
-            const Icon = s.icon;
-            const isActive = s.id === activeStep;
-            const badge = s.id === "findings" ? controlFindings.length : null;
-            return (
-              <button
-                key={s.id}
-                onClick={() => setActiveStep(s.id)}
-                className="w-full text-left flex items-center gap-2.5 rounded-lg px-2.5 py-2.5 mb-1 transition-colors"
-                style={{ background: isActive ? C.accentBg : "transparent" }}
-              >
-                <Icon size={15} color={isActive ? C.accent : C.muted} className="shrink-0" />
-                <span className="text-[12.5px] font-semibold flex-1" style={{ color: isActive ? C.accent : C.ink }}>{s.label}</span>
-                {badge != null && badge > 0 && (
-                  <span className="text-[9.5px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: C.panel, color: C.muted }}>{badge}</span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
+          <RailGroup label={walk ? "This control" : undefined}>
+            {STEPS.map((s) => {
+              const badge = s.id === "findings" ? controlFindings.length : null;
+              return (
+                <RailItem
+                  key={s.id}
+                  icon={s.icon}
+                  title={s.label}
+                  detail={badge != null && badge > 0 ? `${badge} open` : undefined}
+                  state={s.id === activeStep ? "active" : "pending"}
+                  onClick={() => setActiveStep(s.id)}
+                />
+              );
+            })}
+          </RailGroup>
+        </WizardRail>
 
         {/* ---- Content pane ---- */}
         <div className="p-6 overflow-y-auto">
-          {saveError && (
-            <div className="rounded-lg p-3 mb-4" style={{ background: C.redBg, border: `1px solid ${C.red}4D` }}>
-              <div className="text-xs font-semibold mb-1" style={{ color: C.red }}>Couldn't save — the change would leave the assessment inconsistent:</div>
-              <ul className="list-disc pl-4">
-                {saveError.map((problem, i) => <li key={i} className="text-[11px]" style={{ color: C.red }}>{problem}</li>)}
-              </ul>
-            </div>
-          )}
+          {saveError && <div className="mb-4"><SaveErrorCallout problems={saveError} /></div>}
 
           {/* ===== Control Requirements ===== */}
           {activeStep === "requirements" && (
@@ -1392,28 +1362,22 @@ export function ControlEvaluationPanel({
             </div>
           )}
         </div>
-      </div>
+      </WizardBody>
 
       {/* Footer only exists in walk mode: the standalone panel closes when
           you're done, but the walk needs a way past a control you can't
           decide yet without recording a fact you don't stand behind. */}
       {walk && (
-        <div className="flex items-center justify-between px-6 py-3" style={{ borderTop: `1px solid ${C.border}`, background: C.panel2 }}>
-          <span className="text-[11px] font-mono uppercase" style={{ color: C.muted }}>
-            {walk.activeDomain} · {walk.domains.find((d) => d.domain === walk.activeDomain)?.remaining ?? 0} left
-          </span>
-          {walk.onSkip && (
-            <button
-              type="button"
-              onClick={walk.onSkip}
-              className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-4 py-2"
-              style={{ border: `1px solid ${C.border}`, color: C.ink }}
-            >
-              Skip for now <ChevronRight size={14} />
-            </button>
-          )}
-        </div>
+        <WizardFooter
+          position={`${walk.activeDomain} · ${walk.domains.find((d) => d.domain === walk.activeDomain)?.remaining ?? 0} left`}
+          hint={walkReviewerMissing
+            ? <InlineHint tone="warning">Name a reviewer of record before recording an assessment.</InlineHint>
+            : undefined}
+        >
+          {walk.onSkip && <Button iconRight={ChevronRight} onClick={walk.onSkip}>Skip for now</Button>}
+        </WizardFooter>
       )}
+      </WizardChrome>
     </Modal>
   );
 }

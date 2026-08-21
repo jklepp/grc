@@ -1,8 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Check, Wrench } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowRight, Wrench } from "lucide-react";
 import { C } from "../../theme";
 import { useLiveEngine } from "../../engine/useLiveEngine";
 import Modal, { ModalCloseButton } from "../../components/Modal";
+import {
+  Button, CompletionScreen, StatTile, WizardChrome, WizardFooter,
+} from "../../components/wizard/WizardUI";
 import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
 import { keyControlAssessmentQueue } from "./recordAssessment";
 import type { ControlId, SystemId } from "../../graph/ids";
@@ -100,60 +103,40 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
   if (complete) {
     return (
       <Modal open onClose={onClose} width={880} height={620}>
-        <div className="flex items-center justify-end px-5 pt-4">
-          <ModalCloseButton onClose={onClose} />
-        </div>
-        <div className="flex-1 flex flex-col items-center justify-center text-center px-8 pb-10">
-          <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4" style={{ background: C.greenBg, color: C.green }}>
-            <Check size={26} />
+        <WizardChrome>
+          <div className="flex items-center justify-end px-6 pt-4">
+            <ModalCloseButton onClose={onClose} />
           </div>
-          <div className="text-2xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>Control assessment complete</div>
-          <div className="text-[13px] mt-2 max-w-md leading-relaxed" style={{ color: C.muted }}>
-            {skippedCount > 0
-              ? `${decidedCount} of ${initialTotal} applicable key controls on this boundary now have a recorded fact; ${skippedCount} skipped for later.`
-              : "Every applicable key control on this boundary now has a recorded fact behind its score."}
-          </div>
-
-          {domainOrder.length > 0 && (
-            <div
-              className="grid gap-2.5 mt-7 w-full max-w-2xl"
-              style={{ gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))" }}
-            >
-              {domainOrder.map((domain) => (
-                <div key={domain} className="rounded-xl p-3.5" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                  <div className="text-xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{domainTotals[domain]}</div>
-                  <div className="text-[10px] mt-1 leading-tight truncate" style={{ color: C.muted }}>{domain}</div>
+          <div className="flex-1 min-h-0 overflow-y-auto px-8 flex flex-col" style={{ background: C.bg }}>
+            <CompletionScreen
+              title="Control assessment complete"
+              description={skippedCount > 0
+                ? `${decidedCount} of ${initialTotal} applicable key controls on this boundary now have a recorded fact; ${skippedCount} skipped for later.`
+                : "Every applicable key control on this boundary now has a recorded fact behind its score."}
+              tiles={domainOrder.length > 0 ? (
+                <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 xl:grid-cols-4">
+                  {domainOrder.map((domain) => (
+                    <StatTile key={domain} label={domain} value={domainTotals[domain]} />
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-
-          <div className="flex items-center gap-2 mt-6 text-[11px]" style={{ color: C.muted }}>
-            Reviewed by <b style={{ color: C.ink }}>{reviewer.trim() || "unnamed reviewer"}</b> &middot; completed {today()}
+              ) : undefined}
+              signature={<>Reviewed by <b style={{ color: C.ink }}>{reviewer.trim() || "unnamed reviewer"}</b> &middot; completed {today()}</>}
+            />
           </div>
-
-          <div className="flex items-center gap-3 mt-6">
-            {notImplementedCount > 0 && onGoToRemediation ? (
-              <button
-                type="button"
-                onClick={() => { onClose(); onGoToRemediation(); }}
-                className="flex items-center gap-2 text-sm font-semibold rounded-xl px-5 py-3"
-                style={{ background: C.accent, color: "#fff" }}
-              >
-                <Wrench size={15} /> Go to Remediation &middot; {notImplementedCount} control{notImplementedCount === 1 ? "" : "s"} <ArrowRight size={15} />
-              </button>
-            ) : (
-              <button type="button" onClick={onClose} className="text-sm font-semibold rounded-xl px-5 py-3" style={{ background: C.accent, color: "#fff" }}>
-                Close
-              </button>
-            )}
+          <WizardFooter position={`${decidedCount} of ${initialTotal} assessed`}>
             {notImplementedCount > 0 && onGoToRemediation && (
-              <button type="button" onClick={onClose} className="text-sm font-semibold px-4 py-3" style={{ color: C.muted }}>
-                Close for now
-              </button>
+              <Button
+                variant="primary"
+                icon={Wrench}
+                iconRight={ArrowRight}
+                onClick={() => { onClose(); onGoToRemediation(); }}
+              >
+                Go to remediation &middot; {notImplementedCount} control{notImplementedCount === 1 ? "" : "s"}
+              </Button>
             )}
-          </div>
-        </div>
+            <Button onClick={onClose}>Close</Button>
+          </WizardFooter>
+        </WizardChrome>
       </Modal>
     );
   }

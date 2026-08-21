@@ -1,7 +1,9 @@
 import React from "react";
-import { ChevronRight, ClipboardCheck, ShieldCheck, Target, Wrench } from "lucide-react";
+import { Check, ChevronRight, ClipboardCheck, ShieldCheck, Target, Wrench } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { C } from "../../../theme";
 import { SectionHeader } from "../shared/SectionHeader";
+import { Callout, StatusPill, TX, WizardTokens, WZ } from "../../../components/wizard/WizardUI";
 import { REMEDIATION_STATUSES } from "../SystemControls";
 import type { ControlMatrixRow, ApplicabilitySummary } from "../types";
 
@@ -15,61 +17,51 @@ interface AssessmentReadinessProps {
   onRemediateClick: () => void;
 }
 
-function HeroCheckRow({ icon: Icon, title, description, complete, count, onClick }: {
-  icon: typeof Target;
+// One row per check — the same marker, title, description, status pill and
+// affordance whether the check is next up or not. "Next" is carried by the
+// accent border and filled marker, exactly the way a wizard rail marks its
+// active step, rather than by a second component with its own type scale.
+function CheckRow({ icon: Icon, title, description, complete, count, next, onClick }: {
+  icon: LucideIcon;
   title: string;
   description: string;
   complete: boolean;
   count: number;
+  next: boolean;
   onClick: () => void;
 }) {
-  const color = complete ? C.green : C.red;
-  const background = complete ? C.greenBg : C.redBg;
   return (
     <button
       type="button"
       onClick={onClick}
-      className="w-full flex items-center gap-4 p-4 text-left rounded-xl transition-colors"
-      style={{ background }}
+      aria-label={`${title} — ${complete ? "complete" : `${count} open`}`}
+      className="wz-focusable wz-hover w-full flex items-start gap-3 px-3.5 py-3 text-left transition-colors"
+      style={{
+        background: next ? C.accentBg : C.bg,
+        border: `1px solid ${next ? C.accent : C.border}`,
+        borderRadius: WZ.radius.control,
+      }}
     >
-      <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: C.panel, color }}>
-        <Icon size={20} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="text-base font-semibold" style={{ color: C.ink }}>{title}</div>
-        <div className="text-xs mt-0.5 leading-relaxed" style={{ color: C.muted }}>{description}</div>
-      </div>
-      <span className="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold whitespace-nowrap" style={{ color, background: C.panel }}>
-        {complete ? "Complete" : `Deficient · ${count}`}
+      <span
+        className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+        style={{
+          border: `1.5px solid ${complete ? C.green : next ? C.accent : C.border}`,
+          background: complete ? C.greenBg : next ? C.accent : "transparent",
+          color: complete ? C.green : next ? WZ.onAccent : C.muted,
+        }}
+      >
+        {complete ? <Check size={13} /> : <Icon size={13} />}
       </span>
-      <ChevronRight size={18} className="shrink-0" color={color} />
-    </button>
-  );
-}
-
-function SecondaryCheckRow({ icon: Icon, title, complete, count, onClick, first = false }: {
-  icon: typeof Target;
-  title: string;
-  complete: boolean;
-  count: number;
-  onClick: () => void;
-  first?: boolean;
-}) {
-  const color = complete ? C.green : C.red;
-  const background = complete ? C.greenBg : C.redBg;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full flex items-center gap-2.5 py-2.5 text-left transition-colors"
-      style={{ borderTop: first ? "none" : `1px solid ${C.border}` }}
-    >
-      <Icon size={14} color={color} className="shrink-0" />
-      <span className="text-xs font-medium flex-1 min-w-0" style={{ color: C.ink }}>{title}</span>
-      <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap" style={{ color, background }}>
-        {complete ? "Complete" : `Deficient · ${count}`}
+      <span className="min-w-0 flex-1">
+        <span className={`${TX.itemTitle} block`} style={{ color: C.ink }}>{title}</span>
+        <span className={`${TX.help} block mt-1.5`} style={{ color: C.muted }}>{description}</span>
       </span>
-      <ChevronRight size={14} className="shrink-0" color={C.muted} />
+      <span className="shrink-0 flex items-center gap-2 mt-0.5">
+        <StatusPill tone={complete ? "success" : "danger"} icon={complete ? Check : undefined}>
+          {complete ? "Complete" : `${count} open`}
+        </StatusPill>
+        <ChevronRight size={14} color={C.muted} />
+      </span>
     </button>
   );
 }
@@ -77,18 +69,18 @@ function SecondaryCheckRow({ icon: Icon, title, complete, count, onClick, first 
 const CHECKS = ["scope", "assess", "remediate"] as const;
 type CheckId = (typeof CHECKS)[number];
 
-// A new read of data every count already exists elsewhere for (Scope from
+// A read of every count already exists elsewhere (Scope from
 // applicability.pendingControlsForSystem, Assessment from statusCounts.unassessed,
 // Remediation from the same REMEDIATION_STATUSES SystemControls' work-queue tile
 // uses) — three independent Complete/Deficient checks, not a sequential wizard.
-// One primary CTA: the first deficient check in scope->assess->remediate order
-// (the natural workflow sequence) renders as a hero row; the rest stay compact.
+// The first deficient check in scope->assess->remediate order (the natural
+// workflow sequence) is marked as next; the order on screen never reshuffles.
 export function AssessmentReadiness({ statusCounts, applicabilitySummary, onScopeClick, onAssessClick, onRemediateClick }: AssessmentReadinessProps) {
   const pendingCount = applicabilitySummary?.pending ?? 0;
   const assessmentCount = statusCounts.unassessed ?? 0;
   const remediationCount = REMEDIATION_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
 
-  const checks: Record<CheckId, { icon: typeof Target; title: string; description: string; complete: boolean; count: number; onClick: () => void }> = {
+  const checks: Record<CheckId, { icon: LucideIcon; title: string; description: string; complete: boolean; count: number; onClick: () => void }> = {
     scope: {
       icon: Target,
       title: "Scope Determination",
@@ -114,32 +106,26 @@ export function AssessmentReadiness({ statusCounts, applicabilitySummary, onScop
       onClick: onRemediateClick,
     },
   };
-  const heroId = CHECKS.find((id) => !checks[id].complete);
-  const allComplete = !heroId;
+  const nextId = CHECKS.find((id) => !checks[id].complete);
+  const doneCount = CHECKS.filter((id) => checks[id].complete).length;
 
   return (
-    <div>
+    <WizardTokens>
       <SectionHeader
         icon={ShieldCheck}
         title="System Readiness"
         description="Three independent checks toward an audit-ready system: has scope been decided, has it been evaluated, and does what was found still need fixing."
+        aside={<StatusPill tone={nextId ? "neutral" : "success"}>{doneCount} of {CHECKS.length} complete</StatusPill>}
       />
-      {allComplete ? (
-        <div className="flex items-center gap-2 rounded-lg p-3 text-sm" style={{ background: C.greenBg, color: C.green }}>
-          <ShieldCheck size={16} /> Scoped, assessed, and remediated — this system is audit-ready.
+      {nextId ? (
+        <div className="flex flex-col gap-2.5">
+          {CHECKS.map((id) => <CheckRow key={id} {...checks[id]} next={id === nextId} />)}
         </div>
       ) : (
-        <div className="space-y-1">
-          {/* Fixed Scope -> Assess -> Remediate order, always — only the first
-              deficient check (heroId) gets the larger hero treatment, in place,
-              so the natural workflow sequence never reshuffles on screen. */}
-          {CHECKS.map((id, i) => (
-            id === heroId
-              ? <HeroCheckRow key={id} {...checks[id]} />
-              : <SecondaryCheckRow key={id} {...checks[id]} first={i === 0 || CHECKS[i - 1] === heroId} />
-          ))}
-        </div>
+        <Callout tone="success" title="Scoped, assessed, and remediated.">
+          This system is audit-ready.
+        </Callout>
       )}
-    </div>
+    </WizardTokens>
   );
 }

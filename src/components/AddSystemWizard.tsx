@@ -1,5 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Info, Gauge, Layers, ClipboardCheck, Check, AlertTriangle, ChevronLeft, ChevronRight, Network, Users, Bot,
   DatabaseBackup, Boxes, Cloud, Database, History, KeyRound, ListChecks, ShieldCheck, SlidersHorizontal, UserCheck, Code2,
@@ -9,8 +8,9 @@ import Modal, { ModalCloseButton } from "./Modal";
 import { ClassificationTag, AssuranceBadge } from "./SystemBadges";
 import {
   AddButton, Button, Callout, CheckRow, Checkbox, ChoiceChip, EmptyState, EntityCard, EntityList, Field, FieldGrid,
-  InlineHint, OptionCard, RemoveButton, Section, Select, StatTile, StatusPill, StepBody, StepHeader, TextArea,
-  TextInput, ToggleCard, TX, Well, WZ,
+  InlineHint, OptionCard, RailGroup, RailItem, RemoveButton, Section, Select, StatTile, StatusPill, StepBody,
+  StepHeader, TextArea, TextInput, ToggleCard, TX, Well, WizardBody, WizardChrome, WizardFooter, WizardHeader,
+  WizardRail,
 } from "./wizard/WizardUI";
 import {
   ORGS, VENDORS, PROVIDER_CERTIFICATIONS, HOSTING_TYPES, INHERITED_DOMAINS,
@@ -1066,77 +1066,35 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
   return (
     <Modal open={open} onClose={close} width={1000} height={720}>
-      {/* The --wz-* custom properties feed the shared focus / hover rules in
-          index.css, so every control in the wizard reacts identically and
-          still follows applyTheme(). */}
-      <div
-        className="flex flex-col flex-1 min-h-0"
-        style={{ "--wz-accent": C.accent, "--wz-ring": C.accentBg, "--wz-hover": C.panel2 } as CSSProperties}
-      >
-        <header className="flex items-start justify-between gap-4 px-6 py-4" style={{ borderBottom: `1px solid ${C.border}`, background: C.panel }}>
-          <div className="min-w-0">
-            <h1 className={`${TX.modalTitle} flex items-center gap-2.5`} style={{ color: C.ink, fontFamily: WZ.serif }}>
-              <ClipboardCheck size={18} color={C.accent} />
-              {editingSystemId ? "Edit System" : isClone ? "Duplicate System" : "Add System"}
-            </h1>
-            <p className={`${TX.help} mt-1.5 max-w-[90ch]`} style={{ color: C.muted }}>
-              {editingSystemId
-                ? "Update declared facts; classification, scope, and assurance are recalculated before anything is saved."
-                : isClone
-                  ? "Every asset, actor, data flow, and agent is prefilled from the source system with new ids of its own — review and adjust, then launch a fresh assessment for it."
-                  : "The engine proposes what applies and what can be inherited. You confirm and grade those controls on the system screen after create."}
-            </p>
-          </div>
-          <ModalCloseButton onClose={close} />
-        </header>
+      <WizardChrome>
+        <WizardHeader
+          icon={ClipboardCheck}
+          title={editingSystemId ? "Edit System" : isClone ? "Duplicate System" : "Add System"}
+          description={editingSystemId
+            ? "Update declared facts; classification, scope, and assurance are recalculated before anything is saved."
+            : isClone
+              ? "Every asset, actor, data flow, and agent is prefilled from the source system with new ids of its own — review and adjust, then launch a fresh assessment for it."
+              : "The engine proposes what applies and what can be inherited. You confirm and grade those controls on the system screen after create."}
+          onClose={<ModalCloseButton onClose={close} />}
+        />
 
-        {/* minmax(0,1fr) row: an implicit auto row would grow to its content and
-            defeat the panes' own overflow-y-auto scrolling. */}
-        <div
-          className="flex-1 min-h-0 grid grid-cols-[172px_minmax(0,1fr)] lg:grid-cols-[208px_minmax(0,1fr)]"
-          style={{ gridTemplateRows: "minmax(0, 1fr)" }}
-        >
-          {/* ---- Step rail ---- */}
-          <nav aria-label="Wizard steps" className="p-3 overflow-y-auto" style={{ borderRight: `1px solid ${C.border}`, background: C.panel }}>
-            {STEPS.map((s, i) => {
-              const isActive = s.id === step;
-              const isDone = s.id < step;
-              const reachable = stepReachable(s.id);
-              return (
-                <React.Fragment key={s.id}>
-                  <button
-                    type="button"
-                    onClick={() => jumpTo(s.id)}
-                    disabled={!reachable}
-                    aria-label={`Step ${s.id}: ${s.title} — ${s.detail}`}
-                    aria-current={isActive ? "step" : undefined}
-                    className={`wz-focusable ${isActive ? "" : "wz-hover"} w-full text-left flex items-start gap-2.5 px-2.5 py-2 transition-colors`}
-                    style={{
-                      background: isActive ? C.accentBg : undefined,
-                      border: `1px solid ${isActive ? C.accent : "transparent"}`,
-                      borderRadius: WZ.radius.control,
-                    }}
-                  >
-                    <span
-                      className={`${TX.code} w-[22px] h-[22px] rounded-full flex items-center justify-center shrink-0`}
-                      style={{
-                        border: `1.5px solid ${isActive ? C.accent : isDone ? C.green : C.border}`,
-                        background: isActive ? C.accent : isDone ? C.greenBg : "transparent",
-                        color: isActive ? WZ.onAccent : isDone ? C.green : C.muted,
-                      }}
-                    >
-                      {isDone ? <Check size={11} /> : s.id}
-                    </span>
-                    <span className="min-w-0 pt-0.5">
-                      <span className={`block ${TX.railTitle}`} style={{ color: C.ink }}>{s.title}</span>
-                      <span className={`block ${TX.help} mt-1`} style={{ color: C.muted }}>{s.detail}</span>
-                    </span>
-                  </button>
-                  {i < STEPS.length - 1 && <div style={{ width: 1.5, height: 10, marginLeft: 21, background: C.border }} />}
-                </React.Fragment>
-              );
-            })}
-          </nav>
+        <WizardBody>
+          <WizardRail>
+            <RailGroup connected>
+              {STEPS.map((s) => (
+                <RailItem
+                  key={s.id}
+                  marker={s.id}
+                  title={s.title}
+                  detail={s.detail}
+                  state={s.id === step ? "active" : s.id < step ? "done" : "pending"}
+                  disabled={!stepReachable(s.id)}
+                  ariaLabel={`Step ${s.id}: ${s.title} — ${s.detail}`}
+                  onClick={() => jumpTo(s.id)}
+                />
+              ))}
+            </RailGroup>
+          </WizardRail>
 
           {/* ---- Content pane ---- */}
           <div ref={contentPaneRef} className="p-6 overflow-y-auto" style={{ background: C.bg }}>
@@ -2149,30 +2107,27 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
               </>
             )}
           </div>
-        </div>
+        </WizardBody>
 
-        <footer className="flex items-center gap-4 px-6 py-3.5" style={{ borderTop: `1px solid ${C.border}`, background: C.panel }}>
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <span className={`${TX.eyebrow} shrink-0`} style={{ color: C.muted }}>Step {step} of {total}</span>
-            {blockReason && <InlineHint tone="warning">{blockReason}</InlineHint>}
-          </div>
-          <div className="flex items-center gap-2.5 shrink-0">
-            <Button icon={ChevronLeft} onClick={goBack} disabled={step === 1}>Back</Button>
-            {!isLastStep ? (
-              <Button variant="primary" iconRight={ChevronRight} onClick={goNext} disabled={nextDisabled}>Next</Button>
-            ) : (
-              <Button
-                variant="primary"
-                icon={Check}
-                onClick={handleCreate}
-                disabled={!dryRun || dryRun.problems.length > 0 || !canLaunch || saving}
-              >
-                {saving ? "Saving…" : editingSystemId ? "Save changes" : "Create system"}
-              </Button>
-            )}
-          </div>
-        </footer>
-      </div>
+        <WizardFooter
+          position={`Step ${step} of ${total}`}
+          hint={blockReason ? <InlineHint tone="warning">{blockReason}</InlineHint> : undefined}
+        >
+          <Button icon={ChevronLeft} onClick={goBack} disabled={step === 1}>Back</Button>
+          {!isLastStep ? (
+            <Button variant="primary" iconRight={ChevronRight} onClick={goNext} disabled={nextDisabled}>Next</Button>
+          ) : (
+            <Button
+              variant="primary"
+              icon={Check}
+              onClick={handleCreate}
+              disabled={!dryRun || dryRun.problems.length > 0 || !canLaunch || saving}
+            >
+              {saving ? "Saving…" : editingSystemId ? "Save changes" : "Create system"}
+            </Button>
+          )}
+        </WizardFooter>
+      </WizardChrome>
     </Modal>
   );
 }
