@@ -40,10 +40,9 @@ interface SystemWorkspaceProps {
   onSubTabChange?: (tab: SystemWorkspaceTab) => void;
   onNavigate?: (target: string) => void;
   startAssessment?: boolean;
-  onBack?: () => void;
 }
 
-export default function SystemWorkspace({ systemId: controlledSystemId, onSelectSystem, initialSubTab, onSubTabChange, onNavigate, startAssessment = false, onBack }: SystemWorkspaceProps) {
+export default function SystemWorkspace({ systemId: controlledSystemId, onSelectSystem, initialSubTab, onSubTabChange, onNavigate, startAssessment = false }: SystemWorkspaceProps) {
   const [localSystemId, setLocalSystemId] = useState(DEFAULT_SYSTEM_ID);
   const systemId = controlledSystemId ?? localSystemId;
   const [subTab, setSubTab] = useState<SystemWorkspaceTab>(SUB_TABS.some((t) => t.id === initialSubTab) ? initialSubTab! : SUB_TABS[0].id);
@@ -211,7 +210,6 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         systemId={systemId}
         onSelectSystem={selectSystem}
         onEdit={() => setEditorOpen(true)}
-        onBack={onBack}
         formallyAssessed={formalAssessment.complete}
       />
 

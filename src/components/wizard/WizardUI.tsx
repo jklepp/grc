@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import type { ComponentProps, CSSProperties, ReactNode } from "react";
 import { AlertTriangle, Check, ChevronDown, ChevronRight, Info, Plus, Search, Trash2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -622,11 +622,25 @@ export function HeaderStat({ label, value }: { label: string; value: ReactNode }
 
 // minmax(0,1fr) row: an implicit auto row would grow to its content and defeat
 // the panes' own overflow-y-auto scrolling.
-export function WizardBody({ children }: { children: ReactNode }) {
+// `enter` slides the body in on mount — for a wizard that swaps its whole
+// subject (the control assessment walk remounts the panel per control), so the
+// arrival reads as a new thing rather than the same page with different words.
+export function WizardBody({ children, enter = false }: { children: ReactNode; enter?: boolean }) {
+  const [settled, setSettled] = useState(!enter);
+  useEffect(() => {
+    if (settled) return;
+    const raf = requestAnimationFrame(() => setSettled(true));
+    return () => cancelAnimationFrame(raf);
+  }, [settled]);
   return (
     <div
       className="flex-1 min-h-0 grid grid-cols-[172px_minmax(0,1fr)] lg:grid-cols-[208px_minmax(0,1fr)]"
-      style={{ gridTemplateRows: "minmax(0, 1fr)" }}
+      style={{
+        gridTemplateRows: "minmax(0, 1fr)",
+        opacity: settled ? 1 : 0,
+        transform: settled ? "translateX(0)" : "translateX(24px)",
+        transition: "transform 320ms cubic-bezier(.2,.7,.3,1), opacity 260ms ease",
+      }}
     >
       {children}
     </div>

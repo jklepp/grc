@@ -10,13 +10,12 @@ interface SystemDetailProps {
   systemId: SystemId;
   initialSubTab?: SystemWorkspaceTab;
   startAssessment?: boolean;
-  onBack: () => void;
   onSelectSystem?: (id: SystemId) => void;
   onSubTabChange?: (tab: SystemWorkspaceTab) => void;
   onNavigate?: (target: string) => void;
 }
 
-export default function SystemDetail({ systemId, initialSubTab, startAssessment = false, onBack, onSelectSystem, onSubTabChange, onNavigate }: SystemDetailProps) {
+export default function SystemDetail({ systemId, initialSubTab, startAssessment = false, onSelectSystem, onSubTabChange, onNavigate }: SystemDetailProps) {
   return (
     <div className="w-full">
       <SystemWorkspace
@@ -26,7 +25,6 @@ export default function SystemDetail({ systemId, initialSubTab, startAssessment 
         onSubTabChange={onSubTabChange}
         startAssessment={startAssessment}
         onNavigate={onNavigate}
-        onBack={onBack}
       />
     </div>
   );

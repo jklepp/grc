@@ -1,13 +1,10 @@
 import React, { useState } from "react";
-import { ArrowLeft } from "lucide-react";
-import { C } from "../theme";
 import PolicyCenter from "./PolicyCenter";
 import ProcedureLibrary from "./ProcedureLibrary";
 import SecurityPrinciples from "./SecurityPrinciples";
 import ScheduledActivities from "./ScheduledActivities";
 import ExceptionRegister from "./ExceptionRegister";
 import { GovernanceLanding } from "./GovernanceLanding";
-import { GOVERNANCE_AREAS } from "./governanceAreas";
 import type { GovernanceAreaId } from "./governanceAreas";
 
 // Governance merges the former Policy Center, Procedure Library, Security
@@ -71,27 +68,9 @@ export default function Governance({ onNavigate, initialTab }: { onNavigate?: (t
   if (!area) return <GovernanceLanding onSelect={changeArea} />;
 
   const ActiveAreaPage = PAGE_BY_AREA[area];
-  const activeArea = GOVERNANCE_AREAS.find((candidate) => candidate.id === area) ?? GOVERNANCE_AREAS[0];
 
   return (
     <div className="w-full">
-      <div className="px-8 pt-6 flex items-center justify-between gap-4">
-        <button type="button" onClick={() => changeArea(null)} className="flex items-center gap-1.5 text-xs font-medium" style={{ color: C.muted }}>
-          <ArrowLeft size={13} /> All Governance Areas
-        </button>
-        <label className="flex items-center gap-2 text-xs" style={{ color: C.muted }}>
-          Governance area
-          <select
-            value={activeArea.id}
-            onChange={(event) => changeArea(event.target.value as GovernanceAreaId)}
-            className="rounded-lg px-3 py-2 outline-none text-sm font-medium"
-            style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
-          >
-            {GOVERNANCE_AREAS.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.label}</option>)}
-          </select>
-        </label>
-      </div>
-
       <ActiveAreaPage onNavigate={handleNavigate} />
     </div>
   );

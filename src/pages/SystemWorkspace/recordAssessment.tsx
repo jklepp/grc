@@ -1,27 +1,20 @@
-import { useState } from "react";
-import { Check, Scale } from "lucide-react";
-import { C } from "../../theme";
-import { addPrismaOverride, COMPLIANCE_LABELS, COMPLIANCE_RATINGS, commitRuntimeFacts, EVIDENCE_TYPES, evaluateControl } from "../../engine";
-import { buildLiveEngine } from "../../engine/liveGraph";
-import { YAML_FACTS } from "../../graph/sources/yaml";
+import { COMPLIANCE_LABELS, evaluateControl } from "../../engine";
 import type { ControlEvidenceDraft } from "../../engine";
 import type { RuntimeFacts } from "../../engine/liveGraph";
 import type { AssetId, ControlId, SystemId } from "../../graph/ids";
 import type { ComplianceRating, EvidenceType } from "../../graph/nodes/taxonomy";
 import type { ControlMatrixRow } from "./types";
-import {
-  Button, Callout, CheckRow, ChoiceChip, Field, FieldGrid, InlineHint, SaveErrorCallout, Select, StatusPill,
-  TextInput, TX, Well, WZ,
-} from "../../components/wizard/WizardUI";
-import { selectedValue } from "./formHelpers";
+import type { LaneGraderState } from "./PrismaLaneGrader";
 import type { AssetOption } from "./formHelpers";
 
+// The Implemented lane's claim, reduced to the fact it will be saved as. The
+// other four PRISMA lanes never appear here: they derive from the policy and
+// SOP libraries, evidence prevalence and the review calendar, so an assessor
+// disagreeing with one records a PRISMA override, not a new fact.
 export interface RecordAssessmentInput {
-  // The attested target on PRISMA's real 0/25/50/75/100 scale — not a
-  // 3-way shortcut. 0 is Not Implemented and takes the reason+asset branch
-  // below; anything else is a claim that gets backed by evidence and then
-  // reconciled against what that evidence actually derives to (see
-  // RecordAssessmentSection, which owns the attest-vs-derived comparison).
+  // The attested target on PRISMA's real 0/25/50/75/100 scale — not a 3-way
+  // shortcut. 0 is Not Implemented and takes the reason+asset branch below;
+  // anything else is a claim backed by evidence.
   rating: ComplianceRating;
   source: string;
   evidenceType: EvidenceType;
@@ -29,198 +22,73 @@ export interface RecordAssessmentInput {
   reason: string;
 }
 
-// What each point on the scale concretely claims, shown live as the assessor
-// picks — the rubric that used to live only in a fine-print paragraph. 0 has
-// no evidence branch (it records a gap, not a claim), so its line explains
-// the asset+reason it asks for instead.
-const RATING_GUIDANCE: Record<ComplianceRating, string> = {
-  0: "Nothing implements this control on this boundary. Records a remediation-ready gap against an asset, with the reason, instead of evidence.",
-  25: "Exists somewhere, but ad hoc — not consistently applied across the assets that require it.",
-  50: "Implemented on part of the boundary, or with material exceptions. A document or self-attestation alone tops out here.",
-  75: "Operating on all in-scope assets with minor exceptions. Expects testing evidence — a screenshot or stronger, not just inquiry.",
-  100: "Operating everywhere with no known exceptions, backed by current testing evidence covering every required asset.",
-};
-
-interface RecordAssessmentFormProps {
-  assetOptions: AssetOption[];
-  isProgramScoped: boolean;
-  onSubmit: (input: RecordAssessmentInput, continueWalk: boolean) => void;
-  canContinue: boolean;
-  continueLabel: string;
-  showContinue?: boolean;
-  disabled?: boolean;
-}
-
-// Attest, then evidence — in that order. Step 1 is the assessor's judgment
-// call on the real PRISMA scale (0/25/50/75/100); nothing else renders until
-// they've made it. Step 2 backs that claim: an asset+reason for Not
-// Implemented (0), or a source/evidence-type pair for everything else. What
-// gets saved here is provisional — RecordAssessmentSection re-derives the
-// actual rating from the evidence and reconciles it against what was
-// attested before anything commits for real. Rendered only through that
-// section, in both the key-control walk and the standalone panel (showContinue
-// false there — one control, so there's nothing to advance to), so the two
-// never drift into two different-feeling ways of recording the same fact.
 // The source text a "no evidence yet" attestation gets, so it reads as an
-// obvious placeholder in Evidence by lane rather than a real collection —
-// and so it's unmistakable which record to open and replace once evidence
-// exists.
-const EVIDENCE_PENDING_SOURCE = "Evidence pending — attested only";
+// obvious placeholder in Evidence by lane rather than a real collection — and
+// so it's unmistakable which record to open and replace once evidence exists.
+export const EVIDENCE_PENDING_SOURCE = "Evidence pending — attested only";
 
-export function RecordAssessmentForm({ assetOptions, isProgramScoped, onSubmit, canContinue, continueLabel, showContinue = true, disabled = false }: RecordAssessmentFormProps) {
-  const [rating, setRating] = useState<ComplianceRating | null>(null);
-  const [evidencePending, setEvidencePending] = useState(false);
-  const [source, setSource] = useState("");
-  const [evidenceType, setEvidenceType] = useState<EvidenceType>("Auditor examination");
-  const [assetId, setAssetId] = useState<AssetId | "">(assetOptions[0]?.assetId ?? "");
-  const [reason, setReason] = useState("");
-  const attested = rating !== null;
-  const missingImplementation = rating === 0;
-  const canDeclareMissing = !isProgramScoped && assetOptions.length > 0;
-  const hasRequiredAsset = isProgramScoped || assetOptions.length > 0;
-  const ready = !attested
-    ? false
-    : missingImplementation
-      ? Boolean(reason.trim() && assetId)
-      : Boolean(hasRequiredAsset && (evidencePending || source.trim()));
-
-  function submit(continueWalk: boolean) {
-    if (!ready || disabled || rating === null) return;
-    // Evidence-pending attestations still have to be a real, scoreable
-    // record — see engine/evaluateControl's "empty claim" rule — so this
-    // reuses the taxonomy's own weakest evidence type (Self-attestation)
-    // rather than inventing a "no evidence" state the engine doesn't know.
-    // That means it derives honestly (Self-attestation caps well under full
-    // credit) and runs through the same reconcile-or-override flow as any
-    // other attestation the moment it's saved.
-    const pending = !missingImplementation && evidencePending;
-    onSubmit({
-      rating,
-      source: pending ? EVIDENCE_PENDING_SOURCE : source.trim(),
-      evidenceType: pending ? "Self-attestation" : evidenceType,
-      assetId, reason: reason.trim(),
-    }, continueWalk);
-  }
-
-  return (
-    <Well className="flex flex-col gap-3.5">
-      {/* This form only ever attests the Implemented lane — the one lane
-          nothing else in the graph can derive on its own, because it asks a
-          question only a human can answer: is the control actually running
-          on the assets that require it. Policy/Procedure read the policy and
-          SOP libraries; Measured/Managed read evidence prevalence and the
-          activity calendar. Labeling the lane here is what used to be
-          missing — the picker looked like a generic 0-100 score with no
-          stated target. */}
-      <div className="flex items-center gap-2.5 flex-wrap">
-        <span
-          className={`${TX.code} w-[22px] h-[22px] rounded-full flex items-center justify-center shrink-0`}
-          style={{ background: C.accent, color: WZ.onAccent, border: `1.5px solid ${C.accent}` }}
-        >
-          3
-        </span>
-        <span className={TX.itemTitle} style={{ color: C.ink }}>Implemented</span>
-        <span className="ml-auto"><StatusPill tone="info">Attesting this lane</StatusPill></span>
-      </div>
-      <p className={TX.help} style={{ color: C.muted }}>
-        Is this control actually operating on the assets that require it? Pick where it stands — you&rsquo;ll back the claim with evidence next. The other four lanes — Policy, Procedure, Measured, Managed — derive on their own from the policy library, procedures, evidence metrics, and review cadence; there&rsquo;s nothing to pick for them here.
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {COMPLIANCE_RATINGS.map((value) => {
-          if (value === 0 && !canDeclareMissing) return null;
-          return (
-            <ChoiceChip
-              key={value}
-              selected={rating === value}
-              onClick={() => setRating(value)}
-              ariaLabel={`${value} — ${COMPLIANCE_LABELS[value]}`}
-            >
-              <span className="normal-case">{value} — {COMPLIANCE_LABELS[value]}</span>
-            </ChoiceChip>
-          );
-        })}
-      </div>
-      {attested && (
-        <p className={TX.help} style={{ color: C.muted }}>
-          {RATING_GUIDANCE[rating]}
-          {rating > 0 && " If the evidence you cite doesn't support this rating, you'll reconcile before it saves."}
-        </p>
-      )}
-      {!attested ? null : missingImplementation ? (
-        <FieldGrid cols={2}>
-          {!isProgramScoped && (
-            <Field label="Asset">
-              <Select value={assetId} aria-label="Asset the gap is recorded against" onChange={(e) => setAssetId(e.target.value as AssetId)}>
-                {assetOptions.map((a) => <option key={a.assetId} value={a.assetId}>{a.label}</option>)}
-              </Select>
-            </Field>
-          )}
-          <Field
-            label="Reason"
-            span2={isProgramScoped}
-            error={reason.trim() ? null : "Required — say why nothing implements this control here."}
-          >
-            <TextInput value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why this control is not implemented on this boundary" />
-          </Field>
-        </FieldGrid>
-      ) : (
-        <div className="flex flex-col gap-3">
-          <CheckRow
-            checked={evidencePending}
-            onChange={setEvidencePending}
-            ariaLabel="I don't have evidence yet — attach it later"
-            label={<>I don&rsquo;t have evidence yet — attach it later</>}
-          />
-          {evidencePending ? (
-            <Callout tone="neutral" title="Saved as a self-attestation for now.">
-              That is the weakest evidence grade, so the derived rating won&rsquo;t overstate what&rsquo;s actually on file. Find this record under Evidence by lane once it saves and replace it with the real source.
-            </Callout>
-          ) : (
-            <FieldGrid cols={2}>
-              <Field label="Source" error={source.trim() ? null : "Required — name where the evidence came from."}>
-                <TextInput value={source} onChange={(e) => setSource(e.target.value)} placeholder="e.g. Screenshot of Okta MFA enforcement" />
-              </Field>
-              <Field label="Evidence type">
-                <Select value={evidenceType} aria-label="Evidence type" onChange={(e) => setEvidenceType(selectedValue(EVIDENCE_TYPES, e.target.value, evidenceType))}>
-                  {EVIDENCE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                </Select>
-              </Field>
-            </FieldGrid>
-          )}
-        </div>
-      )}
-      {attested && !isProgramScoped && assetOptions.length === 0 && (
-        <InlineHint tone="warning">No asset in this boundary requires this control, so it cannot be recorded here.</InlineHint>
-      )}
-      <div className="flex items-center justify-end gap-2.5">
-        <Button
-          variant={showContinue ? "secondary" : "primary"}
-          icon={showContinue ? undefined : Check}
-          disabled={!ready || disabled}
-          onClick={() => submit(false)}
-        >
-          {showContinue ? "Save" : continueLabel}
-        </Button>
-        {showContinue && (
-          <Button
-            variant="primary"
-            icon={Check}
-            disabled={!ready || !canContinue || disabled}
-            onClick={() => submit(true)}
-          >
-            {continueLabel}
-          </Button>
-        )}
-      </div>
-    </Well>
-  );
+// The grader's Implemented column, as the fact it commits to.
+//
+// An evidence-pending attestation still has to be a real, scoreable record —
+// see engine/evaluateControl's "empty claim" rule — so it reuses the taxonomy's
+// own weakest evidence type rather than inventing a "no evidence" state the
+// engine doesn't know. It therefore derives honestly (Self-attestation caps
+// well under full credit) instead of quietly banking the attested number.
+export function implementedFactInput(state: LaneGraderState): RecordAssessmentInput | null {
+  const rating = state.ratings.Implemented;
+  if (rating == null) return null;
+  const pending = rating > 0 && state.evidencePending;
+  return {
+    rating,
+    source: pending ? EVIDENCE_PENDING_SOURCE : state.source.trim(),
+    evidenceType: pending ? "Self-attestation" : state.evidenceType,
+    assetId: state.assetId,
+    reason: state.reason.trim(),
+  };
 }
 
-// Turns a RecordAssessmentForm decision into the fact that actually gets
-// saved — a control-evidence entry, or a not-implemented finding-worthy gap.
+// The same fact, made safe to DRY-RUN against a half-filled form.
+//
+// An unassessed control's five lanes are all forced to a fake 0 by
+// assessment.ts's out-of-scope early return, so the grid has no honest
+// baseline to grade against until the control is in scope. The panel gets one
+// by building a throwaway runtime from this input and reading the lanes off it
+// — which means it needs a valid input before the operator has finished typing,
+// and before they have picked Implemented at all. An unpicked Implemented falls
+// back to the weakest possible claim, so the four documentation lanes derive for
+// real while the Implemented column still reads "awaiting your call". None of
+// this is ever committed — see implementedFactInput for the path that is.
+export function previewFactInput(state: LaneGraderState): RecordAssessmentInput {
+  const real = implementedFactInput(state);
+  const base: RecordAssessmentInput = real ?? {
+    // Nothing picked yet: the weakest possible claim, just enough to put the
+    // control in scope so the four documentation lanes derive for real.
+    rating: 50, evidenceType: "Self-attestation", source: "",
+    assetId: state.assetId, reason: "",
+  };
+  return {
+    ...base,
+    // Never the operator's own source text. graph/validate rejects one source
+    // name carrying two evidence types (sourceConflicts) — a real hazard here,
+    // because the source the operator typed, or the shared evidence-pending
+    // placeholder, can already exist on file under a different type, and a
+    // preview that fails validation silently falls back to the all-zero lanes
+    // this whole surface exists to get rid of. The source cannot affect a
+    // derivation anyway; only the type, result and coverage can.
+    source: `Preview derivation · ${base.evidenceType}`,
+    reason: base.reason || "Not implemented on this boundary.",
+  };
+}
+
+// Turns an Implemented-lane decision into the fact that actually gets saved —
+// a control-evidence entry, or a not-implemented finding-worthy gap. Either
+// way `evaluateControl` also puts the control in the system's assessment
+// scope, which is what makes the other four lanes derive at all.
+//
 // `reviewer`, when given, is folded into the note/reason text (the only place
 // evaluateControl has room for it) so the assessor of record is a real saved
-// fact rather than UI chrome that vanishes on refresh.
+// fact rather than UI chrome that vanishes on refresh. The structured copy
+// rides on the PRISMA overrides and control review the same commit writes.
 export function recordKeyControlAssessment(
   existing: RuntimeFacts,
   params: {
@@ -260,183 +128,6 @@ export function recordKeyControlAssessment(
     controlId,
     evidenceEntries: [evidence],
   });
-}
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-// The candidate evidence already stands (recordKeyControlAssessment already
-// ran) — this only holds what's needed to show the attested-vs-derived
-// comparison and, if the operator insists on the attested number, write the
-// PRISMA override that keeps the disagreement auditable instead of silent.
-interface Reconciliation {
-  runtime: RuntimeFacts;
-  attested: ComplianceRating;
-  derived: ComplianceRating;
-  rationale: string;
-  continueWalk: boolean;
-}
-
-interface RecordAssessmentSectionProps {
-  systemId: SystemId;
-  controlId: ControlId;
-  isProgramScoped: boolean;
-  assetOptions: AssetOption[];
-  // The panel's current draft, not a fresh load from storage — so anything
-  // already staged there (e.g. a finding logged before this control was
-  // assessed) rides along into the same commit instead of being clobbered.
-  baseFacts: RuntimeFacts;
-  // Folded into the saved fact as the assessor of record, and used to
-  // pre-fill the override form when a reconciliation is needed.
-  reviewer: string;
-  showContinue: boolean;
-  continueLabel: string;
-  disabled?: boolean;
-  onSaved?: (rating: ComplianceRating, continueWalk: boolean) => void;
-}
-
-// The one place a first assessment gets recorded: RecordAssessmentForm, plus
-// the attest-vs-derived reconciliation that used to live in the old
-// ControlAssessmentModal. Submitting attests a rating and cites evidence;
-// before anything commits, the engine re-derives Implemented from that
-// evidence on a preview build, and a mismatch stops here — accept the derived
-// rating, or keep the attested one behind a named, reasoned PRISMA override.
-export function RecordAssessmentSection({
-  systemId, controlId, isProgramScoped, assetOptions, baseFacts, reviewer, showContinue, continueLabel, disabled = false, onSaved,
-}: RecordAssessmentSectionProps) {
-  const [saveError, setSaveError] = useState<string[] | null>(null);
-  const [reconciling, setReconciling] = useState<Reconciliation | null>(null);
-  const [overrideAssessor, setOverrideAssessor] = useState("");
-  const [overrideNote, setOverrideNote] = useState("");
-
-  // Commits whatever runtime is handed to it (evidence alone, or evidence
-  // plus an override) — the one place that actually calls commitRuntimeFacts
-  // for a decision, whether that decision came straight through or by way of
-  // the reconciliation prompt below.
-  function finalizeCommit(runtime: RuntimeFacts, rating: ComplianceRating, continueWalk: boolean) {
-    const { engine, problems } = commitRuntimeFacts(runtime);
-    if (!engine) {
-      setSaveError(problems);
-      return;
-    }
-    setReconciling(null);
-    setOverrideNote("");
-    onSaved?.(rating, continueWalk);
-  }
-
-  function handleSubmit(input: RecordAssessmentInput, continueWalk: boolean) {
-    setSaveError(null);
-    let runtime: RuntimeFacts;
-    try {
-      runtime = recordKeyControlAssessment(baseFacts, {
-        systemId, controlId, isProgramScoped,
-        recordAssetOptions: assetOptions,
-        input, reviewer,
-      });
-    } catch (e) {
-      setSaveError([e instanceof Error ? e.message : String(e)]);
-      return;
-    }
-
-    // Not Implemented has no "derived" evidence quality to reconcile against —
-    // it's a reason, not a claim evidence can under- or over-support.
-    if (input.rating > 0) {
-      const preview = buildLiveEngine(YAML_FACTS, runtime);
-      const implementedLevel = preview.engine?.assessment.assessmentFor(systemId, controlId)?.levels.Implemented;
-      if (implementedLevel && implementedLevel.derived !== input.rating) {
-        setOverrideAssessor(reviewer);
-        setReconciling({
-          runtime, attested: input.rating, derived: implementedLevel.derived,
-          rationale: implementedLevel.rationale, continueWalk,
-        });
-        return;
-      }
-    }
-
-    finalizeCommit(runtime, input.rating, continueWalk);
-  }
-
-  function keepAttestedWithOverride() {
-    if (!reconciling || !overrideAssessor.trim() || !overrideNote.trim()) return;
-    setSaveError(null);
-    let overridden: RuntimeFacts;
-    try {
-      overridden = addPrismaOverride(reconciling.runtime, {
-        systemId, controlId, level: "Implemented",
-        rating: reconciling.attested,
-        note: overrideNote.trim(),
-        assessedBy: overrideAssessor.trim(),
-        assessedAt: today(),
-      });
-    } catch (e) {
-      setSaveError([e instanceof Error ? e.message : String(e)]);
-      return;
-    }
-    finalizeCommit(overridden, reconciling.attested, reconciling.continueWalk);
-  }
-
-  return (
-    <div className="flex flex-col gap-3.5">
-      {saveError && <SaveErrorCallout problems={saveError} />}
-      {reconciling ? (
-        <div className="flex flex-col gap-3.5">
-          <Callout
-            tone="warning"
-            icon={Scale}
-            title={`You attested ${reconciling.attested} — ${COMPLIANCE_LABELS[reconciling.attested]}.`}
-          >
-            This evidence supports <b>{reconciling.derived} — {COMPLIANCE_LABELS[reconciling.derived]}</b>: {reconciling.rationale}
-          </Callout>
-          <div className="flex justify-end">
-            <Button
-              variant="primary"
-              onClick={() => finalizeCommit(reconciling.runtime, reconciling.derived, reconciling.continueWalk)}
-            >
-              Use {reconciling.derived} instead
-            </Button>
-          </div>
-
-          <Well className="flex flex-col gap-3.5">
-            <div>
-              <div className={TX.itemTitle} style={{ color: C.ink }}>Keep {reconciling.attested} anyway</div>
-              <p className={`${TX.help} mt-1.5`} style={{ color: C.muted }}>
-                Your professional judgment overrides the derived rating — the disagreement stays visible, not silently resolved. Requires your name and why.
-              </p>
-            </div>
-            <FieldGrid cols={2}>
-              <Field label="Assessor" error={overrideAssessor.trim() ? null : "Required to record an override."}>
-                <TextInput value={overrideAssessor} onChange={(e) => setOverrideAssessor(e.target.value)} placeholder="Your name" />
-              </Field>
-              <Field label="Why" error={overrideNote.trim() ? null : "Required to record an override."}>
-                <TextInput value={overrideNote} onChange={(e) => setOverrideNote(e.target.value)} placeholder={`Why ${reconciling.attested} is right despite this evidence`} />
-              </Field>
-            </FieldGrid>
-            <div className="flex justify-end">
-              <Button
-                variant="primary"
-                icon={Check}
-                disabled={!overrideAssessor.trim() || !overrideNote.trim()}
-                onClick={keepAttestedWithOverride}
-              >
-                Keep {reconciling.attested} — {COMPLIANCE_LABELS[reconciling.attested]}
-              </Button>
-            </div>
-          </Well>
-        </div>
-      ) : (
-        <RecordAssessmentForm
-          assetOptions={assetOptions}
-          isProgramScoped={isProgramScoped}
-          canContinue
-          showContinue={showContinue}
-          disabled={disabled}
-          continueLabel={continueLabel}
-          onSubmit={handleSubmit}
-        />
-      )}
-    </div>
-  );
 }
 
 // Applicable key controls with no fact recorded yet — the punch list both the

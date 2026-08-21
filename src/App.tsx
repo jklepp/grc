@@ -145,11 +145,6 @@ export default function App() {
     applyRoute({ page: "data-estate", systemId: id, systemTab: options?.startAssessment ? "controls" : "overview" });
   }
 
-  function showPicker() {
-    setStartAssessment(false);
-    applyRoute({ page: "data-estate", systemId: null });
-  }
-
   function login() {
     sessionStorage.setItem(AUTH_STORAGE_KEY, "1");
     setAuthenticated(true);
@@ -204,7 +199,6 @@ export default function App() {
           systemTab={route.systemTab}
           startAssessment={startAssessment}
           onOpenSystem={openSystem}
-          onShowPicker={showPicker}
           onSystemTabChange={(tab) => applyRoute({ ...route, systemTab: tab }, { replace: true })}
           onNavigate={navigate}
         />

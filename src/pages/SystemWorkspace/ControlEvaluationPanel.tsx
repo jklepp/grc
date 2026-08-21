@@ -19,9 +19,9 @@ import {
 import { upsertControlReview } from "../../engine/runtimeMutations";
 import { buildLiveEngine } from "../../engine/liveGraph";
 import { YAML_FACTS } from "../../graph/sources/yaml";
-import { PrismaLaneGrader } from "./PrismaLaneGrader";
-import type { LaneGrade } from "./PrismaLaneGrader";
-import { RecordAssessmentSection } from "./recordAssessment";
+import { effectiveRating, initialLaneGraderState, laneGraderBlocker, laneGrades, PrismaLaneGrader } from "./PrismaLaneGrader";
+import type { LaneGraderState } from "./PrismaLaneGrader";
+import { implementedFactInput, previewFactInput, recordKeyControlAssessment } from "./recordAssessment";
 import { loadRuntimeFacts } from "../../engine/runtimeFactsStore";
 import { useLiveEngine } from "../../engine/useLiveEngine";
 import { PRINCIPLE_DOMAINS, STATUS_META as PRINCIPLE_STATUS_META } from "../../data/securityPrinciples";
@@ -690,13 +690,11 @@ export function ControlEvaluationPanel({
   const [gapNudge, setGapNudge] = useState<{ level: PrismaLevel; rating: ComplianceRating } | null>(null);
   const liveEngine = useLiveEngine();
 
-  // Every edit below — lane overrides, evidence, findings — stages into this
-  // local copy instead of committing immediately, so the operator can make
-  // several changes and then Save or Discard them as one decision. Recording
-  // the first assessment (RecordAssessmentSection) still commits for real —
-  // it builds on this same draft, so anything already staged rides along —
-  // because it's what unlocks everything else here; there's nothing to stage
-  // before it.
+  // Every edit below — evidence, findings — stages into this local copy
+  // instead of committing immediately, so the operator can make several
+  // changes and then Save or Discard them as one decision. The lane grader
+  // holds its own form state (laneState) and joins the same commit, so a first
+  // assessment and everything staged around it go out as one write.
   const [draftFacts, setDraftFacts] = useState<RuntimeFacts>(() => loadRuntimeFacts());
   const [pendingChanges, setPendingChanges] = useState<string[]>([]);
   const [savedSummary, setSavedSummary] = useState<string[] | null>(null);
@@ -713,7 +711,69 @@ export function ControlEvaluationPanel({
   }, [draftEngine, system.id, committedRow]);
 
   const walkRemaining = walk ? walk.domains.reduce((sum, d) => sum + d.remaining, 0) : 0;
-  const walkReviewerMissing = Boolean(walk) && !walk!.reviewer.trim();
+
+  // Assets in this boundary that require this control. An unassessed control
+  // has no instances yet (assessment.ts only builds them in scope), so a first
+  // assessment records against the applicability-derived population — the same
+  // one the walk queue is built from.
+  const recordAssetOptions = useMemo(
+    () => (liveEngine.graph.assetsBySystem[system.id] ?? [])
+      .filter((asset) => liveEngine.applicability.resolveApplicability(asset.id, committedRow.control.id).required)
+      .map((asset) => ({ assetId: asset.id, label: asset.name })),
+    [liveEngine, system.id, committedRow.control.id]
+  );
+  const assessorOfRecord = liveEngine.graph.assessmentScopeBySystem[system.id]?.assessor ?? "";
+
+  // The whole assessment form, in one place. Seeded from the walk's reviewer
+  // when there is one, so a name typed on the first control carries to every
+  // control after it instead of resetting with each remount.
+  // Whether the operator has touched the grader this session. An already
+  // assessed control seeds its existing overrides into the form, so "has
+  // ratings" is not the same question — without this, saving an unrelated
+  // staged evidence edit would demand a fresh comment.
+  const [laneDirty, setLaneDirty] = useState(false);
+  const [laneState, setLaneState] = useState<LaneGraderState>(() => initialLaneGraderState({
+    levels: committedRow.assessment?.levels,
+    assessed: Boolean(committedRow.assessment?.assessed),
+    assessedBy: (walk?.reviewer ?? "").trim() || assessorOfRecord,
+    assetOptions: recordAssetOptions,
+  }));
+
+  // The derived baseline the grid grades against.
+  //
+  // An unassessed control's five lanes are all forced to a fake 0 by
+  // assessment.ts's out-of-scope early return, so there is nothing honest to
+  // grade against until the control is in scope. This dry-runs the fact the
+  // form is about to write and reads the real lanes back off it — the same
+  // buildLiveEngine pass Save uses, just before submit instead of after, which
+  // is what lets the attested-vs-derived disagreement show on the chips rather
+  // than in a modal that ambushes you afterwards.
+  //
+  // Deps are the discrete fields only. Source and reason text cannot change a
+  // derivation, so typing them does not rebuild the graph.
+  const previewLevels = useMemo(() => {
+    const committed = row.assessment?.levels ?? null;
+    if (row.assessment?.assessed) return committed;
+    try {
+      const candidate = recordKeyControlAssessment(draftFacts, {
+        systemId: system.id,
+        controlId: row.control.id,
+        isProgramScoped: row.keyControl?.scope === "program",
+        recordAssetOptions,
+        input: previewFactInput(laneState),
+      });
+      const preview = buildLiveEngine(YAML_FACTS, candidate).engine;
+      return preview?.assessment.assessmentFor(system.id, row.control.id)?.levels ?? committed;
+    } catch {
+      // A half-filled form that cannot yet make a valid fact (no asset to hang
+      // a Not Implemented on, say) just keeps the committed baseline.
+      return committed;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    row, system.id, draftFacts, recordAssetOptions,
+    laneState.ratings.Implemented, laneState.evidenceType, laneState.evidencePending, laneState.assetId,
+  ]);
 
   if (!draftEngine) return null;
 
@@ -732,16 +792,34 @@ export function ControlEvaluationPanel({
   const evidenceHealth = evidenceHealthForRow(row);
   const assessment = row.assessment;
   const assessed = Boolean(assessment?.assessed);
+  // What the grid grades against: the live preview while a control is still
+  // unassessed, the control's own lanes once it is.
+  const gradingLevels = previewLevels ?? assessment?.levels ?? null;
+  const laneBlocker = gradingLevels
+    ? laneGraderBlocker({
+        value: laneState, levels: gradingLevels, assessed,
+        isProgramScoped: Boolean(isProgramScoped), assetOptions: recordAssetOptions,
+      })
+    : "This control has no assessment to grade.";
+  // An unassessed control has nothing on record, so the grader IS the save.
+  // An assessed one only routes through it when the operator actually touched
+  // it; otherwise the footer is just committing staged evidence or findings.
+  const savingAssessment = !assessed || laneDirty;
+  const saveBlocker = savingAssessment ? laneBlocker : null;
+  const canSave = savingAssessment ? saveBlocker === null : pendingChanges.length > 0;
+  const unsavedCount = pendingChanges.length + (laneDirty ? 1 : 0);
+  const saveLabel = walk
+    ? walkRemaining === 1 ? "Save and finish" : "Save and continue"
+    : !assessed
+      ? "Save assessment"
+      : savingAssessment
+        ? "Save assessment"
+        : pendingChanges.length > 0
+          ? `Save ${pendingChanges.length} change${pendingChanges.length === 1 ? "" : "s"}`
+          : "Save";
   const assetOptions = row.instances.length > 0
     ? row.instances.map((inst) => ({ assetId: inst.assetId, label: assetName(system, inst.assetId) }))
     : assetsForSystem(system.id).map((a) => ({ assetId: a.id, label: a.name }));
-  // An unassessed control has no instances yet (assessment.ts only builds
-  // them in scope), so recording a first fact needs the applicability-derived
-  // asset list — the same population the walk queue itself is built from.
-  const recordAssetOptions = (liveEngine.graph.assetsBySystem[system.id] ?? [])
-    .filter((asset) => liveEngine.applicability.resolveApplicability(asset.id, row.control.id).required)
-    .map((asset) => ({ assetId: asset.id, label: asset.name }));
-  const assessorOfRecord = liveEngine.graph.assessmentScopeBySystem[system.id]?.assessor ?? "";
   // The record that governs an instance's status, so the lane list can badge
   // it. Program-scoped controls have no instances and never badged one in the
   // old flat table either, so their pool intentionally stays unmarked.
@@ -795,6 +873,13 @@ export function ControlEvaluationPanel({
     setSaveError(null);
     setDraftFacts(loadRuntimeFacts());
     setPendingChanges([]);
+    setLaneState(initialLaneGraderState({
+      levels: committedRow.assessment?.levels,
+      assessed: Boolean(committedRow.assessment?.assessed),
+      assessedBy: (walk?.reviewer ?? "").trim() || assessorOfRecord,
+      assetOptions: recordAssetOptions,
+    }));
+    setLaneDirty(false);
     setAttachingLane(null);
     setEditingLaneEvidenceId(null);
     setCreatingFinding(false);
@@ -803,7 +888,7 @@ export function ControlEvaluationPanel({
   }
 
   function requestClose() {
-    if (pendingChanges.length > 0 && !window.confirm(`Discard ${pendingChanges.length} unsaved change${pendingChanges.length === 1 ? "" : "s"}?`)) return;
+    if (unsavedCount > 0 && !window.confirm(`Discard ${unsavedCount} unsaved change${unsavedCount === 1 ? "" : "s"}?`)) return;
     onClose();
   }
 
@@ -823,43 +908,101 @@ export function ControlEvaluationPanel({
     stageMutation(`Removed evidence — ${evidence.source}`, (existing) => removeEvidence(existing, evidence.id));
   }
 
-  function handleLaneGrades({ grades, assessedBy, note, comment }: { grades: LaneGrade[]; assessedBy: string; note: string; comment: string }) {
-    const overridden = grades.filter((g) => g.rating !== g.derived);
-    const label = overridden.length > 0
-      ? `Updated PRISMA lane grading — ${overridden.map((g) => g.level).join(", ")}`
-      : "Confirmed PRISMA lane grading";
-    const staged = stageMutation(label, (existing) => {
-      let next = existing;
+  function handleLaneChange(patch: Partial<LaneGraderState>) {
+    // Walk mode keeps the assessor at the walk level so a name typed on the
+    // first control survives the remount onto the next one.
+    if (patch.assessedBy !== undefined && walk) walk.onReviewerChange(patch.assessedBy);
+    setLaneDirty(true);
+    setSaveError(null);
+    setLaneState((current) => ({ ...current, ...patch }));
+  }
+
+  // The one commit an assessment makes. Everything the operator decided on
+  // this control goes out as a single write: the Implemented fact that puts it
+  // in assessment scope, a PRISMA override for every lane they moved off its
+  // derived rating, the control review that signs the lot, and whatever else
+  // was already staged in the draft. Nothing commits behind the footer's back
+  // any more — recording a first assessment used to, which is why the "N
+  // unsaved" count could reset without the operator pressing Save.
+  function commitAssessment(continueWalk: boolean) {
+    if (!gradingLevels || laneBlocker) return;
+    setSaveError(null);
+    const grades = laneGrades(laneState, gradingLevels, assessed);
+    const implemented = grades.find((g) => g.level === "Implemented")!;
+    const assessedBy = laneState.assessedBy.trim();
+    const stamp = new Date().toISOString().slice(0, 10);
+
+    let runtime: RuntimeFacts;
+    try {
+      if (assessed) {
+        runtime = draftFacts;
+      } else {
+        const input = implementedFactInput(laneState);
+        if (!input) return;
+        runtime = recordKeyControlAssessment(draftFacts, {
+          systemId: system.id,
+          controlId: row.control.id,
+          isProgramScoped: Boolean(isProgramScoped),
+          recordAssetOptions,
+          input,
+          reviewer: assessedBy,
+        });
+      }
       grades.forEach((grade) => {
         if (grade.rating === grade.derived) return;
-        next = addPrismaOverride(next, {
+        runtime = addPrismaOverride(runtime, {
           systemId: system.id,
           controlId: row.control.id,
           level: grade.level,
           rating: grade.rating,
-          note: note || comment,
+          note: laneState.note.trim() || laneState.comment.trim(),
           assessedBy,
-          assessedAt: new Date().toISOString().slice(0, 10),
+          assessedAt: stamp,
         });
       });
-      return upsertControlReview(next, {
+      runtime = upsertControlReview(runtime, {
         systemId: system.id,
         controlId: row.control.id,
         bucket: "system-owned",
         stance: "confirm",
-        note: comment,
+        note: laneState.comment.trim(),
         reviewedBy: assessedBy,
-        reviewedAt: new Date().toISOString().slice(0, 10),
+        reviewedAt: stamp,
       });
-    });
-    if (!staged) return;
-    // Nudge off the ratings just submitted, not row.assessment — that prop
-    // may not have caught up with this save yet. Skipped once a finding
-    // already tracks this control's gap, so re-saving the same low grade
-    // doesn't re-nag.
+    } catch (e) {
+      setSaveError([e instanceof Error ? e.message : String(e)]);
+      return;
+    }
+
+    const { engine: committed, problems } = commitRuntimeFacts(runtime);
+    if (!committed) {
+      setSaveError(problems);
+      return;
+    }
+
+    const overridden = grades.filter((g) => g.rating !== g.derived);
+    const summary = [
+      ...pendingChanges,
+      assessed
+        ? overridden.length > 0
+          ? `Updated PRISMA lanes — ${overridden.map((g) => g.level).join(", ")}`
+          : "Confirmed PRISMA lane grading"
+        : `Recorded assessment — Implemented ${implemented.rating} (${COMPLIANCE_LABELS[implemented.rating]})`,
+    ];
+
+    setDraftFacts(loadRuntimeFacts());
+    setPendingChanges([]);
+    setLaneDirty(false);
+
+    // Nudge off the grades just committed, not row.assessment — that prop has
+    // not caught up with this write yet. Skipped once a finding already tracks
+    // this control's gap, so re-saving the same low grade doesn't re-nag.
     const worst = [...grades].sort((a, b) => a.rating - b.rating)[0];
     const alreadyTracked = controlFindings.some((f) => f.open);
     setGapNudge(worst && isGapRating(worst.rating) && !alreadyTracked ? { level: worst.level, rating: worst.rating } : null);
+
+    if (walk) walk.onRecorded(implemented.rating, continueWalk);
+    else setSavedSummary(summary);
   }
 
   function handleCreateFinding(draft: Omit<FindingDraft, "controlId">) {
@@ -884,7 +1027,7 @@ export function ControlEvaluationPanel({
             <h2 className={TX.modalTitle} style={{ color: C.ink, fontFamily: WZ.serif }}>{row.control.name}</h2>
           </div>
           <div className="flex items-center gap-2 flex-wrap shrink-0">
-            {pendingChanges.length > 0 && <StatusPill tone="warning">{pendingChanges.length} unsaved</StatusPill>}
+            {unsavedCount > 0 && <StatusPill tone="warning">{unsavedCount} unsaved</StatusPill>}
             <StatusPill color={statusMeta.color} surface={statusMeta.bg} icon={statusMeta.Icon}>{statusMeta.label}</StatusPill>
             {respMeta && <StatusPill color={respMeta.color} surface={respMeta.bg} icon={respMeta.Icon}>{respMeta.label}</StatusPill>}
             {implMeta && <StatusPill color={implMeta.color} surface={implMeta.bg} icon={implMeta.Icon}>{implMeta.type}</StatusPill>}
@@ -894,7 +1037,10 @@ export function ControlEvaluationPanel({
         <ModalCloseButton onClose={requestClose} />
       </div>
 
-      {/* ---- Walk strip: overall progress + reviewer of record ---- */}
+      {/* ---- Walk strip: overall progress + who is signing ----
+           The assessor used to be typed here, in the chrome, where it read as
+           decoration while silently disabling Save. It is a labelled, required
+           field in the grader now; this only reports it. */}
       {walk && (
         <div className="flex items-center gap-3 px-6 py-2.5" style={{ borderBottom: `1px solid ${C.border}`, background: C.panel }}>
           <ClipboardCheck size={13} color={C.accent} className="shrink-0" />
@@ -902,14 +1048,10 @@ export function ControlEvaluationPanel({
             Assessed {walk.decidedCount} of {walk.initialTotal}
           </span>
           <ProgressBar value={walk.decidedCount} total={walk.initialTotal} label="Key controls assessed" />
-          <InlineField label="Reviewer">
-            <TextInput
-              value={walk.reviewer}
-              onChange={(e) => walk.onReviewerChange(e.target.value)}
-              placeholder="Assessor of record"
-              aria-label="Reviewer of record"
-              style={{ width: 190, borderColor: walkReviewerMissing ? C.amber : C.border }}
-            />
+          <InlineField label="Assessor">
+            <span className={TX.body} style={{ color: laneState.assessedBy.trim() ? C.ink : C.amber }}>
+              {laneState.assessedBy.trim() || "not named yet"}
+            </span>
           </InlineField>
         </div>
       )}
@@ -935,7 +1077,7 @@ export function ControlEvaluationPanel({
           </CompletionScreen>
         </div>
       ) : (
-      <WizardBody>
+      <WizardBody enter={Boolean(walk)}>
         {/* ---- Rail: walk domains (walk mode only), then this control's steps ---- */}
         <WizardRail label="Assessment steps">
           {walk && (
@@ -1109,48 +1251,11 @@ export function ControlEvaluationPanel({
                 </Callout>
               )}
               {!assessed && (
-                <Callout tone="warning" title="The lanes below read 0 because nobody has assessed this control — not because it failed.">
-                  No fact is recorded for {row.control.id} on this boundary, so its score is null and every PRISMA lane sits at 0 — Not Assessed. Record an assessment below to derive real lane ratings and unlock grading and evidence.
+                <Callout tone="warning" title="Nothing is on record for this control yet — the score is null, not zero.">
+                  No fact backs {row.control.id} on this boundary. The lanes below show what the graph <i>would</i> derive
+                  once it is in scope: Policy and Procedure read the policy and SOP libraries, Measured and Managed read
+                  evidence prevalence and the review calendar. Grade every lane you can, answer Implemented, and save.
                 </Callout>
-              )}
-
-              {!assessed && (
-                <Section
-                  icon={ClipboardCheck}
-                  title="Record assessment"
-                  description="Attest the Implemented lane, then back the claim with evidence. Nothing else unlocks until this is on record."
-                  aside={<StatusPill tone="warning">Not assessed</StatusPill>}
-                >
-                  <RecordAssessmentSection
-                    key={row.control.id}
-                    systemId={system.id}
-                    controlId={row.control.id}
-                    isProgramScoped={Boolean(isProgramScoped)}
-                    assetOptions={recordAssetOptions}
-                    baseFacts={draftFacts}
-                    reviewer={walk ? walk.reviewer : assessorOfRecord}
-                    showContinue={Boolean(walk)}
-                    continueLabel={walk ? (walkRemaining === 1 ? "Save and finish" : "Save and continue") : "Save assessment"}
-                    disabled={walkReviewerMissing}
-                    onSaved={(rating, continueWalk) => {
-                      // RecordAssessmentSection committed on top of draftFacts
-                      // (see baseFacts), so storage now holds everything that
-                      // was staged plus the new assessment — reseeding here
-                      // just picks that up as the new clean baseline.
-                      setDraftFacts(loadRuntimeFacts());
-                      if (walk) {
-                        setPendingChanges([]);
-                        walk.onRecorded(rating, continueWalk);
-                      } else {
-                        setSavedSummary([...pendingChanges, `Recorded assessment — ${rating} (${COMPLIANCE_LABELS[rating]})`]);
-                        setPendingChanges([]);
-                      }
-                    }}
-                  />
-                  {walkReviewerMissing && (
-                    <InlineHint tone="warning">Enter the reviewer of record above before recording assessments.</InlineHint>
-                  )}
-                </Section>
               )}
 
               <Section
@@ -1158,26 +1263,24 @@ export function ControlEvaluationPanel({
                 title="PRISMA lanes"
                 description={assessed
                   ? "Derived ratings are suggestions. Accept them, or pick 0 / 25 / 50 / 75 / 100 on each lane."
-                  : "Locked at 0 — Not Assessed. The lanes unlock once a fact is recorded above."}
-                aside={assessed ? undefined : <StatusPill tone="neutral">Locked</StatusPill>}
+                  : "Grade all five. Untouched lanes save at their derived rating; Implemented is the one call only you can make."}
+                aside={assessed
+                  ? undefined
+                  : <StatusPill tone="warning">Not assessed</StatusPill>}
               >
-                <PrismaLaneGrader
-                  levels={assessment.levels}
-                  assessedBy={assessorOfRecord}
-                  note=""
-                  comment=""
-                  disabled={!assessed}
-                  onSubmit={handleLaneGrades}
-                />
+                {gradingLevels && (
+                  <PrismaLaneGrader
+                    levels={gradingLevels}
+                    assessed={assessed}
+                    isProgramScoped={Boolean(isProgramScoped)}
+                    assetOptions={recordAssetOptions}
+                    value={laneState}
+                    onChange={handleLaneChange}
+                    dirty={laneDirty}
+                  />
+                )}
               </Section>
 
-                  {/* One evidence slot per PRISMA lane, in ladder order.
-                      Implemented-lane records are the ones the engine samples
-                      for scoring; records attached to the other four lanes
-                      document that lane's claim (the policy PDF, the SOP
-                      extract, the metric export, the review minutes) without
-                      entering the implementation pool — see
-                      RawEvidence.prismaLevel. */}
               {/* One evidence slot per PRISMA lane, in ladder order.
                   Implemented-lane records are the ones the engine samples for
                   scoring; records attached to the other four lanes document
@@ -1190,7 +1293,12 @@ export function ControlEvaluationPanel({
                 description="Substantiate each lane with an artifact — the policy document, the SOP extract, the test output, the metric, the review minutes. Implemented-lane records are sampled for scoring; the other lanes' records document the claim behind the derived rating."
               >
                 {PRISMA_LEVELS.map((level, idx) => {
-                  const L = assessment.levels[level];
+                  const laneLevels = gradingLevels ?? assessment.levels;
+                  // The preview seeds Implemented with a placeholder so the
+                  // other four lanes can derive; it is not a rating anybody
+                  // has claimed yet, so this row says so rather than quoting
+                  // a number the operator never picked.
+                  const laneRating = effectiveRating(laneState, laneLevels, level, assessed);
                   const records = laneEvidence[level];
                   return (
                     <Well key={level} className="flex flex-col gap-3">
@@ -1204,9 +1312,9 @@ export function ControlEvaluationPanel({
                         <span className={TX.itemTitle} style={{ color: C.ink }}>{level}</span>
                         <span
                           className={`${TX.help} font-mono font-semibold tabular-nums`}
-                          style={{ color: assessed ? ratingColor(L.rating) : C.muted }}
+                          style={{ color: laneRating == null ? C.muted : ratingColor(laneRating) }}
                         >
-                          {assessed ? `${L.rating} — ${COMPLIANCE_LABELS[L.rating]}` : "0 — Not Assessed"}
+                          {laneRating == null ? "Not yet assessed" : `${laneRating} — ${COMPLIANCE_LABELS[laneRating]}`}
                         </span>
                         <StatusPill tone={records.length === 0 ? "warning" : "success"}>
                           {records.length === 0 ? "None attached" : `${records.length} attached`}
@@ -1216,8 +1324,6 @@ export function ControlEvaluationPanel({
                             <Button
                               size="sm"
                               icon={Plus}
-                              disabled={!assessed}
-                              title={assessed ? undefined : "Record an assessment first"}
                               onClick={() => { setAttachingLane(level); setEditingLaneEvidenceId(null); }}
                             >
                               Attach evidence
@@ -1502,17 +1608,25 @@ export function ControlEvaluationPanel({
         <WizardFooter
           position={walk
             ? `${walk.activeDomain} · ${walk.domains.find((d) => d.domain === walk.activeDomain)?.remaining ?? 0} left`
-            : pendingChanges.length > 0
-              ? `${pendingChanges.length} unsaved change${pendingChanges.length === 1 ? "" : "s"}`
+            : unsavedCount > 0
+              ? `${unsavedCount} unsaved change${unsavedCount === 1 ? "" : "s"}`
               : "No unsaved changes"}
-          hint={walkReviewerMissing
-            ? <InlineHint tone="warning">Name a reviewer of record before recording an assessment.</InlineHint>
+          hint={saveBlocker
+            ? <InlineHint tone="warning">{saveBlocker}</InlineHint>
             : undefined}
         >
           {walk?.onSkip && <Button iconRight={ChevronRight} onClick={walk.onSkip}>Skip for now</Button>}
-          <Button disabled={pendingChanges.length === 0} onClick={discardDraft}>Discard</Button>
-          <Button variant="primary" icon={Check} disabled={pendingChanges.length === 0} onClick={saveDraft}>
-            {pendingChanges.length > 0 ? `Save ${pendingChanges.length} change${pendingChanges.length === 1 ? "" : "s"}` : "Save"}
+          {!walk && (
+            <Button disabled={unsavedCount === 0} onClick={discardDraft}>Discard</Button>
+          )}
+          <Button
+            variant="primary"
+            icon={walk ? undefined : Check}
+            iconRight={walk ? ChevronRight : undefined}
+            disabled={!canSave}
+            onClick={() => (savingAssessment ? commitAssessment(Boolean(walk)) : saveDraft())}
+          >
+            {saveLabel}
           </Button>
         </WizardFooter>
       )}

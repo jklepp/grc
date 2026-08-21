@@ -15,7 +15,6 @@ export default function Systems({
   systemTab,
   startAssessment = false,
   onOpenSystem,
-  onShowPicker,
   onSystemTabChange,
   onNavigate,
 }: {
@@ -23,7 +22,6 @@ export default function Systems({
   systemTab?: SystemWorkspaceTab;
   startAssessment?: boolean;
   onOpenSystem: (id: SystemId, options?: SystemSelectOptions) => void;
-  onShowPicker: () => void;
   onSystemTabChange?: (tab: SystemWorkspaceTab) => void;
   onNavigate?: (target: string) => void;
 }) {
@@ -41,7 +39,6 @@ export default function Systems({
       systemId={validSystemId}
       initialSubTab={systemTab}
       startAssessment={startAssessment}
-      onBack={onShowPicker}
       onSelectSystem={(id) => onOpenSystem(id)}
       onSubTabChange={onSystemTabChange}
       onNavigate={onNavigate}
