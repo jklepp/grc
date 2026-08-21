@@ -33,7 +33,7 @@ function ScoreTile({ label, sub, value, pct, gradient }: { label: string; sub: s
   );
 }
 
-const ASSURANCE_GRADIENT = `linear-gradient(135deg, ${C.accent} 0%, #4B3F99 100%)`;
+const ASSURANCE_GRADIENT = `linear-gradient(135deg, ${C.accent} 0%, ${C.accentStrong} 100%)`;
 const COMPLIANCE_GRADIENT = `linear-gradient(135deg, ${C.amber} 0%, #2C4A78 100%)`;
 
 interface PrismaLadderProps {

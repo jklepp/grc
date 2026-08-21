@@ -288,7 +288,7 @@ function HeroAssuranceTile({ pct, target, gap }: { pct: number; target: number; 
   return (
     <div
       className="col-span-2 rounded-xl p-6 flex items-center gap-6"
-      style={{ background: `linear-gradient(135deg, ${C.accent} 0%, #4B3F99 100%)` }}
+      style={{ background: `linear-gradient(135deg, ${C.accent} 0%, ${C.accentStrong} 100%)` }}
     >
       <AssuranceRing pct={pct} color="#FFFFFF" trackColor="rgba(255,255,255,0.25)" textColor="#FFFFFF" size={104} />
       <div>

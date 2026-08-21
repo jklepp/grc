@@ -193,7 +193,7 @@ function ControlPostureCard({ assurance, compliance, coverage }: { assurance: nu
   return (
     <div
       className="rounded-xl p-5 flex items-center gap-6 md:col-span-3 xl:col-span-2"
-      style={{ background: `linear-gradient(135deg, ${C.accent} 0%, #4B3F99 100%)` }}
+      style={{ background: `linear-gradient(135deg, ${C.accent} 0%, ${C.accentStrong} 100%)` }}
     >
       <div className="flex items-center gap-3 shrink-0">
         {assurance != null && <StatRing pct={assurance} color="#FFFFFF" trackColor="rgba(255,255,255,0.25)" size={44} />}

@@ -6,18 +6,18 @@
 export const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');`;
 
 export const DARK = {
-  bg: "#0F1420",
-  panel: "#171D2B",
-  panel2: "#1D2433",
-  border: "#2A3244",
-  borderStrong: "#242B3A",
-  ink: "#E7E9EE",
-  muted: "#8891A3",
-  accent: "#8C7AE6",
+  bg: "#17161A",
+  panel: "#1E1D22",
+  panel2: "#26252B",
+  border: "#34333A",
+  borderStrong: "#2C2B31",
+  ink: "#EDEBE7",
+  muted: "#948F87",
+  accent: "#3D74B0",
   // A deeper shade of accent for surfaces that need a solid fill rather than
   // a text/border color — e.g. the active pill on a selected tab, where the
   // base accent reads too light against dark ink text on top of it.
-  accentStrong: "#5B4BB8",
+  accentStrong: "#2A5183",
   green: "#5FB98A",
   // Severity escalation now runs green -> teal -> blue -> indigo instead of
   // the traffic-light green -> amber -> red. No hue in this ramp reads as a
@@ -28,33 +28,33 @@ export const DARK = {
   // (criticality/risk/assurance bands, dozens of pages) — renaming those
   // keys isn't worth the blast radius since only the rendered hex is
   // user-visible, not the internal name.
-  amber: "#4E8FD6",
+  amber: "#7A5CC7",
   red: "#3E4F9E",
   na: "#4A5265",
   greenBg: "rgba(95,185,138,0.12)",
-  amberBg: "rgba(78,143,214,0.12)",
+  amberBg: "rgba(122,92,199,0.12)",
   redBg: "rgba(62,79,158,0.12)",
-  accentBg: "rgba(140,122,230,0.15)",
+  accentBg: "rgba(61,116,176,0.15)",
 };
 
 export const LIGHT = {
-  bg: "#F5F6FA",
-  panel: "#FFFFFF",
-  panel2: "#F0F1F7",
-  border: "#E4E6EF",
-  borderStrong: "#D2D4DC",
-  ink: "#1B1E2B",
-  muted: "#6B7280",
-  accent: "#6C5DD3",
-  accentStrong: "#4A3C99",
+  bg: "#EAE7E1",
+  panel: "#F5F3EF",
+  panel2: "#E4DFD7",
+  border: "#D6CFC3",
+  borderStrong: "#C7BEAF",
+  ink: "#211E19",
+  muted: "#6E685F",
+  accent: "#23558F",
+  accentStrong: "#16375E",
   green: "#1F9254",
-  amber: "#2E6CB5", // same blue family as DARK.amber, darkened/saturated to match this palette's contrast pattern
+  amber: "#5E3FA8", // same violet family as DARK.amber, darkened/saturated to match this palette's contrast pattern
   red: "#2C3B85", // same indigo family as DARK.red, darkened/saturated to match this palette's contrast pattern
   na: "#9AA2B0",
   greenBg: "rgba(31,146,84,0.10)",
-  amberBg: "rgba(46,108,181,0.10)",
+  amberBg: "rgba(94,63,168,0.10)",
   redBg: "rgba(44,59,133,0.10)",
-  accentBg: "rgba(108,93,211,0.10)",
+  accentBg: "rgba(35,85,143,0.10)",
 };
 
 // Mutable — start dark, mutated in place by applyTheme()
