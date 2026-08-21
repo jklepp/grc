@@ -1,30 +1,51 @@
 import React, { useState } from "react";
-import { LayoutGrid, SlidersHorizontal } from "lucide-react";
-import { TabBar } from "../components/Headings";
+import { ArrowLeft } from "lucide-react";
+import { C } from "../theme";
 import CommonControlFramework from "./CommonControlFramework";
 import ControlProfile from "./ControlProfile";
+import { ControlsLanding } from "./ControlsLanding";
+import { CONTROL_AREAS } from "./controlAreas";
+import type { ControlAreaId } from "./controlAreas";
 
 // Controls merges the former "Common Controls" and "Control Profile" top-level
-// pages into one, switched by an in-page tab bar instead of two sidebar entries.
-// Each page's own content is untouched — this is purely a shell around them.
-const TABS = [
-  { id: "ccf", label: "Common Controls", icon: LayoutGrid, Page: CommonControlFramework },
-  { id: "control-profile", label: "Control Profile", icon: SlidersHorizontal, Page: ControlProfile },
-] as const;
+// pages into one, switched by an area picker instead of two sidebar entries.
+// Each page's own content is untouched — this is purely a shell around them,
+// matching the Governance page's "select an area" landing pattern.
+const PAGE_BY_AREA = {
+  ccf: CommonControlFramework,
+  "control-profile": ControlProfile,
+} satisfies Record<ControlAreaId, React.ComponentType>;
 
-type ControlsTab = (typeof TABS)[number]["id"];
-
-// `initialTab` lets other pages deep-link into a specific tab (e.g. Executive
+// `initialTab` lets other pages deep-link into a specific area (e.g. Executive
 // Dashboard's "Explore Assurance" button) via App.jsx's legacy-id map.
-export default function Controls({ initialTab }: { initialTab?: ControlsTab }) {
-  const [tab, setTab] = useState<ControlsTab>(initialTab || TABS[0].id);
-  const ActiveTabPage = (TABS.find((t) => t.id === tab) || TABS[0]).Page;
+export default function Controls({ initialTab }: { initialTab?: ControlAreaId }) {
+  const [area, setArea] = useState<ControlAreaId | null>(initialTab ?? null);
+
+  if (!area) return <ControlsLanding onSelect={setArea} />;
+
+  const ActiveAreaPage = PAGE_BY_AREA[area];
+  const activeArea = CONTROL_AREAS.find((candidate) => candidate.id === area) ?? CONTROL_AREAS[0];
 
   return (
     <div className="w-full">
-      <TabBar tabs={TABS} active={tab} onChange={setTab} />
+      <div className="px-8 pt-6 flex items-center justify-between gap-4">
+        <button type="button" onClick={() => setArea(null)} className="flex items-center gap-1.5 text-xs font-medium" style={{ color: C.muted }}>
+          <ArrowLeft size={13} /> All Control Areas
+        </button>
+        <label className="flex items-center gap-2 text-xs" style={{ color: C.muted }}>
+          Control area
+          <select
+            value={activeArea.id}
+            onChange={(event) => setArea(event.target.value as ControlAreaId)}
+            className="rounded-lg px-3 py-2 outline-none text-sm font-medium"
+            style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
+          >
+            {CONTROL_AREAS.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.label}</option>)}
+          </select>
+        </label>
+      </div>
 
-      <ActiveTabPage />
+      <ActiveAreaPage />
     </div>
   );
 }

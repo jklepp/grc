@@ -11,14 +11,16 @@ import { SystemIdentity } from "./SystemIdentity";
 import { SystemSecurity } from "./SystemSecurity";
 import { SystemTesting } from "./SystemTesting";
 import { SystemControls } from "./SystemControls";
+import type { ControlSelection } from "./SystemControls";
 import { ScopeReviewModal } from "./ScopeReviewModal";
 import { SystemRisk } from "./SystemRisk";
 import { SystemAssets } from "./SystemAssets";
 import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
+import { ControlAssessmentModal } from "./ControlAssessmentModal";
+import { keyControlAssessmentQueue } from "./recordAssessment";
 import AddSystemWizard from "../../components/AddSystemWizard";
 import type { ControlId, SystemId } from "../../graph/ids";
 import type { SystemWorkspaceTab } from "./tabs";
-import type { ControlMatrixRow } from "./types";
 import type { ReviewWave } from "../../engine/review";
 import { useLiveEngine } from "../../engine/useLiveEngine";
 
@@ -38,18 +40,6 @@ interface SystemWorkspaceProps {
   startAssessment?: boolean;
 }
 
-function keyControlAssessmentQueue(
-  matrix: ControlMatrixRow[],
-  systemAssets: ReadonlyArray<{ id: string }>,
-  isRequired: (assetId: string, controlId: ControlId) => boolean,
-): ControlMatrixRow[] {
-  return matrix.filter((row) => {
-    if (!row.keyControl || row.status !== "unassessed") return false;
-    if (row.keyControl.scope === "program") return true;
-    return systemAssets.some((asset) => isRequired(asset.id, row.controlId));
-  });
-}
-
 export default function SystemWorkspace({ systemId: controlledSystemId, onSelectSystem, initialSubTab, onNavigate, startAssessment = false }: SystemWorkspaceProps) {
   const [localSystemId, setLocalSystemId] = useState(DEFAULT_SYSTEM_ID);
   const systemId = controlledSystemId ?? localSystemId;
@@ -57,6 +47,8 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   const [selectedControlId, setSelectedControlId] = useState<ControlId | null>(null);
   const [scopeReviewOpen, setScopeReviewOpen] = useState(false);
   const [requestedWave, setRequestedWave] = useState<ReviewWave | null>(null);
+  const [assessmentWalkOpen, setAssessmentWalkOpen] = useState(false);
+  const [controlsSelection, setControlsSelection] = useState<ControlSelection | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const assessmentStarted = useRef(false);
   const liveEngine = useLiveEngine();
@@ -124,14 +116,17 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   }, [startAssessment]);
 
   function openAssessmentWalk() {
-    setSubTab("controls");
-    const current = selectedControlId ? assessmentQueue.find((row) => row.controlId === selectedControlId) : null;
-    setSelectedControlId((current ?? assessmentQueue[0])?.controlId ?? null);
+    setAssessmentWalkOpen(true);
   }
 
   function openScopeReview(wave: ReviewWave = "not-applicable") {
     setRequestedWave(wave);
     setScopeReviewOpen(true);
+  }
+
+  function openControlsGroup(selection: ControlSelection) {
+    setControlsSelection(selection);
+    setSubTab("controls");
   }
 
   function goToQueuedControl(offset: number) {
@@ -206,9 +201,14 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
 
       {subTab === "overview" && (
         <SystemOverview
-          system={system} cockpit={cockpit} compliance={posture.compliance} identity={identity} exposure={exposure}
+          system={system} cockpit={cockpit} compliance={posture.compliance}
+          statusCounts={statusCounts} applicabilitySummary={applicabilitySummary}
+          identity={identity} exposure={exposure}
           resilience={resilience} secTests={secTests} ir={ir} vendors={vendors}
-          dataTypes={dataTypes} onNavigate={setSubTab} onGenerateIsoReport={generateIsoReport}
+          dataTypes={dataTypes} onNavigate={setSubTab}
+          onOpenScopeReview={openScopeReview} onSelectControlsGroup={openControlsGroup}
+          onStartAssessment={assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
+          onGenerateIsoReport={generateIsoReport}
         />
       )}
 
@@ -238,6 +238,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           walkActive={Boolean(selectedControlId) && queueIndex >= 0}
           onSelectRow={(row) => setSelectedControlId(row.controlId)}
           onOpenScopeReview={openScopeReview}
+          initialSelection={controlsSelection ?? undefined}
         />
       )}
 
@@ -252,6 +253,17 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         initialWave={requestedWave}
         onClose={() => setScopeReviewOpen(false)}
         onStartTechnicalReview={openAssessmentWalk}
+      />
+
+      <ControlAssessmentModal
+        open={assessmentWalkOpen}
+        systemId={system.id}
+        onClose={() => setAssessmentWalkOpen(false)}
+        onOpenFullDetail={(controlId) => {
+          setAssessmentWalkOpen(false);
+          setSubTab("controls");
+          setSelectedControlId(controlId);
+        }}
       />
 
       {selectedRow && (

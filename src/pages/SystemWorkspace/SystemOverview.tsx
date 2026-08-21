@@ -2,22 +2,28 @@ import React, { useState } from "react";
 import { FileDown } from "lucide-react";
 import { C } from "../../theme";
 import { PrismaLadder } from "./overview/PrismaLadder";
+import { AssessmentReadiness } from "./overview/AssessmentReadiness";
 import { AttentionRequired } from "./overview/AttentionRequired";
 import { SystemSnapshot } from "./overview/SystemSnapshot";
 import { RecentSystemActivity } from "./overview/RecentSystemActivity";
 import { RolesResponsibilities } from "./overview/RolesResponsibilities";
 import { Panel } from "./shared/Panel";
 import { SectionHeader } from "./shared/SectionHeader";
+import { ASSESSMENT_SELECTION, DEFAULT_SELECTION } from "./SystemControls";
+import type { ControlSelection } from "./SystemControls";
 import type {
-  CockpitSummary, ExposurePosture, IdentityPosture, IncidentResponsePosture,
+  ApplicabilitySummary, CockpitSummary, ControlMatrixRow, ExposurePosture, IdentityPosture, IncidentResponsePosture,
   ResiliencePosture, SecurityTestingPosture, VendorPosture, WorkspaceDataType, WorkspaceSystem,
 } from "./types";
 import type { SystemWorkspaceTab } from "./tabs";
+import type { ReviewWave } from "../../engine/review";
 
 interface SystemOverviewProps {
   system: WorkspaceSystem;
   cockpit: CockpitSummary;
   compliance: number | null;
+  statusCounts: Record<ControlMatrixRow["status"], number>;
+  applicabilitySummary: ApplicabilitySummary;
   identity: IdentityPosture;
   exposure: ExposurePosture;
   resilience: ResiliencePosture;
@@ -26,11 +32,17 @@ interface SystemOverviewProps {
   vendors: VendorPosture;
   dataTypes: WorkspaceDataType[];
   onNavigate: (tab: SystemWorkspaceTab) => void;
+  onOpenScopeReview: (wave: ReviewWave) => void;
+  onSelectControlsGroup: (selection: ControlSelection) => void;
+  onStartAssessment?: () => void;
   onGenerateIsoReport: () => Promise<void>;
 }
 
 export function SystemOverview(props: SystemOverviewProps) {
-  const { system, cockpit, compliance, identity, exposure, resilience, secTests, ir, vendors, dataTypes, onNavigate, onGenerateIsoReport } = props;
+  const {
+    system, cockpit, compliance, statusCounts, applicabilitySummary, identity, exposure, resilience, secTests, ir,
+    vendors, dataTypes, onNavigate, onOpenScopeReview, onSelectControlsGroup, onStartAssessment, onGenerateIsoReport,
+  } = props;
   const [generatingReport, setGeneratingReport] = useState(false);
 
   async function generateReport() {
@@ -44,7 +56,19 @@ export function SystemOverview(props: SystemOverviewProps) {
 
   return (
     <div className="px-8 pb-10 space-y-8">
-      <PrismaLadder system={system} compliance={compliance} assurance={cockpit.assurance} />
+      <Panel>
+        <PrismaLadder system={system} compliance={compliance} assurance={cockpit.assurance} />
+      </Panel>
+
+      <Panel>
+        <AssessmentReadiness
+          statusCounts={statusCounts}
+          applicabilitySummary={applicabilitySummary}
+          onScopeClick={() => onOpenScopeReview("not-applicable")}
+          onAssessClick={onStartAssessment ?? (() => onSelectControlsGroup(ASSESSMENT_SELECTION))}
+          onRemediateClick={() => onSelectControlsGroup(DEFAULT_SELECTION)}
+        />
+      </Panel>
 
       <div className="grid grid-cols-2 gap-5">
         <SystemSnapshot system={system} exposure={exposure} dataTypes={dataTypes} />

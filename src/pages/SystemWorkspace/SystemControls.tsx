@@ -19,7 +19,7 @@ import type { ReviewWave } from "../../engine/review";
 type ControlStatus = ControlMatrixRow["status"];
 type SelectionKind = "status" | "responsibility" | "remediation-group" | "assessment-group" | "all";
 
-interface ControlSelection {
+export interface ControlSelection {
   kind: SelectionKind;
   key?: string;
   label: string;
@@ -134,13 +134,13 @@ const NOT_APPLICABLE_META = APPLICABILITY_META["not-applicable"];
 // not yet at a resolved good state (Inherited/Satisfied). Pending applicability
 // calls are a separate concern — see APPLICABILITY REVIEW below — because
 // "nobody decided if this applies" is not the same claim as "this failed."
-const REMEDIATION_STATUSES = ["partial", "deficient", "not-implemented"] as const satisfies readonly ControlStatus[];
+export const REMEDIATION_STATUSES = ["partial", "deficient", "not-implemented"] as const satisfies readonly ControlStatus[];
 const REMEDIATION_STATUS_SET: ReadonlySet<ControlStatus> = new Set(REMEDIATION_STATUSES);
 
 // The default table view and its escape hatch. Landing on "everything that's
 // wrong" beats landing on an empty table or a 162-row unfiltered dump.
-const DEFAULT_SELECTION: ControlSelection = { kind: "remediation-group", label: "Remediation Required" };
-const ASSESSMENT_SELECTION: ControlSelection = { kind: "assessment-group", label: "Assessment Required" };
+export const DEFAULT_SELECTION: ControlSelection = { kind: "remediation-group", label: "Remediation Required" };
+export const ASSESSMENT_SELECTION: ControlSelection = { kind: "assessment-group", label: "Assessment Required" };
 const ALL_SELECTION: ControlSelection = { kind: "all", label: "All Applicable Controls" };
 
 // Every chip on the summary card is a drill-down trigger. `selection` is
@@ -583,17 +583,18 @@ interface SystemControlsProps {
   onStartAssessment?: () => void;
   walkActive?: boolean;
   onOpenScopeReview?: (wave: ReviewWave) => void;
+  initialSelection?: ControlSelection;
 }
 
 export function SystemControls({
   matrix, statusCounts, applicabilitySummary, posture, findingsByControl = {}, onSelectRow,
-  keyControlRemaining = 0, onStartAssessment, walkActive = false, onOpenScopeReview,
+  keyControlRemaining = 0, onStartAssessment, walkActive = false, onOpenScopeReview, initialSelection,
 }: SystemControlsProps) {
   const resp = applicabilitySummary?.byResponsibility;
   const remediationCount = REMEDIATION_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
   const assessmentCount = statusCounts.unassessed ?? 0;
   const pendingCount = applicabilitySummary?.pending ?? 0;
-  const [selection, setSelection] = useState<ControlSelection>(DEFAULT_SELECTION);
+  const [selection, setSelection] = useState<ControlSelection>(initialSelection ?? DEFAULT_SELECTION);
   const [filters, setFilters] = useState<ControlFilters>({ domain: null, framework: null, status: null, responsibility: null, evidenceHealth: null });
   const [sort, setSort] = useState<SortState | null>(null);
 

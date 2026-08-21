@@ -25,6 +25,8 @@ import { STATUS_META, IMPLEMENTATION_META, RESPONSIBILITY_META, ratingColor, ass
 import { POLICY_BY_CONTROL, PROCEDURE_BY_CONTROL } from "./policyLookup";
 import { BasisTag } from "../../components/BasisTag";
 import Modal, { ModalCloseButton } from "../../components/Modal";
+import { fieldLabel, inputStyle, selectedValue } from "./formHelpers";
+import type { AssetOption } from "./formHelpers";
 import type { ControlAssessment, ControlEvidenceDraft, ControlInstance, EvidenceDraft, EngineFinding, FindingDraft, LevelRating, ScoredEvidence } from "../../engine";
 import type { RuntimeFacts } from "../../engine/liveGraph";
 import type { AssetId, ControlId, EvidenceId, FindingId, SystemId } from "../../graph/ids";
@@ -165,22 +167,6 @@ function isRuntimeEvidence(evidenceId: EvidenceId): boolean {
   return evidenceId.startsWith("EVD-USR-");
 }
 
-function fieldLabel(children: ReactNode) {
-  return <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>{children}</div>;
-}
-
-// A function, not a hoisted object literal — C's values are mutated in place
-// by theme.js's applyTheme() on every theme change, so a plain object built
-// once at module load would freeze whatever C.panel held before the app's
-// default theme was ever applied (see controlMeta.js's meta() for the same
-// problem). Calling this at render time reads the live values instead.
-function inputStyle(): CSSProperties {
-  return {
-    background: C.panel, border: `1px solid ${C.border}`, color: C.ink,
-    borderRadius: 8, padding: "6px 8px", fontSize: 12, width: "100%",
-  };
-}
-
 // Compact evidence card: source, result, coverage, freshness, independence at
 // a glance, with edit/delete for records this panel itself added.
 function EvidenceCard({ e, assetLabel, governing, onEdit, onDelete, readOnly }: {
@@ -250,12 +236,6 @@ interface EvidenceFormState {
   reviewComments: string;
   reviewValidThrough: string;
   reviewIndependenceDeclared: boolean;
-}
-
-interface AssetOption { assetId: AssetId; label: string }
-
-function selectedValue<T extends string>(options: readonly T[], value: string, fallback: T): T {
-  return options.find((option) => option === value) ?? fallback;
 }
 
 const EMPTY_EVIDENCE_FORM: EvidenceFormState = {
@@ -535,124 +515,13 @@ function FindingForm({ initial, assetOptions, onCancel, onSubmit }: FindingFormP
   );
 }
 
-interface RecordAssessmentFormProps {
-  assetOptions: AssetOption[];
-  isProgramScoped: boolean;
-  onSubmit: (input: { decision: RecordDecision; source: string; evidenceType: EvidenceType; assetId: AssetId | ""; reason: string }, continueWalk: boolean) => void;
-  canContinue: boolean;
-  continueLabel: string;
-}
-
-function RecordAssessmentForm({ assetOptions, isProgramScoped, onSubmit, canContinue, continueLabel }: RecordAssessmentFormProps) {
-  const [decision, setDecision] = useState<RecordDecision>("holds");
-  const [source, setSource] = useState("");
-  const [evidenceType, setEvidenceType] = useState<EvidenceType>("Auditor examination");
-  const [assetId, setAssetId] = useState<AssetId | "">(assetOptions[0]?.assetId ?? "");
-  const [reason, setReason] = useState("");
-  const missingImplementation = decision === "not-implemented";
-  const ready = missingImplementation
-    ? Boolean(reason.trim() && assetId)
-    : Boolean(source.trim() && (isProgramScoped || assetOptions.length > 0));
-
-  function submit(continueWalk: boolean) {
-    if (!ready) return;
-    onSubmit({ decision, source: source.trim(), evidenceType, assetId, reason: reason.trim() }, continueWalk);
-  }
-
-  return (
-    <div className="rounded-lg p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-      <div className="text-[11px] leading-snug mb-3" style={{ color: C.muted }}>
-        Recording a fact puts this control in the engagement scope. Scores are derived from that fact — not typed here.
-      </div>
-      <div className="flex flex-wrap gap-2 mb-3">
-        {([
-          ["holds", "Holds"],
-          ["partial", "Partial"],
-          ...((!isProgramScoped && assetOptions.length > 0) ? [["not-implemented", "Not implemented"] as const] : []),
-        ] as const).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setDecision(value)}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-            style={{
-              background: decision === value ? C.accent : C.panel,
-              color: decision === value ? "#fff" : C.ink,
-              border: `1px solid ${decision === value ? C.accent : C.border}`,
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      {missingImplementation ? (
-        <div className="grid grid-cols-2 gap-2">
-          {!isProgramScoped && (
-            <div>{fieldLabel("Asset")}
-              <select style={inputStyle()} value={assetId} onChange={(e) => setAssetId(e.target.value as AssetId)}>
-                {assetOptions.map((a) => <option key={a.assetId} value={a.assetId}>{a.label}</option>)}
-              </select>
-            </div>
-          )}
-          <div className={isProgramScoped ? "col-span-2" : ""}>{fieldLabel("Reason")}
-            <input style={inputStyle()} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why this control is not implemented on this boundary" />
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-2">
-          <div>{fieldLabel("Source")}
-            <input style={inputStyle()} value={source} onChange={(e) => setSource(e.target.value)} placeholder="e.g. Assessor review — J. Ortiz" />
-          </div>
-          <div>{fieldLabel("Evidence type")}
-            <select style={inputStyle()} value={evidenceType} onChange={(e) => setEvidenceType(selectedValue(EVIDENCE_TYPES, e.target.value, evidenceType))}>
-              {EVIDENCE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-        </div>
-      )}
-      {!missingImplementation && (
-        <div className="text-[10.5px] mt-2 leading-snug" style={{ color: C.muted }}>
-          Default type is auditor examination, which scores Implemented as Partial unless the type is at or above API configuration observation. Override a PRISMA lane after saving if the derived rating is wrong.
-        </div>
-      )}
-      {!isProgramScoped && assetOptions.length === 0 && (
-        <div className="text-[10.5px] mt-2 leading-snug" style={{ color: C.amber }}>
-          No asset in this boundary requires this control, so it cannot be recorded here.
-        </div>
-      )}
-      <div className="flex items-center gap-2 mt-3">
-        <button
-          type="button"
-          className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-          style={{ background: ready && canContinue ? C.accent : C.border, color: "#fff" }}
-          disabled={!ready || !canContinue}
-          onClick={() => submit(true)}
-        >
-          {continueLabel}
-        </button>
-        <button
-          type="button"
-          className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-          style={{ background: ready ? C.accentBg : C.panel, color: ready ? C.accent : C.muted, border: `1px solid ${C.border}` }}
-          disabled={!ready}
-          onClick={() => submit(false)}
-        >
-          Save
-        </button>
-      </div>
-    </div>
-  );
-}
-
 const STEPS = [
-  { id: "record", label: "Record Assessment", icon: ClipboardCheck },
   { id: "requirement", label: "Control Overview", icon: BookOpenText },
   { id: "implementation", label: "Implementation Coverage", icon: Layers },
   { id: "evidence", label: "Evidence", icon: FileCheck2 },
   { id: "findings", label: "Findings & Remediation", icon: Wrench },
 ] as const;
 type EvaluationStep = (typeof STEPS)[number]["id"];
-type RecordDecision = "holds" | "partial" | "not-implemented";
 
 interface ControlEvaluationPanelProps {
   row: ControlMatrixRow;
@@ -675,7 +544,7 @@ interface ControlEvaluationPanelProps {
 export function ControlEvaluationPanel({
   row, system, onClose, queueIndex = null, queueLength = 0, onNext, onPrev,
 }: ControlEvaluationPanelProps) {
-  const [activeStep, setActiveStep] = useState<EvaluationStep>(row.status === "unassessed" ? "record" : "requirement");
+  const [activeStep, setActiveStep] = useState<EvaluationStep>("requirement");
   const [attachingEvidence, setAttachingEvidence] = useState(false);
   const [editingEvidenceId, setEditingEvidenceId] = useState<EvidenceId | null>(null);
   const [expandedEvidenceId, setExpandedEvidenceId] = useState<EvidenceId | null>(null);
@@ -684,7 +553,6 @@ export function ControlEvaluationPanel({
   const [editingFindingId, setEditingFindingId] = useState<FindingId | null>(null);
   const [saveError, setSaveError] = useState<string[] | null>(null);
   const inQueue = queueIndex != null && queueIndex >= 0;
-  const canContinue = Boolean(onNext);
   const liveEngine = useLiveEngine();
 
   const governingPolicy = POLICY_BY_CONTROL[row.control.id];
@@ -704,10 +572,6 @@ export function ControlEvaluationPanel({
   const assetOptions = row.instances.length > 0
     ? row.instances.map((inst) => ({ assetId: inst.assetId, label: assetName(system, inst.assetId) }))
     : assetsForSystem(system.id).map((a) => ({ assetId: a.id, label: a.name }));
-  const requiredAssetOptions = (liveEngine.graph.assetsBySystem[system.id] ?? [])
-    .filter((asset) => liveEngine.applicability.resolveApplicability(asset.id, row.control.id).required)
-    .map((asset) => ({ assetId: asset.id, label: asset.name }));
-  const recordAssetOptions = requiredAssetOptions;
   // A single evidence record can cover many assets at once (assetIds: [...]),
   // so it appears once per instance here — the same e.id repeats, and needs a
   // per-instance key of its own rather than e.id alone.
@@ -785,41 +649,6 @@ export function ControlEvaluationPanel({
     saveMutation((existing) => addFinding(existing, { ...draft, controlId: row.control.id }, system.id));
   }
 
-  function handleRecordAssessment(
-    input: { decision: RecordDecision; source: string; evidenceType: EvidenceType; assetId: AssetId | ""; reason: string },
-    continueWalk: boolean,
-  ) {
-    const fallbackAssetId = input.assetId || recordAssetOptions[0]?.assetId;
-    const saved = saveMutation((existing) => {
-      if (input.decision === "not-implemented") {
-        if (!fallbackAssetId) throw new Error("Not implemented requires an asset in this boundary");
-        return evaluateControl(existing, {
-          systemId: system.id,
-          controlId: row.control.id,
-          notImplemented: { assetId: fallbackAssetId, reason: input.reason },
-        });
-      }
-      const evidence: ControlEvidenceDraft = {
-        source: input.source,
-        evidenceType: input.evidenceType,
-        result: input.decision === "holds" ? "pass" : "partial",
-        coveragePct: 100,
-        independence: "internal",
-        collectorType: "manual",
-        assetIds: isProgramScoped ? [] : recordAssetOptions.map((a) => a.assetId),
-        note: `Key-control walk: ${input.decision}.`,
-      };
-      return evaluateControl(existing, {
-        systemId: system.id,
-        controlId: row.control.id,
-        evidenceEntries: [evidence],
-      });
-    });
-    if (!saved) return;
-    if (continueWalk) onNext?.();
-    else setActiveStep("requirement");
-  }
-
   function handleUpdateFinding(findingId: FindingId, patch: Omit<FindingDraft, "controlId">) {
     saveMutation((existing) => updateFinding(existing, findingId, patch));
   }
@@ -894,50 +723,6 @@ export function ControlEvaluationPanel({
               <ul className="list-disc pl-4">
                 {saveError.map((problem, i) => <li key={i} className="text-[11px]" style={{ color: C.red }}>{problem}</li>)}
               </ul>
-            </div>
-          )}
-
-          {/* ===== Record Assessment ===== */}
-          {activeStep === "record" && (
-            <div className="space-y-4">
-              <div>
-                <SectionLabel icon={ClipboardCheck}>Record this control</SectionLabel>
-                {row.keyControl ? (
-                  <>
-                    <p className="text-[12.5px] leading-relaxed mb-3" style={{ color: C.muted }}>
-                      {row.status === "unassessed"
-                        ? "This key control is applicable and not yet in the engagement. Attach a fact to score it, then continue to the next one."
-                        : "This control is already in scope. Record another fact, or skip to the next unassessed key control."}
-                    </p>
-                    <RecordAssessmentForm
-                      assetOptions={recordAssetOptions}
-                      isProgramScoped={isProgramScoped}
-                      canContinue={canContinue}
-                      continueLabel={inQueue && queueIndex === queueLength - 1 ? "Save and finish" : "Save and continue"}
-                      onSubmit={handleRecordAssessment}
-                    />
-                  </>
-                ) : (
-                  <p className="text-[12.5px] leading-relaxed" style={{ color: C.muted }}>
-                    Only key controls carry per-control evidence. This row stays unassessed until a later catalog pass covers the rest of the applicable set.
-                  </p>
-                )}
-              </div>
-              {assessment?.assessed && (
-                <div>
-                  <SectionLabel icon={Gauge}>PRISMA lanes</SectionLabel>
-                  <p className="text-[11px] leading-snug mb-2" style={{ color: C.muted }}>
-                    Derived ratings are suggestions. Accept them, or pick 0 / 25 / 50 / 75 / 100 on each lane. Accepting the derived value is a review, not an override.
-                  </p>
-                  <PrismaLaneGrader
-                    levels={assessment.levels}
-                    assessedBy={liveEngine.graph.assessmentScopeBySystem[system.id]?.assessor ?? ""}
-                    note=""
-                    comment=""
-                    onSubmit={handleLaneGrades}
-                  />
-                </div>
-              )}
             </div>
           )}
 

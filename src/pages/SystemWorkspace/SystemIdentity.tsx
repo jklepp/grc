@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import type { ReactNode } from "react";
-import { AlertTriangle, Bot, CheckCircle2, Fingerprint, KeyRound, ShieldAlert, Users2 } from "lucide-react";
+import { AlertTriangle, Bot, CheckCircle2, ChevronDown, ChevronRight, Fingerprint, KeyRound, ShieldAlert, Users2 } from "lucide-react";
 import { C } from "../../theme";
 import { Panel } from "./shared/Panel";
 import { IdentificationField } from "./shared/IdentificationField";
@@ -65,6 +65,69 @@ function WorkforceIdentityTable({ populations }: { populations: IdentityPopulati
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+type AgenticIdentity = IdentityPosture["agenticIdentities"][number];
+
+function AgenticIdentityCard({ agent }: { agent: AgenticIdentity }) {
+  const [expanded, setExpanded] = useState(false);
+  const autonomyLabel = agent.autonomyLevel === "recommend" ? "Recommend only" : agent.autonomyLevel === "approval-gated" ? "Approval gated" : "Autonomous";
+  const credentialLabel = agent.credentialType.replace(/-/g, " ");
+  const credentialDetail = agent.credentialType === "workload-identity" || agent.credentialType === "oidc-federation"
+    ? "Short-lived federation"
+    : agent.credentialAgeDays == null ? "age not recorded" : `${agent.credentialAgeDays}d since rotation`;
+
+  return (
+    <div className="rounded-lg" style={{ background: C.panel2, border: `1px solid ${agent.issues.length > 0 ? C.redBg : C.border}` }}>
+      <button
+        type="button"
+        onClick={() => setExpanded((value) => !value)}
+        className="w-full flex items-start justify-between gap-2 p-4 text-left"
+      >
+        <div className="flex items-start gap-2 min-w-0">
+          {expanded ? <ChevronDown size={14} className="shrink-0 mt-0.5" color={C.muted} /> : <ChevronRight size={14} className="shrink-0 mt-0.5" color={C.muted} />}
+          <div className="min-w-0">
+            <div className="text-sm font-semibold" style={{ color: C.ink }}>{agent.name}</div>
+            <div className="text-[11px] mt-0.5 font-mono truncate" style={{ color: C.muted }}>{agent.servicePrincipal}</div>
+          </div>
+        </div>
+        <div className="flex flex-wrap justify-end gap-1.5 shrink-0">
+          <CountBadge tone={agent.autonomyLevel === "autonomous" ? "attention" : agent.autonomyLevel === "approval-gated" ? "accent" : "good"}>{autonomyLabel}</CountBadge>
+          {agent.privileged && <CountBadge tone="attention">{agent.privilegeLevel}</CountBadge>}
+          {agent.issues.length > 0 && <CountBadge tone="attention">{agent.issues.length} issue{agent.issues.length === 1 ? "" : "s"}</CountBadge>}
+        </div>
+      </button>
+      {expanded && (
+        <div className="px-4 pb-4">
+          <div className="text-xs leading-relaxed mb-3" style={{ color: C.muted }}>{agent.purpose}</div>
+          <div className="grid grid-cols-2 gap-x-5 gap-y-3 pt-1" style={{ borderTop: `1px solid ${C.border}` }}>
+            <IdentificationField label="Owner" value={agent.owner?.name ?? "Unassigned"} />
+            <IdentificationField label="Credential" value={<span className="capitalize">{credentialLabel} · {credentialDetail}</span>} />
+            <IdentificationField label="Last Activity" value={agent.lastUsedAt ?? "None recorded"} />
+            <IdentificationField label="Revocation" value={<span className="capitalize">{agent.revocationMechanism}</span>} />
+            <div className="col-span-2">
+              <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Tools & Resources</div>
+              <div className="flex flex-wrap gap-1.5">
+                {agent.tools.map((tool) => <span key={tool} className="rounded px-1.5 py-0.5 text-[11px]" style={{ background: C.accentBg, color: C.accent }}>{tool}</span>)}
+              </div>
+            </div>
+          </div>
+          {agent.issues.length > 0 ? (
+            <div className="mt-4 pt-3 space-y-1.5" style={{ borderTop: `1px solid ${C.border}` }}>
+              {agent.issues.map((issue) => (
+                <div key={issue.code} className="flex items-start gap-2">
+                  <AlertTriangle size={12} className="shrink-0 mt-0.5" color={C.red} />
+                  <div className="text-xs"><span className="font-semibold" style={{ color: C.red }}>{issue.label}</span><span className="ml-1.5" style={{ color: C.muted }}>{issue.detail}</span></div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 mt-4 pt-3 text-xs" style={{ borderTop: `1px solid ${C.border}`, color: C.green }}><CheckCircle2 size={12} /> No derived identity issues.</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -142,62 +205,15 @@ export function SystemIdentity({ identity, exposure }: SystemIdentityProps) {
         />
         {identity.agenticIdentities.length > 0 ? (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-4">
-              <IdentityMetric label="Active" value={identity.agenticSummary.active} detail="Enabled agent principals" tone="accent" />
-              <IdentityMetric label="Autonomous" value={identity.agenticSummary.autonomous} detail="No human approval required" tone={identity.agenticSummary.autonomous > 0 ? "attention" : "good"} />
-              <IdentityMetric label="Approval Gated" value={identity.agenticSummary.approvalGated} detail="Human decision required" tone="good" />
-              <IdentityMetric label="Privileged" value={identity.agenticSummary.privileged} detail="Elevated system authority" tone={identity.agenticSummary.privileged > 0 ? "attention" : "good"} />
-              <IdentityMetric label="Long-Lived Credentials" value={identity.agenticSummary.longLivedCredentials} detail={`${identity.agenticSummary.longLivedApiKeys} API key${identity.agenticSummary.longLivedApiKeys === 1 ? "" : "s"}`} tone={identity.agenticSummary.longLivedCredentials > 0 ? "attention" : "good"} />
-              <IdentityMetric label="Need Attention" value={identity.agenticSummary.withIssues} detail={`${identity.agenticSummary.unowned} without an owner`} tone={identity.agenticSummary.withIssues > 0 ? "attention" : "good"} />
-            </div>
+            {(identity.agenticSummary.autonomous > 0 || identity.agenticSummary.longLivedCredentials > 0 || identity.agenticSummary.unowned > 0) && (
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {identity.agenticSummary.autonomous > 0 && <CountBadge tone="attention">{identity.agenticSummary.autonomous} autonomous</CountBadge>}
+                {identity.agenticSummary.longLivedCredentials > 0 && <CountBadge tone="attention">{identity.agenticSummary.longLivedCredentials} long-lived credential{identity.agenticSummary.longLivedCredentials === 1 ? "" : "s"}</CountBadge>}
+                {identity.agenticSummary.unowned > 0 && <CountBadge tone="attention">{identity.agenticSummary.unowned} unowned</CountBadge>}
+              </div>
+            )}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-              {identity.agenticIdentities.map((agent) => {
-                const autonomyLabel = agent.autonomyLevel === "recommend" ? "Recommend only" : agent.autonomyLevel === "approval-gated" ? "Approval gated" : "Autonomous";
-                const credentialLabel = agent.credentialType.replace(/-/g, " ");
-                const credentialDetail = agent.credentialType === "workload-identity" || agent.credentialType === "oidc-federation"
-                  ? "Short-lived federation"
-                  : agent.credentialAgeDays == null ? "Age not recorded" : `${agent.credentialAgeDays}d since rotation`;
-                return (
-                  <div key={agent.id} className="rounded-lg p-4" style={{ background: C.panel2, border: `1px solid ${agent.issues.length > 0 ? C.redBg : C.border}` }}>
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold" style={{ color: C.ink }}>{agent.name}</div>
-                        <div className="text-xs mt-1 leading-relaxed" style={{ color: C.muted }}>{agent.purpose}</div>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        <CountBadge tone={agent.autonomyLevel === "autonomous" ? "attention" : agent.autonomyLevel === "approval-gated" ? "accent" : "good"}>{autonomyLabel}</CountBadge>
-                        {agent.privileged && <CountBadge tone="attention">{agent.privilegeLevel}</CountBadge>}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-5 gap-y-3 mt-4">
-                      <IdentificationField label="Service Principal" value={agent.servicePrincipal} />
-                      <IdentificationField label="Owner" value={agent.owner?.name ?? "Unassigned"} />
-                      <IdentificationField label="Credential" value={<span className="capitalize">{credentialLabel}</span>} />
-                      <IdentificationField label="Credential Posture" value={credentialDetail} />
-                      <IdentificationField label="Last Activity" value={agent.lastUsedAt ?? "None recorded"} />
-                      <IdentificationField label="Revocation" value={<span className="capitalize">{agent.revocationMechanism}</span>} />
-                      <div className="col-span-2">
-                        <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Tools & Resources</div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {agent.tools.map((tool) => <span key={tool} className="rounded px-1.5 py-0.5 text-[11px]" style={{ background: C.accentBg, color: C.accent }}>{tool}</span>)}
-                        </div>
-                      </div>
-                    </div>
-                    {agent.issues.length > 0 ? (
-                      <div className="mt-4 pt-3 space-y-1.5" style={{ borderTop: `1px solid ${C.border}` }}>
-                        {agent.issues.map((issue) => (
-                          <div key={issue.code} className="flex items-start gap-2">
-                            <AlertTriangle size={12} className="shrink-0 mt-0.5" color={C.red} />
-                            <div className="text-xs"><span className="font-semibold" style={{ color: C.red }}>{issue.label}</span><span className="ml-1.5" style={{ color: C.muted }}>{issue.detail}</span></div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 mt-4 pt-3 text-xs" style={{ borderTop: `1px solid ${C.border}`, color: C.green }}><CheckCircle2 size={12} /> No derived identity issues.</div>
-                    )}
-                  </div>
-                );
-              })}
+              {identity.agenticIdentities.map((agent) => <AgenticIdentityCard key={agent.id} agent={agent} />)}
             </div>
           </>
         ) : (
@@ -217,10 +233,8 @@ export function SystemIdentity({ identity, exposure }: SystemIdentityProps) {
         ) : (
           <div className="text-sm py-3" style={{ color: C.muted }}>No workforce identity population is tracked for this system.</div>
         )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-5 pt-4" style={{ borderTop: `1px solid ${C.border}` }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5 pt-4" style={{ borderTop: `1px solid ${C.border}` }}>
           <IdentificationField label="Shared Accounts" value={identity.totals.shared} />
-          <IdentificationField label="Local Identities Outside SSO" value={identity.totals.localBypass} />
-          <IdentificationField label="Accounts Awaiting Termination" value={identity.totals.awaitingTermination} />
           <div>
             <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Last Access Review</div>
             {identity.review ? (

@@ -86,6 +86,12 @@ export interface ReviewWaveControl {
   responsibility: Responsibility | null;
   review: ControlReview | null;
   proposed: boolean;
+  // Set for graph.pendingApplicability items: an open question a rule
+  // deliberately could not resolve. Unlike a routine derived call, an
+  // authored system's YAML never stands in for a decision here — nothing
+  // was "already judged" when the record was written pending in the first
+  // place, so it always needs a review row of its own.
+  forceReview?: boolean;
 }
 
 export interface ReviewWaveProjection {
@@ -121,9 +127,9 @@ function proposedBucket(
   return "system-owned";
 }
 
-function decisionMade(review: ControlReview | null, systemId: SystemId, wave: ReviewWave): boolean {
+function decisionMade(review: ControlReview | null, systemId: SystemId, wave: ReviewWave, forceReview = false): boolean {
   if (review) return true;
-  if (wave === "system-owned") return false;
+  if (wave === "system-owned" || forceReview) return false;
   return !isRuntimeCreatedSystem(systemId);
 }
 
@@ -149,6 +155,7 @@ export function createReview(
         responsibility: null,
         review: reviewFor(graph, systemId, item.control.id),
         proposed: true,
+        forceReview: true,
       })),
       ...summary.notApplicableControls.map((item) => ({
         control: item.control,
@@ -208,7 +215,7 @@ export function createReview(
       const remaining: ReviewWaveControl[] = [];
       const decidedItems: ReviewWaveControl[] = [];
       items.forEach((item) => {
-        (decisionMade(item.review, systemId, id) ? decidedItems : remaining).push(item);
+        (decisionMade(item.review, systemId, id, item.forceReview) ? decidedItems : remaining).push(item);
       });
       return { id, label, remaining, decidedItems, decided: decidedItems.length, total: items.length };
     };
@@ -251,11 +258,19 @@ export function createReview(
 
     mapped.forEach((control) => {
       const review = reviewFor(graph, systemId, control.id);
-      const inNaWave = naIds.has(control.id) || pendingIds.has(control.id);
       const authored = !isRuntimeCreatedSystem(systemId);
 
-      if (inNaWave) {
+      // Routine, rule-derived exclusions inherit an authored system's
+      // existing judgment same as inheritance claims do. A pending item
+      // never does — it was flagged pending precisely because nothing was
+      // already decided, so it needs an actual review record.
+      if (naIds.has(control.id)) {
         if (review || authored) defensible += 1;
+        else unconfirmed += 1;
+        return;
+      }
+      if (pendingIds.has(control.id)) {
+        if (review) defensible += 1;
         else unconfirmed += 1;
         return;
       }

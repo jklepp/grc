@@ -26,7 +26,7 @@ export function SystemHeader({ system, systems, systemId, onSelectSystem, onEdit
         </span>
       }
       right={(
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
             onClick={onEdit}
@@ -35,7 +35,7 @@ export function SystemHeader({ system, systems, systemId, onSelectSystem, onEdit
           >
             <Pencil size={13} /> Edit System
           </button>
-          <SystemPicker systems={systems} systemId={systemId} onSelect={onSelectSystem} />
+          <SystemPicker systems={systems} systemId={systemId} onSelect={onSelectSystem} width={260} />
         </div>
       )}
     />

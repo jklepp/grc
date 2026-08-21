@@ -42,9 +42,9 @@ import {
 } from "../graph/nodes/taxonomy";
 import {
   INHERITED_LEVEL_CAP, OPERATING_HISTORY_THRESHOLD_DAYS, IMMATURE_LEVEL_CAP,
-  assuranceBand, display, meetsEvidence, prismaScore,
+  assuranceBand, display, prismaScore,
 } from "./assurance";
-import { DAY_MS, VERIFYING_EVIDENCE_FLOOR, governingRecord, type EvidenceApi, type ScoredEvidence } from "./evidence";
+import { DAY_MS, governingRecord, type EvidenceApi, type ScoredEvidence } from "./evidence";
 import {
   INSTANCE_CREDIT, capInherited, capImmature, rateImplemented, rateInheritedHitrustR2, rateInheritedImplemented, rateInheritedManaged,
   rateInheritedMeasured, rateManaged, rateMeasured,ratePolicy, rateProcedure,
@@ -222,14 +222,17 @@ export function createAssessment(
       };
     }
 
-    // The rule SOP-01 already states in words: configured but unverified does
-    // not count. A record only establishes implementation if it is current,
-    // passing, at a grade ACME can verify, and looked at the whole population.
+    // Implemented is the assessor's call, not the engine's — a record
+    // establishes implementation if it is current, passing, and looked at
+    // the whole population. Whether that record came from an automated
+    // system interrogation or an auditor's examination doesn't change
+    // whether the control holds; it changes how well the control's
+    // operation is being MEASURED (see rateMeasured/gradeOf in levels.ts),
+    // which is a separate rung on purpose.
     const verified =
       governing !== null &&
       governing.result === "pass" &&
       !governing.stale &&
-      meetsEvidence(governing.evidenceType, VERIFYING_EVIDENCE_FLOOR) &&
       governing.coveragePct >= 100;
 
     if (verified) {
@@ -249,14 +252,12 @@ export function createAssessment(
       ? "no governing record"
       : governing.stale
         ? `${governing.source} is past its validity window`
-        : !meetsEvidence(governing.evidenceType, VERIFYING_EVIDENCE_FLOOR)
-          ? `${governing.source} is ${governing.evidenceType.toLowerCase()}, below the grade at which ACME verifies anything itself`
-          : governing.coveragePct < 100
-            ? `${governing.source} covered ${governing.coveragePct}% of the population`
-            : `${governing.source} returned ${governing.result}`;
+        : governing.coveragePct < 100
+          ? `${governing.source} covered ${governing.coveragePct}% of the population`
+          : `${governing.source} returned ${governing.result}`;
     return {
       ...base, status: "partial", credit: INSTANCE_CREDIT.partial,
-      statement: `${controlId} on ${asset.name} is evidenced but not verified — ${why}.`,
+      statement: `${controlId} on ${asset.name} is evidenced but not confirmed — ${why}.`,
     };
   }
 
@@ -475,8 +476,7 @@ export function createAssessment(
 
       if (counted.length === 0 && pool.length > 0) {
         const governingProgram = governingRecord(pool);
-        const passing = governingProgram?.result === "pass" && !governingProgram.stale
-          && meetsEvidence(governingProgram.evidenceType, VERIFYING_EVIDENCE_FLOOR);
+        const passing = governingProgram?.result === "pass" && !governingProgram.stale;
         implementedLevel = rateImplemented({
           controlId, credit: passing ? 1 : 0.5, population: 1,
           implemented: passing ? 1 : 0, partial: passing ? 0 : 1,
