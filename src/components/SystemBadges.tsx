@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Plug, Search, ChevronDown } from "lucide-react";
+import { Plug, Search, ChevronDown, ShieldCheck } from "lucide-react";
 import { C, CLASS_META } from "../theme";
 import { assuranceBand } from "../engine";
 import type { DataType } from "../graph/nodes/dataTypes";
@@ -51,6 +51,22 @@ export function AssuranceBadge({ pct, size = 34 }: { pct?: number | null; size?:
 // Small presentational badges shared by any page that displays a system from the
 // register (Data Classification Register, System Security Plan) — kept in one
 // place so a system looks identical wherever it's shown.
+// Stage 4 of the assessment workflow: scope decided, every applicable
+// control graded, every gap recorded as a Finding/CAP. Deliberately a
+// distinct claim from assurance/classification — see the formalAssessment
+// derivation in SystemWorkspace.tsx.
+export function FormallyAssessedBadge() {
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded font-semibold uppercase tracking-wide"
+      style={{ background: C.greenBg, color: C.green, letterSpacing: "0.04em" }}
+      title="Scope decided, every applicable control evaluated, every gap has a Finding/CAP on record"
+    >
+      <ShieldCheck size={11} /> Formally Assessed
+    </span>
+  );
+}
+
 export function ClassificationTag({ level }: { level: ClassificationTier }) {
   const meta = CLASS_META[level];
   return (

@@ -2,7 +2,7 @@ import React from "react";
 import { ArrowLeft, ClipboardCheck, Pencil } from "lucide-react";
 import { C } from "../../theme";
 import { PageHeader } from "../../components/Headings";
-import { ClassificationTag, AssuranceBadge, SystemPicker } from "../../components/SystemBadges";
+import { ClassificationTag, AssuranceBadge, FormallyAssessedBadge, SystemPicker } from "../../components/SystemBadges";
 import type { SystemId } from "../../graph/ids";
 import type { WorkspaceSystem } from "./types";
 
@@ -13,9 +13,10 @@ interface SystemHeaderProps {
   onSelectSystem: (id: SystemId) => void;
   onEdit: () => void;
   onBack?: () => void;
+  formallyAssessed?: boolean;
 }
 
-export function SystemHeader({ system, systems, systemId, onSelectSystem, onEdit, onBack }: SystemHeaderProps) {
+export function SystemHeader({ system, systems, systemId, onSelectSystem, onEdit, onBack, formallyAssessed }: SystemHeaderProps) {
   return (
     <PageHeader
       icon={ClipboardCheck}
@@ -34,6 +35,7 @@ export function SystemHeader({ system, systems, systemId, onSelectSystem, onEdit
           {system.name}
           {system.classification && <ClassificationTag level={system.classification} />}
           <AssuranceBadge pct={system.overallAssurance} />
+          {formallyAssessed && <FormallyAssessedBadge />}
         </span>
       }
       right={(

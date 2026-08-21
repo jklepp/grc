@@ -1,5 +1,5 @@
 import React from "react";
-import { Check, ChevronRight, ClipboardCheck, ShieldCheck, Target, Wrench } from "lucide-react";
+import { Check, ChevronRight, ClipboardCheck, FileWarning, ShieldCheck, Target, Wrench } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { C } from "../../../theme";
 import { SectionHeader } from "../shared/SectionHeader";
@@ -9,11 +9,21 @@ import type { ControlMatrixRow, ApplicabilitySummary } from "../types";
 
 type ControlStatus = ControlMatrixRow["status"];
 
+interface FormalAssessmentStatus {
+  scopeDecided: boolean;
+  controlsAssessed: boolean;
+  gapsRecorded: boolean;
+  gapControlsMissingFinding: ControlMatrixRow[];
+  complete: boolean;
+}
+
 interface AssessmentReadinessProps {
   statusCounts: Record<ControlStatus, number>;
   applicabilitySummary: ApplicabilitySummary;
+  formalAssessment: FormalAssessmentStatus;
   onScopeClick: () => void;
   onAssessClick: () => void;
+  onGapsClick: () => void;
   onRemediateClick: () => void;
 }
 
@@ -66,18 +76,25 @@ function CheckRow({ icon: Icon, title, description, complete, count, next, onCli
   );
 }
 
-const CHECKS = ["scope", "assess", "remediate"] as const;
+const CHECKS = ["scope", "assess", "gaps", "remediate"] as const;
 type CheckId = (typeof CHECKS)[number];
+// "Formally assessed" (Completion, stage 4) needs only these three — a gap is
+// allowed to still be open, as long as it's on record with a Finding/CAP.
+// "remediate" is a further, optional bar (closing those gaps) tracked
+// alongside it but not required for the system to count as formally assessed.
+const FORMAL_ASSESSMENT_CHECKS = ["scope", "assess", "gaps"] as const;
 
 // A read of every count already exists elsewhere (Scope from
 // applicability.pendingControlsForSystem, Assessment from statusCounts.unassessed,
-// Remediation from the same REMEDIATION_STATUSES SystemControls' work-queue tile
-// uses) — three independent Complete/Deficient checks, not a sequential wizard.
-// The first deficient check in scope->assess->remediate order (the natural
+// Gaps from formalAssessment.gapControlsMissingFinding, Remediation from the
+// same REMEDIATION_STATUSES SystemControls' work-queue tile uses) — four
+// independent Complete/Deficient checks, not a sequential wizard. The first
+// deficient check in scope->assess->gaps->remediate order (the natural
 // workflow sequence) is marked as next; the order on screen never reshuffles.
-export function AssessmentReadiness({ statusCounts, applicabilitySummary, onScopeClick, onAssessClick, onRemediateClick }: AssessmentReadinessProps) {
+export function AssessmentReadiness({ statusCounts, applicabilitySummary, formalAssessment, onScopeClick, onAssessClick, onGapsClick, onRemediateClick }: AssessmentReadinessProps) {
   const pendingCount = applicabilitySummary?.pending ?? 0;
   const assessmentCount = statusCounts.unassessed ?? 0;
+  const gapsMissingCount = formalAssessment.gapControlsMissingFinding.length;
   const remediationCount = REMEDIATION_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
 
   const checks: Record<CheckId, { icon: LucideIcon; title: string; description: string; complete: boolean; count: number; onClick: () => void }> = {
@@ -97,6 +114,14 @@ export function AssessmentReadiness({ statusCounts, applicabilitySummary, onScop
       count: assessmentCount,
       onClick: onAssessClick,
     },
+    gaps: {
+      icon: FileWarning,
+      title: "Gaps & CAPs Recorded",
+      description: "Every partial, deficient, or not-implemented control has a Finding filed with a corrective action plan.",
+      complete: gapsMissingCount === 0,
+      count: gapsMissingCount,
+      onClick: onGapsClick,
+    },
     remediate: {
       icon: Wrench,
       title: "Remediation",
@@ -108,23 +133,30 @@ export function AssessmentReadiness({ statusCounts, applicabilitySummary, onScop
   };
   const nextId = CHECKS.find((id) => !checks[id].complete);
   const doneCount = CHECKS.filter((id) => checks[id].complete).length;
+  const formallyAssessed = FORMAL_ASSESSMENT_CHECKS.every((id) => checks[id].complete);
 
   return (
     <WizardTokens>
       <SectionHeader
         icon={ShieldCheck}
         title="System Readiness"
-        description="Three independent checks toward an audit-ready system: has scope been decided, has it been evaluated, and does what was found still need fixing."
+        description="Four independent checks toward an audit-ready system: has scope been decided, has it been evaluated, is every gap on record, and does what was found still need fixing."
         aside={<StatusPill tone={nextId ? "neutral" : "success"}>{doneCount} of {CHECKS.length} complete</StatusPill>}
       />
-      {nextId ? (
-        <div className="flex flex-col gap-2.5">
-          {CHECKS.map((id) => <CheckRow key={id} {...checks[id]} next={id === nextId} />)}
-        </div>
-      ) : (
-        <Callout tone="success" title="Scoped, assessed, and remediated.">
+      {!nextId ? (
+        <Callout tone="success" title="Scoped, assessed, recorded, and remediated.">
           This system is audit-ready.
         </Callout>
+      ) : (
+        <div className="flex flex-col gap-2.5">
+          {formallyAssessed && (
+            <Callout tone="success" title="Formally assessed.">
+              Scope is decided, every applicable control has been evaluated, and every gap has a Finding/CAP on record.
+              {remediationCount > 0 ? ` ${remediationCount} remediation item${remediationCount === 1 ? "" : "s"} still open.` : ""}
+            </Callout>
+          )}
+          {CHECKS.map((id) => <CheckRow key={id} {...checks[id]} next={id === nextId} />)}
+        </div>
       )}
     </WizardTokens>
   );

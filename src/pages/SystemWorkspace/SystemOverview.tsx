@@ -14,6 +14,14 @@ import type {
 import type { SystemWorkspaceTab } from "./tabs";
 import type { ReviewWave } from "../../engine/review";
 
+interface FormalAssessmentStatus {
+  scopeDecided: boolean;
+  controlsAssessed: boolean;
+  gapsRecorded: boolean;
+  gapControlsMissingFinding: ControlMatrixRow[];
+  complete: boolean;
+}
+
 interface SystemOverviewProps {
   system: WorkspaceSystem;
   cockpit: CockpitSummary;
@@ -27,12 +35,14 @@ interface SystemOverviewProps {
   onSelectControlsGroup: (selection: ControlSelection) => void;
   onStartAssessment?: () => void;
   onGenerateIsoReport: () => Promise<void>;
+  formalAssessment: FormalAssessmentStatus;
 }
 
 export function SystemOverview(props: SystemOverviewProps) {
   const {
     system, cockpit, compliance, statusCounts, applicabilitySummary, exposure,
     dataTypes, onNavigate, onOpenScopeReview, onSelectControlsGroup, onStartAssessment, onGenerateIsoReport,
+    formalAssessment,
   } = props;
   const [generatingReport, setGeneratingReport] = useState(false);
 
@@ -55,8 +65,10 @@ export function SystemOverview(props: SystemOverviewProps) {
         <AssessmentReadiness
           statusCounts={statusCounts}
           applicabilitySummary={applicabilitySummary}
+          formalAssessment={formalAssessment}
           onScopeClick={() => onOpenScopeReview("not-applicable")}
           onAssessClick={onStartAssessment ?? (() => onSelectControlsGroup(ASSESSMENT_SELECTION))}
+          onGapsClick={() => onSelectControlsGroup(DEFAULT_SELECTION)}
           onRemediateClick={() => onSelectControlsGroup(DEFAULT_SELECTION)}
         />
       </Panel>
