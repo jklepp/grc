@@ -118,7 +118,7 @@ export function createRollups(
   // should count, not how well anything is doing.
   function assetRollup(assetId: AssetId) {
     const asset = graph.assetById[assetId];
-    const system = graph.systemById[asset.systemId];
+    const systems = asset.systemIds.map((sid) => graph.systemById[sid]);
 
     const controls = assessment.instancesForAsset(assetId);
     const required = applicability.requiredControlsForAsset(assetId);
@@ -135,7 +135,7 @@ export function createRollups(
 
     return {
       ...asset,
-      system,
+      systems,
       classification: classification.assetClassification(assetId),
       classificationDetail: classification.assetClassificationDetail(assetId),
       impactLevelBand: impactLevelBand(asset.impactLevel),

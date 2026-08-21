@@ -757,7 +757,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     }
     const newAssets: Asset[] = assets.map((a, i) => ({
       id: assetIdForDraft(a),
-      systemId,
+      systemIds: [systemId],
       name: a.name.trim() || `Asset ${i + 1}`,
       type: a.sourceType && a.kind === a.sourceKind ? a.sourceType : a.assetType,
       kind: a.kind,
@@ -880,7 +880,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
     const replacedAssetIds = new Set([
       ...(appEngine.graph.assetsBySystem[systemId] ?? []).map((a) => a.id),
-      ...existing.assets.filter((a) => a.systemId === systemId).map((a) => a.id),
+      ...existing.assets.filter((a) => a.systemIds.includes(systemId)).map((a) => a.id),
       ...newAssets.map((a) => a.id),
     ]);
     const replacedActorIds = new Set([
@@ -892,7 +892,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
     const runtime: RuntimeFacts = {
       systems: [...existing.systems.filter((s) => s.id !== systemId), system],
-      assets: [...existing.assets.filter((a) => a.systemId !== systemId), ...newAssets],
+      assets: [...existing.assets.filter((a) => !a.systemIds.includes(systemId)), ...newAssets],
       assetDataTypes: [...existing.assetDataTypes.filter((edge) => !replacedAssetIds.has(edge.assetId)), ...newAssetDataTypes],
       actors: [...existing.actors.filter((actor) => !replacedActorIds.has(actor.id)), ...newActors],
       actorAccess: [...existing.actorAccess.filter((edge) => !replacedAssetIds.has(edge.assetId)), ...newActorAccess],

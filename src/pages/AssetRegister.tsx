@@ -272,8 +272,19 @@ function AssetDetailPanel({ asset, onClose }: { asset: AssetRollup; onClose: () 
         <div className="min-w-0">
           <div className="text-sm font-semibold" style={{ color: C.ink }}>{asset.name}</div>
           <div className="text-xs mt-1" style={{ color: C.muted }}>{asset.type} · {asset.provider}</div>
-          <div className="text-xs mt-0.5" style={{ color: C.muted }}>{asset.system.name} ({asset.system.id})</div>
-          <div className="mt-2">{asset.classification && <ClassificationTag level={asset.classification} />}</div>
+          <div className="text-xs mt-0.5" style={{ color: C.muted }}>
+            {asset.systems.length === 1
+              ? `${asset.systems[0].name} (${asset.systems[0].id})`
+              : asset.systems.map((s) => s.name).join(", ")}
+          </div>
+          <div className="mt-2 flex items-center gap-2 flex-wrap">
+            {asset.classification && <ClassificationTag level={asset.classification} />}
+            {asset.systems.length > 1 && (
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: C.accent, background: C.accentBg }}>
+                Shared with {asset.systems.length - 1} other system{asset.systems.length > 2 ? "s" : ""}
+              </span>
+            )}
+          </div>
         </div>
         <button onClick={onClose} className="p-1.5 rounded-lg shrink-0" style={{ color: C.muted, background: C.panel2 }} title="Close">
           <X size={16} />
@@ -332,14 +343,14 @@ function AssetDetailPanel({ asset, onClose }: { asset: AssetRollup; onClose: () 
 }
 
 interface AssetGroup {
-  system: AssetRollup["system"];
+  system: AssetRollup["systems"][number];
   assets: AssetRollup[];
 }
 
 export default function AssetRegister({ systemId }: { systemId?: SystemId }) {
   useLiveEngine();
   const allAssets = getAllAssets();
-  const assets = systemId ? allAssets.filter((a) => a.system.id === systemId) : allAssets;
+  const assets = systemId ? allAssets.filter((a) => a.systems.some((s) => s.id === systemId)) : allAssets;
   const [selectedId, setSelectedId] = useState<AssetId | null>(null);
   const [search, setSearch] = useState("");
   const [assetView, setAssetView] = useState<"lanes" | "flat">(systemId ? "lanes" : "flat");
@@ -370,12 +381,14 @@ export default function AssetRegister({ systemId }: { systemId?: SystemId }) {
 
   const groups: AssetGroup[] = [];
   filteredAssets.forEach((asset) => {
-    let group = groups.find((g) => g.system.id === asset.system.id);
-    if (!group) {
-      group = { system: asset.system, assets: [] };
-      groups.push(group);
-    }
-    group.assets.push(asset);
+    asset.systems.forEach((system) => {
+      let group = groups.find((g) => g.system.id === system.id);
+      if (!group) {
+        group = { system, assets: [] };
+        groups.push(group);
+      }
+      group.assets.push(asset);
+    });
   });
 
   return (

@@ -116,7 +116,8 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
   });
 
   graph.assets.forEach((a) => {
-    check(has(graph.systemById, a.systemId), `asset ${a.id}: systemId "${a.systemId}" is not a system`);
+    check(a.systemIds.length > 0, `asset ${a.id}: systemIds is empty — an asset in no system's boundary belongs to nobody's rollup`);
+    a.systemIds.forEach((sid) => check(has(graph.systemById, sid), `asset ${a.id}: systemIds entry "${sid}" is not a system`));
     check(ASSET_KINDS.includes(a.kind), `asset ${a.id}: kind "${a.kind}" is not one of ASSET_KINDS — an unknown kind matches no applicability rule, which would silently exempt this asset from every control`);
     check(IMPACT_LEVELS.includes(a.impactLevel), `asset ${a.id}: impactLevel "${a.impactLevel}" is not one of ${IMPACT_LEVELS.join(", ")} (FIPS 199 Low / Moderate / High)`);
     check((graph.dataTypesByAsset[a.id] ?? []).length > 0, `asset ${a.id}: has no data-type edges, so its classification cannot be derived`);
@@ -267,7 +268,10 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
       if (f.kind === FLOW_KINDS.RESTORE) {
         check(from.kind === "backup-vault", `restore flow ${f.id}: must originate from a backup-vault asset`);
       }
-      check(from.systemId === to.systemId, `data flow ${f.id}: crosses from ${from.systemId} to ${to.systemId} — cross-system flows change what each boundary is responsible for and need to be modelled deliberately, not appear by accident`);
+      check(
+        from.systemIds.some((sid) => to.systemIds.includes(sid)),
+        `data flow ${f.id}: crosses from {${from.systemIds}} to {${to.systemIds}} — no shared system boundary, and cross-system flows change what each boundary is responsible for and need to be modelled deliberately, not appear by accident`
+      );
     }
   });
 

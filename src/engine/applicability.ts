@@ -61,7 +61,13 @@ export interface ApplicabilityResolution {
 export function createApplicability(graph: Graph, classification: ClassificationApi) {
   function contextFor(assetId: AssetId): ApplicabilityContext {
     const asset = graph.assetById[assetId];
-    const system = graph.systemById[asset.systemId];
+    // hostingType is the only system-derived field here — kind, classification
+    // and dataKinds are asset-owned and identical regardless of which system is
+    // asking. A shared asset's hostingType resolves against its first-declared
+    // system; fully system-aware resolution would mean threading systemId
+    // through every resolveApplicability call site (~15), which is out of
+    // scope unless a real shared asset needs divergent hostingType treatment.
+    const system = graph.systemById[asset.systemIds[0]];
     return {
       kind: asset.kind,
       hostingType: system.hostingType,

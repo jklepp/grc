@@ -100,8 +100,8 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
     if (keyControl?.scope === "program") {
       const asset = graph.assetById[f.assetId];
       check(
-        Boolean(asset) && applicability.resolveProgramApplicability(asset.systemId, f.controlId).required,
-        `finding ${f.id}: ${f.controlId} is program-scoped and not required for ${asset?.systemId ?? f.assetId}, so there is no assessment for this finding to live under`
+        Boolean(asset) && asset.systemIds.some((sid) => applicability.resolveProgramApplicability(sid, f.controlId).required),
+        `finding ${f.id}: ${f.controlId} is program-scoped and not required for any of ${asset?.systemIds.join(", ") ?? f.assetId}, so there is no assessment for this finding to live under`
       );
       return;
     }
@@ -144,13 +144,17 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
     // applicable-but-unassessed state the whole model is built to express, and
     // an earlier version of this check flagged it as an error, which would have
     // forced every applicable control into scope and destroyed the distinction.
-    const instanced = new Set(a.controls.map((i) => i.controlId));
+    // Checked per system a shared asset sits in: an instance sampled under
+    // System A doesn't prove System B (which the same asset also belongs to)
+    // sampled it too — each system's assessment scope is independent.
     applicability.requiredControlsForAsset(a.id).forEach((c) => {
-      if (!graph.assessedPairs.has(`${a.systemId}::${c.id}`)) return;
-      check(
-        instanced.has(c.id),
-        `asset ${a.id}: ${c.id} is required here and is in ${a.systemId}'s assessment scope, but no instance sampled this asset — the control's Implemented rating would be computed over a short population`
-      );
+      a.systemIds.forEach((sid) => {
+        if (!graph.assessedPairs.has(`${sid}::${c.id}`)) return;
+        check(
+          a.controls.some((i) => i.systemId === sid && i.controlId === c.id),
+          `asset ${a.id}: ${c.id} is required here and is in ${sid}'s assessment scope, but no instance sampled this asset under that system — the control's Implemented rating would be computed over a short population`
+        );
+      });
     });
   });
 

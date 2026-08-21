@@ -117,7 +117,7 @@ export function createSelectors(
         const asset = getAsset(id);
         if (!asset) return [];
         return [
-          { relation: "belongs to", type: "system", nodes: [getSystem(asset.systemId)] },
+          { relation: "belongs to", type: "system", nodes: asset.systemIds.map((sid) => getSystem(sid)) },
           { relation: "handles", type: "dataType", nodes: classification.dataForAsset(id).map((d) => ({ ...d.dataType, role: d.role })) },
           { relation: "subject to", type: "control", nodes: applicability.requiredControlsForAsset(id) },
           { relation: "sends to", type: "asset", nodes: flowsFrom(id).map((f) => getAsset(f.to)) },

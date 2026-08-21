@@ -31,7 +31,7 @@ interface DisplayNode {
   assetCount?: number;
   env?: string;
   type?: string;
-  system?: { name?: string } | null;
+  systems?: { name?: string }[];
   domain?: string;
   subcategory?: string;
   sensitivity?: string;
@@ -91,7 +91,7 @@ function nodeSubtitle(type: string, node: DisplayNode | null): string | null {
   if (!node) return null;
   switch (type) {
     case "system": return `${node.assetCount} assets · ${node.env}`;
-    case "asset": return `${node.type} · ${node.system?.name}`;
+    case "asset": return `${node.type} · ${node.systems?.map((s) => s.name).join(", ")}`;
     case "control": return `${node.id} · ${node.domain}`;
     case "dataType": return `${node.sensitivity} · ${node.kind}${node.role ? ` · ${node.role}` : ""}`;
     case "risk": return `${node.id} · ${node.domain} / ${node.subcategory}`;

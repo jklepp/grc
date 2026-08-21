@@ -78,7 +78,7 @@ export function createFindings(graph: Graph, ctx: EngineContext) {
       control,
       owner,
       remediationOwner,
-      systemId: asset.systemId,
+      systemIds: asset.systemIds,
       evidenceIds,
       riskIds,
       open,
@@ -100,7 +100,7 @@ export function createFindings(graph: Graph, ctx: EngineContext) {
     buildFinding,
     ALL_FINDINGS: allFindings,
     FINDING_BY_ID: findingById,
-    findingsForSystem: (systemId: SystemId) => allFindings.filter((f) => f.systemId === systemId),
+    findingsForSystem: (systemId: SystemId) => allFindings.filter((f) => f.systemIds.includes(systemId)),
     findingsForAsset: (assetId: AssetId) => allFindings.filter((f) => f.assetId === assetId),
     findingsForRisk: (riskId: RiskId) => allFindings.filter((f) => f.riskIds.includes(riskId)),
     // Open items raised by a specific domain (a pen test, a DR test, an IR
@@ -108,7 +108,7 @@ export function createFindings(graph: Graph, ctx: EngineContext) {
     // cockpit's per-domain sections render instead of inventing their own
     // remediation tracking.
     openFindingsForSource: (systemId: SystemId, source: FindingSource) =>
-      allFindings.filter((f) => f.systemId === systemId && f.source === source && f.open),
+      allFindings.filter((f) => f.systemIds.includes(systemId) && f.source === source && f.open),
   };
 }
 

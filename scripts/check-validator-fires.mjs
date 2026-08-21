@@ -36,7 +36,8 @@ try {
   }
 
   const structural = [
-    ["dangling asset.systemId", (f) => { f.assets[0].systemId = "SYS-NOPE"; }, /is not a system/],
+    ["dangling asset.systemIds entry", (f) => { f.assets[0].systemIds = ["SYS-NOPE"]; }, /is not a system/],
+    ["asset with no systemIds", (f) => { f.assets[0].systemIds = []; }, /systemIds is empty/],
     ["unknown asset kind", (f) => { f.assets[0].kind = "teapot"; }, /is not one of ASSET_KINDS/],
     ["duplicate node id", (f) => { f.assets[1].id = f.assets[0].id; }, /duplicate node id/],
     ["system with bogus regulatoryContext entry", (f) => { f.systems[0].regulatoryContext = ["moon-treaty"]; }, /regulatoryContext entry/],
@@ -55,12 +56,20 @@ try {
     ["flow carrying nothing", (f) => { f.dataFlows[0].dataTypeIds = []; }, /carries no data types/],
     ["backup flow terminating outside a backup vault", (f) => {
       const flow = f.dataFlows.find((candidate) => candidate.kind === "backup");
-      flow.to = f.assets.find((asset) => asset.systemId === "SYS-003" && asset.kind !== "backup-vault" && asset.id !== flow.from).id;
+      flow.to = f.assets.find((asset) => asset.systemIds.includes("SYS-003") && asset.kind !== "backup-vault" && asset.id !== flow.from).id;
     }, /backup flow .* must terminate at a backup-vault/],
     ["restore flow originating outside a backup vault", (f) => {
       const flow = f.dataFlows.find((candidate) => candidate.kind === "restore");
-      flow.from = f.assets.find((asset) => asset.systemId === "SYS-003" && asset.kind !== "backup-vault" && asset.id !== flow.to).id;
+      flow.from = f.assets.find((asset) => asset.systemIds.includes("SYS-003") && asset.kind !== "backup-vault" && asset.id !== flow.to).id;
     }, /restore flow .* must originate from a backup-vault/],
+    ["data flow crossing two assets with no shared system", (f) => {
+      // AST-003-23 (Okta) is the one asset that legitimately spans two
+      // systems; picking any other SYS-042 asset as the far end of a SYS-003
+      // flow shares no system boundary with it.
+      const flow = f.dataFlows[0];
+      const outsider = f.assets.find((asset) => asset.systemIds.includes("SYS-042") && asset.id !== "AST-003-23");
+      flow.to = outsider.id;
+    }, /no shared system boundary/],
     ["tier weights not summing to 100", (f) => { f.controlProfile.categoryWeights.Restricted.Governance += 5; }, /weights sum to/],
     ["zero weight for a category", (f) => {
       const w = f.controlProfile.categoryWeights.Internal;

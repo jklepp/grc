@@ -491,7 +491,7 @@ export default function ExecutiveDashboard({ onNavigate }: { onNavigate?: (pageI
                     <AlertTriangle size={14} color={priority.color} className="shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium leading-snug" style={{ color: C.ink }}>{f.title}</div>
-                      <div className="text-xs mt-0.5" style={{ color: C.muted }}>{f.systemId} · {f.ownerName} · due {f.due}</div>
+                      <div className="text-xs mt-0.5" style={{ color: C.muted }}>{f.systemIds.join(", ")} · {f.ownerName} · due {f.due}</div>
                     </div>
                     <Pill text={priority.label} color={priority.color} bg={priority.bg} />
                   </div>

@@ -97,13 +97,19 @@ export function emptyRuntimeFacts(): RuntimeFacts {
 // letting the system editor safely replace a YAML-authored boundary, its
 // assets, data mappings, and assessment scope after the candidate graph has
 // passed the same validation pipeline as every other change.
+// Limitation: a curated (YAML) asset shared across more than one system's
+// systemIds is entirely dropped from whichever overridden system it's
+// filtered out under below — its membership in a system NOT being edited is
+// not preserved. Shared assets are curated facts, not wizard-editable, in
+// this iteration; the wizard only creates/edits single-system assets (see
+// AddSystemWizard.tsx, which always writes a one-element systemIds array).
 export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts {
   const overriddenSystemIds = new Set(runtime.systems.map((s) => s.id));
   const overriddenBaseAssetIds = new Set(
-    base.assets.filter((a) => overriddenSystemIds.has(a.systemId)).map((a) => a.id)
+    base.assets.filter((a) => a.systemIds.some((sid) => overriddenSystemIds.has(sid))).map((a) => a.id)
   );
   const runtimeAssetSystemIds = new Map(
-    runtime.assets.map((asset) => [asset.id, asset.systemId] as const)
+    runtime.assets.map((asset) => [asset.id, asset.systemIds[0]] as const)
   );
   const overriddenArchitectureSystemIds = new Set<SystemId>(
     runtime.agenticIdentities.map((identity) => identity.systemId)
@@ -121,7 +127,7 @@ export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts 
   // edit cannot silently erase actors, ingress, or data-flow lanes.
   const overriddenArchitectureAssetIds = new Set(
     base.assets
-      .filter((asset) => overriddenArchitectureSystemIds.has(asset.systemId))
+      .filter((asset) => asset.systemIds.some((sid) => overriddenArchitectureSystemIds.has(sid)))
       .map((asset) => asset.id)
   );
   const runtimeActorIds = new Set(runtime.actors.map((actor) => actor.id));
@@ -133,7 +139,7 @@ export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts 
   // name them — unless the runtime explicitly re-authored the same asset id.
   const preservedRecoveryAssets = base.assets.filter(
     (asset) =>
-      overriddenSystemIds.has(asset.systemId)
+      asset.systemIds.some((sid) => overriddenSystemIds.has(sid))
       && (BACKUP_RECOVERY_KINDS as readonly string[]).includes(asset.kind)
       && !runtimeAssetIds.has(asset.id)
   );
@@ -151,7 +157,7 @@ export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts 
     ...base,
     systems: [...base.systems.filter((s) => !overriddenSystemIds.has(s.id)), ...runtime.systems],
     assets: [
-      ...base.assets.filter((a) => !overriddenSystemIds.has(a.systemId) || preservedRecoveryIds.has(a.id)),
+      ...base.assets.filter((a) => !a.systemIds.some((sid) => overriddenSystemIds.has(sid)) || preservedRecoveryIds.has(a.id)),
       ...runtime.assets,
     ],
     assetDataTypes: [

@@ -98,7 +98,7 @@ export function createRisk(
     // that holds none of the risk's assets says nothing about this scenario.
     const systemIds = [
       ...new Set(
-        graph.assets.filter((a) => contributingAssetIds.has(a.id)).map((a) => a.systemId)
+        graph.assets.filter((a) => contributingAssetIds.has(a.id)).flatMap((a) => a.systemIds)
       ),
     ];
     const scope = systemIds.length > 0 ? systemIds : graph.systems.map((s) => s.id);

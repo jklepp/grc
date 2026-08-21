@@ -698,7 +698,7 @@ function SystemDetailPanel({ assetId, onClose }: { assetId: AssetId; onClose: ()
           <div className="text-base font-semibold mt-2 leading-tight" style={{ color: C.ink }}>{asset.name}</div>
           <div className="text-xs mt-0.5" style={{ color: C.muted }}>
             {asset.type}
-            <br />{asset.system.name} · {asset.system.id} · {asset.classification}
+            <br />{asset.systems.length === 1 ? `${asset.systems[0].name} · ${asset.systems[0].id}` : asset.systems.map((s) => s.name).join(", ")} · {asset.classification}
           </div>
         </div>
         <button onClick={onClose} className="p-1.5 rounded-lg shrink-0" style={{ color: C.muted, background: C.panel2 }} title="Close">

@@ -160,7 +160,11 @@ export const WORKFORCE_INGRESS_KINDS: AssetKind[] = ["identity-provider", "secur
 
 export interface Asset {
   id: AssetId;
-  systemId: SystemId;
+  // Almost always one system — a shared platform (central logging, a shared
+  // identity provider) can name more than one, which is what lets it count
+  // toward every boundary it actually sits inside instead of picking a false
+  // single owner. See assemble.ts's assetsBySystem fan-out.
+  systemIds: readonly SystemId[];
   name: string;
   type: string;
   kind: AssetKind;

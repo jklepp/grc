@@ -293,7 +293,14 @@ export function assembleGraph(facts: GraphFacts): Graph {
     policyById: byId(facts.policies),
 
     // Traversal indexes
-    assetsBySystem: groupBy(facts.assets, (a) => a.systemId),
+    // Fan-out, not a single-key groupBy: a shared asset's systemIds can name
+    // more than one system, so the same Asset object lands in more than one
+    // bucket — mirrors evidenceByPair's e.assetIds.forEach fan-out above.
+    assetsBySystem: (() => {
+      const out: Record<string, (typeof facts.assets)[number][]> = {};
+      facts.assets.forEach((a) => a.systemIds.forEach((sid) => (out[sid] ||= []).push(a)));
+      return out;
+    })(),
     dataTypesByAsset: groupBy(facts.assetDataTypes, (e) => e.assetId),
     assetsByDataType: groupBy(facts.assetDataTypes, (e) => e.dataTypeId),
     flowsFromAsset: groupBy(facts.dataFlows, (f) => f.from),

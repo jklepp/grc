@@ -34,7 +34,7 @@ import { nextEvidenceArtifactId, nextEvidenceId, nextEvidenceReviewId, nextFindi
 // remain protected in YAML.
 export function removeRuntimeSystem(runtime: RuntimeFacts, systemId: SystemId): RuntimeFacts {
   const assetIds = new Set(
-    runtime.assets.filter((asset) => asset.systemId === systemId).map((asset) => asset.id)
+    runtime.assets.filter((asset) => asset.systemIds.includes(systemId)).map((asset) => asset.id)
   );
   const expectedClassification = { ...runtime.expectedClassification };
   const removedEvidenceIds = new Set(
@@ -55,7 +55,7 @@ export function removeRuntimeSystem(runtime: RuntimeFacts, systemId: SystemId): 
   return {
     ...runtime,
     systems: runtime.systems.filter((system) => system.id !== systemId),
-    assets: runtime.assets.filter((asset) => asset.systemId !== systemId),
+    assets: runtime.assets.filter((asset) => !asset.systemIds.includes(systemId)),
     assetDataTypes: runtime.assetDataTypes.filter((edge) => !assetIds.has(edge.assetId)),
     actors: runtime.actors.filter((actor) => !removedActorIds.has(actor.id)),
     actorAccess: runtime.actorAccess.filter((edge) => !assetIds.has(edge.assetId)),
