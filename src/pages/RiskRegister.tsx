@@ -210,7 +210,7 @@ export default function RiskRegister() {
           </div>
         }
       >
-        <div className="flex rounded-full overflow-hidden mt-4 w-fit" style={{ border: `1px solid ${C.border}` }}>
+        <div className="inline-flex items-center gap-1 rounded-xl p-1 mt-4" style={{ background: C.panel2 }}>
           {([
             { id: "board", label: "Board View" },
             { id: "operational", label: "Operational View" },
@@ -218,8 +218,8 @@ export default function RiskRegister() {
             <button
               key={v.id}
               onClick={() => setView(v.id)}
-              className="text-xs px-4 py-1.5 font-medium"
-              style={{ background: view === v.id ? C.accent : "transparent", color: view === v.id ? "#0F1420" : C.muted }}
+              className="text-xs px-4 py-1.5 font-medium rounded-lg transition-colors"
+              style={{ background: view === v.id ? C.ink : "transparent", color: view === v.id ? C.bg : C.muted }}
             >
               {v.label}
             </button>
@@ -263,12 +263,12 @@ export default function RiskRegister() {
           <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wide" style={{ color: C.muted, borderBottom: `1px solid ${C.border}` }}>
-                  <th className="text-left font-medium p-3">Material Risk</th>
-                  <th className="text-right font-medium p-3">Exposure</th>
-                  <th className="text-right font-medium p-3">vs. Appetite</th>
-                  <th className="text-right font-medium p-3">Trend</th>
-                  <th className="text-left font-medium p-3">Management Action</th>
+                <tr className="text-[10px] uppercase tracking-wide" style={{ color: C.muted, background: C.panel2, borderBottom: `1px solid ${C.border}` }}>
+                  <th className="text-left font-semibold px-3 py-2.5">Material Risk</th>
+                  <th className="text-right font-semibold px-3 py-2.5">Exposure</th>
+                  <th className="text-right font-semibold px-3 py-2.5">vs. Appetite</th>
+                  <th className="text-right font-semibold px-3 py-2.5">Trend</th>
+                  <th className="text-left font-semibold px-3 py-2.5">Management Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -278,7 +278,7 @@ export default function RiskRegister() {
                     <tr
                       key={r.id}
                       onClick={() => setSelected(r)}
-                      className="cursor-pointer hover:bg-white/[0.02]"
+                      className="cursor-pointer wz-hover"
                       style={{ borderTop: `1px solid ${C.border}` }}
                     >
                       <td className="p-3 font-medium" style={{ color: C.ink }}>{r.boardLabel}</td>
@@ -331,7 +331,7 @@ export default function RiskRegister() {
               <button
                 key={r.id}
                 onClick={() => setSelected(r)}
-                className="w-full grid items-center px-4 py-3 text-left hover:bg-white/[0.02] transition-colors"
+                className="w-full grid items-center px-4 py-3 text-left wz-hover transition-colors"
                 style={{ gridTemplateColumns: "2fr 110px 70px 70px 70px 90px", borderBottom: `1px solid ${C.border}` }}
               >
                 <div>
@@ -351,13 +351,13 @@ export default function RiskRegister() {
         <div className="col-span-2 rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
           <div className="flex items-center justify-between mb-4">
             <div className="text-sm font-medium" style={{ color: C.ink }}>Risk Heatmap</div>
-            <div className="flex rounded-full overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
+            <div className="flex items-center rounded-lg p-0.5" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
               {(["Inherent", "Residual"] as const).map((v) => (
                 <button
                   key={v}
                   onClick={() => setHeatmapView(v)}
-                  className="text-xs px-3 py-1 font-medium"
-                  style={{ background: heatmapView === v ? C.accent : "transparent", color: heatmapView === v ? "#0F1420" : C.muted }}
+                  className="text-[11px] px-2.5 py-1.5 font-medium rounded-md transition-colors"
+                  style={{ background: heatmapView === v ? C.panel : "transparent", color: heatmapView === v ? C.ink : C.muted }}
                 >
                   {v}
                 </button>

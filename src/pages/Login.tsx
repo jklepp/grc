@@ -52,7 +52,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
               </span>
             </div>
             <span
-              className="text-[9.5px] tracking-[0.28em] uppercase"
+              className="text-[10px] tracking-[0.28em] uppercase"
               style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}
             >
               Enterprise Trust
@@ -139,7 +139,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
             <div className="flex items-center gap-3 my-5">
               <div className="flex-1 h-px" style={{ background: C.border }} />
               <span
-                className="text-[9.5px] tracking-[0.14em] uppercase"
+                className="text-[10px] tracking-[0.14em] uppercase"
                 style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}
               >
                 Or continue with

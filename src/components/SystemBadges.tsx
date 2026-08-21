@@ -73,7 +73,7 @@ export function StandardChip({ standard, active, onClick }: StandardChipProps) {
       onClick={onClick}
       disabled={!clickable}
       className="text-[11px] px-2 py-0.5 rounded font-medium transition-colors"
-      style={{ border: `1px solid ${C.accent}`, color: active ? "#0F1420" : C.accent, background: active ? C.accent : "transparent", cursor: clickable ? "pointer" : "default" }}
+      style={{ border: `1px solid ${C.accent}`, color: active ? "#fff" : C.accent, background: active ? C.accent : "transparent", cursor: clickable ? "pointer" : "default" }}
     >
       {standard}
     </button>
@@ -193,7 +193,7 @@ export function SystemPicker({ systems, systemId, onSelect, width = 380 }: Syste
               <button
                 key={s.id}
                 onClick={() => choose(s.id)}
-                className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-white/[0.04] transition-colors"
+                className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left wz-hover transition-colors"
                 style={{ background: s.id === systemId ? C.accentBg : "transparent", borderBottom: `1px solid ${C.border}` }}
               >
                 <div className="min-w-0">

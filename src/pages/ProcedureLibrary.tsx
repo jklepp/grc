@@ -86,7 +86,7 @@ function ProcedureStepRow({ step: s, index }: { step: AuthoredProcedureStep; ind
         <div className="flex items-center gap-2 flex-wrap">
           <div className="text-sm font-semibold" style={{ color: C.ink }}>{s.title}</div>
           <span
-            className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full shrink-0"
+            className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full shrink-0"
             style={{
               background: isRequired ? C.accentBg : C.panel2,
               color: isRequired ? C.accent : C.muted,

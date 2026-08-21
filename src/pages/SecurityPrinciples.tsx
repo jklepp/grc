@@ -238,7 +238,7 @@ export default function SecurityPrinciples({ onNavigate }: { onNavigate?: (targe
                     <div className="text-[10px]" style={{ color: C.muted }}>{d.principles.length} principle{d.principles.length !== 1 ? "s" : ""}</div>
                   </div>
                   {gaps > 0 && (
-                    <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full shrink-0" style={{ background: C.redBg, color: C.red }}>{gaps}</span>
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0" style={{ background: C.redBg, color: C.red }}>{gaps}</span>
                   )}
                   {isActive && <ChevronRight size={13} color={C.accent} className="ml-auto shrink-0" />}
                 </button>

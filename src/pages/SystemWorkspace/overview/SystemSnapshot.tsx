@@ -31,7 +31,7 @@ function MiniDataTypeCard({ dataType }: { dataType: WorkspaceDataType }) {
   return (
     <div className="rounded-md pl-2.5 pr-2.5 py-1.5 shrink-0" style={{ background: C.panel2, borderLeft: `2px solid ${meta.color}` }}>
       <div className="text-xs font-semibold whitespace-nowrap" style={{ color: C.ink }}>{dataType.name}</div>
-      <div className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: meta.color }}>{dataType.sensitivity}</div>
+      <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: meta.color }}>{dataType.sensitivity}</div>
     </div>
   );
 }

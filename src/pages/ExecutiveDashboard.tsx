@@ -447,10 +447,10 @@ export default function ExecutiveDashboard({ onNavigate }: { onNavigate?: (pageI
           <table className="w-full text-sm">
             <thead>
               <tr className="text-[10px] uppercase tracking-wide" style={{ color: C.muted }}>
-                <th className="text-left font-medium pb-2">System</th>
-                <th className="text-left font-medium pb-2 pl-3">Score</th>
-                <th className="text-right font-medium pb-2 pl-3">Gap</th>
-                <th className="text-right font-medium pb-2 pl-3">Status</th>
+                <th className="text-left font-semibold pb-2">System</th>
+                <th className="text-left font-semibold pb-2 pl-3">Score</th>
+                <th className="text-right font-semibold pb-2 pl-3">Gap</th>
+                <th className="text-right font-semibold pb-2 pl-3">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -662,8 +662,8 @@ export default function ExecutiveDashboard({ onNavigate }: { onNavigate?: (pageI
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-[10px] uppercase tracking-wide" style={{ color: C.muted }}>
-                  <th className="text-left font-medium pb-2">System</th>
-                  <th className="text-left font-medium pb-2 pl-3">Flags</th>
+                  <th className="text-left font-semibold pb-2">System</th>
+                  <th className="text-left font-semibold pb-2 pl-3">Flags</th>
                 </tr>
               </thead>
               <tbody>
@@ -730,10 +730,10 @@ export default function ExecutiveDashboard({ onNavigate }: { onNavigate?: (pageI
           <table className="w-full text-sm">
             <thead>
               <tr className="text-[10px] uppercase tracking-wide" style={{ color: C.muted }}>
-                <th className="text-left font-medium pb-2">Risk</th>
-                <th className="text-left font-medium pb-2">Severity</th>
-                <th className="text-right font-medium pb-2">Exposure</th>
-                <th className="text-right font-medium pb-2 pl-3">Trend</th>
+                <th className="text-left font-semibold pb-2">Risk</th>
+                <th className="text-left font-semibold pb-2">Severity</th>
+                <th className="text-right font-semibold pb-2">Exposure</th>
+                <th className="text-right font-semibold pb-2 pl-3">Trend</th>
               </tr>
             </thead>
             <tbody>
@@ -741,7 +741,7 @@ export default function ExecutiveDashboard({ onNavigate }: { onNavigate?: (pageI
                 <tr
                   key={r.id}
                   onClick={() => onNavigate && onNavigate("risk-register")}
-                  className="cursor-pointer hover:bg-black/[0.02]"
+                  className="cursor-pointer wz-hover"
                   style={{ borderTop: `1px solid ${C.border}` }}
                 >
                   <td className="py-3 pr-2" style={{ color: C.ink, fontWeight: 500 }}>{r.boardLabel}</td>
@@ -875,7 +875,7 @@ export default function ExecutiveDashboard({ onNavigate }: { onNavigate?: (pageI
               className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg"
               style={{ border: `1px solid ${C.border}`, color: C.ink }}
             >
-              Explore Data Footprint <ArrowRight size={12} />
+              Explore Enterprise Footprint <ArrowRight size={12} />
             </button>
           </div>
           <div className="grid grid-cols-4 gap-4">
@@ -928,7 +928,7 @@ export default function ExecutiveDashboard({ onNavigate }: { onNavigate?: (pageI
               <button
                 key={r.id}
                 onClick={() => onNavigate && onNavigate("risk-register")}
-                className="text-left p-3 rounded-lg hover:bg-black/[0.02] transition-colors"
+                className="text-left p-3 rounded-lg wz-hover transition-colors"
                 style={{ border: `1px solid ${C.border}` }}
               >
                 <div className="flex items-center justify-between gap-2 mb-1">

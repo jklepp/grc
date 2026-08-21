@@ -82,7 +82,7 @@ function ControlRow({ row, onSelect, findingsCount }: { row: ControlMatrixRow; o
   return (
     <button
       onClick={() => onSelect(row)}
-      className="w-full grid px-4 text-left hover:bg-white/[0.02] transition-colors"
+      className="w-full grid px-4 text-left wz-hover transition-colors"
       style={{ gridTemplateColumns: CONTROL_GRID, borderBottom: `1px solid ${C.border}` }}
     >
       <div className="py-3 min-w-0">
@@ -548,7 +548,7 @@ function SelectedControlsTable({
         )}
       </div>
       <FilterBar filters={filters} onChange={onFilterChange} domainOptions={domainOptions} frameworkOptions={frameworkOptions} showStatusFilters />
-      <div className="grid text-[11px] font-medium px-4 py-2.5" style={{ gridTemplateColumns: CONTROL_GRID, borderBottom: `1px solid ${C.border}`, color: C.muted }}>
+      <div className="grid text-[10px] font-semibold uppercase tracking-wide px-4 py-2.5" style={{ gridTemplateColumns: CONTROL_GRID, background: C.panel2, borderBottom: `1px solid ${C.border}`, color: C.muted }}>
         <HeaderCell label="CONTROL" first />
         <HeaderCell label="STATUS" sortKey="status" sort={sort} onSort={onSort} />
         <HeaderCell label="ASSURANCE" sortKey="assurance" sort={sort} onSort={onSort} />

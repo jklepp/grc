@@ -54,10 +54,10 @@ function AssuranceChip({ label, value, band }: { label: string; value: ReactNode
   const { color, bg } = colorFor(band.color);
   return (
     <div className="rounded-lg px-2.5 py-2" style={{ background: C.panel2 }}>
-      <div className="text-[9px] uppercase tracking-wide" style={{ color: C.muted }}>{label}</div>
+      <div className="text-[10px] uppercase tracking-wide" style={{ color: C.muted }}>{label}</div>
       <div className="flex items-center gap-1 mt-0.5">
         <span className="text-sm font-semibold" style={{ color: C.ink }}>{value}</span>
-        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color, background: bg }}>{band.label}</span>
+        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ color, background: bg }}>{band.label}</span>
       </div>
     </div>
   );
@@ -71,9 +71,9 @@ function AssuranceRiskCard({ title, risk }: { title: string; risk: AssetRollup["
   const { color, bg } = colorFor(risk.band.color);
   return (
     <div className="rounded-lg p-2.5 flex-1" style={{ background: C.panel2 }}>
-      <div className="text-[9px] uppercase tracking-wide" style={{ color: C.muted }}>{title}</div>
+      <div className="text-[10px] uppercase tracking-wide" style={{ color: C.muted }}>{title}</div>
       <div className="text-lg font-semibold mt-0.5" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{risk.score}<span className="text-[10px] font-normal" style={{ color: C.muted }}> /25</span></div>
-      <span className="inline-block text-[9px] font-semibold px-1.5 py-0.5 rounded-full mt-1" style={{ color, background: bg }}>{risk.band.label}</span>
+      <span className="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full mt-1" style={{ color, background: bg }}>{risk.band.label}</span>
     </div>
   );
 }

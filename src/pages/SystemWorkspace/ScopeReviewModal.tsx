@@ -10,7 +10,7 @@ import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
   ActionCard, Button, Callout, CompletionScreen, Field, HeaderStat, InlineField, InlineHint, ProgressBar,
   RailGroup, RailItem, SaveErrorCallout, SearchInput, Section, StatTile, StatusPill, TextInput, TX, Well,
-  WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardRail, WZ,
+  WizardBanner, WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardRail, WZ,
 } from "../../components/wizard/WizardUI";
 import type { Tone } from "../../components/wizard/WizardUI";
 import type { ReviewWave, ReviewWaveControl } from "../../engine/review";
@@ -267,6 +267,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
   return (
     <Modal open={open} onClose={onClose} width={1040} height={720}>
       <WizardChrome>
+        <WizardBanner icon={Target} title="Scope Determination Wizard" />
         <WizardHeader
           icon={Target}
           title="Scope Determination"

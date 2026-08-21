@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Wrench } from "lucide-react";
+import { ArrowRight, ClipboardCheck, Wrench } from "lucide-react";
 import { C } from "../../theme";
 import { useLiveEngine } from "../../engine/useLiveEngine";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
-  Button, CompletionScreen, StatTile, WizardChrome, WizardFooter,
+  Button, CompletionScreen, StatTile, WizardBanner, WizardChrome, WizardFooter,
 } from "../../components/wizard/WizardUI";
 import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
 import { keyControlAssessmentQueue } from "./recordAssessment";
@@ -104,6 +104,7 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
     return (
       <Modal open onClose={onClose} width={880} height={620}>
         <WizardChrome>
+          <WizardBanner icon={ClipboardCheck} title="Control Assessment Wizard" />
           <div className="flex items-center justify-end px-6 pt-4">
             <ModalCloseButton onClose={onClose} />
           </div>

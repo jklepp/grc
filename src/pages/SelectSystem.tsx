@@ -40,19 +40,16 @@ interface SystemRowProps {
   onEdit: (id: SystemId) => void;
   onDuplicate: (id: SystemId) => void;
   onDelete?: (system: SystemRollup) => void;
-  striped: boolean;
 }
 
-function SystemRow({ system, onSelect, onEdit, onDuplicate, onDelete, striped }: SystemRowProps) {
+function SystemRow({ system, onSelect, onEdit, onDuplicate, onDelete }: SystemRowProps) {
   const openFindings = system.findings.filter((f) => f.open).length;
   return (
     <div
-      className="w-full min-w-0 grid items-center gap-3 pl-3.5 pr-4 py-3.5 text-left transition-all group"
+      className="w-full min-w-0 grid items-center gap-3 pl-3.5 pr-4 py-3.5 text-left transition-colors group wz-hover"
       style={{
         gridTemplateColumns: COLUMNS,
         borderBottom: `1px solid ${C.border}`,
-        borderLeft: "3px solid transparent",
-        background: striped ? C.panel2 : "transparent",
         cursor: "pointer",
       }}
       onClick={() => onSelect(system.id)}
@@ -65,8 +62,6 @@ function SystemRow({ system, onSelect, onEdit, onDuplicate, onDelete, striped }:
       role="button"
       tabIndex={0}
       aria-label={`Open ${system.name}`}
-      onMouseEnter={(e) => { e.currentTarget.style.borderLeftColor = C.accent; e.currentTarget.style.background = C.accentBg; }}
-      onMouseLeave={(e) => { e.currentTarget.style.borderLeftColor = "transparent"; e.currentTarget.style.background = striped ? C.panel2 : "transparent"; }}
     >
       <div className="flex items-center gap-3 min-w-0">
         <SystemAvatar name={system.name} />
@@ -268,10 +263,10 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
           </div>
         )}
 
-        <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}`, boxShadow: "0 6px 20px rgba(0,0,0,0.06)" }}>
+        <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
           <div
             className="grid gap-3 pl-3.5 pr-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide"
-            style={{ gridTemplateColumns: COLUMNS, background: C.panel2, color: C.muted, borderBottom: `2px solid ${C.accent}`, borderLeft: "3px solid transparent" }}
+            style={{ gridTemplateColumns: COLUMNS, background: C.panel2, color: C.muted, borderBottom: `1px solid ${C.border}` }}
           >
             <div className="min-w-0">System</div>
             <div className="min-w-0">Env</div>
@@ -287,7 +282,7 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
             </div>
           ) : (
             <div style={{ background: C.panel }}>
-              {filtered.map((system, i) => (
+              {filtered.map((system) => (
                 <SystemRow
                   key={system.id}
                   system={system}
@@ -295,7 +290,6 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
                   onEdit={openEditSystem}
                   onDuplicate={openDuplicateSystem}
                   onDelete={deletableSystemIds.has(system.id) ? setPendingDelete : undefined}
-                  striped={i % 2 === 1}
                 />
               ))}
             </div>

@@ -38,7 +38,7 @@ function StatusCell({ instance }: { instance?: ActivityInstance }) {
       title={instance.note || meta.label}
     >
       <div className="text-sm font-bold leading-none" style={{ color }}>{meta.symbol}</div>
-      <div className="text-[9px] mt-1 leading-tight" style={{ color }}>{dateLabel}</div>
+      <div className="text-[10px] mt-1 leading-tight" style={{ color }}>{dateLabel}</div>
     </div>
   );
 }
@@ -72,13 +72,13 @@ export default function ScheduledActivities({ onNavigate }: { onNavigate?: (targ
       />
 
       <div className="px-8 pb-5">
-        <div className="inline-flex items-center gap-1 rounded-xl p-1" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+        <div className="inline-flex items-center gap-1 rounded-xl p-1" style={{ background: C.panel2 }}>
           {FREQUENCIES.map((f) => (
             <button
               key={f}
               onClick={() => setFrequency(f)}
               className="text-xs font-semibold px-4 py-2 rounded-lg transition-colors"
-              style={{ background: frequency === f ? C.accent : "transparent", color: frequency === f ? "#fff" : C.muted }}
+              style={{ background: frequency === f ? C.ink : "transparent", color: frequency === f ? C.bg : C.muted }}
             >
               {f}
             </button>
@@ -96,7 +96,7 @@ export default function ScheduledActivities({ onNavigate }: { onNavigate?: (targ
             return (
             <div key={key} className="rounded-xl p-4 text-center" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
               <div className="text-3xl font-semibold" style={{ color: activityColor(meta.color), fontFamily: "'Source Serif 4', serif" }}>{counts[key]}</div>
-              <div className="text-[11px] mt-1" style={{ color: C.muted }}>{meta.label}</div>
+              <div className="text-xs mt-1" style={{ color: C.muted }}>{meta.label}</div>
             </div>
             );
           })}
@@ -133,12 +133,12 @@ export default function ScheduledActivities({ onNavigate }: { onNavigate?: (targ
                   </colgroup>
                   <thead>
                     <tr style={{ background: C.panel2 }}>
-                      <th className="text-left text-[10px] uppercase tracking-wide px-3 py-2 font-medium" style={{ color: C.muted }}>Activity</th>
-                      <th className="text-left text-[10px] uppercase tracking-wide px-3 py-2 font-medium" style={{ color: C.muted }}>Owner</th>
+                      <th className="text-left text-[10px] uppercase tracking-wide px-3 py-2.5 font-semibold" style={{ color: C.muted }}>Activity</th>
+                      <th className="text-left text-[10px] uppercase tracking-wide px-3 py-2.5 font-semibold" style={{ color: C.muted }}>Owner</th>
                       {periods.map((p) => (
                         <th
                           key={p}
-                          className="text-center text-[10px] uppercase tracking-wide px-1 py-2 font-medium"
+                          className="text-center text-[10px] uppercase tracking-wide px-1 py-2.5 font-semibold"
                           style={{ color: p === current ? C.accent : C.muted }}
                         >
                           {periodLabels[p - 1]}{frequency !== "Monthly" ? ` ${CURRENT_YEAR}` : ""}

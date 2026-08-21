@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -7,16 +7,18 @@ import {
 } from "lucide-react";
 import { C } from "../../theme";
 import {
-  PRISMA_LEVELS, COMPLIANCE_LABELS, findingsForSystem,
+  PRISMA_LEVELS, COMPLIANCE_LABELS,
   FINDING_SEVERITY_META, FINDING_REMEDIATION_STATUS_META, FINDING_SEVERITIES, FINDING_SOURCES, REMEDIATION_STATUSES,
   isGapRating, suggestedFindingSeverity,
   INSTANCE_STATUS_META,
   EVIDENCE_TYPES, EVIDENCE_RESULTS, INDEPENDENCE_LEVELS,
   EVIDENCE_COLLECTOR_TYPES, ARTIFACT_SENSITIVITIES, EVIDENCE_REVIEW_DECISIONS,
-  getEvidence, getEvidenceArtifacts, getEvidenceReviews, resolveProgramApplicability, assetsForSystem, getDataFlows, ORGS,
+  assetsForSystem, getDataFlows, ORGS,
   evaluateControl, addPrismaOverride, updateEvidence, removeEvidence, addFinding, updateFinding, commitRuntimeFacts,
 } from "../../engine";
 import { upsertControlReview } from "../../engine/runtimeMutations";
+import { buildLiveEngine } from "../../engine/liveGraph";
+import { YAML_FACTS } from "../../graph/sources/yaml";
 import { PrismaLaneGrader } from "./PrismaLaneGrader";
 import type { LaneGrade } from "./PrismaLaneGrader";
 import { RecordAssessmentSection } from "./recordAssessment";
@@ -28,14 +30,14 @@ import { POLICY_BY_CONTROL, PROCEDURE_BY_CONTROL } from "./policyLookup";
 import { BasisTag } from "../../components/BasisTag";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
-  Button, Callout, CheckRow, ChoiceChip, DisclosureButton, EmptyState, Field, FieldGrid, InlineField, InlineHint,
+  Button, Callout, CheckRow, ChoiceChip, CompletionScreen, DisclosureButton, EmptyState, Field, FieldGrid, InlineField, InlineHint,
   ProgressBar, RailGroup, RailItem, SaveErrorCallout, Section, Select, StatusPill, TextInput, toneColor, TX, Well,
-  WizardBody, WizardChrome, WizardFooter, WizardRail, WZ,
+  WizardBanner, WizardBody, WizardChrome, WizardFooter, WizardRail, WZ,
 } from "../../components/wizard/WizardUI";
 import type { Tone } from "../../components/wizard/WizardUI";
 import { selectedValue } from "./formHelpers";
 import type { AssetOption } from "./formHelpers";
-import type { ControlAssessment, ControlEvidenceDraft, ControlInstance, EvidenceDraft, EngineFinding, FindingDraft, LevelRating, ScoredEvidence } from "../../engine";
+import type { ControlAssessment, ControlEvidenceDraft, ControlInstance, EvidenceDraft, Engine, EngineFinding, FindingDraft, LevelRating, ScoredEvidence } from "../../engine";
 import type { RuntimeFacts } from "../../engine/liveGraph";
 import type { AssetId, ControlId, EvidenceId, FindingId, SystemId } from "../../graph/ids";
 import type { ComplianceRating, EvidenceType, PrismaLevel } from "../../graph/nodes/taxonomy";
@@ -180,18 +182,23 @@ function isRuntimeEvidence(evidenceId: EvidenceId): boolean {
 // full provenance drill-down (collection details, artifact integrity, review
 // decision) behind a toggle — this absorbed the retired Evidence step's
 // table, so the lane list is the panel's only evidence surface.
-function EvidenceCard({ e, assetLabel, governing, onEdit, onDelete, readOnly }: {
+function EvidenceCard({ e, assetLabel, governing, onEdit, onDelete, readOnly, getArtifacts, getReviews }: {
   e: ScoredEvidence;
   assetLabel?: string;
   governing?: boolean;
   onEdit?: (evidence: ScoredEvidence) => void;
   onDelete?: (evidence: ScoredEvidence) => void;
   readOnly?: boolean;
+  // Bound to the panel's draft engine, not the committed global one — a
+  // record staged but not yet saved has no artifacts/reviews in the real
+  // graph yet, so a global lookup would come back empty until Save.
+  getArtifacts: Engine["selectors"]["getEvidenceArtifacts"];
+  getReviews: Engine["selectors"]["getEvidenceReviews"];
 }) {
   const [showProvenance, setShowProvenance] = useState(false);
   const editable = !readOnly && isRuntimeEvidence(e.id);
-  const artifacts = getEvidenceArtifacts(e.id);
-  const reviews = getEvidenceReviews(e.id);
+  const artifacts = getArtifacts(e.id);
+  const reviews = getReviews(e.id);
   const latestReview = reviews.at(-1);
   const reviewTone: Tone = latestReview?.decision === "accepted" ? "success"
     : latestReview?.decision === "rejected" ? "danger"
@@ -668,7 +675,7 @@ interface ControlEvaluationPanelProps {
 // RuntimeFacts copy, validate it with buildLiveEngine, and only persist +
 // reload once that comes back clean.
 export function ControlEvaluationPanel({
-  row, system, onClose, walk,
+  row: committedRow, system, onClose, walk,
 }: ControlEvaluationPanelProps) {
   // Lands on Scoring and Evidence — the operator's stated job — with the
   // requirement context one step up the rail rather than in the way.
@@ -682,8 +689,33 @@ export function ControlEvaluationPanel({
   const [saveError, setSaveError] = useState<string[] | null>(null);
   const [gapNudge, setGapNudge] = useState<{ level: PrismaLevel; rating: ComplianceRating } | null>(null);
   const liveEngine = useLiveEngine();
+
+  // Every edit below — lane overrides, evidence, findings — stages into this
+  // local copy instead of committing immediately, so the operator can make
+  // several changes and then Save or Discard them as one decision. Recording
+  // the first assessment (RecordAssessmentSection) still commits for real —
+  // it builds on this same draft, so anything already staged rides along —
+  // because it's what unlocks everything else here; there's nothing to stage
+  // before it.
+  const [draftFacts, setDraftFacts] = useState<RuntimeFacts>(() => loadRuntimeFacts());
+  const [pendingChanges, setPendingChanges] = useState<string[]>([]);
+  const [savedSummary, setSavedSummary] = useState<string[] | null>(null);
+  const draftEngine = useMemo(() => buildLiveEngine(YAML_FACTS, draftFacts).engine, [draftFacts]);
+
+  // The row this panel actually renders — the committed prop patched forward
+  // by whatever is staged but not yet saved, so an unsaved lane override or
+  // evidence attach shows up immediately instead of waiting for Save.
+  const row: ControlMatrixRow = useMemo(() => {
+    if (!draftEngine) return committedRow;
+    const draftMatrixRow = draftEngine.compliance.systemControlMatrix(system.id).find((r) => r.controlId === committedRow.controlId);
+    if (!draftMatrixRow) return committedRow;
+    return { ...draftMatrixRow, responsibility: draftEngine.compliance.responsibilityForControl(system.id, committedRow.controlId) };
+  }, [draftEngine, system.id, committedRow]);
+
   const walkRemaining = walk ? walk.domains.reduce((sum, d) => sum + d.remaining, 0) : 0;
   const walkReviewerMissing = Boolean(walk) && !walk!.reviewer.trim();
+
+  if (!draftEngine) return null;
 
   const governingPolicy = POLICY_BY_CONTROL[row.control.id];
   const governingProcedure = PROCEDURE_BY_CONTROL[row.control.id];
@@ -691,12 +723,12 @@ export function ControlEvaluationPanel({
   const statusMeta = STATUS_META[row.status];
   const respMeta = RESPONSIBILITY_META[row.responsibility];
   const implMeta = IMPLEMENTATION_META.find((m) => m.type === row.control.implementationType);
-  const controlFindings = findingsForSystem(system.id).filter((f) => f.controlId === row.control.id);
+  const controlFindings = draftEngine.findings.findingsForSystem(system.id).filter((f) => f.controlId === row.control.id);
   const urgentRemediation = mostUrgentRemediation(controlFindings);
   const worstEntry = worstLevelEntry(row.assessment);
   const worst = worstEntry?.[1] ?? null;
   const isProgramScoped = row.keyControl?.scope === "program";
-  const programApplicability = isProgramScoped ? resolveProgramApplicability(system.id, row.control.id) : null;
+  const programApplicability = isProgramScoped ? draftEngine.applicability.resolveProgramApplicability(system.id, row.control.id) : null;
   const evidenceHealth = evidenceHealthForRow(row);
   const assessment = row.assessment;
   const assessed = Boolean(assessment?.assessed);
@@ -718,7 +750,7 @@ export function ControlEvaluationPanel({
   );
   const linkedPrinciples = principlesForControl(row.control.id);
   const programReasons = programApplicability?.reasons ?? [];
-  const laneEvidence = liveEngine.evidence.laneEvidenceForControl(system.id, row.control.id);
+  const laneEvidence = draftEngine.evidence.laneEvidenceForControl(system.id, row.control.id);
 
   // Every instance's applicability reasons are usually identical (the same
   // rule matched every asset the same way) — say it once at the section
@@ -727,15 +759,20 @@ export function ControlEvaluationPanel({
     row.instances.flatMap((inst) => (inst.applicability?.reasons ?? []).map((r) => r.rationale))
   )];
 
-  function saveMutation(mutate: (existing: RuntimeFacts) => RuntimeFacts): boolean {
+  // Stages a mutation into the draft: validates it against a dry-run engine
+  // (same buildLiveEngine pass Save will use for real) and, if clean, folds
+  // it into draftFacts with a human-readable label for the Save summary.
+  // Nothing here touches committed storage — see saveDraft.
+  function stageMutation(label: string, mutate: (existing: RuntimeFacts) => RuntimeFacts): boolean {
     setSaveError(null);
-    const existing = loadRuntimeFacts();
-    const runtime = mutate(existing);
-    const { engine, problems } = commitRuntimeFacts(runtime);
-    if (!engine) {
+    const next = mutate(draftFacts);
+    const { engine: trial, problems } = buildLiveEngine(YAML_FACTS, next);
+    if (!trial) {
       setSaveError(problems);
       return false;
     }
+    setDraftFacts(next);
+    setPendingChanges((list) => [...list, label]);
     setAttachingLane(null);
     setEditingLaneEvidenceId(null);
     setCreatingFinding(false);
@@ -744,24 +781,54 @@ export function ControlEvaluationPanel({
     return true;
   }
 
+  function saveDraft() {
+    const { engine: committed, problems } = commitRuntimeFacts(draftFacts);
+    if (!committed) {
+      setSaveError(problems);
+      return;
+    }
+    setSavedSummary(pendingChanges);
+    setPendingChanges([]);
+  }
+
+  function discardDraft() {
+    setSaveError(null);
+    setDraftFacts(loadRuntimeFacts());
+    setPendingChanges([]);
+    setAttachingLane(null);
+    setEditingLaneEvidenceId(null);
+    setCreatingFinding(false);
+    setCreatingFindingInitial(null);
+    setEditingFindingId(null);
+  }
+
+  function requestClose() {
+    if (pendingChanges.length > 0 && !window.confirm(`Discard ${pendingChanges.length} unsaved change${pendingChanges.length === 1 ? "" : "s"}?`)) return;
+    onClose();
+  }
+
   function handleAttachEvidence(draft: ControlEvidenceDraft) {
-    saveMutation((existing) => evaluateControl(existing, {
+    stageMutation(`Attached evidence — ${draft.source}`, (existing) => evaluateControl(existing, {
       systemId: system.id,
       controlId: row.control.id,
       evidenceEntries: [draft],
     }));
   }
 
-  function handleUpdateEvidence(evidenceId: EvidenceId, patch: Partial<EvidenceDraft>) {
-    saveMutation((existing) => updateEvidence(existing, evidenceId, patch));
+  function handleUpdateEvidence(evidenceId: EvidenceId, patch: Partial<EvidenceDraft>, label: string) {
+    stageMutation(label, (existing) => updateEvidence(existing, evidenceId, patch));
   }
 
-  function handleDeleteEvidence(evidenceId: EvidenceId) {
-    saveMutation((existing) => removeEvidence(existing, evidenceId));
+  function handleDeleteEvidence(evidence: ScoredEvidence) {
+    stageMutation(`Removed evidence — ${evidence.source}`, (existing) => removeEvidence(existing, evidence.id));
   }
 
   function handleLaneGrades({ grades, assessedBy, note, comment }: { grades: LaneGrade[]; assessedBy: string; note: string; comment: string }) {
-    const saved = saveMutation((existing) => {
+    const overridden = grades.filter((g) => g.rating !== g.derived);
+    const label = overridden.length > 0
+      ? `Updated PRISMA lane grading — ${overridden.map((g) => g.level).join(", ")}`
+      : "Confirmed PRISMA lane grading";
+    const staged = stageMutation(label, (existing) => {
       let next = existing;
       grades.forEach((grade) => {
         if (grade.rating === grade.derived) return;
@@ -785,7 +852,7 @@ export function ControlEvaluationPanel({
         reviewedAt: new Date().toISOString().slice(0, 10),
       });
     });
-    if (!saved) return;
+    if (!staged) return;
     // Nudge off the ratings just submitted, not row.assessment — that prop
     // may not have caught up with this save yet. Skipped once a finding
     // already tracks this control's gap, so re-saving the same low grade
@@ -796,16 +863,19 @@ export function ControlEvaluationPanel({
   }
 
   function handleCreateFinding(draft: Omit<FindingDraft, "controlId">) {
-    saveMutation((existing) => addFinding(existing, { ...draft, controlId: row.control.id }, system.id));
+    stageMutation(`Created finding — ${draft.title}`, (existing) => addFinding(existing, { ...draft, controlId: row.control.id }, system.id));
   }
 
-  function handleUpdateFinding(findingId: FindingId, patch: Omit<FindingDraft, "controlId">) {
-    saveMutation((existing) => updateFinding(existing, findingId, patch));
+  function handleUpdateFinding(findingId: FindingId, patch: Omit<FindingDraft, "controlId">, label: string) {
+    stageMutation(label, (existing) => updateFinding(existing, findingId, patch));
   }
 
   return (
-    <Modal open onClose={onClose} width={1180} height={840}>
+    <Modal open onClose={requestClose} width={1180} height={840}>
       <WizardChrome>
+      {walk
+        ? <WizardBanner icon={ClipboardCheck} title="Control Assessment Wizard" />
+        : <WizardBanner icon={ShieldCheck} title="System Control Editor" />}
       {/* ---- Header ---- */}
       <div className="flex items-start justify-between px-6 py-4 gap-4" style={{ borderBottom: `1px solid ${C.border}`, background: C.panel }}>
         <div className="flex items-center justify-between gap-4 flex-1 min-w-0">
@@ -814,13 +884,14 @@ export function ControlEvaluationPanel({
             <h2 className={TX.modalTitle} style={{ color: C.ink, fontFamily: WZ.serif }}>{row.control.name}</h2>
           </div>
           <div className="flex items-center gap-2 flex-wrap shrink-0">
+            {pendingChanges.length > 0 && <StatusPill tone="warning">{pendingChanges.length} unsaved</StatusPill>}
             <StatusPill color={statusMeta.color} surface={statusMeta.bg} icon={statusMeta.Icon}>{statusMeta.label}</StatusPill>
             {respMeta && <StatusPill color={respMeta.color} surface={respMeta.bg} icon={respMeta.Icon}>{respMeta.label}</StatusPill>}
             {implMeta && <StatusPill color={implMeta.color} surface={implMeta.bg} icon={implMeta.Icon}>{implMeta.type}</StatusPill>}
             <GlancePill Icon={Gauge} label="Assurance" value={row.score != null ? `${row.score}${row.assessment?.band?.label ? ` · ${row.assessment.band.label}` : ""}` : "—"} />
           </div>
         </div>
-        <ModalCloseButton onClose={onClose} />
+        <ModalCloseButton onClose={requestClose} />
       </div>
 
       {/* ---- Walk strip: overall progress + reviewer of record ---- */}
@@ -843,6 +914,27 @@ export function ControlEvaluationPanel({
         </div>
       )}
 
+      {savedSummary ? (
+        <div className="flex-1 min-h-0 overflow-y-auto px-8 flex flex-col" style={{ background: C.bg }}>
+          <CompletionScreen
+            title="Changes saved"
+            description={`${savedSummary.length} change${savedSummary.length === 1 ? "" : "s"} recorded on ${row.control.id} · ${row.control.name}.`}
+            tiles={
+              <Well className="flex flex-col gap-2 text-left">
+                {savedSummary.map((change, i) => (
+                  <div key={i} className="flex items-center gap-2.5">
+                    <Check size={13} color={C.green} className="shrink-0" />
+                    <span className={TX.body} style={{ color: C.ink }}>{change}</span>
+                  </div>
+                ))}
+              </Well>
+            }
+          >
+            <Button variant="primary" onClick={() => setSavedSummary(null)}>Continue editing</Button>
+            <Button onClick={onClose}>Close</Button>
+          </CompletionScreen>
+        </div>
+      ) : (
       <WizardBody>
         {/* ---- Rail: walk domains (walk mode only), then this control's steps ---- */}
         <WizardRail label="Assessment steps">
@@ -1035,11 +1127,25 @@ export function ControlEvaluationPanel({
                     controlId={row.control.id}
                     isProgramScoped={Boolean(isProgramScoped)}
                     assetOptions={recordAssetOptions}
+                    baseFacts={draftFacts}
                     reviewer={walk ? walk.reviewer : assessorOfRecord}
                     showContinue={Boolean(walk)}
                     continueLabel={walk ? (walkRemaining === 1 ? "Save and finish" : "Save and continue") : "Save assessment"}
                     disabled={walkReviewerMissing}
-                    onSaved={(rating, continueWalk) => walk?.onRecorded(rating, continueWalk)}
+                    onSaved={(rating, continueWalk) => {
+                      // RecordAssessmentSection committed on top of draftFacts
+                      // (see baseFacts), so storage now holds everything that
+                      // was staged plus the new assessment — reseeding here
+                      // just picks that up as the new clean baseline.
+                      setDraftFacts(loadRuntimeFacts());
+                      if (walk) {
+                        setPendingChanges([]);
+                        walk.onRecorded(rating, continueWalk);
+                      } else {
+                        setSavedSummary([...pendingChanges, `Recorded assessment — ${rating} (${COMPLIANCE_LABELS[rating]})`]);
+                        setPendingChanges([]);
+                      }
+                    }}
                   />
                   {walkReviewerMissing && (
                     <InlineHint tone="warning">Enter the reviewer of record above before recording assessments.</InlineHint>
@@ -1129,7 +1235,7 @@ export function ControlEvaluationPanel({
                               isProgramScoped={isProgramScoped}
                               prismaLevel={level}
                               onCancel={() => setEditingLaneEvidenceId(null)}
-                              onSubmit={(patch) => handleUpdateEvidence(e.id, patch)}
+                              onSubmit={(patch) => handleUpdateEvidence(e.id, patch, `Updated evidence — ${patch.source || e.source}`)}
                             />
                           ) : (
                             <EvidenceCard
@@ -1140,8 +1246,10 @@ export function ControlEvaluationPanel({
                                 ? e.assetIds.slice(0, 2).map((id) => assetName(system, id)).join(", ")
                                   + (e.assetIds.length > 2 ? ` +${e.assetIds.length - 2} more` : "")
                                 : undefined}
+                              getArtifacts={draftEngine.selectors.getEvidenceArtifacts}
+                              getReviews={draftEngine.selectors.getEvidenceReviews}
                               onEdit={() => { setEditingLaneEvidenceId(e.id); setAttachingLane(null); }}
-                              onDelete={() => handleDeleteEvidence(e.id)}
+                              onDelete={() => handleDeleteEvidence(e)}
                             />
                           ))}
                         </div>
@@ -1315,7 +1423,7 @@ export function ControlEvaluationPanel({
                           }}
                           assetOptions={assetOptions}
                           onCancel={() => setEditingFindingId(null)}
-                          onSubmit={(patch) => handleUpdateFinding(f.id, patch)}
+                          onSubmit={(patch) => handleUpdateFinding(f.id, patch, `Updated finding — ${patch.title}`)}
                         />
                       );
                     }
@@ -1342,13 +1450,13 @@ export function ControlEvaluationPanel({
                           <div className="flex items-center gap-2 flex-wrap pt-2.5" style={{ borderTop: `1px solid ${C.border}` }}>
                             <Button size="sm" icon={Pencil} onClick={() => { setEditingFindingId(f.id); setCreatingFinding(false); }}>Edit / assign</Button>
                             {f.remediationStatus !== "In Progress" && f.remediationStatus !== "Complete" && (
-                              <Button size="sm" onClick={() => saveMutation((existing) => updateFinding(existing, f.id, { remediationStatus: "In Progress" }))}>Start work</Button>
+                              <Button size="sm" onClick={() => stageMutation(`Started remediation — ${f.title}`, (existing) => updateFinding(existing, f.id, { remediationStatus: "In Progress" }))}>Start work</Button>
                             )}
                             {f.remediationStatus !== "Blocked" && f.remediationStatus !== "Complete" && (
-                              <Button size="sm" variant="danger" onClick={() => saveMutation((existing) => updateFinding(existing, f.id, { remediationStatus: "Blocked" }))}>Block</Button>
+                              <Button size="sm" variant="danger" onClick={() => stageMutation(`Blocked remediation — ${f.title}`, (existing) => updateFinding(existing, f.id, { remediationStatus: "Blocked" }))}>Block</Button>
                             )}
                             {f.remediationStatus !== "Complete" && (
-                              <Button size="sm" variant="primary" icon={Check} onClick={() => saveMutation((existing) => updateFinding(existing, f.id, { remediationStatus: "Complete", closedDate: new Date().toISOString().slice(0, 10) }))}>Mark complete</Button>
+                              <Button size="sm" variant="primary" icon={Check} onClick={() => stageMutation(`Marked complete — ${f.title}`, (existing) => updateFinding(existing, f.id, { remediationStatus: "Complete", closedDate: new Date().toISOString().slice(0, 10) }))}>Mark complete</Button>
                             )}
                           </div>
                         )}
@@ -1358,8 +1466,16 @@ export function ControlEvaluationPanel({
                             {closureEvidenceIds.length > 0 && (
                               <div className="flex flex-col gap-2">
                                 {closureEvidenceIds.map((id) => {
-                                  const ev = getEvidence(id);
-                                  return ev ? <EvidenceCard key={id} e={ev} readOnly /> : null;
+                                  const ev = draftEngine.selectors.getEvidence(id);
+                                  return ev ? (
+                                    <EvidenceCard
+                                      key={id}
+                                      e={ev}
+                                      readOnly
+                                      getArtifacts={draftEngine.selectors.getEvidenceArtifacts}
+                                      getReviews={draftEngine.selectors.getEvidenceReviews}
+                                    />
+                                  ) : null;
                                 })}
                               </div>
                             )}
@@ -1376,18 +1492,28 @@ export function ControlEvaluationPanel({
           )}
         </div>
       </WizardBody>
+      )}
 
-      {/* Footer only exists in walk mode: the standalone panel closes when
-          you're done, but the walk needs a way past a control you can't
-          decide yet without recording a fact you don't stand behind. */}
-      {walk && (
+      {/* Save/Discard always live at the bottom — every edit above stages
+          into the draft rather than committing, so this is the one place
+          that actually persists (or throws away) what changed. Walk mode
+          keeps its domain position and Skip alongside them. */}
+      {!savedSummary && (
         <WizardFooter
-          position={`${walk.activeDomain} · ${walk.domains.find((d) => d.domain === walk.activeDomain)?.remaining ?? 0} left`}
+          position={walk
+            ? `${walk.activeDomain} · ${walk.domains.find((d) => d.domain === walk.activeDomain)?.remaining ?? 0} left`
+            : pendingChanges.length > 0
+              ? `${pendingChanges.length} unsaved change${pendingChanges.length === 1 ? "" : "s"}`
+              : "No unsaved changes"}
           hint={walkReviewerMissing
             ? <InlineHint tone="warning">Name a reviewer of record before recording an assessment.</InlineHint>
             : undefined}
         >
-          {walk.onSkip && <Button iconRight={ChevronRight} onClick={walk.onSkip}>Skip for now</Button>}
+          {walk?.onSkip && <Button iconRight={ChevronRight} onClick={walk.onSkip}>Skip for now</Button>}
+          <Button disabled={pendingChanges.length === 0} onClick={discardDraft}>Discard</Button>
+          <Button variant="primary" icon={Check} disabled={pendingChanges.length === 0} onClick={saveDraft}>
+            {pendingChanges.length > 0 ? `Save ${pendingChanges.length} change${pendingChanges.length === 1 ? "" : "s"}` : "Save"}
+          </Button>
         </WizardFooter>
       )}
       </WizardChrome>

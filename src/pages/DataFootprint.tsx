@@ -44,7 +44,7 @@ export default function DataFootprint() {
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
       <PageHeader
         icon={Database}
-        title="Data Footprint"
+        title="Enterprise Footprint"
         description="Estimated volume of customer, employee, financial and operational data held across ACME's core vendors."
         right={
           <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>

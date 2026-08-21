@@ -558,6 +558,22 @@ export function WizardChrome({ children }: { children: ReactNode }) {
   return <WizardTokens className="flex flex-col flex-1 min-h-0">{children}</WizardTokens>;
 }
 
+// Names the surface the operator is inside — the one solid-accent strip at
+// the very top of every wizard-like modal ("Scope Determination Wizard",
+// "System Control Editor"), so which flow you are in is answered before the
+// header. Title only; context, actions and close stay in WizardHeader.
+export function WizardBanner({ icon: Icon, title }: { icon?: LucideIcon; title: string }) {
+  return (
+    <div
+      className="flex items-center gap-2.5 px-6 py-3 shrink-0"
+      style={{ background: C.accent, color: WZ.onAccent }}
+    >
+      {Icon && <Icon size={15} className="shrink-0" />}
+      <span className="text-[13px] font-mono font-semibold uppercase tracking-[0.16em]">{title}</span>
+    </div>
+  );
+}
+
 export function WizardHeader({ icon: Icon, title, description, aside, onClose }: {
   icon: LucideIcon; title: string; description: string; aside?: ReactNode; onClose?: ReactNode;
 }) {

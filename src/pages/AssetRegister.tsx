@@ -148,9 +148,9 @@ function AssetRow({ asset, onSelect, selected }: AssetSelectProps) {
 function AssetTable({ assets, groups, selectedId, onSelect }: { assets: AssetRollup[]; groups?: AssetLaneGroup[]; selectedId: AssetId | null; onSelect: (id: AssetId) => void }) {
   const rowGroups = groups ?? [{ id: "unmapped" as const, label: "", assets }];
   return (
-    <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
+    <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
       <div
-        className="grid gap-3 pl-3.5 pr-4 py-2 text-[10px] font-semibold uppercase tracking-wide"
+        className="grid gap-3 pl-3.5 pr-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide"
         style={{ gridTemplateColumns: ASSET_COLUMNS, background: C.panel2, color: C.muted, borderBottom: `1px solid ${C.border}` }}
       >
         <div>ID</div>

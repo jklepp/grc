@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Check, Scale } from "lucide-react";
 import { C } from "../../theme";
 import { addPrismaOverride, COMPLIANCE_LABELS, COMPLIANCE_RATINGS, commitRuntimeFacts, EVIDENCE_TYPES, evaluateControl } from "../../engine";
-import { loadRuntimeFacts } from "../../engine/runtimeFactsStore";
 import { buildLiveEngine } from "../../engine/liveGraph";
 import { YAML_FACTS } from "../../graph/sources/yaml";
 import type { ControlEvidenceDraft } from "../../engine";
@@ -284,6 +283,10 @@ interface RecordAssessmentSectionProps {
   controlId: ControlId;
   isProgramScoped: boolean;
   assetOptions: AssetOption[];
+  // The panel's current draft, not a fresh load from storage — so anything
+  // already staged there (e.g. a finding logged before this control was
+  // assessed) rides along into the same commit instead of being clobbered.
+  baseFacts: RuntimeFacts;
   // Folded into the saved fact as the assessor of record, and used to
   // pre-fill the override form when a reconciliation is needed.
   reviewer: string;
@@ -300,7 +303,7 @@ interface RecordAssessmentSectionProps {
 // evidence on a preview build, and a mismatch stops here — accept the derived
 // rating, or keep the attested one behind a named, reasoned PRISMA override.
 export function RecordAssessmentSection({
-  systemId, controlId, isProgramScoped, assetOptions, reviewer, showContinue, continueLabel, disabled = false, onSaved,
+  systemId, controlId, isProgramScoped, assetOptions, baseFacts, reviewer, showContinue, continueLabel, disabled = false, onSaved,
 }: RecordAssessmentSectionProps) {
   const [saveError, setSaveError] = useState<string[] | null>(null);
   const [reconciling, setReconciling] = useState<Reconciliation | null>(null);
@@ -326,7 +329,7 @@ export function RecordAssessmentSection({
     setSaveError(null);
     let runtime: RuntimeFacts;
     try {
-      runtime = recordKeyControlAssessment(loadRuntimeFacts(), {
+      runtime = recordKeyControlAssessment(baseFacts, {
         systemId, controlId, isProgramScoped,
         recordAssetOptions: assetOptions,
         input, reviewer,

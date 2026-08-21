@@ -212,7 +212,17 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col" style={{ background: C.bg, minHeight: "100vh" }}>
+    // The --wz-* custom properties feed the shared hover/focus rules in
+    // index.css (see .wz-hover / .wz-focusable). Publishing them here, on a
+    // node that re-renders with the theme toggle, makes those states
+    // theme-correct on every page — not just inside wizard modals.
+    <div
+      className="flex flex-col"
+      style={{
+        background: C.bg, minHeight: "100vh",
+        "--wz-accent": C.accent, "--wz-ring": C.accentBg, "--wz-hover": C.panel2,
+      } as React.CSSProperties}
+    >
       <style>{FONT_IMPORT}</style>
       <TopNav
         active={route.page}
