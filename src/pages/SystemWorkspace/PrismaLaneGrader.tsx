@@ -1,17 +1,13 @@
-import React, { useState } from "react";
-import type { CSSProperties } from "react";
-import { C } from "../../theme";
+import { useState } from "react";
+import { Check } from "lucide-react";
 import { COMPLIANCE_LABELS, COMPLIANCE_RATINGS, PRISMA_LEVELS } from "../../engine";
 import { ratingColor } from "./controlMeta";
+import { C } from "../../theme";
+import {
+  Button, ChoiceChip, Field, FieldGrid, TextArea, TextInput, TX, Well,
+} from "../../components/wizard/WizardUI";
 import type { ComplianceRating, PrismaLevel } from "../../graph/nodes/taxonomy";
 import type { LevelRating } from "../../engine";
-
-function inputStyle(): CSSProperties {
-  return {
-    background: C.panel, border: `1px solid ${C.border}`, color: C.ink,
-    borderRadius: 8, padding: "6px 8px", fontSize: 12, width: "100%",
-  };
-}
 
 export interface LaneGrade {
   level: PrismaLevel;
@@ -64,37 +60,30 @@ export function PrismaLaneGrader({
   }
 
   return (
-    <div className="rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-      <div className="grid grid-cols-5 gap-2">
+    <Well className="flex flex-col gap-4">
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 xl:grid-cols-5">
         {PRISMA_LEVELS.map((level) => {
           const derived = levels[level].derived;
           return (
-            <div key={level}>
-              <div className="text-[10px] font-semibold mb-1" style={{ color: C.muted }}>{level}</div>
-              <div className="flex flex-col gap-1">
-                {RATINGS_HIGH_TO_LOW.map((rating) => {
-                  const active = ratings[level] === rating;
-                  return (
-                    <button
-                      key={rating}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => setRatings((current) => ({ ...current, [level]: rating }))}
-                      className="text-[10px] font-semibold px-1.5 py-1 rounded"
-                      style={{
-                        background: active ? ratingColor(rating) : C.panel2,
-                        color: active ? "#fff" : C.ink,
-                        border: `1px solid ${active ? ratingColor(rating) : C.border}`,
-                        opacity: disabled ? 0.55 : 1,
-                        cursor: disabled ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      {rating}
-                    </button>
-                  );
-                })}
+            <div key={level} className="min-w-0">
+              <div className={`${TX.label} mb-2`} style={{ color: C.muted }}>{level}</div>
+              <div className="flex flex-col gap-1.5">
+                {RATINGS_HIGH_TO_LOW.map((rating) => (
+                  <ChoiceChip
+                    key={rating}
+                    selected={ratings[level] === rating}
+                    disabled={disabled}
+                    solid
+                    tint={ratingColor(rating)}
+                    ariaLabel={`${level} — ${rating}, ${COMPLIANCE_LABELS[rating]}`}
+                    onClick={() => setRatings((current) => ({ ...current, [level]: rating }))}
+                    className="w-full"
+                  >
+                    {rating}
+                  </ChoiceChip>
+                ))}
               </div>
-              <div className="text-[9px] mt-1 leading-tight" style={{ color: C.muted }}>
+              <div className={`${TX.help} mt-2`} style={{ color: C.muted }}>
                 {COMPLIANCE_LABELS[ratings[level]]}
                 {ratings[level] !== derived ? ` · derived ${derived}` : " · derived"}
               </div>
@@ -102,40 +91,44 @@ export function PrismaLaneGrader({
           );
         })}
       </div>
-      <div className="grid grid-cols-2 gap-2 mt-3">
-        <div>
-          <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Assessed by</div>
-          <input style={inputStyle()} disabled={disabled} value={assessedBy} onChange={(e) => setAssessedBy(e.target.value)} placeholder="Your name" />
-        </div>
-        <div>
-          <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Note (required if you change a lane)</div>
-          <input style={inputStyle()} disabled={disabled} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why a lane differs from the derived rating" />
-        </div>
+
+      <FieldGrid cols={2}>
+        <Field label="Assessed by" error={disabled || assessedBy.trim() ? null : "Required to save a grade."}>
+          <TextInput disabled={disabled} value={assessedBy} onChange={(e) => setAssessedBy(e.target.value)} placeholder="Your name" />
+        </Field>
+        <Field
+          label="Note"
+          note="Required if you change a lane away from its derived rating."
+          error={disabled || !changed || note.trim() ? null : "A changed lane needs a reason."}
+        >
+          <TextInput disabled={disabled} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why a lane differs from the derived rating" />
+        </Field>
+        <Field label="Comment" span2 error={disabled || comment.trim() ? null : "Required to save a grade."}>
+          <TextArea
+            disabled={disabled}
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="Describe in detail why the system satisfies each PRISMA lane"
+            style={{ minHeight: 76 }}
+          />
+        </Field>
+      </FieldGrid>
+
+      <div className="flex justify-end">
+        <Button
+          variant="primary"
+          icon={Check}
+          disabled={!ready || disabled}
+          onClick={() => onSubmit({
+            grades: PRISMA_LEVELS.map((level) => ({ level, rating: ratings[level], derived: levels[level].derived })),
+            assessedBy: assessedBy.trim(),
+            note: note.trim(),
+            comment: comment.trim(),
+          })}
+        >
+          {submitLabel}
+        </Button>
       </div>
-      <div className="mt-3">
-        <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Comment (required)</div>
-        <textarea
-          style={{ ...inputStyle(), minHeight: 72, resize: "vertical" }}
-          disabled={disabled}
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          placeholder="Describe in detail why the system satisfies each PRISMA lane"
-        />
-      </div>
-      <button
-        type="button"
-        className="text-xs font-semibold px-3 py-1.5 rounded-lg mt-3"
-        style={{ background: ready && !disabled ? C.accent : C.border, color: "#fff" }}
-        disabled={!ready || disabled}
-        onClick={() => onSubmit({
-          grades: PRISMA_LEVELS.map((level) => ({ level, rating: ratings[level], derived: levels[level].derived })),
-          assessedBy: assessedBy.trim(),
-          note: note.trim(),
-          comment: comment.trim(),
-        })}
-      >
-        {submitLabel}
-      </button>
-    </div>
+    </Well>
   );
 }

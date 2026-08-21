@@ -16,13 +16,20 @@ An enterprise security system of record that connects systems, identities, asset
 ```
 src/graph/     facts and edges — the source of truth (YAML-backed)
 src/engine/    all derivations: assessment, levels, assurance, rollups,
-               profile, applicability, evidence
-src/components/  UI
-src/pages/       app pages (Overview, Systems, Controls, Policy Center,
-                 Procedure Library, Risk Register, Executive Dashboard, ...)
+               profile, applicability, evidence, cockpit, findings
+src/components/wizard/  shared wizard UI kit (WizardUI.tsx) — every
+               wizard/walk surface renders through these primitives
+src/pages/       app pages: Overview, Systems, System Workspace (the
+                 per-system assurance cockpit — Identity, Security,
+                 Data, Assets, Controls, Testing, Risk, Findings,
+                 Architecture tabs), Controls, Common Control Framework,
+                 Policy Center, Procedure Library, Security Principles,
+                 Risk Register, Exception Register, Asset Register,
+                 Data Map/Footprint, Executive Dashboard, Graph Explorer,
+                 Scheduled Activities
 ```
 
-`src/graph` holds facts and edges (types/vocab in TypeScript, data in YAML). Everything derived — scores, rollups, applicability — lives in `src/engine`. Pages read from the engine; nothing recomputes scoring or applicability logic on its own. See `CLAUDE.md` for the full contributor notes.
+`src/graph` holds facts and edges (types/vocab in TypeScript, data in YAML), including first-class `Finding`, `Org` (team/user/business unit), and `Evidence Source` entities. Everything derived — scores, rollups, applicability, cockpit summaries — lives in `src/engine`. Pages read from the engine; nothing recomputes scoring or applicability logic on its own. Control assessment has a single UI surface, `ControlEvaluationPanel` (in `src/pages/SystemWorkspace/`), used both for direct row-click editing and for the guided key-control walk. See `CLAUDE.md` for the full contributor notes.
 
 ## Getting started
 

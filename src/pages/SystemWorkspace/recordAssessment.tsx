@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Scale } from "lucide-react";
+import { useState } from "react";
+import { Check, Scale } from "lucide-react";
 import { C } from "../../theme";
 import { addPrismaOverride, COMPLIANCE_LABELS, COMPLIANCE_RATINGS, commitRuntimeFacts, EVIDENCE_TYPES, evaluateControl } from "../../engine";
 import { loadRuntimeFacts } from "../../engine/runtimeFactsStore";
@@ -10,7 +10,11 @@ import type { RuntimeFacts } from "../../engine/liveGraph";
 import type { AssetId, ControlId, SystemId } from "../../graph/ids";
 import type { ComplianceRating, EvidenceType } from "../../graph/nodes/taxonomy";
 import type { ControlMatrixRow } from "./types";
-import { fieldLabel, inputStyle, selectedValue } from "./formHelpers";
+import {
+  Button, Callout, CheckRow, ChoiceChip, Field, FieldGrid, InlineHint, SaveErrorCallout, Select, StatusPill,
+  TextInput, TX, Well, WZ,
+} from "../../components/wizard/WizardUI";
+import { selectedValue } from "./formHelpers";
 import type { AssetOption } from "./formHelpers";
 
 export interface RecordAssessmentInput {
@@ -100,7 +104,7 @@ export function RecordAssessmentForm({ assetOptions, isProgramScoped, onSubmit, 
   }
 
   return (
-    <div className="rounded-lg p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+    <Well className="flex flex-col gap-3.5">
       {/* This form only ever attests the Implemented lane — the one lane
           nothing else in the graph can derive on its own, because it asks a
           question only a human can answer: is the control actually running
@@ -109,107 +113,107 @@ export function RecordAssessmentForm({ assetOptions, isProgramScoped, onSubmit, 
           activity calendar. Labeling the lane here is what used to be
           missing — the picker looked like a generic 0-100 score with no
           stated target. */}
-      <div className="flex items-center gap-2 mb-2">
-        <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>3</span>
-        <span className="text-[12.5px] font-semibold" style={{ color: C.ink }}>Implemented</span>
-        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase ml-auto" style={{ background: C.accentBg, color: C.accent }}>Attesting this lane</span>
+      <div className="flex items-center gap-2.5 flex-wrap">
+        <span
+          className={`${TX.code} w-[22px] h-[22px] rounded-full flex items-center justify-center shrink-0`}
+          style={{ background: C.accent, color: WZ.onAccent, border: `1.5px solid ${C.accent}` }}
+        >
+          3
+        </span>
+        <span className={TX.itemTitle} style={{ color: C.ink }}>Implemented</span>
+        <span className="ml-auto"><StatusPill tone="info">Attesting this lane</StatusPill></span>
       </div>
-      <div className="text-[11px] leading-snug mb-3" style={{ color: C.muted }}>
-        Is this control actually operating on the assets that require it? Pick where it stands — you'll back the claim with evidence next. The other four lanes — Policy, Procedure, Measured, Managed — derive on their own from the policy library, procedures, evidence metrics, and review cadence; there's nothing to pick for them here.
-      </div>
-      <div className="flex flex-wrap gap-2 mb-3">
+      <p className={TX.help} style={{ color: C.muted }}>
+        Is this control actually operating on the assets that require it? Pick where it stands — you&rsquo;ll back the claim with evidence next. The other four lanes — Policy, Procedure, Measured, Managed — derive on their own from the policy library, procedures, evidence metrics, and review cadence; there&rsquo;s nothing to pick for them here.
+      </p>
+      <div className="flex flex-wrap gap-2">
         {COMPLIANCE_RATINGS.map((value) => {
           if (value === 0 && !canDeclareMissing) return null;
           return (
-            <button
+            <ChoiceChip
               key={value}
-              type="button"
+              selected={rating === value}
               onClick={() => setRating(value)}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-              style={{
-                background: rating === value ? C.accent : C.panel,
-                color: rating === value ? "#fff" : C.ink,
-                border: `1px solid ${rating === value ? C.accent : C.border}`,
-              }}
+              ariaLabel={`${value} — ${COMPLIANCE_LABELS[value]}`}
             >
-              {value} — {COMPLIANCE_LABELS[value]}
-            </button>
+              <span className="normal-case">{value} — {COMPLIANCE_LABELS[value]}</span>
+            </ChoiceChip>
           );
         })}
       </div>
       {attested && (
-        <div className="text-[10.5px] mb-3 leading-snug" style={{ color: C.muted }}>
+        <p className={TX.help} style={{ color: C.muted }}>
           {RATING_GUIDANCE[rating]}
           {rating > 0 && " If the evidence you cite doesn't support this rating, you'll reconcile before it saves."}
-        </div>
+        </p>
       )}
       {!attested ? null : missingImplementation ? (
-        <div className="grid grid-cols-2 gap-2">
+        <FieldGrid cols={2}>
           {!isProgramScoped && (
-            <div>{fieldLabel("Asset")}
-              <select style={inputStyle()} value={assetId} onChange={(e) => setAssetId(e.target.value as AssetId)}>
+            <Field label="Asset">
+              <Select value={assetId} aria-label="Asset the gap is recorded against" onChange={(e) => setAssetId(e.target.value as AssetId)}>
                 {assetOptions.map((a) => <option key={a.assetId} value={a.assetId}>{a.label}</option>)}
-              </select>
-            </div>
+              </Select>
+            </Field>
           )}
-          <div className={isProgramScoped ? "col-span-2" : ""}>{fieldLabel("Reason")}
-            <input style={inputStyle()} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why this control is not implemented on this boundary" />
-          </div>
-        </div>
+          <Field
+            label="Reason"
+            span2={isProgramScoped}
+            error={reason.trim() ? null : "Required — say why nothing implements this control here."}
+          >
+            <TextInput value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why this control is not implemented on this boundary" />
+          </Field>
+        </FieldGrid>
       ) : (
-        <div>
-          <label className="flex items-center gap-2 text-[10.5px] mb-2" style={{ color: C.ink }}>
-            <input type="checkbox" checked={evidencePending} onChange={(e) => setEvidencePending(e.target.checked)} />
-            I don&rsquo;t have evidence yet — attach it later
-          </label>
+        <div className="flex flex-col gap-3">
+          <CheckRow
+            checked={evidencePending}
+            onChange={setEvidencePending}
+            ariaLabel="I don't have evidence yet — attach it later"
+            label={<>I don&rsquo;t have evidence yet — attach it later</>}
+          />
           {evidencePending ? (
-            <div className="text-[10.5px] leading-snug rounded-lg p-2.5" style={{ background: C.panel, color: C.muted, border: `1px solid ${C.border}` }}>
-              Saved as a self-attestation for now — the weakest evidence grade, so the derived rating won&rsquo;t overstate what&rsquo;s actually on file. Find this record under Evidence by lane once it saves and replace it with the real source.
-            </div>
+            <Callout tone="neutral" title="Saved as a self-attestation for now.">
+              That is the weakest evidence grade, so the derived rating won&rsquo;t overstate what&rsquo;s actually on file. Find this record under Evidence by lane once it saves and replace it with the real source.
+            </Callout>
           ) : (
-            <div className="grid grid-cols-2 gap-2">
-              <div>{fieldLabel("Source")}
-                <input style={inputStyle()} value={source} onChange={(e) => setSource(e.target.value)} placeholder="e.g. Screenshot of Okta MFA enforcement" />
-              </div>
-              <div>{fieldLabel("Evidence type")}
-                <select style={inputStyle()} value={evidenceType} onChange={(e) => setEvidenceType(selectedValue(EVIDENCE_TYPES, e.target.value, evidenceType))}>
+            <FieldGrid cols={2}>
+              <Field label="Source" error={source.trim() ? null : "Required — name where the evidence came from."}>
+                <TextInput value={source} onChange={(e) => setSource(e.target.value)} placeholder="e.g. Screenshot of Okta MFA enforcement" />
+              </Field>
+              <Field label="Evidence type">
+                <Select value={evidenceType} aria-label="Evidence type" onChange={(e) => setEvidenceType(selectedValue(EVIDENCE_TYPES, e.target.value, evidenceType))}>
                   {EVIDENCE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-            </div>
+                </Select>
+              </Field>
+            </FieldGrid>
           )}
         </div>
       )}
       {attested && !isProgramScoped && assetOptions.length === 0 && (
-        <div className="text-[10.5px] mt-2 leading-snug" style={{ color: C.amber }}>
-          No asset in this boundary requires this control, so it cannot be recorded here.
-        </div>
+        <InlineHint tone="warning">No asset in this boundary requires this control, so it cannot be recorded here.</InlineHint>
       )}
-      <div className="flex items-center gap-2 mt-3">
-        {showContinue && (
-          <button
-            type="button"
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-            style={{ background: ready && canContinue && !disabled ? C.accent : C.border, color: "#fff" }}
-            disabled={!ready || !canContinue || disabled}
-            onClick={() => submit(true)}
-          >
-            {continueLabel}
-          </button>
-        )}
-        <button
-          type="button"
-          className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-          style={showContinue
-            ? { background: ready && !disabled ? C.accentBg : C.panel, color: ready && !disabled ? C.accent : C.muted, border: `1px solid ${C.border}` }
-            : { background: ready && !disabled ? C.accent : C.border, color: "#fff" }}
+      <div className="flex items-center justify-end gap-2.5">
+        <Button
+          variant={showContinue ? "secondary" : "primary"}
+          icon={showContinue ? undefined : Check}
           disabled={!ready || disabled}
           onClick={() => submit(false)}
         >
           {showContinue ? "Save" : continueLabel}
-        </button>
+        </Button>
+        {showContinue && (
+          <Button
+            variant="primary"
+            icon={Check}
+            disabled={!ready || !canContinue || disabled}
+            onClick={() => submit(true)}
+          >
+            {continueLabel}
+          </Button>
+        )}
       </div>
-    </div>
+    </Well>
   );
 }
 
@@ -370,60 +374,52 @@ export function RecordAssessmentSection({
   }
 
   return (
-    <div>
-      {saveError && (
-        <div className="rounded-lg p-3 mb-3 text-[11px]" style={{ background: C.redBg, color: C.red }}>
-          {saveError.join(" ")}
-        </div>
-      )}
+    <div className="flex flex-col gap-3.5">
+      {saveError && <SaveErrorCallout problems={saveError} />}
       {reconciling ? (
-        <div>
-          <div className="rounded-lg p-4" style={{ background: C.amberBg, border: `1px solid ${C.amber}55` }}>
-            <div className="flex items-center gap-2 text-[13px] font-semibold" style={{ color: C.ink }}>
-              <Scale size={15} color={C.amber} />
-              You attested {reconciling.attested} — {COMPLIANCE_LABELS[reconciling.attested]}
-            </div>
-            <div className="text-[12.5px] mt-1.5 leading-relaxed" style={{ color: C.ink }}>
-              This evidence supports <b>{reconciling.derived} — {COMPLIANCE_LABELS[reconciling.derived]}</b>: {reconciling.rationale}
-            </div>
-            <button
-              type="button"
+        <div className="flex flex-col gap-3.5">
+          <Callout
+            tone="warning"
+            icon={Scale}
+            title={`You attested ${reconciling.attested} — ${COMPLIANCE_LABELS[reconciling.attested]}.`}
+          >
+            This evidence supports <b>{reconciling.derived} — {COMPLIANCE_LABELS[reconciling.derived]}</b>: {reconciling.rationale}
+          </Callout>
+          <div className="flex justify-end">
+            <Button
+              variant="primary"
               onClick={() => finalizeCommit(reconciling.runtime, reconciling.derived, reconciling.continueWalk)}
-              className="text-xs font-semibold rounded-lg px-3 py-1.5 mt-3"
-              style={{ background: C.ink, color: C.bg }}
             >
               Use {reconciling.derived} instead
-            </button>
+            </Button>
           </div>
 
-          <div className="rounded-lg p-4 mt-3" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-            <div className="text-[11.5px] font-semibold" style={{ color: C.ink }}>
-              Keep {reconciling.attested} anyway
+          <Well className="flex flex-col gap-3.5">
+            <div>
+              <div className={TX.itemTitle} style={{ color: C.ink }}>Keep {reconciling.attested} anyway</div>
+              <p className={`${TX.help} mt-1.5`} style={{ color: C.muted }}>
+                Your professional judgment overrides the derived rating — the disagreement stays visible, not silently resolved. Requires your name and why.
+              </p>
             </div>
-            <div className="text-[10.5px] mt-1 mb-2.5 leading-snug" style={{ color: C.muted }}>
-              Your professional judgment overrides the derived rating — the disagreement stays visible, not silently resolved. Requires your name and why.
+            <FieldGrid cols={2}>
+              <Field label="Assessor" error={overrideAssessor.trim() ? null : "Required to record an override."}>
+                <TextInput value={overrideAssessor} onChange={(e) => setOverrideAssessor(e.target.value)} placeholder="Your name" />
+              </Field>
+              <Field label="Why" error={overrideNote.trim() ? null : "Required to record an override."}>
+                <TextInput value={overrideNote} onChange={(e) => setOverrideNote(e.target.value)} placeholder={`Why ${reconciling.attested} is right despite this evidence`} />
+              </Field>
+            </FieldGrid>
+            <div className="flex justify-end">
+              <Button
+                variant="primary"
+                icon={Check}
+                disabled={!overrideAssessor.trim() || !overrideNote.trim()}
+                onClick={keepAttestedWithOverride}
+              >
+                Keep {reconciling.attested} — {COMPLIANCE_LABELS[reconciling.attested]}
+              </Button>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>{fieldLabel("Assessor")}
-                <input style={inputStyle()} value={overrideAssessor} onChange={(e) => setOverrideAssessor(e.target.value)} placeholder="Your name" />
-              </div>
-              <div>{fieldLabel("Why")}
-                <input style={inputStyle()} value={overrideNote} onChange={(e) => setOverrideNote(e.target.value)} placeholder={`Why ${reconciling.attested} is right despite this evidence`} />
-              </div>
-            </div>
-            <button
-              type="button"
-              disabled={!overrideAssessor.trim() || !overrideNote.trim()}
-              onClick={keepAttestedWithOverride}
-              className="text-xs font-semibold rounded-lg px-3 py-1.5 mt-3"
-              style={{
-                background: overrideAssessor.trim() && overrideNote.trim() ? C.accent : C.border,
-                color: "#fff",
-              }}
-            >
-              Keep {reconciling.attested} — {COMPLIANCE_LABELS[reconciling.attested]}
-            </button>
-          </div>
+          </Well>
         </div>
       ) : (
         <RecordAssessmentForm

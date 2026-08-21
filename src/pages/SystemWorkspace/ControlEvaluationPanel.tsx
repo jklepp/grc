@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
-  Link2, BookOpenText, Layers, FileCheck2, Wrench, Gauge, Plus, Pencil, Trash2, ChevronDown, ChevronRight,
-  ScrollText, Network, ClipboardCheck,
+  Link2, BookOpenText, Layers, FileCheck2, Wrench, Gauge, Plus, Pencil, Trash2, Check, ChevronRight,
+  ScrollText, Network, ClipboardCheck, ShieldCheck,
 } from "lucide-react";
 import { C } from "../../theme";
 import {
@@ -28,10 +28,12 @@ import { POLICY_BY_CONTROL, PROCEDURE_BY_CONTROL } from "./policyLookup";
 import { BasisTag } from "../../components/BasisTag";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
-  Button, InlineField, InlineHint, ProgressBar, RailGroup, RailItem, SaveErrorCallout, TextInput, TX,
+  Button, Callout, CheckRow, ChoiceChip, DisclosureButton, EmptyState, Field, FieldGrid, InlineField, InlineHint,
+  ProgressBar, RailGroup, RailItem, SaveErrorCallout, Section, Select, StatusPill, TextInput, toneColor, TX, Well,
   WizardBody, WizardChrome, WizardFooter, WizardRail, WZ,
 } from "../../components/wizard/WizardUI";
-import { fieldLabel, inputStyle, selectedValue } from "./formHelpers";
+import type { Tone } from "../../components/wizard/WizardUI";
+import { selectedValue } from "./formHelpers";
 import type { AssetOption } from "./formHelpers";
 import type { ControlAssessment, ControlEvidenceDraft, ControlInstance, EvidenceDraft, EngineFinding, FindingDraft, LevelRating, ScoredEvidence } from "../../engine";
 import type { RuntimeFacts } from "../../engine/liveGraph";
@@ -42,19 +44,6 @@ import type { ArtifactSensitivity, EvidenceReviewDecision } from "../../graph/no
 import type { FindingSeverity, FindingSource, RemediationStatus } from "../../graph/nodes/findings";
 import type { SecurityPrinciple } from "../../data/securityPrinciples";
 import type { ControlMatrixRow, WorkspaceSystem } from "./types";
-
-function themeColor(key?: string): string {
-  if (key === "green" || key === "amber" || key === "red" || key === "accent" || key === "muted" || key === "ink" || key === "na") return C[key];
-  return C.muted;
-}
-
-function themeBackground(key?: string): string {
-  if (key === "green") return C.greenBg;
-  if (key === "amber") return C.amberBg;
-  if (key === "red") return C.redBg;
-  if (key === "accent") return C.accentBg;
-  return C.panel2;
-}
 
 // The single worst-rated PRISMA lane, paired with its level name — the
 // bottleneck that a one-click "Save Assessment" acts on, and the sentence
@@ -140,8 +129,16 @@ function mostUrgentRemediation(findings: EngineFinding[]): RemediationStatus | n
   return REMEDIATION_URGENCY.find((s) => findings.some((f) => f.remediationStatus === s)) ?? findings[0].remediationStatus;
 }
 
-function remediationBadgeStyle(colorKey: string): CSSProperties {
-  return { background: themeBackground(colorKey), color: themeColor(colorKey) };
+// The control metas (status, instance status, severity, remediation) name a
+// theme color key. Mapping those keys onto the wizard kit's tone vocabulary
+// lets every badge in the panel be the same StatusPill, without losing the
+// meaning the meta color already carries.
+function toneForColorKey(colorKey?: string): Tone {
+  if (colorKey === "green") return "success";
+  if (colorKey === "amber") return "warning";
+  if (colorKey === "red") return "danger";
+  if (colorKey === "accent") return "info";
+  return "neutral";
 }
 
 function GlancePill({ Icon, label, value, color }: { Icon: LucideIcon; label: ReactNode; value: ReactNode; color?: string }) {
@@ -157,11 +154,13 @@ function GlancePill({ Icon, label, value, color }: { Icon: LucideIcon; label: Re
   );
 }
 
-function SectionLabel({ icon: Icon, children, action }: { icon?: LucideIcon; children: ReactNode; action?: ReactNode }) {
+// A label for a group *inside* a card. Card-level headings are `Section`;
+// this is the one smaller rung beneath it, matching a Field's label exactly
+// so the panel has two label sizes total rather than five.
+function GroupLabel({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
-    <div className="flex items-center gap-1.5 mb-2">
-      {Icon && <Icon size={13} color={C.accent} />}
-      <div className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.accent }}>{children}</div>
+    <div className="flex items-center gap-2 mb-2">
+      <div className={TX.label} style={{ color: C.muted }}>{children}</div>
       {action && <span className="ml-auto">{action}</span>}
     </div>
   );
@@ -194,69 +193,70 @@ function EvidenceCard({ e, assetLabel, governing, onEdit, onDelete, readOnly }: 
   const artifacts = getEvidenceArtifacts(e.id);
   const reviews = getEvidenceReviews(e.id);
   const latestReview = reviews.at(-1);
+  const reviewTone: Tone = latestReview?.decision === "accepted" ? "success"
+    : latestReview?.decision === "rejected" ? "danger"
+      : latestReview ? "warning" : "neutral";
   return (
-    <div className="rounded-lg p-2.5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+    <Well className="flex flex-col gap-2.5">
       <div className="flex items-center gap-2">
-        <Link2 size={11} color={C.muted} className="shrink-0" />
-        <span className="text-xs font-semibold flex-1 min-w-0 truncate" style={{ color: C.ink }}>{e.source}</span>
-        <span
-          className="text-[9px] font-semibold px-1.5 py-0.5 rounded shrink-0 uppercase"
-          style={{ background: e.result === "pass" ? C.greenBg : e.result === "partial" ? C.amberBg : C.redBg, color: e.result === "pass" ? C.green : e.result === "partial" ? C.amber : C.red }}
-        >
-          {e.result}
-        </span>
-        {governing && <span className="font-semibold px-1.5 py-0.5 rounded shrink-0 text-[9px]" style={{ background: C.accentBg, color: C.accent }}>GOVERNING</span>}
+        <Link2 size={12} color={C.muted} className="shrink-0" />
+        <span className={`${TX.body} font-semibold flex-1 min-w-0 truncate`} style={{ color: C.ink }}>{e.source}</span>
+        <StatusPill tone={e.result === "pass" ? "success" : e.result === "partial" ? "warning" : "danger"}>{e.result}</StatusPill>
+        {governing && <StatusPill tone="info">Governing</StatusPill>}
       </div>
-      <div className="flex items-center gap-3 mt-1.5 text-[10.5px] flex-wrap" style={{ color: C.muted }}>
+      <div className={`${TX.help} flex items-center gap-x-3 gap-y-1 flex-wrap`} style={{ color: C.muted }}>
         {assetLabel && <span>{assetLabel}</span>}
         <span>Coverage {e.coveragePct}%{e.exceptionRate != null && ` (${e.exceptions}/${e.population})`}</span>
-        <span>{e.ageDays === 0 ? "Collected today" : `Collected ${e.ageDays}d ago`}{e.stale && <span className="font-semibold ml-1" style={{ color: C.amber }}>STALE</span>}</span>
+        <span>
+          {e.ageDays === 0 ? "Collected today" : `Collected ${e.ageDays}d ago`}
+          {e.stale && <span className="font-semibold ml-1" style={{ color: C.amber }}>STALE</span>}
+        </span>
         <span className="capitalize">{e.independence} independence</span>
       </div>
-      <div className="flex items-center gap-3 mt-1.5">
-        <button
-          className="flex items-center gap-1 text-[10.5px] font-semibold"
-          style={{ color: latestReview?.decision === "accepted" ? C.green : latestReview?.decision === "rejected" ? C.red : C.muted }}
-          onClick={() => setShowProvenance((open) => !open)}
+      <div className="flex items-center gap-3 flex-wrap">
+        <DisclosureButton
+          open={showProvenance}
+          onToggle={() => setShowProvenance((open) => !open)}
+          tone={reviewTone}
+          summary={<>&middot; {artifacts.length} artifact{artifacts.length === 1 ? "" : "s"} &middot; {e.collectorType ?? e.independence}</>}
         >
-          {showProvenance ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-          {latestReview ? latestReview.decision.replace("-", " ") : "Needs review"}
-          <span className="font-normal" style={{ color: C.muted }}>
-            &middot; {artifacts.length} artifact{artifacts.length === 1 ? "" : "s"} &middot; {e.collectorType ?? e.independence}
-          </span>
-        </button>
+          <span className="capitalize">{latestReview ? latestReview.decision.replace("-", " ") : "Needs review"}</span>
+        </DisclosureButton>
         {editable ? (
-          <>
-            <button className="flex items-center gap-1 text-[10.5px] ml-auto" style={{ color: C.muted }} onClick={() => onEdit?.(e)}><Pencil size={10} /> Edit</button>
-            <button className="flex items-center gap-1 text-[10.5px]" style={{ color: C.red }} onClick={() => onDelete?.(e)}><Trash2 size={10} /> Delete</button>
-          </>
+          <span className="ml-auto flex items-center gap-2">
+            <Button size="sm" icon={Pencil} onClick={() => onEdit?.(e)}>Edit</Button>
+            <Button size="sm" variant="danger" icon={Trash2} onClick={() => onDelete?.(e)}>Delete</Button>
+          </span>
         ) : (
-          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded ml-auto" style={{ background: C.panel2, color: C.muted }}>REFERENCE</span>
+          <span className="ml-auto"><StatusPill tone="neutral">Reference</StatusPill></span>
         )}
       </div>
       {showProvenance && (
-        <div className="grid grid-cols-3 gap-4 text-[10.5px] mt-2 pt-2" style={{ borderTop: `1px solid ${C.border}` }}>
-          <div>
-            <SectionLabel>Collection</SectionLabel>
+        <div
+          className={`${TX.help} grid gap-4 grid-cols-1 md:grid-cols-3 pt-3`}
+          style={{ borderTop: `1px solid ${C.border}` }}
+        >
+          <div className="min-w-0">
+            <GroupLabel>Collection</GroupLabel>
             <div style={{ color: C.ink }}>{e.collectorIdentity ?? "Collector identity not recorded"}</div>
             <div style={{ color: C.muted }}>{e.collectionRunId ?? "No run ID"}{e.methodVersion ? ` · ${e.methodVersion}` : ""}</div>
             <div style={{ color: C.muted }}>{e.periodStart && e.periodEnd ? `${e.periodStart.slice(0, 10)} to ${e.periodEnd.slice(0, 10)}` : "Coverage period not recorded"}</div>
           </div>
-          <div>
-            <SectionLabel>Artifact integrity</SectionLabel>
+          <div className="min-w-0">
+            <GroupLabel>Artifact integrity</GroupLabel>
             {artifacts.length > 0 ? artifacts.map((artifact) => (
-              <div key={artifact.id} className="mb-1">
+              <div key={artifact.id} className="mb-1.5">
                 <div style={{ color: C.ink }}>{artifact.name} · v{artifact.version}</div>
                 <div className="font-mono truncate" title={artifact.sha256} style={{ color: C.muted }}>SHA-256 {artifact.sha256.slice(0, 14)}…</div>
                 <div style={{ color: C.muted }}>{artifact.sensitivity} · retained at {artifact.storageRef}</div>
               </div>
             )) : <div style={{ color: C.muted }}>No retained artifact metadata</div>}
           </div>
-          <div>
-            <SectionLabel>Review</SectionLabel>
+          <div className="min-w-0">
+            <GroupLabel>Review</GroupLabel>
             {latestReview ? (
               <>
-                <div className="font-semibold capitalize" style={{ color: latestReview.decision === "accepted" ? C.green : latestReview.decision === "rejected" ? C.red : C.amber }}>{latestReview.decision.replace("-", " ")}</div>
+                <div className="font-semibold capitalize" style={{ color: toneColor(reviewTone) }}>{latestReview.decision.replace("-", " ")}</div>
                 <div style={{ color: C.ink }}>{latestReview.reviewer} · {latestReview.reviewedAt.slice(0, 10)}</div>
                 <div style={{ color: C.muted }}>{latestReview.comments ?? "No review comments"}</div>
               </>
@@ -264,7 +264,7 @@ function EvidenceCard({ e, assetLabel, governing, onEdit, onDelete, readOnly }: 
           </div>
         </div>
       )}
-    </div>
+    </Well>
   );
 }
 
@@ -333,97 +333,137 @@ function EvidenceForm({ initial, assetOptions, isProgramScoped, prismaLevel, onC
   const reviewReady = !form.reviewer.trim() || form.reviewIndependenceDeclared;
 
   return (
-    <div className="rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-      <div className="grid grid-cols-2 gap-2">
-        <div>{fieldLabel("Source")}<input style={inputStyle()} value={form.source} onChange={(e) => setField("source", e.target.value)} placeholder="e.g. Vanta, Auditor name" /></div>
-        <div>{fieldLabel("Evidence type")}
-          <select style={inputStyle()} value={form.evidenceType} onChange={(e) => setField("evidenceType", selectedValue(EVIDENCE_TYPES, e.target.value, form.evidenceType))}>
+    <Well className="flex flex-col gap-3.5">
+      <FieldGrid cols={2}>
+        <Field label="Source" error={form.source.trim() ? null : "Required — name where this evidence came from."}>
+          <TextInput value={form.source} onChange={(e) => setField("source", e.target.value)} placeholder="e.g. Vanta, Auditor name" />
+        </Field>
+        <Field label="Evidence type">
+          <Select value={form.evidenceType} aria-label="Evidence type" onChange={(e) => setField("evidenceType", selectedValue(EVIDENCE_TYPES, e.target.value, form.evidenceType))}>
             {EVIDENCE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
-        <div>{fieldLabel("Result")}
-          <select style={inputStyle()} value={form.result} onChange={(e) => setField("result", selectedValue(EVIDENCE_RESULTS, e.target.value, form.result))}>
+          </Select>
+        </Field>
+        <Field label="Result">
+          <Select value={form.result} aria-label="Result" onChange={(e) => setField("result", selectedValue(EVIDENCE_RESULTS, e.target.value, form.result))}>
             {EVIDENCE_RESULTS.map((r) => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </div>
-        <div>{fieldLabel("Independence")}
-          <select style={inputStyle()} value={form.independence} onChange={(e) => setField("independence", selectedValue(INDEPENDENCE_LEVELS, e.target.value, form.independence))}>
+          </Select>
+        </Field>
+        <Field label="Independence">
+          <Select value={form.independence} aria-label="Independence" onChange={(e) => setField("independence", selectedValue(INDEPENDENCE_LEVELS, e.target.value, form.independence))}>
             {INDEPENDENCE_LEVELS.map((i) => <option key={i} value={i}>{i}</option>)}
-          </select>
-        </div>
-        <div>{fieldLabel("Coverage %")}<input type="number" min={0} max={100} style={inputStyle()} value={form.coveragePct} onChange={(e) => setField("coveragePct", e.target.value)} /></div>
+          </Select>
+        </Field>
+        <Field label="Coverage %">
+          <TextInput type="number" min={0} max={100} value={form.coveragePct} onChange={(e) => setField("coveragePct", e.target.value)} />
+        </Field>
         <div />
-        <div>{fieldLabel("Exceptions (optional)")}<input type="number" min={0} style={inputStyle()} value={form.exceptions} onChange={(e) => setField("exceptions", e.target.value)} /></div>
-        <div>{fieldLabel("Population (optional)")}<input type="number" min={0} style={inputStyle()} value={form.population} onChange={(e) => setField("population", e.target.value)} /></div>
-      </div>
-      <div className="mt-2">{fieldLabel("Note")}<input style={inputStyle()} value={form.note} onChange={(e) => setField("note", e.target.value)} placeholder="Optional context" /></div>
-      <button type="button" className="mt-2 text-[11px] font-semibold flex items-center gap-1" style={{ color: C.accent }} onClick={() => setShowProvenance((open) => !open)}>
-        {showProvenance ? <ChevronDown size={12} /> : <ChevronRight size={12} />} Collection, artifact &amp; review provenance
-      </button>
+        <Field label="Exceptions" note="Optional.">
+          <TextInput type="number" min={0} value={form.exceptions} onChange={(e) => setField("exceptions", e.target.value)} />
+        </Field>
+        <Field label="Population" note="Optional.">
+          <TextInput type="number" min={0} value={form.population} onChange={(e) => setField("population", e.target.value)} />
+        </Field>
+        <Field label="Note" span2>
+          <TextInput value={form.note} onChange={(e) => setField("note", e.target.value)} placeholder="Optional context" />
+        </Field>
+      </FieldGrid>
+
+      <DisclosureButton open={showProvenance} onToggle={() => setShowProvenance((open) => !open)}>
+        Collection, artifact &amp; review provenance
+      </DisclosureButton>
       {showProvenance && (
-        <div className="mt-2 rounded-lg p-3 space-y-3" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+        <Well hollow className="flex flex-col gap-4">
           <div>
-            <SectionLabel>Collection details</SectionLabel>
-            <div className="grid grid-cols-2 gap-2">
-              <div>{fieldLabel("Collected date")}<input type="date" style={inputStyle()} value={form.collectedAt} onChange={(e) => setField("collectedAt", e.target.value)} /></div>
-              <div>{fieldLabel("Collector type")}<select style={inputStyle()} value={form.collectorType} onChange={(e) => setField("collectorType", selectedValue(EVIDENCE_COLLECTOR_TYPES, e.target.value, form.collectorType))}>{EVIDENCE_COLLECTOR_TYPES.map((value) => <option key={value} value={value}>{value}</option>)}</select></div>
-              <div>{fieldLabel("Period start")}<input type="date" style={inputStyle()} value={form.periodStart} onChange={(e) => setField("periodStart", e.target.value)} /></div>
-              <div>{fieldLabel("Period end")}<input type="date" style={inputStyle()} value={form.periodEnd} onChange={(e) => setField("periodEnd", e.target.value)} /></div>
-              <div>{fieldLabel("Collector identity")}<input style={inputStyle()} value={form.collectorIdentity} onChange={(e) => setField("collectorIdentity", e.target.value)} placeholder="Connector, account, or person" /></div>
-              <div>{fieldLabel("Collection run ID")}<input style={inputStyle()} value={form.collectionRunId} onChange={(e) => setField("collectionRunId", e.target.value)} /></div>
-              <div>{fieldLabel("Method / script version")}<input style={inputStyle()} value={form.methodVersion} onChange={(e) => setField("methodVersion", e.target.value)} /></div>
-              <div>{fieldLabel("Source config version")}<input style={inputStyle()} value={form.sourceConfigurationVersion} onChange={(e) => setField("sourceConfigurationVersion", e.target.value)} /></div>
-            </div>
+            <GroupLabel>Collection details</GroupLabel>
+            <FieldGrid cols={2}>
+              <Field label="Collected date"><TextInput type="date" value={form.collectedAt} aria-label="Collected date" onChange={(e) => setField("collectedAt", e.target.value)} /></Field>
+              <Field label="Collector type">
+                <Select value={form.collectorType} aria-label="Collector type" onChange={(e) => setField("collectorType", selectedValue(EVIDENCE_COLLECTOR_TYPES, e.target.value, form.collectorType))}>
+                  {EVIDENCE_COLLECTOR_TYPES.map((value) => <option key={value} value={value}>{value}</option>)}
+                </Select>
+              </Field>
+              <Field label="Period start"><TextInput type="date" value={form.periodStart} aria-label="Period start" onChange={(e) => setField("periodStart", e.target.value)} /></Field>
+              <Field label="Period end"><TextInput type="date" value={form.periodEnd} aria-label="Period end" onChange={(e) => setField("periodEnd", e.target.value)} /></Field>
+              <Field label="Collector identity"><TextInput value={form.collectorIdentity} onChange={(e) => setField("collectorIdentity", e.target.value)} placeholder="Connector, account, or person" /></Field>
+              <Field label="Collection run ID"><TextInput value={form.collectionRunId} aria-label="Collection run ID" onChange={(e) => setField("collectionRunId", e.target.value)} /></Field>
+              <Field label="Method / script version"><TextInput value={form.methodVersion} aria-label="Method or script version" onChange={(e) => setField("methodVersion", e.target.value)} /></Field>
+              <Field label="Source config version"><TextInput value={form.sourceConfigurationVersion} aria-label="Source configuration version" onChange={(e) => setField("sourceConfigurationVersion", e.target.value)} /></Field>
+            </FieldGrid>
           </div>
           <div>
-            <SectionLabel>Retained artifact (optional)</SectionLabel>
-            <div className="grid grid-cols-2 gap-2">
-              <div>{fieldLabel("Artifact name")}<input style={inputStyle()} value={form.artifactName} onChange={(e) => setField("artifactName", e.target.value)} placeholder="report.pdf or snapshot.json" /></div>
-              <div>{fieldLabel("Media type")}<input style={inputStyle()} value={form.artifactMediaType} onChange={(e) => setField("artifactMediaType", e.target.value)} /></div>
-              <div>{fieldLabel("Immutable storage reference")}<input style={inputStyle()} value={form.artifactStorageRef} onChange={(e) => setField("artifactStorageRef", e.target.value)} placeholder="grc://evidence/..." /></div>
-              <div>{fieldLabel("Sensitivity")}<select style={inputStyle()} value={form.artifactSensitivity} onChange={(e) => setField("artifactSensitivity", selectedValue(ARTIFACT_SENSITIVITIES, e.target.value, form.artifactSensitivity))}>{ARTIFACT_SENSITIVITIES.map((value) => <option key={value} value={value}>{value}</option>)}</select></div>
-              <div className="col-span-2">{fieldLabel("SHA-256")}<input style={inputStyle()} value={form.artifactSha256} onChange={(e) => setField("artifactSha256", e.target.value)} placeholder="64-character hexadecimal digest" /></div>
-            </div>
+            <GroupLabel>Retained artifact (optional)</GroupLabel>
+            <FieldGrid cols={2}>
+              <Field label="Artifact name"><TextInput value={form.artifactName} onChange={(e) => setField("artifactName", e.target.value)} placeholder="report.pdf or snapshot.json" /></Field>
+              <Field label="Media type"><TextInput value={form.artifactMediaType} aria-label="Media type" onChange={(e) => setField("artifactMediaType", e.target.value)} /></Field>
+              <Field
+                label="Immutable storage reference"
+                error={!form.artifactName.trim() || form.artifactStorageRef.trim() ? null : "Required once an artifact is named."}
+              >
+                <TextInput value={form.artifactStorageRef} onChange={(e) => setField("artifactStorageRef", e.target.value)} placeholder="grc://evidence/..." />
+              </Field>
+              <Field label="Sensitivity">
+                <Select value={form.artifactSensitivity} aria-label="Artifact sensitivity" onChange={(e) => setField("artifactSensitivity", selectedValue(ARTIFACT_SENSITIVITIES, e.target.value, form.artifactSensitivity))}>
+                  {ARTIFACT_SENSITIVITIES.map((value) => <option key={value} value={value}>{value}</option>)}
+                </Select>
+              </Field>
+              <Field
+                label="SHA-256"
+                span2
+                note="64-character hexadecimal digest."
+                error={!form.artifactName.trim() || /^[a-f0-9]{64}$/i.test(form.artifactSha256.trim()) ? null : "Enter a 64-character hexadecimal digest."}
+              >
+                <TextInput value={form.artifactSha256} aria-label="Artifact SHA-256" onChange={(e) => setField("artifactSha256", e.target.value)} placeholder="64-character hexadecimal digest" />
+              </Field>
+            </FieldGrid>
           </div>
           <div>
-            <SectionLabel>Review decision (optional)</SectionLabel>
-            <div className="grid grid-cols-2 gap-2">
-              <div>{fieldLabel("Reviewer")}<input style={inputStyle()} value={form.reviewer} onChange={(e) => setField("reviewer", e.target.value)} placeholder="Name or accountable team" /></div>
-              <div>{fieldLabel("Decision")}<select style={inputStyle()} value={form.reviewDecision} onChange={(e) => setField("reviewDecision", selectedValue(EVIDENCE_REVIEW_DECISIONS, e.target.value, form.reviewDecision))}>{EVIDENCE_REVIEW_DECISIONS.map((value) => <option key={value} value={value}>{value}</option>)}</select></div>
-              <div>{fieldLabel("Valid through")}<input type="date" style={inputStyle()} value={form.reviewValidThrough} onChange={(e) => setField("reviewValidThrough", e.target.value)} /></div>
-              <div className="col-span-2">{fieldLabel("Review comments")}<input style={inputStyle()} value={form.reviewComments} onChange={(e) => setField("reviewComments", e.target.value)} /></div>
-              <label className="col-span-2 flex items-center gap-2 text-[10.5px]" style={{ color: C.ink }}>
-                <input type="checkbox" checked={form.reviewIndependenceDeclared} onChange={(e) => setField("reviewIndependenceDeclared", e.target.checked)} />
-                Reviewer declares any independence conflict has been considered and recorded.
-              </label>
-            </div>
+            <GroupLabel>Review decision (optional)</GroupLabel>
+            <FieldGrid cols={2}>
+              <Field label="Reviewer"><TextInput value={form.reviewer} onChange={(e) => setField("reviewer", e.target.value)} placeholder="Name or accountable team" /></Field>
+              <Field label="Decision">
+                <Select value={form.reviewDecision} aria-label="Review decision" onChange={(e) => setField("reviewDecision", selectedValue(EVIDENCE_REVIEW_DECISIONS, e.target.value, form.reviewDecision))}>
+                  {EVIDENCE_REVIEW_DECISIONS.map((value) => <option key={value} value={value}>{value}</option>)}
+                </Select>
+              </Field>
+              <Field label="Valid through"><TextInput type="date" value={form.reviewValidThrough} aria-label="Valid through" onChange={(e) => setField("reviewValidThrough", e.target.value)} /></Field>
+              <Field label="Review comments"><TextInput value={form.reviewComments} aria-label="Review comments" onChange={(e) => setField("reviewComments", e.target.value)} /></Field>
+              <Field label="Independence declaration" span2 error={reviewReady ? null : "A named reviewer must complete this declaration."}>
+                <CheckRow
+                  checked={form.reviewIndependenceDeclared}
+                  onChange={(checked) => setField("reviewIndependenceDeclared", checked)}
+                  ariaLabel="Reviewer independence declaration"
+                  label="Reviewer declares any independence conflict has been considered and recorded."
+                />
+              </Field>
+            </FieldGrid>
           </div>
-        </div>
+        </Well>
       )}
       {!isProgramScoped && assetOptions.length > 0 && (
-        <div className="mt-2">
-          {fieldLabel("Applies to assets")}
-          <div className="flex flex-wrap gap-1.5">
+        <Field label="Applies to assets">
+          <div className="flex flex-wrap gap-2">
             {assetOptions.map((a) => {
               const checked = assetIds.includes(a.assetId);
               return (
-                <button
+                <ChoiceChip
                   key={a.assetId}
+                  selected={checked}
+                  ariaLabel={a.label}
                   onClick={() => setAssetIds((ids) => checked ? ids.filter((id) => id !== a.assetId) : [...ids, a.assetId])}
-                  className="text-[10px] px-2 py-1 rounded-full"
-                  style={{ background: checked ? C.accentBg : C.panel2, color: checked ? C.accent : C.muted, border: `1px solid ${checked ? C.accent : C.border}` }}
                 >
-                  {a.label}
-                </button>
+                  <span className="normal-case">{a.label}</span>
+                </ChoiceChip>
               );
             })}
           </div>
-        </div>
+        </Field>
       )}
-      <div className="flex items-center gap-2 mt-3">
-        <button
-          className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-          style={{ background: C.accent, color: "#fff" }}
+      <div className="flex items-center justify-end gap-2.5">
+        <Button onClick={onCancel}>Cancel</Button>
+        <Button
+          variant="primary"
+          icon={Check}
+          disabled={!form.source.trim() || !artifactReady || !reviewReady}
           onClick={() => onSubmit({
             source: form.source.trim(),
             ...(prismaLevel ? { prismaLevel } : {}),
@@ -456,15 +496,11 @@ function EvidenceForm({ initial, assetOptions, isProgramScoped, prismaLevel, onC
             } : undefined,
             assetIds,
           })}
-          disabled={!form.source.trim() || !artifactReady || !reviewReady}
         >
           Save evidence
-        </button>
-        {!artifactReady && <span className="text-[10px]" style={{ color: C.red }}>An artifact needs an immutable storage reference and a 64-character SHA-256 digest.</span>}
-        {!reviewReady && <span className="text-[10px]" style={{ color: C.red }}>A reviewer must complete the independence declaration.</span>}
-        <button className="text-xs px-3 py-1.5 rounded-lg" style={{ color: C.muted }} onClick={onCancel}>Cancel</button>
+        </Button>
       </div>
-    </div>
+    </Well>
   );
 }
 
@@ -524,58 +560,63 @@ function FindingForm({ initial, assetOptions, onCancel, onSubmit }: FindingFormP
   }
 
   return (
-    <div className="rounded-lg p-3" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-      <div>{fieldLabel("Title")}<input style={inputStyle()} value={form.title} onChange={(e) => setField("title", e.target.value)} placeholder="What was found" /></div>
-      <div className="mt-2">{fieldLabel("Detail (optional)")}<input style={inputStyle()} value={form.detail} onChange={(e) => setField("detail", e.target.value)} placeholder="What's actually wrong" /></div>
-      <div className="grid grid-cols-2 gap-2 mt-2">
-        <div>{fieldLabel("Asset")}
-          <select style={inputStyle()} value={form.assetId} onChange={(e) => setField("assetId", e.target.value)}>
+    <Well className="flex flex-col gap-3.5">
+      <FieldGrid cols={2}>
+        <Field label="Title" span2 error={form.title.trim() ? null : "Required — say what was found."}>
+          <TextInput value={form.title} onChange={(e) => setField("title", e.target.value)} placeholder="What was found" />
+        </Field>
+        <Field label="Detail" span2 note="Optional.">
+          <TextInput value={form.detail} onChange={(e) => setField("detail", e.target.value)} placeholder="What's actually wrong" />
+        </Field>
+        <Field label="Asset">
+          <Select value={form.assetId} aria-label="Asset" onChange={(e) => setField("assetId", e.target.value)}>
             {assetOptions.map((a) => <option key={a.assetId} value={a.assetId}>{a.label}</option>)}
-          </select>
-        </div>
-        <div>{fieldLabel("Severity")}
-          <select style={inputStyle()} value={form.severity} onChange={(e) => setField("severity", selectedValue(FINDING_SEVERITIES, e.target.value, form.severity))}>
+          </Select>
+        </Field>
+        <Field label="Severity">
+          <Select value={form.severity} aria-label="Severity" onChange={(e) => setField("severity", selectedValue(FINDING_SEVERITIES, e.target.value, form.severity))}>
             {FINDING_SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <div>{fieldLabel("Source")}
-          <select style={inputStyle()} value={form.source} onChange={(e) => setField("source", e.target.value === "" ? "" : selectedValue(FINDING_SOURCES, e.target.value, form.source || "control-gap"))}>
+          </Select>
+        </Field>
+        <Field label="Source">
+          <Select value={form.source} aria-label="Source" onChange={(e) => setField("source", e.target.value === "" ? "" : selectedValue(FINDING_SOURCES, e.target.value, form.source || "control-gap"))}>
             <option value="">control-gap (default)</option>
             {FINDING_SOURCES.filter((s) => s !== "control-gap").map((s) => <option key={s} value={s}>{s.replace(/-/g, " ")}</option>)}
-          </select>
-        </div>
-        <div>{fieldLabel("Owner")}
-          <select style={inputStyle()} value={form.ownerId} onChange={(e) => setField("ownerId", e.target.value)}>
+          </Select>
+        </Field>
+        <Field label="Owner">
+          <Select value={form.ownerId} aria-label="Owner" onChange={(e) => setField("ownerId", e.target.value)}>
             {ORGS.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </select>
-        </div>
-        <div>{fieldLabel("Remediation status")}
-          <select style={inputStyle()} value={form.remediationStatus} onChange={(e) => setField("remediationStatus", selectedValue(REMEDIATION_STATUSES, e.target.value, form.remediationStatus))}>
+          </Select>
+        </Field>
+        <Field label="Remediation status">
+          <Select value={form.remediationStatus} aria-label="Remediation status" onChange={(e) => setField("remediationStatus", selectedValue(REMEDIATION_STATUSES, e.target.value, form.remediationStatus))}>
             {REMEDIATION_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <div>{fieldLabel("Due")}<input type="date" style={inputStyle()} value={form.due} onChange={(e) => setField("due", e.target.value)} /></div>
-        <div>{fieldLabel("Remediation owner (optional)")}
-          <select style={inputStyle()} value={form.remediationOwnerId} onChange={(e) => setField("remediationOwnerId", e.target.value)}>
+          </Select>
+        </Field>
+        <Field label="Due" error={form.due ? null : "Required."}>
+          <TextInput type="date" value={form.due} aria-label="Due date" onChange={(e) => setField("due", e.target.value)} />
+        </Field>
+        <Field label="Remediation owner" note="Optional.">
+          <Select value={form.remediationOwnerId} aria-label="Remediation owner" onChange={(e) => setField("remediationOwnerId", e.target.value)}>
             <option value="">Same as owner</option>
             {ORGS.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </select>
-        </div>
-        <div>{fieldLabel("Target date (optional)")}<input type="date" style={inputStyle()} value={form.targetDate} onChange={(e) => setField("targetDate", e.target.value)} /></div>
-      </div>
-      <div className="mt-2">{fieldLabel("Remediation plan (optional)")}<input style={inputStyle()} value={form.remediationPlan} onChange={(e) => setField("remediationPlan", e.target.value)} placeholder="What will fix this" /></div>
-      <div className="flex items-center gap-2 mt-3">
-        <button
-          className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-          style={{ background: ready ? C.accent : C.border, color: "#fff" }}
-          disabled={!ready}
-          onClick={submitFinding}
-        >
+          </Select>
+        </Field>
+        <Field label="Target date" note="Optional.">
+          <TextInput type="date" value={form.targetDate} aria-label="Target date" onChange={(e) => setField("targetDate", e.target.value)} />
+        </Field>
+        <Field label="Remediation plan" span2 note="Optional.">
+          <TextInput value={form.remediationPlan} onChange={(e) => setField("remediationPlan", e.target.value)} placeholder="What will fix this" />
+        </Field>
+      </FieldGrid>
+      <div className="flex items-center justify-end gap-2.5">
+        <Button onClick={onCancel}>Cancel</Button>
+        <Button variant="primary" icon={Check} disabled={!ready} onClick={submitFinding}>
           {initial ? "Save finding" : "Create finding"}
-        </button>
-        <button className="text-xs px-3 py-1.5 rounded-lg" style={{ color: C.muted }} onClick={onCancel}>Cancel</button>
+        </Button>
       </div>
-    </div>
+    </Well>
   );
 }
 
@@ -773,19 +814,9 @@ export function ControlEvaluationPanel({
             <h2 className={TX.modalTitle} style={{ color: C.ink, fontFamily: WZ.serif }}>{row.control.name}</h2>
           </div>
           <div className="flex items-center gap-2 flex-wrap shrink-0">
-            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded" style={{ background: statusMeta.bg, color: statusMeta.color }}>
-              <statusMeta.Icon size={12} /> {statusMeta.label}
-            </span>
-            {respMeta && (
-              <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded" style={{ background: respMeta.bg, color: respMeta.color }}>
-                <respMeta.Icon size={12} /> {respMeta.label}
-              </span>
-            )}
-            {implMeta && (
-              <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded" style={{ background: implMeta.bg, color: implMeta.color }}>
-                <implMeta.Icon size={12} /> {implMeta.type}
-              </span>
-            )}
+            <StatusPill color={statusMeta.color} surface={statusMeta.bg} icon={statusMeta.Icon}>{statusMeta.label}</StatusPill>
+            {respMeta && <StatusPill color={respMeta.color} surface={respMeta.bg} icon={respMeta.Icon}>{respMeta.label}</StatusPill>}
+            {implMeta && <StatusPill color={implMeta.color} surface={implMeta.bg} icon={implMeta.Icon}>{implMeta.type}</StatusPill>}
             <GlancePill Icon={Gauge} label="Assurance" value={row.score != null ? `${row.score}${row.assessment?.band?.label ? ` · ${row.assessment.band.label}` : ""}` : "—"} />
           </div>
         </div>
@@ -851,105 +882,101 @@ export function ControlEvaluationPanel({
         </WizardRail>
 
         {/* ---- Content pane ---- */}
-        <div className="p-6 overflow-y-auto">
-          {saveError && <div className="mb-4"><SaveErrorCallout problems={saveError} /></div>}
+        <div className="p-6 overflow-y-auto flex flex-col gap-4" style={{ background: C.bg }}>
+          {saveError && <SaveErrorCallout problems={saveError} />}
 
           {/* ===== Control Requirements ===== */}
           {activeStep === "requirements" && (
-            <div className="space-y-4">
-              <div>
-                <SectionLabel icon={BookOpenText}>Common Control Requirement</SectionLabel>
-                <div className="rounded-lg p-4" style={{ background: C.panel2 }}>
-                  <div className="text-sm leading-relaxed" style={{ color: C.ink }}>{row.control.description}</div>
-                </div>
-              </div>
+            <>
+              <Section icon={BookOpenText} title="Common control requirement" description="What the catalog asks of any system this control applies to.">
+                <p className={TX.lead} style={{ color: C.ink }}>{row.control.description}</p>
+              </Section>
 
               {(governingPolicy || governingProcedure) && (
-                <div>
-                  <SectionLabel icon={ScrollText}>Policies and Procedures</SectionLabel>
-                  <div className="space-y-2">
-                    {governingPolicy && (
-                      <div className="rounded-lg p-3" style={{ border: `1px solid ${C.border}` }}>
-                        <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Governing Policy</div>
-                        <div className="text-sm" style={{ color: C.ink }}>{governingPolicy.code} · {governingPolicy.title}</div>
-                      </div>
-                    )}
-
-                    {governingProcedure && (
-                      <div className="rounded-lg p-3" style={{ border: `1px solid ${C.border}` }}>
-                        <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Governing Procedure</div>
-                        <div className="text-sm" style={{ color: C.ink }}>{governingProcedure.procedure.code} · {governingProcedure.procedure.title}</div>
-                        {governingProcedure.step && (
-                          <div className="text-[11px] mt-1" style={{ color: C.muted }}>Step: {governingProcedure.step}</div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <Section icon={ScrollText} title="Policies and procedures" description="The written authority this control is evidenced against.">
+                  {governingPolicy && (
+                    <Well>
+                      <GroupLabel>Governing policy</GroupLabel>
+                      <div className={TX.body} style={{ color: C.ink }}>{governingPolicy.code} · {governingPolicy.title}</div>
+                    </Well>
+                  )}
+                  {governingProcedure && (
+                    <Well>
+                      <GroupLabel>Governing procedure</GroupLabel>
+                      <div className={TX.body} style={{ color: C.ink }}>{governingProcedure.procedure.code} · {governingProcedure.procedure.title}</div>
+                      {governingProcedure.step && (
+                        <div className={`${TX.help} mt-1.5`} style={{ color: C.muted }}>Step: {governingProcedure.step}</div>
+                      )}
+                    </Well>
+                  )}
+                </Section>
               )}
 
-              <div>
-                <SectionLabel icon={Network}>Framework Clauses Satisfied ({system.standards.join(", ")})</SectionLabel>
-                <div className="rounded-lg" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                  <div className="px-3 py-1">
-                    {drawerClauses.length === 0 && (
-                      <div className="py-3 text-xs" style={{ color: C.muted }}>No direct clause mapping for this system's in-scope standards.</div>
-                    )}
+              <Section
+                icon={Network}
+                title="Framework clauses satisfied"
+                description={`Mapped against this system's in-scope standards: ${system.standards.join(", ")}.`}
+                aside={<StatusPill tone={drawerClauses.length > 0 ? "success" : "neutral"}>{drawerClauses.length} mapped</StatusPill>}
+              >
+                {drawerClauses.length === 0 ? (
+                  <EmptyState>No direct clause mapping for this system&rsquo;s in-scope standards.</EmptyState>
+                ) : (
+                  <Well padded={false} className="overflow-hidden">
                     {drawerClauses.map((f, i) => (
-                      <div key={i} className="py-2.5" style={{ borderBottom: i < drawerClauses.length - 1 ? `1px solid ${C.border}` : "none" }}>
-                        <div className="text-xs font-medium mb-1" style={{ color: C.ink }}>{f.standard}</div>
-                        <div className="text-[11px]" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{f.clauses.join(", ")}</div>
+                      <div
+                        key={i}
+                        className="px-3.5 py-2.5"
+                        style={{ borderBottom: i < drawerClauses.length - 1 ? `1px solid ${C.border}` : undefined }}
+                      >
+                        <div className={`${TX.body} font-semibold`} style={{ color: C.ink }}>{f.standard}</div>
+                        <div className={`${TX.help} font-mono mt-1`} style={{ color: C.muted }}>{f.clauses.join(", ")}</div>
                       </div>
                     ))}
-                  </div>
-                </div>
-              </div>
+                  </Well>
+                )}
+              </Section>
 
-              <button
-                className="flex items-center gap-1 text-[11px] font-semibold"
-                style={{ color: C.accent }}
-                onClick={() => setShowMaturityDetails((v) => !v)}
+              <Section
+                icon={Gauge}
+                title="Maturity scoring detail"
+                description="How each PRISMA lane was rated, weighted, and where the number came from."
+                aside={
+                  <DisclosureButton open={showMaturityDetails} onToggle={() => setShowMaturityDetails((v) => !v)}>
+                    {showMaturityDetails ? "Hide" : "Show"}
+                  </DisclosureButton>
+                }
               >
-                {showMaturityDetails ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                View maturity scoring details
-              </button>
-
-              {showMaturityDetails && assessment?.assessed && (
-                <div className="rounded-lg p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                  <div className="space-y-2">
+                {!showMaturityDetails ? null : !assessment?.assessed ? (
+                  <EmptyState>No fact is recorded for this control yet, so there is nothing to break down.</EmptyState>
+                ) : (
+                  <>
                     {PRISMA_LEVELS.map((level) => {
                       const L = assessment.levels[level];
                       return (
-                        <div key={level} className="rounded p-2" style={{ background: C.panel }}>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold w-24 shrink-0" style={{ color: C.ink }}>{level}</span>
-                            <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: C.border }}>
-                              <div className="h-full rounded-full" style={{ width: `${L.rating}%`, background: ratingColor(L.rating) }} />
-                            </div>
-                            <span className="text-[10px] w-28 shrink-0 text-right" style={{ color: C.muted }}>
-                              {COMPLIANCE_LABELS[L.rating]}
-                            </span>
-                            <span className="text-xs font-semibold tabular-nums w-14 shrink-0 text-right" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>
-                              {L.rating} ×{L.weight}
-                            </span>
+                        <Well key={level}>
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <span className={`${TX.body} font-semibold w-24 shrink-0`} style={{ color: C.ink }}>{level}</span>
+                            <ProgressBar value={L.rating} total={100} color={ratingColor(L.rating)} label={`${level} rating`} className="min-w-[80px]" />
+                            <span className={`${TX.help} shrink-0 text-right`} style={{ color: C.muted }}>{COMPLIANCE_LABELS[L.rating]}</span>
+                            <span className={`${TX.help} font-mono font-semibold tabular-nums shrink-0`} style={{ color: C.ink }}>{L.rating} ×{L.weight}</span>
                             <BasisTag basis={L.basis} />
                           </div>
-                          <div className="text-[11px] mt-1 leading-snug" style={{ color: C.muted }}>
+                          <div className={`${TX.help} mt-2`} style={{ color: C.muted }}>
                             {L.rating !== L.derived && <span className="font-semibold" style={{ color: C.amber }}>Overridden from {L.derived}. </span>}
                             {L.rationale}
                           </div>
-                        </div>
+                        </Well>
                       );
                     })}
-                  </div>
-                  {assessment.ladderInversions.length > 0 && (
-                    <div className="text-[11px] mt-2" style={{ color: C.amber }}>
-                      Rated above the level beneath it: {assessment.ladderInversions.join(", ")}.
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+                    {assessment.ladderInversions.length > 0 && (
+                      <Callout tone="warning" title="Rated above the level beneath it:">
+                        {assessment.ladderInversions.join(", ")}.
+                      </Callout>
+                    )}
+                  </>
+                )}
+              </Section>
+            </>
           )}
 
           {/* ===== Scoring and Evidence ===== */}
@@ -960,51 +987,48 @@ export function ControlEvaluationPanel({
               form first, and lock the grader and per-lane attach until the
               first fact commits. */}
           {activeStep === "scoring" && assessment && (
-            <div className="space-y-4">
+            <>
               {gapNudge && (
-                <div className="rounded-lg p-4 flex items-center gap-3" style={{ background: C.redBg, border: `1px solid ${C.red}55` }}>
-                  <div className="flex-1">
-                    <div className="text-[13px] font-semibold" style={{ color: C.ink }}>
-                      {gapNudge.level} scored {gapNudge.rating} — {COMPLIANCE_LABELS[gapNudge.rating]}. Log a finding to track remediation?
-                    </div>
-                  </div>
-                  <button
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg shrink-0"
-                    style={{ background: C.red, color: "#fff" }}
-                    onClick={() => {
-                      setActiveStep("findings");
-                      setCreatingFinding(true);
-                      setCreatingFindingInitial({
-                        title: `${gapNudge.level} below threshold`,
-                        detail: `${gapNudge.level} lane scored ${gapNudge.rating} — ${COMPLIANCE_LABELS[gapNudge.rating]}.`,
-                        severity: suggestedFindingSeverity(gapNudge.rating),
-                        source: "control-gap",
-                      });
-                      setGapNudge(null);
-                    }}
-                  >
-                    Log finding
-                  </button>
-                  <button className="text-xs px-3 py-1.5 rounded-lg shrink-0" style={{ color: C.muted }} onClick={() => setGapNudge(null)}>
-                    Dismiss
-                  </button>
-                </div>
+                <Callout
+                  tone="danger"
+                  title={`${gapNudge.level} scored ${gapNudge.rating} — ${COMPLIANCE_LABELS[gapNudge.rating]}.`}
+                >
+                  <span className="block">Log a finding to track remediation?</span>
+                  <span className="flex items-center gap-2.5 mt-2.5">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => {
+                        setActiveStep("findings");
+                        setCreatingFinding(true);
+                        setCreatingFindingInitial({
+                          title: `${gapNudge.level} below threshold`,
+                          detail: `${gapNudge.level} lane scored ${gapNudge.rating} — ${COMPLIANCE_LABELS[gapNudge.rating]}.`,
+                          severity: suggestedFindingSeverity(gapNudge.rating),
+                          source: "control-gap",
+                        });
+                        setGapNudge(null);
+                      }}
+                    >
+                      Log finding
+                    </Button>
+                    <Button size="sm" onClick={() => setGapNudge(null)}>Dismiss</Button>
+                  </span>
+                </Callout>
               )}
               {!assessed && (
-                <div className="rounded-lg p-4" style={{ background: C.amberBg, border: `1px solid ${C.amber}55` }}>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide shrink-0" style={{ background: C.amber, color: "#fff" }}>Not Assessed</span>
-                    <span className="text-[13px] font-semibold" style={{ color: C.ink }}>The lanes below read 0 because nobody has assessed this control — not because it failed.</span>
-                  </div>
-                  <div className="text-[12px] mt-1.5 leading-relaxed" style={{ color: C.ink }}>
-                    No fact is recorded for {row.control.id} on this boundary, so its score is null and every PRISMA lane sits at 0 — Not Assessed. Record an assessment below to derive real lane ratings and unlock grading and evidence.
-                  </div>
-                </div>
+                <Callout tone="warning" title="The lanes below read 0 because nobody has assessed this control — not because it failed.">
+                  No fact is recorded for {row.control.id} on this boundary, so its score is null and every PRISMA lane sits at 0 — Not Assessed. Record an assessment below to derive real lane ratings and unlock grading and evidence.
+                </Callout>
               )}
 
               {!assessed && (
-                <div>
-                  <SectionLabel icon={ClipboardCheck}>Record assessment</SectionLabel>
+                <Section
+                  icon={ClipboardCheck}
+                  title="Record assessment"
+                  description="Attest the Implemented lane, then back the claim with evidence. Nothing else unlocks until this is on record."
+                  aside={<StatusPill tone="warning">Not assessed</StatusPill>}
+                >
                   <RecordAssessmentSection
                     key={row.control.id}
                     systemId={system.id}
@@ -1018,30 +1042,28 @@ export function ControlEvaluationPanel({
                     onSaved={(rating, continueWalk) => walk?.onRecorded(rating, continueWalk)}
                   />
                   {walkReviewerMissing && (
-                    <div className="text-[10.5px] mt-2" style={{ color: C.amber }}>
-                      Enter the reviewer of record above before recording assessments.
-                    </div>
+                    <InlineHint tone="warning">Enter the reviewer of record above before recording assessments.</InlineHint>
                   )}
-                </div>
+                </Section>
               )}
 
-              <>
-                  <div>
-                    <SectionLabel icon={Gauge}>PRISMA lanes</SectionLabel>
-                    <p className="text-[11px] leading-snug mb-2" style={{ color: C.muted }}>
-                      {assessed
-                        ? "Derived ratings are suggestions. Accept them, or pick 0 / 25 / 50 / 75 / 100 on each lane."
-                        : "Locked at 0 — Not Assessed. The lanes unlock once a fact is recorded above."}
-                    </p>
-                    <PrismaLaneGrader
-                      levels={assessment.levels}
-                      assessedBy={assessorOfRecord}
-                      note=""
-                      comment=""
-                      disabled={!assessed}
-                      onSubmit={handleLaneGrades}
-                    />
-                  </div>
+              <Section
+                icon={Gauge}
+                title="PRISMA lanes"
+                description={assessed
+                  ? "Derived ratings are suggestions. Accept them, or pick 0 / 25 / 50 / 75 / 100 on each lane."
+                  : "Locked at 0 — Not Assessed. The lanes unlock once a fact is recorded above."}
+                aside={assessed ? undefined : <StatusPill tone="neutral">Locked</StatusPill>}
+              >
+                <PrismaLaneGrader
+                  levels={assessment.levels}
+                  assessedBy={assessorOfRecord}
+                  note=""
+                  comment=""
+                  disabled={!assessed}
+                  onSubmit={handleLaneGrades}
+                />
+              </Section>
 
                   {/* One evidence slot per PRISMA lane, in ladder order.
                       Implemented-lane records are the ones the engine samples
@@ -1050,243 +1072,236 @@ export function ControlEvaluationPanel({
                       extract, the metric export, the review minutes) without
                       entering the implementation pool — see
                       RawEvidence.prismaLevel. */}
-                  <div>
-                    <SectionLabel icon={FileCheck2}>Evidence by lane</SectionLabel>
-                    <p className="text-[11px] leading-snug mb-2" style={{ color: C.muted }}>
-                      Substantiate each lane with an artifact — the policy document, the SOP extract, the test output, the metric, the review minutes. Implemented-lane records are sampled for scoring; the other lanes&rsquo; records document the claim behind the derived rating.
-                    </p>
-                    <div className="space-y-2">
-                      {PRISMA_LEVELS.map((level, idx) => {
-                        const L = assessment.levels[level];
-                        const records = laneEvidence[level];
-                        return (
-                          <div key={level} className="rounded-lg p-3" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                            <div className="flex items-center gap-2.5">
-                              <span
-                                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0"
-                                style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}
-                              >
-                                {idx + 1}
-                              </span>
-                              <span className="text-[12.5px] font-semibold" style={{ color: C.ink }}>{level}</span>
-                              <span className="text-[11px] font-semibold tabular-nums" style={{ color: assessed ? ratingColor(L.rating) : C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
-                                {assessed ? `${L.rating} — ${COMPLIANCE_LABELS[L.rating]}` : "0 — Not Assessed"}
-                              </span>
-                              <span
-                                className="text-[9px] font-semibold px-1.5 py-0.5 rounded uppercase"
-                                style={records.length === 0 ? { background: C.amberBg, color: C.amber } : { background: C.greenBg, color: C.green }}
-                              >
-                                {records.length === 0 ? "None attached" : `${records.length} attached`}
-                              </span>
-                              {attachingLane !== level && (
-                                <button
-                                  className="ml-auto flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg"
-                                  style={assessed
-                                    ? { background: C.accentBg, color: C.accent }
-                                    : { background: C.panel, color: C.muted, border: `1px solid ${C.border}`, cursor: "not-allowed" }}
-                                  disabled={!assessed}
-                                  title={assessed ? undefined : "Record an assessment first"}
-                                  onClick={() => { setAttachingLane(level); setEditingLaneEvidenceId(null); }}
-                                >
-                                  <Plus size={11} /> Attach evidence
-                                </button>
-                              )}
-                            </div>
-                            {records.length > 0 && (
-                              <div className="space-y-1.5 mt-2.5">
-                                {records.map((e) => editingLaneEvidenceId === e.id ? (
-                                  <EvidenceForm
-                                    key={e.id}
-                                    initial={{ ...e, exceptions: e.exceptions ?? "", population: e.population ?? "" }}
-                                    assetOptions={assetOptions}
-                                    isProgramScoped={isProgramScoped}
-                                    prismaLevel={level}
-                                    onCancel={() => setEditingLaneEvidenceId(null)}
-                                    onSubmit={(patch) => handleUpdateEvidence(e.id, patch)}
-                                  />
-                                ) : (
-                                  <EvidenceCard
-                                    key={e.id}
-                                    e={e}
-                                    governing={governingEvidenceIds.has(e.id)}
-                                    assetLabel={e.assetIds.length > 0
-                                      ? e.assetIds.slice(0, 2).map((id) => assetName(system, id)).join(", ")
-                                        + (e.assetIds.length > 2 ? ` +${e.assetIds.length - 2} more` : "")
-                                      : undefined}
-                                    onEdit={() => { setEditingLaneEvidenceId(e.id); setAttachingLane(null); }}
-                                    onDelete={() => handleDeleteEvidence(e.id)}
-                                  />
-                                ))}
-                              </div>
-                            )}
-                            {attachingLane === level && (
-                              <div className="mt-2.5">
-                                <EvidenceForm
-                                  assetOptions={assetOptions}
-                                  isProgramScoped={isProgramScoped}
-                                  prismaLevel={level}
-                                  onCancel={() => setAttachingLane(null)}
-                                  onSubmit={(draft) => handleAttachEvidence(draft)}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+              {/* One evidence slot per PRISMA lane, in ladder order.
+                  Implemented-lane records are the ones the engine samples for
+                  scoring; records attached to the other four lanes document
+                  that lane's claim (the policy PDF, the SOP extract, the
+                  metric export, the review minutes) without entering the
+                  implementation pool — see RawEvidence.prismaLevel. */}
+              <Section
+                icon={FileCheck2}
+                title="Evidence by lane"
+                description="Substantiate each lane with an artifact — the policy document, the SOP extract, the test output, the metric, the review minutes. Implemented-lane records are sampled for scoring; the other lanes' records document the claim behind the derived rating."
+              >
+                {PRISMA_LEVELS.map((level, idx) => {
+                  const L = assessment.levels[level];
+                  const records = laneEvidence[level];
+                  return (
+                    <Well key={level} className="flex flex-col gap-3">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span
+                          className={`${TX.code} w-[22px] h-[22px] rounded-full flex items-center justify-center shrink-0`}
+                          style={{ background: "transparent", border: `1.5px solid ${C.border}`, color: C.muted }}
+                        >
+                          {idx + 1}
+                        </span>
+                        <span className={TX.itemTitle} style={{ color: C.ink }}>{level}</span>
+                        <span
+                          className={`${TX.help} font-mono font-semibold tabular-nums`}
+                          style={{ color: assessed ? ratingColor(L.rating) : C.muted }}
+                        >
+                          {assessed ? `${L.rating} — ${COMPLIANCE_LABELS[L.rating]}` : "0 — Not Assessed"}
+                        </span>
+                        <StatusPill tone={records.length === 0 ? "warning" : "success"}>
+                          {records.length === 0 ? "None attached" : `${records.length} attached`}
+                        </StatusPill>
+                        {attachingLane !== level && (
+                          <span className="ml-auto">
+                            <Button
+                              size="sm"
+                              icon={Plus}
+                              disabled={!assessed}
+                              title={assessed ? undefined : "Record an assessment first"}
+                              onClick={() => { setAttachingLane(level); setEditingLaneEvidenceId(null); }}
+                            >
+                              Attach evidence
+                            </Button>
+                          </span>
+                        )}
+                      </div>
+                      {records.length > 0 && (
+                        <div className="flex flex-col gap-2">
+                          {records.map((e) => editingLaneEvidenceId === e.id ? (
+                            <EvidenceForm
+                              key={e.id}
+                              initial={{ ...e, exceptions: e.exceptions ?? "", population: e.population ?? "" }}
+                              assetOptions={assetOptions}
+                              isProgramScoped={isProgramScoped}
+                              prismaLevel={level}
+                              onCancel={() => setEditingLaneEvidenceId(null)}
+                              onSubmit={(patch) => handleUpdateEvidence(e.id, patch)}
+                            />
+                          ) : (
+                            <EvidenceCard
+                              key={e.id}
+                              e={e}
+                              governing={governingEvidenceIds.has(e.id)}
+                              assetLabel={e.assetIds.length > 0
+                                ? e.assetIds.slice(0, 2).map((id) => assetName(system, id)).join(", ")
+                                  + (e.assetIds.length > 2 ? ` +${e.assetIds.length - 2} more` : "")
+                                : undefined}
+                              onEdit={() => { setEditingLaneEvidenceId(e.id); setAttachingLane(null); }}
+                              onDelete={() => handleDeleteEvidence(e.id)}
+                            />
+                          ))}
+                        </div>
+                      )}
+                      {attachingLane === level && (
+                        <EvidenceForm
+                          assetOptions={assetOptions}
+                          isProgramScoped={isProgramScoped}
+                          prismaLevel={level}
+                          onCancel={() => setAttachingLane(null)}
+                          onSubmit={(draft) => handleAttachEvidence(draft)}
+                        />
+                      )}
+                    </Well>
+                  );
+                })}
+              </Section>
+
+              <Section
+                icon={ClipboardCheck}
+                title="Assessment"
+                description="The status this control currently carries on this boundary, and what it rests on."
+                aside={
+                  <span className="flex items-center gap-2">
+                    <StatusPill color={statusMeta.color} surface={statusMeta.bg} icon={statusMeta.Icon}>{statusMeta.label}</StatusPill>
+                    <BasisTag basis={row.basis} />
+                  </span>
+                }
+              >
+                <Field label="Assessment rationale">
+                  <p className={TX.lead} style={{ color: C.ink }}>{worst ? worst.rationale : row.explanation}</p>
+                </Field>
+                <FieldGrid cols={2}>
+                  <Field label="Control owner">
+                    <div className={TX.body} style={{ color: C.ink }}>
+                      {assessment && assessment.owners.length > 0 ? assessment.owners.map((o) => o.name).join(", ") : "Unassigned"}
                     </div>
-                  </div>
-                </>
+                  </Field>
+                  <Field label="Evidence confidence">
+                    <div className={`${TX.body} font-semibold`} style={{ color: evidenceHealth.color }}>{evidenceHealth.label}</div>
+                  </Field>
+                </FieldGrid>
+              </Section>
 
               {row.control.toolHint && (
-                <div className="rounded-lg p-3" style={{ border: `1px solid ${C.border}` }}>
-                  <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Enforced By</div>
-                  <div className="text-sm" style={{ color: C.ink }}>{row.control.toolHint}</div>
-                </div>
+                <Section icon={Wrench} title="Enforced by" description="The tooling the catalog expects to carry this control.">
+                  <p className={TX.lead} style={{ color: C.ink }}>{row.control.toolHint}</p>
+                </Section>
               )}
 
               {linkedPrinciples.length > 0 && (
-                <div>
-                  <SectionLabel>Linked Assurance Practices</SectionLabel>
-                  <div className="space-y-1.5">
-                    {linkedPrinciples.map((p) => (
-                      <div key={`${p.domainTitle}-${p.id}`} className="rounded-lg p-2.5" style={{ background: C.panel2 }}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[9.5px] uppercase tracking-wide" style={{ color: C.muted }}>{p.domainTitle}</span>
-                          <span
-                            className="text-[9px] font-semibold px-1.5 py-0.5 rounded ml-auto"
-                            style={{ background: p.status === "operationalized" ? C.greenBg : p.status === "partial" ? C.amberBg : C.redBg, color: p.status === "operationalized" ? C.green : p.status === "partial" ? C.amber : C.red }}
-                          >
+                <Section
+                  icon={ShieldCheck}
+                  title="Linked assurance practices"
+                  description="Security principles this control puts into practice, and how far each one is operationalized."
+                  aside={<StatusPill tone="neutral">{linkedPrinciples.length} linked</StatusPill>}
+                >
+                  {linkedPrinciples.map((p) => (
+                    <Well key={`${p.domainTitle}-${p.id}`}>
+                      <div className="flex items-center gap-2">
+                        <span className={TX.label} style={{ color: C.muted }}>{p.domainTitle}</span>
+                        <span className="ml-auto">
+                          <StatusPill tone={p.status === "operationalized" ? "success" : p.status === "partial" ? "warning" : "danger"}>
                             {PRINCIPLE_STATUS_META[p.status]?.label ?? p.status}
-                          </span>
-                        </div>
-                        <div className="text-xs mt-1" style={{ color: C.ink }}>{p.statement}</div>
+                          </StatusPill>
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                </div>
+                      <div className={`${TX.body} mt-2`} style={{ color: C.ink }}>{p.statement}</div>
+                    </Well>
+                  ))}
+                </Section>
               )}
-
-              {/* ===== Assessment ===== */}
-              <div className="rounded-lg p-4" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="inline-flex items-center gap-1 text-sm font-semibold px-2.5 py-1 rounded" style={{ background: statusMeta.bg, color: statusMeta.color }}>
-                    <statusMeta.Icon size={13} /> {statusMeta.label}
-                  </span>
-                  <span className="ml-auto"><BasisTag basis={row.basis} /></span>
-                </div>
-                <div>
-                  {fieldLabel("Assessment rationale")}
-                  <div className="text-sm leading-relaxed" style={{ color: C.ink }}>
-                    {worst ? worst.rationale : row.explanation}
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4 mt-3">
-                  <div>
-                    {fieldLabel("Control owner")}
-                    <div className="text-xs" style={{ color: C.ink }}>{assessment && assessment.owners.length > 0 ? assessment.owners.map((o) => o.name).join(", ") : "Unassigned"}</div>
-                  </div>
-                  <div>
-                    {fieldLabel("Evidence confidence")}
-                    <div className="text-xs font-semibold" style={{ color: evidenceHealth.color }}>{evidenceHealth.label}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            </>
           )}
 
           {/* ===== Implementation Coverage ===== */}
           {activeStep === "implementation" && (
-            <div>
-              {isProgramScoped ? (
-                <div className="rounded-lg p-4" style={{ border: `1px solid ${C.border}` }}>
-                  <div className="text-sm leading-relaxed" style={{ color: C.ink }}>
-                    Program-scoped — evaluated once for the whole {system.name} boundary, not per asset.
+            isProgramScoped ? (
+              <Section icon={Layers} title="Implementation coverage" description={`Program-scoped — evaluated once for the whole ${system.name} boundary, not per asset.`}>
+                {programReasons.length > 0 ? (
+                  <Callout tone="info" title="Scoped to the program because:">
+                    {programReasons.map((r) => r.rationale).join(" ")}
+                  </Callout>
+                ) : (
+                  <EmptyState>No per-asset breakdown applies to a program-scoped control.</EmptyState>
+                )}
+              </Section>
+            ) : row.instances.length === 0 ? (
+              <Section icon={Layers} title="Implementation coverage" description="Which assets in this boundary carry the control, and where each one stands.">
+                <EmptyState>No in-scope assets carry this control.</EmptyState>
+              </Section>
+            ) : (
+              <Section
+                icon={Layers}
+                title="Implementation coverage"
+                description="Which assets in this boundary carry the control, and where each one stands."
+                aside={<StatusPill tone="neutral">{row.instances.length} asset{row.instances.length === 1 ? "" : "s"}</StatusPill>}
+              >
+                {applicabilityRationales.length === 1 && (
+                  <Callout tone="info" title="Applies because:">{applicabilityRationales[0]}</Callout>
+                )}
+                {groupInstancesByLayer(row.instances, system.id).map(([layerLabel, insts]) => (
+                  <div key={layerLabel}>
+                    <GroupLabel>{layerLabel}</GroupLabel>
+                    <div className="flex flex-col gap-2">
+                      {insts.map((inst) => {
+                        const instMeta = INSTANCE_STATUS_META[inst.status];
+                        const label = inst.status === "undetermined" ? "Missing Evidence" : instMeta?.label ?? inst.status;
+                        return (
+                          <Well key={`${inst.assetId}-${inst.controlId}`}>
+                            <div className="flex items-center gap-2">
+                              <span className={`${TX.itemTitle} flex-1 min-w-0 truncate`} style={{ color: C.ink }}>{assetName(system, inst.assetId)}</span>
+                              <StatusPill tone={toneForColorKey(instMeta?.color)}>{label}</StatusPill>
+                            </div>
+                            <div className={`${TX.help} mt-2`} style={{ color: C.muted }}>{inst.statement}</div>
+                          </Well>
+                        );
+                      })}
+                    </div>
                   </div>
-                  {programReasons.length > 0 && (
-                    <div className="text-[11px] mt-1 leading-snug" style={{ color: C.muted }}>
-                      {programReasons.map((r) => r.rationale).join(" ")}
-                    </div>
-                  )}
-                </div>
-              ) : row.instances.length > 0 ? (
-                <div>
-                  {applicabilityRationales.length === 1 && (
-                    <div className="text-[11px] mb-3 leading-snug" style={{ color: C.muted }}>
-                      Applies because: {applicabilityRationales[0]}
-                    </div>
-                  )}
-                  <div className="space-y-4">
-                    {groupInstancesByLayer(row.instances, system.id).map(([layerLabel, insts]) => (
-                      <div key={layerLabel}>
-                        <SectionLabel>{layerLabel}</SectionLabel>
-                        <div className="space-y-1.5">
-                          {insts.map((inst) => {
-                            const instMeta = INSTANCE_STATUS_META[inst.status];
-                            const label = inst.status === "undetermined" ? "Missing Evidence" : instMeta?.label ?? inst.status;
-                            return (
-                              <div key={`${inst.assetId}-${inst.controlId}`} className="rounded-lg px-3 py-2.5" style={{ background: C.panel2 }}>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-semibold flex-1" style={{ color: C.ink }}>{assetName(system, inst.assetId)}</span>
-                                  <span className="text-[10px] font-semibold px-2 py-1 rounded shrink-0" style={{ background: themeBackground(instMeta?.color), color: themeColor(instMeta?.color) }}>
-                                    {label}
-                                  </span>
-                                </div>
-                                <div className="text-[11px] mt-1 leading-snug" style={{ color: C.muted }}>{inst.statement}</div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {applicabilityRationales.length > 1 && (
-                    <div className="text-[11px] mt-3 leading-snug" style={{ color: C.muted }}>
-                      Applies for different reasons per asset: {applicabilityRationales.join(" · ")}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-sm" style={{ color: C.muted }}>No in-scope assets carry this control.</div>
-              )}
-            </div>
+                ))}
+                {applicabilityRationales.length > 1 && (
+                  <Callout tone="info" title="Applies for different reasons per asset:">
+                    {applicabilityRationales.join(" · ")}
+                  </Callout>
+                )}
+              </Section>
+            )
           )}
 
           {/* ===== Findings & Remediation ===== */}
           {activeStep === "findings" && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                {urgentRemediation && (
-                  <GlancePill
-                    Icon={Wrench}
-                    label="Most urgent"
-                    value={urgentRemediation}
-                    color={themeColor(FINDING_REMEDIATION_STATUS_META[urgentRemediation]?.color)}
-                  />
-                )}
-                {!creatingFinding && (
-                  <button
-                    className="ml-auto flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg"
-                    style={{ background: C.accentBg, color: C.accent }}
-                    onClick={() => setCreatingFinding(true)}
-                  >
-                    <Plus size={11} /> Create Finding
-                  </button>
-                )}
-              </div>
-
+            <Section
+              icon={Wrench}
+              title="Findings & remediation"
+              description="Open gaps recorded against this control, who owns them, and when they are due."
+              aside={
+                <span className="flex items-center gap-2">
+                  {urgentRemediation && (
+                    <StatusPill tone={toneForColorKey(FINDING_REMEDIATION_STATUS_META[urgentRemediation]?.color)}>
+                      {urgentRemediation}
+                    </StatusPill>
+                  )}
+                  {!creatingFinding && (
+                    <Button size="sm" icon={Plus} onClick={() => setCreatingFinding(true)}>Create finding</Button>
+                  )}
+                </span>
+              }
+            >
               {creatingFinding && (
-                <div className="mb-3">
-                  <FindingForm
-                    initial={creatingFindingInitial ?? undefined}
-                    assetOptions={assetOptions}
-                    onCancel={() => { setCreatingFinding(false); setCreatingFindingInitial(null); }}
-                    onSubmit={handleCreateFinding}
-                  />
-                </div>
+                <FindingForm
+                  initial={creatingFindingInitial ?? undefined}
+                  assetOptions={assetOptions}
+                  onCancel={() => { setCreatingFinding(false); setCreatingFindingInitial(null); }}
+                  onSubmit={handleCreateFinding}
+                />
               )}
 
               {controlFindings.length > 0 ? (
-                <div className="space-y-3">
+                <div className="flex flex-col gap-3">
                   {controlFindings.map((f) => {
                     if (editingFindingId === f.id) {
                       return (
@@ -1308,58 +1323,56 @@ export function ControlEvaluationPanel({
                     const severityMetaF = f.severity ? FINDING_SEVERITY_META[f.severity] : null;
                     const closureEvidenceIds = f.closureEvidenceIds ?? [];
                     return (
-                      <div key={f.id} className="rounded-lg p-3" style={{ background: C.panel2 }}>
+                      <Well key={f.id} className="flex flex-col gap-2.5">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold flex-1 min-w-0 truncate" style={{ color: C.ink }}>{f.title}</span>
-                          {severityMetaF && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0" style={{ background: C.panel, color: C.muted }}>{severityMetaF.label}</span>
-                          )}
-                          {remMeta && (
-                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0" style={remediationBadgeStyle(remMeta.color)}>{remMeta.label}</span>
-                          )}
+                          <span className={`${TX.itemTitle} flex-1 min-w-0 truncate`} style={{ color: C.ink }}>{f.title}</span>
+                          {severityMetaF && <StatusPill tone={toneForColorKey(severityMetaF.color)}>{severityMetaF.label}</StatusPill>}
+                          {remMeta && <StatusPill tone={toneForColorKey(remMeta.color)}>{remMeta.label}</StatusPill>}
                         </div>
-                        {f.detail && (
-                          <div className="text-[11px] mt-1 leading-snug" style={{ color: C.muted }}>{f.detail}</div>
-                        )}
-                        <div className="text-[11px] mt-1" style={{ color: C.muted }}>
+                        {f.detail && <div className={TX.help} style={{ color: C.muted }}>{f.detail}</div>}
+                        <div className={TX.help} style={{ color: C.muted }}>
                           {assetName(system, f.assetId)}
                           {f.source && f.source !== "control-gap" && ` · Source: ${f.source.replace(/-/g, " ")}`}
                         </div>
-                        {f.remediationPlan && (
-                          <div className="text-[11px] mt-1 leading-snug" style={{ color: C.ink }}>{f.remediationPlan}</div>
-                        )}
-                        <div className="text-[11px] mt-1" style={{ color: C.muted }}>
+                        {f.remediationPlan && <div className={TX.help} style={{ color: C.ink }}>{f.remediationPlan}</div>}
+                        <div className={TX.help} style={{ color: f.overdue ? C.amber : C.muted }}>
                           {f.remediationOwnerName ?? f.ownerName} · target {f.targetDate ?? f.due}{f.overdue && " · OVERDUE"}
                         </div>
                         {f.id.startsWith("FND-USR-") && (
-                          <div className="flex items-center gap-3 mt-2 pt-2" style={{ borderTop: `1px solid ${C.border}` }}>
-                            <button type="button" className="flex items-center gap-1 text-[10.5px]" style={{ color: C.accent }} onClick={() => { setEditingFindingId(f.id); setCreatingFinding(false); }}><Pencil size={10} /> Edit / assign</button>
-                            {f.remediationStatus !== "In Progress" && f.remediationStatus !== "Complete" && <button type="button" className="text-[10.5px]" style={{ color: C.accent }} onClick={() => saveMutation((existing) => updateFinding(existing, f.id, { remediationStatus: "In Progress" }))}>Start work</button>}
-                            {f.remediationStatus !== "Blocked" && f.remediationStatus !== "Complete" && <button type="button" className="text-[10.5px]" style={{ color: C.red }} onClick={() => saveMutation((existing) => updateFinding(existing, f.id, { remediationStatus: "Blocked" }))}>Block</button>}
-                            {f.remediationStatus !== "Complete" && <button type="button" className="text-[10.5px] font-semibold" style={{ color: C.green }} onClick={() => saveMutation((existing) => updateFinding(existing, f.id, { remediationStatus: "Complete", closedDate: new Date().toISOString().slice(0, 10) }))}>Mark complete</button>}
+                          <div className="flex items-center gap-2 flex-wrap pt-2.5" style={{ borderTop: `1px solid ${C.border}` }}>
+                            <Button size="sm" icon={Pencil} onClick={() => { setEditingFindingId(f.id); setCreatingFinding(false); }}>Edit / assign</Button>
+                            {f.remediationStatus !== "In Progress" && f.remediationStatus !== "Complete" && (
+                              <Button size="sm" onClick={() => saveMutation((existing) => updateFinding(existing, f.id, { remediationStatus: "In Progress" }))}>Start work</Button>
+                            )}
+                            {f.remediationStatus !== "Blocked" && f.remediationStatus !== "Complete" && (
+                              <Button size="sm" variant="danger" onClick={() => saveMutation((existing) => updateFinding(existing, f.id, { remediationStatus: "Blocked" }))}>Block</Button>
+                            )}
+                            {f.remediationStatus !== "Complete" && (
+                              <Button size="sm" variant="primary" icon={Check} onClick={() => saveMutation((existing) => updateFinding(existing, f.id, { remediationStatus: "Complete", closedDate: new Date().toISOString().slice(0, 10) }))}>Mark complete</Button>
+                            )}
                           </div>
                         )}
                         {f.remediationStatus === "Complete" && (
-                          <div className="text-[11px] mt-1" style={{ color: C.green }}>
-                            Closed {f.closedDate}
+                          <>
+                            <div className={TX.help} style={{ color: C.green }}>Closed {f.closedDate}</div>
                             {closureEvidenceIds.length > 0 && (
-                              <div className="mt-1 space-y-1">
+                              <div className="flex flex-col gap-2">
                                 {closureEvidenceIds.map((id) => {
                                   const ev = getEvidence(id);
                                   return ev ? <EvidenceCard key={id} e={ev} readOnly /> : null;
                                 })}
                               </div>
                             )}
-                          </div>
+                          </>
                         )}
-                      </div>
+                      </Well>
                     );
                   })}
                 </div>
               ) : (
-                <div className="text-sm" style={{ color: C.muted }}>No open findings for this control.</div>
+                <EmptyState>No open findings for this control.</EmptyState>
               )}
-            </div>
+            </Section>
           )}
         </div>
       </WizardBody>

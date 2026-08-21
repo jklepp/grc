@@ -1,6 +1,6 @@
 import React from "react";
 import type { ComponentProps, CSSProperties, ReactNode } from "react";
-import { AlertTriangle, Check, Info, Plus, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronRight, Info, Plus, Search, Trash2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { C } from "../../theme";
 
@@ -174,9 +174,14 @@ export function Select({ className = "", style, ...props }: ComponentProps<"sele
   return <select {...props} className={`${CONTROL_BASE} ${className}`} style={{ ...controlStyle(), ...style }} />;
 }
 
-export function ChoiceChip({ selected, onClick, disabled, ariaLabel, children }: {
-  selected: boolean; onClick: () => void; disabled?: boolean; ariaLabel?: string; children: ReactNode;
+// `tint` swaps the accent for a semantic color where the choice itself
+// carries meaning (a PRISMA rating on the red-to-green ramp). Everything else
+// about the selected state — fill, border, check — stays identical.
+export function ChoiceChip({ selected, onClick, disabled, ariaLabel, tint, solid = false, className = "", children }: {
+  selected: boolean; onClick: () => void; disabled?: boolean; ariaLabel?: string;
+  tint?: string; solid?: boolean; className?: string; children: ReactNode;
 }) {
+  const edge = tint ?? C.accent;
   return (
     <button
       type="button"
@@ -184,14 +189,14 @@ export function ChoiceChip({ selected, onClick, disabled, ariaLabel, children }:
       aria-label={ariaLabel}
       disabled={disabled}
       onClick={onClick}
-      className="wz-focusable wz-lift inline-flex items-center rounded-full px-3 py-1.5 text-[11px] font-medium capitalize transition-colors"
+      className={`wz-focusable wz-lift inline-flex items-center justify-center rounded-full px-3 py-1.5 text-[11px] font-medium capitalize transition-colors ${className}`}
       style={{
-        color: selected ? C.accent : C.ink,
-        background: selected ? C.accentBg : C.panel2,
-        border: `1px solid ${selected ? C.accent : C.border}`,
+        color: selected ? (solid ? WZ.onAccent : edge) : C.ink,
+        background: selected ? (solid ? edge : tint ? `${tint}22` : C.accentBg) : C.panel2,
+        border: `1px solid ${selected ? edge : C.border}`,
       }}
     >
-      {selected && <Check size={11} className="mr-1.5 -ml-0.5 shrink-0" />}
+      {selected && !solid && <Check size={11} className="mr-1.5 -ml-0.5 shrink-0" />}
       {children}
     </button>
   );
@@ -355,12 +360,17 @@ export function AddButton({ children, ...props }: ComponentProps<"button">) {
 
 /* --------------------------------------------------------------- feedback -- */
 
-export function StatusPill({ tone, children, icon: Icon }: { tone: Tone; children: ReactNode; icon?: LucideIcon }) {
-  const color = toneColor(tone);
+// `tone` is the kit vocabulary. `color`/`surface` is the escape hatch for the
+// app-wide control metas, which already resolve to theme tokens of their own —
+// the pill stays one component and one shape either way.
+export function StatusPill({ tone = "neutral", children, icon: Icon, color: colorProp, surface }: {
+  tone?: Tone; children: ReactNode; icon?: LucideIcon; color?: string; surface?: string;
+}) {
+  const color = colorProp ?? toneColor(tone);
   return (
     <span
       className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.06em] font-mono whitespace-nowrap"
-      style={{ color, background: toneSurface(tone), border: `1px solid ${color}44`, borderRadius: WZ.radius.pill }}
+      style={{ color, background: surface ?? toneSurface(tone), border: `1px solid ${color}44`, borderRadius: WZ.radius.pill }}
     >
       {Icon && <Icon size={10} className="shrink-0" />}
       {children}
@@ -398,6 +408,27 @@ export function InlineHint({ tone = "neutral", children }: { tone?: Tone; childr
     <span className={`${TX.help} inline-flex items-start gap-1.5`} style={{ color }}>
       <Glyph size={12} className="shrink-0 mt-px" /> <span>{children}</span>
     </span>
+  );
+}
+
+// The one "show me the rest" affordance: chevron, label, optional summary.
+// Used for evidence provenance, form provenance, and maturity detail alike.
+export function DisclosureButton({ open, onToggle, children, summary, tone = "info" }: {
+  open: boolean; onToggle: () => void; children: ReactNode; summary?: ReactNode; tone?: Tone;
+}) {
+  const Chevron = open ? ChevronDown : ChevronRight;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className={`wz-focusable inline-flex items-center gap-1.5 ${TX.help} font-semibold text-left`}
+      style={{ color: toneColor(tone), border: "1px solid transparent", borderRadius: WZ.radius.chip }}
+    >
+      <Chevron size={12} className="shrink-0" />
+      {children}
+      {summary && <span className="font-normal" style={{ color: C.muted }}>{summary}</span>}
+    </button>
   );
 }
 
@@ -680,11 +711,13 @@ export function WizardFooter({ position, hint, children }: {
   );
 }
 
-export function ProgressBar({ value, total, label }: { value: number; total: number; label?: string }) {
+export function ProgressBar({ value, total, label, color, className = "" }: {
+  value: number; total: number; label?: string; color?: string; className?: string;
+}) {
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   return (
     <div
-      className="flex-1 h-1 overflow-hidden"
+      className={`flex-1 h-1 overflow-hidden ${className}`}
       role="progressbar"
       aria-valuenow={value}
       aria-valuemin={0}
@@ -694,7 +727,7 @@ export function ProgressBar({ value, total, label }: { value: number; total: num
     >
       <div
         className="h-full"
-        style={{ background: C.accent, width: `${pct}%`, borderRadius: WZ.radius.pill, transition: "width 320ms ease" }}
+        style={{ background: color ?? C.accent, width: `${pct}%`, borderRadius: WZ.radius.pill, transition: "width 320ms ease" }}
       />
     </div>
   );
