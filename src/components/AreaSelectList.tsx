@@ -16,6 +16,7 @@ export interface AreaListItem<TId extends string = string> {
   description: string;
   metrics: AreaMetric[];
   attention?: { count: number; label: string };
+  group?: string;
 }
 
 function metricColor(tone: AreaMetric["tone"]): string {
@@ -85,8 +86,18 @@ export function AreaSelectList<TId extends string>({ areas, onSelect }: { areas:
   return (
     <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
       <div style={{ background: C.panel }}>
-        {areas.map((area) => (
-          <AreaRow key={area.id} area={area} onSelect={onSelect} />
+        {areas.map((area, index) => (
+          <React.Fragment key={area.id}>
+            {area.group && area.group !== areas[index - 1]?.group && (
+              <div
+                className="text-[11px] font-semibold uppercase tracking-wide px-3.5 pt-3 pb-1.5"
+                style={{ color: C.muted, background: C.panel2 }}
+              >
+                {area.group}
+              </div>
+            )}
+            <AreaRow area={area} onSelect={onSelect} />
+          </React.Fragment>
         ))}
       </div>
     </div>

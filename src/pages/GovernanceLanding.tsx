@@ -76,6 +76,14 @@ const AREA_SUMMARIES: Record<GovernanceAreaId, AreaSummary> = {
   },
 };
 
+const AREA_GROUPS: Partial<Record<GovernanceAreaId, string>> = {
+  policy: "Policies and Procedures",
+  procedures: "Policies and Procedures",
+  principles: "Operations",
+  schedule: "Operations",
+  exceptions: "Operations",
+};
+
 const AREAS: AreaListItem<GovernanceAreaId>[] = GOVERNANCE_AREAS.map((area) => {
   const summary = AREA_SUMMARIES[area.id];
   return {
@@ -85,6 +93,7 @@ const AREAS: AreaListItem<GovernanceAreaId>[] = GOVERNANCE_AREAS.map((area) => {
     description: area.description,
     metrics: summary.metrics,
     attention: { count: summary.attention, label: summary.attentionLabel },
+    group: AREA_GROUPS[area.id],
   };
 });
 

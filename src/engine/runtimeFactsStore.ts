@@ -56,6 +56,14 @@ function migrateSystem(system: System & { criticalityFactors?: LegacyCriticality
   };
 }
 
+// mergeFacts indexes asset.systemIds[0] unconditionally, so an asset saved
+// under an older schema (before systemIds existed, or with it corrupted) must
+// be dropped here rather than passed through — otherwise a stale localStorage
+// blob crashes the whole app on load instead of degrading gracefully.
+function hasValidSystemIds(asset: Asset): boolean {
+  return Array.isArray(asset.systemIds) && asset.systemIds.length > 0 && asset.systemIds.every((id) => typeof id === "string");
+}
+
 // Assets used to carry the same five-factor blob. Collapse CIA onto one FIPS
 // 199 impact level (high-water mark) so an earlier edit of a YAML system
 // cannot block adding a new one.
@@ -76,7 +84,7 @@ export function loadRuntimeFacts(): RuntimeFacts {
     const empty = emptyRuntimeFacts();
     return {
       systems: Array.isArray(parsed.systems) ? parsed.systems.map(migrateSystem) : empty.systems,
-      assets: Array.isArray(parsed.assets) ? parsed.assets.map(migrateAsset) : empty.assets,
+      assets: Array.isArray(parsed.assets) ? parsed.assets.filter(hasValidSystemIds).map(migrateAsset) : empty.assets,
       assetDataTypes: Array.isArray(parsed.assetDataTypes) ? parsed.assetDataTypes : empty.assetDataTypes,
       actors: Array.isArray(parsed.actors) ? parsed.actors : empty.actors,
       actorAccess: Array.isArray(parsed.actorAccess) ? parsed.actorAccess : empty.actorAccess,
