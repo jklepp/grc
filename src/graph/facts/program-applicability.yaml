@@ -79,3 +79,284 @@
   rationale: "A recorded vendor dependency (vendors.ts SystemVendor) is itself third-party
     surface to govern, independent of whether an individual asset's actor-access edges
     also name it."
+- controlId: CPL-01
+  appliesWhen: {}
+  rationale: Every system in the register operates under some combination of statute, regulation, or
+    contract — there is no boundary exempt from having its obligations identified.
+- controlId: CPL-03
+  appliesWhen: {}
+  rationale: The program's own conformity reviews cover every system it governs, not a subset.
+- controlId: GOV-01
+  appliesWhen: {}
+  rationale: The governance program that runs security, compliance, and resilience controls covers the
+    whole register by definition.
+- controlId: GOV-05
+  appliesWhen: {}
+  rationale: Program-level performance measures are reported once, across everything the program governs.
+- controlId: GOV-09
+  appliesWhen: {}
+  rationale: Control objectives are set once for the program and apply to every system it selects
+    controls for.
+- controlId: IAO-04
+  appliesWhen: {}
+  rationale: The requirement to test and remediate flaws during development is a development-process
+    obligation, not tied to any one system's runtime characteristics.
+- controlId: PRM-07
+  appliesWhen: {}
+  rationale: Formal change control over the SDLC is a process ACME runs once, governing changes across
+    every system it develops.
+- controlId: RSK-01
+  appliesWhen: {}
+  rationale: Strategic, operational, and tactical risk management is a program-wide function — no
+    system sits outside it.
+- controlId: RSK-06
+  appliesWhen: {}
+  rationale: Remediating risk to an acceptable level is asked of every system the risk program covers.
+- controlId: AAT-07
+  appliesWhen:
+    assetKinds: &a1
+      - model-gateway
+      - vector-db
+      - tool-gateway
+      - policy-service
+  rationale: Diverse-perspective risk decision-making applies where AI/autonomous technology actually
+    operates in the boundary.
+- controlId: AAT-07
+  appliesWhen:
+    usesAI: true
+  rationale: Applies wherever the system uses AI, including through a vendor dependency with no
+    AI-kind asset of its own.
+- controlId: AAT-10
+  appliesWhen:
+    assetKinds: *a1
+  rationale: TEVV practices apply to systems that host model-serving, retrieval, or agent infrastructure.
+- controlId: AAT-10
+  appliesWhen:
+    usesAI: true
+  rationale: Applies wherever the system uses AI, including through a vendor dependency with no
+    AI-kind asset of its own.
+- controlId: AAT-16
+  appliesWhen:
+    assetKinds: *a1
+  rationale: Monitoring deployed AI behavior applies where AI/autonomous technology is actually deployed.
+- controlId: AAT-16
+  appliesWhen:
+    usesAI: true
+  rationale: Applies wherever the system uses AI, including through a vendor dependency with no
+    AI-kind asset of its own.
+- controlId: AAT-17
+  appliesWhen:
+    assetKinds: *a1
+  rationale: Tracking AI-related harm applies where AI/autonomous technology is actually present to cause it.
+- controlId: AAT-17
+  appliesWhen:
+    usesAI: true
+  rationale: Applies wherever the system uses AI, including through a vendor dependency with no
+    AI-kind asset of its own.
+- controlId: AST-01
+  appliesWhen: {}
+  rationale: The ITAM program that governs asset management controls covers every system's assets, the
+    same boundary AST-02's inventories reach.
+- controlId: IAC-01
+  appliesWhen: {}
+  rationale: The IAM program that implements identification and access controls covers every system,
+    the same way its per-asset siblings (Least Privilege, Access Enforcement) do individually.
+- controlId: MDM-01
+  appliesWhen: {}
+  rationale: Mobile device governance is an organization-wide program; this graph does not model
+    mobile devices as system assets, so the control is judged once per system rather than sampled
+    against a resource it can't name.
+- controlId: DCH-01
+  appliesWhen: {}
+  rationale: The data protection program covers every system, the same boundary its per-asset controls
+    (encryption, retention, classification) already reach individually.
+- controlId: PRI-01
+  appliesWhen:
+    dataKinds:
+      - pii
+      - employee
+  rationale: The data privacy program governs Personal Data specifically; a system holding none has
+    nothing for it to govern.
+- controlId: PRI-02
+  appliesWhen:
+    dataKinds:
+      - pii
+      - employee
+  rationale: Privacy notice obligations attach to the collection of Personal Data; a system holding
+    none has no collection to notice about.
+- controlId: PRI-04
+  appliesWhen:
+    dataKinds:
+      - pii
+      - employee
+  rationale: Purpose limitation constrains the collection of Personal Data specifically; a system
+    holding none collects nothing this restricts.
+- controlId: PRI-06
+  appliesWhen:
+    dataKinds:
+      - pii
+      - employee
+  rationale: Data subject rights (access, correction, erasure) apply to Personal Data specifically; a
+    system holding none has no subject to empower.
+- controlId: CFG-01
+  appliesWhen: {}
+  rationale: The configuration management program covers every system, the same boundary its per-asset
+    baseline and least-functionality controls already reach individually.
+- controlId: CHG-01
+  appliesWhen: {}
+  rationale: The change management program covers every system, the same boundary Configuration Change
+    Control already reaches per asset.
+- controlId: CLD-01
+  appliesWhen:
+    hostingTypes:
+      - cloud
+  rationale: Cloud instance governance applies to systems actually hosted in the cloud.
+- controlId: MON-01
+  appliesWhen: {}
+  rationale: The enterprise-wide monitoring program covers every system, the same boundary its
+    per-asset logging controls already reach individually.
+- controlId: OPS-01
+  appliesWhen: {}
+  rationale: Operational security practices are run once for the organization and cover every system
+    it operates.
+- controlId: THR-01
+  appliesWhen: {}
+  rationale: Threat intelligence is a centralized organizational capability that informs every
+    system's monitoring and response, not one collected per boundary.
+- controlId: END-01
+  appliesWhen: {}
+  rationale: Endpoint device management is an organization-wide program; this graph models cloud/SaaS
+    technology assets, not employee endpoints, so the control is judged once per system.
+- controlId: END-02
+  appliesWhen: {}
+  rationale: Endpoint protection is an organization-wide program; this graph models cloud/SaaS
+    technology assets, not employee endpoints, so the control is judged once per system.
+- controlId: END-06
+  appliesWhen: {}
+  rationale: FIM coverage of endpoints is an organization-wide program; this graph models cloud/SaaS
+    technology assets, not employee endpoints, so the control is judged once per system.
+- controlId: END-08
+  appliesWhen: {}
+  rationale: Email-borne threat protection is an organization-wide program; this graph does not model
+    mailboxes as system assets, so the control is judged once per system.
+- controlId: VPM-01
+  appliesWhen: {}
+  rationale: The VPMP covers every system, the same boundary Software & Firmware Patching already
+    reaches per asset.
+- controlId: VPM-07
+  appliesWhen: {}
+  rationale: Penetration testing exercises the boundary as a whole rather than sampling individual resources.
+- controlId: BCD-01
+  appliesWhen: {}
+  rationale: The BCMS covers every system, the same boundary its per-asset controls (backups,
+    recovery) already reach individually.
+- controlId: BCD-04
+  appliesWhen: {}
+  rationale: Testing the contingency plan's effectiveness is judged once against the plan itself, not
+    sampled per resource.
+- controlId: MNT-01
+  appliesWhen: {}
+  rationale: Maintenance procedures are organization-wide; this graph does not model physical
+    facilities as system assets, so the control is judged once per system.
+- controlId: MNT-05
+  appliesWhen: {}
+  rationale: Authorizing and monitoring remote maintenance is an organization-wide policy, not a
+    per-resource condition.
+- controlId: PES-01
+  appliesWhen: {}
+  rationale: Physical and environmental protection is administered at the facility level; this graph
+    does not model facilities as system assets, so the control is judged once per system.
+- controlId: PES-03
+  appliesWhen: {}
+  rationale: Physical access authorization is administered at the facility level; this graph does not
+    model facilities as system assets, so the control is judged once per system.
+- controlId: NET-01
+  appliesWhen: {}
+  rationale: The network security program covers every system, the same boundary Boundary Protection
+    and DLP already reach per asset.
+- controlId: NET-14
+  appliesWhen: {}
+  rationale: Approving and reviewing remote access methods is an organization-wide policy decision,
+    not a per-resource condition.
+- controlId: WEB-01
+  appliesWhen: {}
+  rationale: The web management policy and its standards cover every system, the same boundary the Web
+    Application Firewall control reaches per asset.
+- controlId: SEA-01
+  appliesWhen: {}
+  rationale: Secure engineering practice is a development-process obligation ACME applies once, across
+    everything it builds.
+- controlId: TDA-01
+  appliesWhen: {}
+  rationale: Development and acquisition strategy is set once for the organization and governs every
+    system it builds or buys.
+- controlId: TDA-06
+  appliesWhen: {}
+  rationale: SSDP is a development-methodology obligation ACME applies once, across everything it builds.
+- controlId: TDA-09
+  appliesWhen: {}
+  rationale: The requirement to test and remediate flaws during development is a development-process
+    obligation, not tied to any one system's runtime characteristics.
+- controlId: HRS-01
+  appliesWhen: {}
+  rationale: Personnel security controls are administered once by HR/Security and cover every system's
+    workforce.
+- controlId: HRS-04
+  appliesWhen: {}
+  rationale: Screening happens before access is authorized, as an organization-wide hiring control,
+    not per system.
+- controlId: HRS-09
+  appliesWhen: {}
+  rationale: Termination governance is an organization-wide HR process, not a per-system condition.
+- controlId: HRS-11
+  appliesWhen: {}
+  rationale: Separation of duties is a workforce-structure control ACME maintains once, across every
+    system its staff touch.
+- controlId: SAT-02
+  appliesWhen: {}
+  rationale: Awareness training is delivered once to the workforce and covers every system employees
+    and contractors touch.
+- controlId: TPM-01
+  appliesWhen:
+    hasExternalActors: true
+  rationale: Managing third-party risk requires third-party access to exist. A boundary no external
+    actor reaches into or out of has no third-party surface for this to govern.
+- controlId: TPM-01
+  appliesWhen:
+    hasThirdPartyIntegration: true
+  rationale: A recorded vendor dependency is itself third-party surface to govern, independent of
+    whether an individual asset's actor-access edges also name it.
+- controlId: TPM-08
+  appliesWhen:
+    hasExternalActors: true
+  rationale: Reviewing external service providers requires there to be one accessing the boundary.
+- controlId: TPM-08
+  appliesWhen:
+    hasThirdPartyIntegration: true
+  rationale: A recorded vendor dependency is itself a provider relationship to review, independent of
+    whether an individual asset's actor-access edges also name it.
+- controlId: TPM-11
+  appliesWhen:
+    hasExternalActors: true
+  rationale: Joint incident response planning with a critical supplier requires that supplier to have
+    access to the boundary.
+- controlId: TPM-11
+  appliesWhen:
+    hasThirdPartyIntegration: true
+  rationale: A recorded vendor dependency is itself a critical-supplier relationship this planning
+    covers, independent of whether an individual asset's actor-access edges also name it.
+- controlId: IRO-01
+  appliesWhen: {}
+  rationale: The organization-wide incident response capability covers every system, the same boundary
+    Incident Handling already reaches.
+- controlId: IRO-04
+  appliesWhen: {}
+  rationale: One IRP is maintained for the organization and made available to every stakeholder across
+    every system.
+- controlId: IRO-06
+  appliesWhen: {}
+  rationale: IRP exercises test the organization's response capability as a whole, not sampled per resource.
+- controlId: IRO-10
+  appliesWhen: {}
+  rationale: Timely reporting to internal, client, and regulatory stakeholders is a single
+    organization-wide obligation, not tied to one system.

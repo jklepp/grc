@@ -66,12 +66,13 @@ try {
       const w = f.controlProfile.categoryWeights.Internal;
       w.Detection = 0; w.Governance += 0; // leave the sum wrong too; both should fire
     }, /no positive weight/],
-    // Picked dynamically rather than hard-coded: the first hand-chosen id here
-    // was AAT-01, which is itself a key control, so the validator correctly
-    // reported a DIFFERENT violation and the case looked like a failure.
+    // Every in-scope control is a key control now, so there's no longer a real
+    // one to pick as the fault — the case has to fabricate a control that
+    // exists (passes "is not a real control") but was never added to
+    // key-controls.yaml (fails the check actually under test).
     ["evidence against a non-key control", (f) => {
-      const nonKey = f.controls.find((c) => !f.keyControls.some((k) => k.id === c.id));
-      f.evidence[0].controlId = nonKey.id;
+      f.controls.push({ id: "TEST-NONKEY", domain: "Governance", name: "Test", description: "Test.", frameworks: [{ standard: "SOC 2", clauses: ["CC1.1"] }] });
+      f.evidence[0].controlId = "TEST-NONKEY";
     }, /is not a key control/],
     ["evidence coverage out of range", (f) => { f.evidence[0].coveragePct = 140; }, /coveragePct .* is outside 0-100/],
     ["population without exceptions", (f) => {
@@ -95,8 +96,8 @@ try {
     ["exception with no reason", (f) => { f.applicabilityExceptions[0].reason = "  "; }, /needs a reason/],
     ["ownership naming a non-org", (f) => { f.ownership.program.Governance = ["not-a-team"]; }, /is not an org/],
     ["finding against a non-key control", (f) => {
-      const nonKey = f.controls.find((c) => !f.keyControls.some((k) => k.id === c.id));
-      f.findings[0].controlId = nonKey.id;
+      f.controls.push({ id: "TEST-NONKEY", domain: "Governance", name: "Test", description: "Test.", frameworks: [{ standard: "SOC 2", clauses: ["CC1.1"] }] });
+      f.findings[0].controlId = "TEST-NONKEY";
       // Evidence citing this finding would otherwise trip its own consistency
       // check first, masking the one under test.
       f.evidence.forEach((e) => { if (e.findingId === f.findings[0].id) delete e.findingId; });

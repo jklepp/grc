@@ -178,3 +178,133 @@
       - "saas-api"
   rationale: "Serves live request traffic whose volume can exceed what it is provisioned for."
   source: "Asset type"
+- controlId: AST-05
+  requiredWhen:
+    assetKinds:
+      - object-storage
+      - backup-vault
+      - relational-db
+      - vector-db
+      - secrets-store
+      - key-management
+  rationale: Holds or distributes sensitive/regulated media that needs controlled handling.
+  source: Asset type
+- controlId: AST-09
+  requiredWhen:
+    assetKinds:
+      - object-storage
+      - backup-vault
+      - relational-db
+      - vector-db
+      - secrets-store
+      - key-management
+  rationale: Holds data that must be unrecoverable once the component is disposed of, destroyed, or
+    repurposed.
+  source: Asset type
+- controlId: IAC-06
+  requiredWhen:
+    assetKinds:
+      - identity-provider
+      - iam
+      - saas-tenant
+  rationale: Authenticates access through an identity provider or tenant where MFA enforcement is
+    actually configured.
+  source: Asset type
+- controlId: IAC-07
+  requiredWhen: {}
+  rationale: Every asset's access is granted and revoked through some registration process, the same
+    way Access Enforcement and Least Privilege apply to everything.
+  source: Applies to every asset in scope
+- controlId: IAC-16
+  requiredWhen:
+    assetKinds:
+      - service-account
+      - secrets-store
+      - iam
+      - identity-provider
+  rationale: Carries privileged or service-account access that needs restriction beyond standard user access.
+  source: Asset type
+- controlId: DCH-09
+  requiredWhen:
+    assetKinds:
+      - object-storage
+      - backup-vault
+      - relational-db
+      - vector-db
+  rationale: Stores data that must be sanitized before release, reuse, or disposal.
+  source: Asset type
+- controlId: DCH-19
+  requiredWhen:
+    assetKinds:
+      - object-storage
+      - backup-vault
+      - relational-db
+      - vector-db
+      - saas-tenant
+  rationale: Holds data whose geographic location and cross-border flow needs to be tracked.
+  source: Asset type
+- controlId: CLD-04
+  requiredWhen:
+    assetKinds:
+      - api-gateway
+      - saas-api
+  rationale: Exposes an API surface that needs secure interoperability controls.
+  source: Asset type
+- controlId: VPM-06
+  requiredWhen:
+    assetKinds:
+      - api-gateway
+      - compute-service
+      - relational-db
+      - vector-db
+  rationale: Runs software that needs routine scanning for vulnerabilities and configuration errors.
+  source: Asset type
+- controlId: BCD-08
+  requiredWhen:
+    assetKinds:
+      - backup-vault
+  rationale: Backs up data that needs a recoverable alternate storage location.
+  source: Asset type
+- controlId: BCD-12
+  requiredWhen:
+    assetKinds:
+      - object-storage
+      - backup-vault
+      - relational-db
+      - vector-db
+      - compute-service
+  rationale: Holds state or runs workloads that must be recoverable to a known-good condition after a
+    disruption.
+  source: Asset type
+- controlId: NET-06
+  requiredWhen:
+    assetKinds:
+      - compute-service
+      - relational-db
+      - vector-db
+      - egress-gateway
+  rationale: Runs workloads or data stores that need isolation from other network resources.
+  source: Asset type
+- controlId: WEB-03
+  requiredWhen:
+    assetKinds:
+      - waf
+      - api-gateway
+  rationale: Fronts application traffic that a WAF can inspect and filter.
+  source: Asset type
+- controlId: TDA-18
+  requiredWhen:
+    assetKinds:
+      - api-gateway
+      - compute-service
+      - model-gateway
+  rationale: Accepts external input at the application or model layer that needs validation.
+  source: Asset type
+- controlId: TDA-20
+  requiredWhen:
+    assetKinds:
+      - cicd-pipeline
+      - artifact-registry
+      - iac-pipeline
+  rationale: Holds or moves source code and build artifacts whose access needs restricting.
+  source: Asset type
