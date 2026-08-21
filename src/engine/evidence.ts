@@ -34,6 +34,16 @@ export const DAY_MS = 86400000;
 // control that's configured but unverified doesn't count."
 export const VERIFYING_EVIDENCE_FLOOR: EvidenceType = "API configuration observation";
 
+// The grade at which ACME can be said to have TESTED a control, rather than
+// asked about it. HITRUST requires testing for Implemented credit — inquiry
+// alone (Self-attestation, a policy Document) never earns it, no matter how
+// clean the result. A Screenshot and everything above it is somebody looking
+// directly at the control's state, which is what Implemented asks; whether
+// that look was a one-off or a continuously re-run interrogation is a
+// separate, stricter question that VERIFYING_EVIDENCE_FLOOR answers for
+// Measured instead.
+export const IMPLEMENTATION_EVIDENCE_FLOOR: EvidenceType = "Screenshot";
+
 // Full strength inside the validity window, then decaying to a floor. The floor
 // is not zero because an expired collection is weaker proof, not no proof — a
 // SOC 2 report from fourteen months ago still says something.

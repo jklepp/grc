@@ -10,7 +10,7 @@ import { SystemData } from "./SystemData";
 import { SystemIdentity } from "./SystemIdentity";
 import { SystemSecurity } from "./SystemSecurity";
 import { SystemTesting } from "./SystemTesting";
-import { SystemControls } from "./SystemControls";
+import { SystemControls, DEFAULT_SELECTION } from "./SystemControls";
 import type { ControlSelection } from "./SystemControls";
 import { ScopeReviewModal } from "./ScopeReviewModal";
 import { SystemRisk } from "./SystemRisk";
@@ -46,6 +46,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   const systemId = controlledSystemId ?? localSystemId;
   const [subTab, setSubTab] = useState<SystemWorkspaceTab>(SUB_TABS.some((t) => t.id === initialSubTab) ? initialSubTab! : SUB_TABS[0].id);
   const [selectedControlId, setSelectedControlId] = useState<ControlId | null>(null);
+  const [quickAssessControlId, setQuickAssessControlId] = useState<ControlId | null>(null);
   const [scopeReviewOpen, setScopeReviewOpen] = useState(false);
   const [requestedWave, setRequestedWave] = useState<ReviewWave | null>(null);
   const [assessmentWalkOpen, setAssessmentWalkOpen] = useState(false);
@@ -238,7 +239,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           keyControlRemaining={assessmentQueue.length}
           onStartAssessment={assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
           walkActive={Boolean(selectedControlId) && queueIndex >= 0}
-          onSelectRow={(row) => setSelectedControlId(row.controlId)}
+          onSelectRow={(row) => setQuickAssessControlId(row.controlId)}
           onOpenScopeReview={openScopeReview}
           initialSelection={controlsSelection ?? undefined}
         />
@@ -264,6 +265,21 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         onOpenFullDetail={(controlId) => {
           setAssessmentWalkOpen(false);
           setSubTab("controls");
+          setSelectedControlId(controlId);
+        }}
+        onGoToRemediation={() => {
+          setAssessmentWalkOpen(false);
+          openControlsGroup(DEFAULT_SELECTION);
+        }}
+      />
+
+      <ControlAssessmentModal
+        open={quickAssessControlId != null}
+        systemId={system.id}
+        controlId={quickAssessControlId}
+        onClose={() => setQuickAssessControlId(null)}
+        onOpenFullDetail={(controlId) => {
+          setQuickAssessControlId(null);
           setSelectedControlId(controlId);
         }}
       />

@@ -42,9 +42,9 @@ import {
 } from "../graph/nodes/taxonomy";
 import {
   INHERITED_LEVEL_CAP, OPERATING_HISTORY_THRESHOLD_DAYS, IMMATURE_LEVEL_CAP,
-  assuranceBand, display, prismaScore,
+  assuranceBand, display, meetsEvidence, prismaScore,
 } from "./assurance";
-import { DAY_MS, governingRecord, type EvidenceApi, type ScoredEvidence } from "./evidence";
+import { DAY_MS, governingRecord, IMPLEMENTATION_EVIDENCE_FLOOR, type EvidenceApi, type ScoredEvidence } from "./evidence";
 import {
   INSTANCE_CREDIT, capInherited, capImmature, rateImplemented, rateInheritedHitrustR2, rateInheritedImplemented, rateInheritedManaged,
   rateInheritedMeasured, rateManaged, rateMeasured,ratePolicy, rateProcedure,
@@ -222,18 +222,23 @@ export function createAssessment(
       };
     }
 
-    // Implemented is the assessor's call, not the engine's — a record
-    // establishes implementation if it is current, passing, and looked at
-    // the whole population. Whether that record came from an automated
-    // system interrogation or an auditor's examination doesn't change
-    // whether the control holds; it changes how well the control's
-    // operation is being MEASURED (see rateMeasured/gradeOf in levels.ts),
-    // which is a separate rung on purpose.
+    // Implemented asks whether the control was actually TESTED, not
+    // whether someone was asked about it — HITRUST gives no credit for
+    // inquiry alone. A record establishes implementation only if it is
+    // current, passing, looked at the whole population, AND meets
+    // IMPLEMENTATION_EVIDENCE_FLOOR (evidence.ts): a Screenshot or stronger
+    // is somebody looking directly at the control's state; a
+    // Self-attestation or a Document is somebody's account of it, which
+    // caps out at "partial" below regardless of how clean the claim reads.
+    // Whether that look was a one-off or a continuously re-run
+    // interrogation is a separate, stricter question — see
+    // rateMeasured/gradeOf and VERIFYING_EVIDENCE_FLOOR in levels.ts.
     const verified =
       governing !== null &&
       governing.result === "pass" &&
       !governing.stale &&
-      governing.coveragePct >= 100;
+      governing.coveragePct >= 100 &&
+      meetsEvidence(governing.evidenceType, IMPLEMENTATION_EVIDENCE_FLOOR);
 
     if (verified) {
       return {
@@ -254,7 +259,9 @@ export function createAssessment(
         ? `${governing.source} is past its validity window`
         : governing.coveragePct < 100
           ? `${governing.source} covered ${governing.coveragePct}% of the population`
-          : `${governing.source} returned ${governing.result}`;
+          : !meetsEvidence(governing.evidenceType, IMPLEMENTATION_EVIDENCE_FLOOR)
+            ? `${governing.source} is a ${governing.evidenceType.toLowerCase()} — below the testing floor Implemented requires`
+            : `${governing.source} returned ${governing.result}`;
     return {
       ...base, status: "partial", credit: INSTANCE_CREDIT.partial,
       statement: `${controlId} on ${asset.name} is evidenced but not confirmed — ${why}.`,
@@ -476,7 +483,8 @@ export function createAssessment(
 
       if (counted.length === 0 && pool.length > 0) {
         const governingProgram = governingRecord(pool);
-        const passing = governingProgram?.result === "pass" && !governingProgram.stale;
+        const passing = governingProgram?.result === "pass" && !governingProgram.stale
+          && meetsEvidence(governingProgram.evidenceType, IMPLEMENTATION_EVIDENCE_FLOOR);
         implementedLevel = rateImplemented({
           controlId, credit: passing ? 1 : 0.5, population: 1,
           implemented: passing ? 1 : 0, partial: passing ? 0 : 1,
