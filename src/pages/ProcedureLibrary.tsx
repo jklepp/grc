@@ -12,6 +12,8 @@ import { PROCEDURES } from "../data/procedures";
 import { POLICIES, getFrameworkClauses, MAPPED_STANDARDS, STANDARD_ABBR } from "../data/policies";
 import { getAllSystems, EVIDENCE_CONFIDENCE } from "../engine";
 import type { AuthoredProcedure, AuthoredProcedureStep, ProcedureStepEvidence } from "../data/procedures";
+import { EXEC_STORAGE_KEY, loadExecutions, computeReliability } from "../data/procedureExecutions";
+import type { ExecutionStepRecord, ExecutionsMap, ProcedureExecution, ProcedureReliability, StepEvidencePayload } from "../data/procedureExecutions";
 
 const SYSTEMS = getAllSystems();
 
@@ -25,82 +27,7 @@ const SYSTEMS = getAllSystems();
 // user typing the numbers in, so the confidence tier stays Self-attestation
 // (see the info callout below) until this is backed by a real system.
 const SIMULATED_USER = { initials: "JK", name: "You" };
-const EXEC_STORAGE_KEY = "grc-procedure-executions";
 const SLIDE_MS = 320;
-
-type ExecutionStatus = "in_progress" | "complete";
-type ExecutionStepStatus = "pending" | "complete";
-
-interface StepEvidencePayload {
-  summary?: number;
-  pass?: boolean;
-  fileName?: string;
-  fileSize?: number;
-  fileType?: string;
-  values?: Record<string, string | number>;
-  ids?: string[];
-  actual?: number | null;
-  expected?: number | null;
-  note?: string;
-}
-
-interface ExecutionStepRecord {
-  status: ExecutionStepStatus;
-  completedAt: string | null;
-  completedBy?: string;
-  evidence: StepEvidencePayload | null;
-}
-
-interface ProcedureExecution {
-  id: string;
-  period: string;
-  owner: string;
-  startedAt: string;
-  completedAt: string | null;
-  status: ExecutionStatus;
-  steps: ExecutionStepRecord[];
-}
-
-type ExecutionsMap = Record<string, ProcedureExecution[]>;
-
-interface ProcedureReliability {
-  totalRuns: number;
-  completedRuns: number;
-  cleanRuns: number;
-  totalExceptions: number;
-  reliabilityPct: number;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isProcedureExecution(value: unknown): value is ProcedureExecution {
-  if (!isRecord(value) || typeof value.id !== "string" || typeof value.period !== "string" ||
-      typeof value.owner !== "string" || typeof value.startedAt !== "string" ||
-      !(value.completedAt === null || typeof value.completedAt === "string") ||
-      !(value.status === "in_progress" || value.status === "complete") || !Array.isArray(value.steps)) return false;
-  return value.steps.every((step) => isRecord(step) &&
-    (step.status === "pending" || step.status === "complete") &&
-    (step.completedAt === null || typeof step.completedAt === "string") &&
-    (step.evidence === null || isRecord(step.evidence)));
-}
-
-function isExecutionsMap(value: unknown): value is ExecutionsMap {
-  return isRecord(value) && Object.values(value).every(
-    (executions) => Array.isArray(executions) && executions.every(isProcedureExecution),
-  );
-}
-
-function loadExecutions(): ExecutionsMap {
-  try {
-    const raw = localStorage.getItem(EXEC_STORAGE_KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : {};
-    return isExecutionsMap(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
-}
 
 function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -137,24 +64,6 @@ function stepSummary(stepRecord?: ExecutionStepRecord): number | null {
 function executionProgress(execution: ProcedureExecution): { done: number; total: number; pct: number } {
   const done = execution.steps.filter((s) => s.status === "complete").length;
   return { done, total: execution.steps.length, pct: Math.round((100 * done) / execution.steps.length) };
-}
-
-// A run is "clean" if nothing it captured failed a built-in consistency check
-// (a verify step that didn't match its expected value). Reliability is
-// deliberately silent (null) with zero completed runs rather than showing a
-// fake 100% or 0% — there's no empirical basis for a number yet.
-function computeReliability(executions: ProcedureExecution[]): ProcedureReliability | null {
-  const completed = executions.filter((e) => e.status === "complete");
-  if (completed.length === 0) return null;
-  const exceptionsPerRun = completed.map((e) => e.steps.filter((s) => s.evidence && s.evidence.pass === false).length);
-  const cleanRuns = exceptionsPerRun.filter((n) => n === 0).length;
-  return {
-    totalRuns: executions.length,
-    completedRuns: completed.length,
-    cleanRuns,
-    totalExceptions: exceptionsPerRun.reduce((a, b) => a + b, 0),
-    reliabilityPct: Math.round((100 * cleanRuns) / completed.length),
-  };
 }
 
 function MetaChip({ icon: Icon, label, value }: { icon: LucideIcon; label: ReactNode; value: ReactNode }) {

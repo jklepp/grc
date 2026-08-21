@@ -5,6 +5,8 @@ import type { ThemeMode } from "../theme";
 import { CONTROL_AREAS } from "../pages/controlAreas";
 import { GOVERNANCE_AREAS } from "../pages/governanceAreas";
 import type { GovernanceAreaId } from "../pages/governanceAreas";
+import { OVERVIEW_AREAS } from "../pages/overviewAreas";
+import type { OverviewAreaId } from "../pages/overviewAreas";
 
 // Topbar chrome is intentionally fixed dark regardless of the app-wide light/dark
 // toggle — it's the "always-on" brand shell, same idea the old Sidebar used.
@@ -32,6 +34,14 @@ const GOVERNANCE_LEGACY_ID: Record<GovernanceAreaId, string> = {
   exceptions: "exception-register",
 };
 
+// Same idea for Overview's sub-areas: the legacy ids App.jsx's LEGACY_ROUTES
+// already maps to (page: "overview", tab: <area>).
+const OVERVIEW_LEGACY_ID: Record<OverviewAreaId, string> = {
+  dashboard: "executive-dashboard",
+  "risk-register": "risk-register",
+  footprint: "data-footprint",
+};
+
 interface NavItem {
   id: NavigationPageId;
   label: string;
@@ -39,7 +49,6 @@ interface NavItem {
 }
 
 const ITEMS: NavItem[] = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "data-estate", label: "Systems", icon: Database },
 ];
 
@@ -154,8 +163,16 @@ export default function TopNav({ active, onSelect, mode, onToggleTheme }: TopNav
       </div>
 
       <div className="flex items-center h-16">
-        <NavButton item={ITEMS[0]} isActive={active === "overview"} onClick={() => onSelect("overview")} />
-        <NavButton item={ITEMS[1]} isActive={active === "data-estate"} onClick={() => onSelect("data-estate")} />
+        <GroupedNavButton
+          id="overview"
+          label="Overview"
+          icon={LayoutDashboard}
+          isActive={active === "overview"}
+          areas={OVERVIEW_AREAS.map((a) => ({ id: OVERVIEW_LEGACY_ID[a.id], label: a.label, icon: a.icon }))}
+          onSelect={onSelect}
+          onSelectArea={onSelect}
+        />
+        <NavButton item={ITEMS[0]} isActive={active === "data-estate"} onClick={() => onSelect("data-estate")} />
         <GroupedNavButton
           id="assurance"
           label="Controls"

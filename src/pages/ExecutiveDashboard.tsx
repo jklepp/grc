@@ -4,7 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard, ShieldCheck, ArrowRight, AlertTriangle, DollarSign, ClipboardCheck,
   Download, ArrowUpRight, ArrowDownRight, Database, ShieldAlert, PieChart, HardDrive,
-  ChevronDown, ChevronUp, Layers, Boxes,
+  ChevronDown, ChevronUp, Layers, Boxes, Server,
 } from "lucide-react";
 import { C } from "../theme";
 import { PageHeader } from "../components/Headings";
@@ -13,9 +13,12 @@ import {
   getAllRisks, ABOVE_APPETITE_COUNT, MATERIAL_RISKS, MATERIAL_RISK_EXPOSURE, QUANTIFIED_EXPOSURE,
   getAllAssets, getAllSystems, getAllDataTypes, getAllEvidence, ALL_FINDINGS, IN_SCOPE_CONTROLS,
   getCategoryAverages, getEnterprise, ENTERPRISE_COVERAGE, ASSURANCE_TARGET, ADEQUATE_THRESHOLD,
-  assuranceBand, profileSummary, modelHealth, FINDING_REMEDIATION_STATUS_META,
+  assuranceBand, profileSummary, modelHealth, FINDING_REMEDIATION_STATUS_META, cockpitSummary,
 } from "../engine";
 import type { SeverityLevel } from "../graph/nodes/risks";
+import { PRINCIPLE_DOMAINS, PRINCIPLE_STATUS_COUNTS } from "../data/securityPrinciples";
+import { loadExecutions, computeReliability } from "../data/procedureExecutions";
+import type { CockpitItem } from "../engine/cockpit";
 
 const RISKS = getAllRisks();
 const ASSET_SUMMARIES = getAllAssets();
@@ -127,6 +130,44 @@ const PRIORITIZED_FINDINGS = [...ALL_FINDINGS]
     return new Date(a.due).getTime() - new Date(b.due).getTime();
   });
 
+// ---- Operational Readiness lane: how ready the operation behind the score
+// is — procedures, principles, and system-level hygiene — a second
+// page-level join, same convention as the section above, over exports that
+// already exist for the Procedure Library, Security Principles, and System
+// Register cockpit pages. Nothing here is a new derivation.
+
+// The same "clean run" definition ProcedureLibrary uses for one procedure at
+// a time, rolled up across every procedure's execution history. Null (not a
+// fabricated 0%) until at least one run has completed anywhere.
+const ALL_EXECUTIONS = Object.values(loadExecutions()).flat();
+const SOP_RELIABILITY = computeReliability(ALL_EXECUTIONS);
+
+// The Security Principles library's own operationalized/partial/not-yet
+// split — read here, not re-derived.
+const PRINCIPLES_OPERATIONALIZED_PCT = Math.round((100 * PRINCIPLE_STATUS_COUNTS.operationalized) / PRINCIPLE_STATUS_COUNTS.total);
+const PRINCIPLES_PARTIAL_PCT = Math.round((100 * PRINCIPLE_STATUS_COUNTS.partial) / PRINCIPLE_STATUS_COUNTS.total);
+const PRINCIPLES_NOT_OPERATIONALIZED_PCT = Math.round((100 * PRINCIPLE_STATUS_COUNTS["not-operationalized"]) / PRINCIPLE_STATUS_COUNTS.total);
+const PRINCIPLE_DOMAINS_WITH_GAP = PRINCIPLE_DOMAINS.filter((d) => d.principles.some((p) => p.status !== "operationalized")).length;
+
+// Each system's own "attention required" list, already computed by
+// cockpitSummary() for the System Overview page — filtered to the
+// operational domains (security testing, resilience, IR, vendor assurance,
+// identity review cadence, vulnerability SLAs, network exposure) rather than
+// the control-assurance/risk/findings domains the Assurance lane above
+// already covers, so nothing repeats what's already on screen.
+const OPERATIONAL_DOMAINS = new Set([
+  "Security Testing", "Resilience", "Incident Response", "Vendor Assurance", "Identity & Access", "Vulnerability", "Exposure",
+]);
+const SYSTEM_OPERATIONAL_ITEMS: { system: (typeof SYSTEMS)[number]; items: CockpitItem[] }[] = SYSTEMS
+  .map((system) => ({ system, items: cockpitSummary(system.id).attentionRequired.filter((item) => OPERATIONAL_DOMAINS.has(item.domain)) }))
+  .filter(({ items }) => items.length > 0);
+
+function operationalSeverityColor(severity: CockpitItem["severity"]): { color: string; bg: string } {
+  if (severity === "critical" || severity === "high") return { color: C.red, bg: C.redBg };
+  if (severity === "medium") return { color: C.amber, bg: C.amberBg };
+  return { color: C.muted, bg: C.panel2 };
+}
+
 function dashboardColor(key: string): string {
   if (key === "green" || key === "amber" || key === "red" || key === "accent" || key === "muted" || key === "ink" || key === "na") return C[key];
   return C.muted;
@@ -191,7 +232,7 @@ function handleExport() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `acme-executive-overview-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = `acme-assurance-overview-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -341,7 +382,7 @@ export default function ExecutiveDashboard({ onNavigate }: { onNavigate?: (pageI
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
       <PageHeader
         icon={LayoutDashboard}
-        title="Executive Dashboard"
+        title="Assurance Overview"
         right={
           <div className="flex items-center gap-2">
             <div className="text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>2026</div>
@@ -356,6 +397,15 @@ export default function ExecutiveDashboard({ onNavigate }: { onNavigate?: (pageI
           </div>
         }
       />
+
+      {/* Lane 1: Assurance — how strong is the control environment. */}
+      <div className="px-8 pt-2 pb-2">
+        <div className="flex items-center gap-2">
+          <ShieldCheck size={15} color={C.accent} />
+          <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.accent }}>Assurance</span>
+        </div>
+        <div className="text-xs mt-1" style={{ color: C.muted, marginLeft: 23 }}>How strong is the control environment — scores, coverage, and risk exposure.</div>
+      </div>
 
       {/* KPI strip — Enterprise Assurance is the hero everything else rolls up
           to, so it gets a double-wide dark tile; the other three stay flat. */}
@@ -434,7 +484,7 @@ export default function ExecutiveDashboard({ onNavigate }: { onNavigate?: (pageI
             <div className="text-xs" style={{ color: C.muted }}>No open findings right now.</div>
           ) : (
             <div className="space-y-2.5">
-              {PRIORITIZED_FINDINGS.map((f) => {
+              {PRIORITIZED_FINDINGS.slice(0, 3).map((f) => {
                 const priority = findingPriority(f);
                 return (
                   <div key={f.id} className="flex items-start gap-2.5 rounded-lg p-3" style={{ background: C.panel2 }}>
@@ -447,12 +497,15 @@ export default function ExecutiveDashboard({ onNavigate }: { onNavigate?: (pageI
                   </div>
                 );
               })}
+              {PRIORITIZED_FINDINGS.length > 3 && (
+                <div className="text-[11px] pt-0.5" style={{ color: C.muted }}>+{PRIORITIZED_FINDINGS.length - 3} more open finding{PRIORITIZED_FINDINGS.length - 3 === 1 ? "" : "s"}</div>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      {/* Assessment Coverage + Control Maturity + Evidence Health */}
+      {/* Assessment Coverage + Control Maturity + Control Assurance by Category */}
       <div className="px-8 pt-5 grid grid-cols-3 gap-5">
         <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
           <div className="text-sm font-semibold mb-4" style={{ color: C.ink }}>Assessment Coverage</div>
@@ -486,16 +539,17 @@ export default function ExecutiveDashboard({ onNavigate }: { onNavigate?: (pageI
         </div>
 
         <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-          <div className="text-sm font-semibold mb-4" style={{ color: C.ink }}>Evidence Health</div>
-          <div className="flex items-center gap-5">
-            <Donut
-              segments={[{ pct: EVIDENCE_CURRENT_PCT, color: C.green }, { pct: 100 - EVIDENCE_CURRENT_PCT, color: C.red }]}
-              centerValue={`${EVIDENCE_CURRENT_PCT}%`}
-            />
-            <div className="text-xs space-y-1.5" style={{ color: C.muted }}>
-              <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full shrink-0" style={{ background: C.green }} /> Current ({EVIDENCE_CURRENT.length})</div>
-              <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full shrink-0" style={{ background: C.red }} /> Stale ({ALL_EVIDENCE.length - EVIDENCE_CURRENT.length})</div>
-            </div>
+          <div className="text-sm font-semibold mb-4" style={{ color: C.ink }}>Control Assurance by Category</div>
+          <div className="space-y-3">
+            {CATEGORY_AVERAGES.map((d) => (
+              <div key={d.label} className="flex items-center gap-3">
+                <div className="w-28 shrink-0 text-xs" style={{ color: C.ink }}>{d.label}</div>
+                <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: C.panel2 }}>
+                  <div className="h-full rounded-full" style={{ width: `${d.pct}%`, background: C.accent }} />
+                </div>
+                <div className="w-9 text-right text-xs font-medium" style={{ color: C.ink }}>{d.pct}%</div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -516,26 +570,125 @@ export default function ExecutiveDashboard({ onNavigate }: { onNavigate?: (pageI
       {/* Footer CTAs */}
       <div className="px-8 pt-5 flex items-center gap-3">
         <button
-          onClick={() => onNavigate && onNavigate("data-estate")}
-          className="flex items-center gap-1.5 text-xs font-medium px-4 py-2.5 rounded-lg"
-          style={{ border: `1px solid ${C.border}`, color: C.ink }}
-        >
-          <Database size={13} /> Explore Data Estate
-        </button>
-        <button
-          onClick={() => onNavigate && onNavigate("assurance")}
-          className="flex items-center gap-1.5 text-xs font-medium px-4 py-2.5 rounded-lg"
-          style={{ border: `1px solid ${C.border}`, color: C.ink }}
-        >
-          <ShieldCheck size={13} /> View Assurance
-        </button>
-        <button
           onClick={() => onNavigate && onNavigate("risk-register")}
           className="flex items-center gap-1.5 text-xs font-medium px-4 py-2.5 rounded-lg"
           style={{ border: `1px solid ${C.border}`, color: C.ink }}
         >
           <AlertTriangle size={13} /> View Risk
         </button>
+      </div>
+
+      {/* Lane divider */}
+      <div className="px-8 pt-8">
+        <div style={{ height: 1, background: C.border }} />
+      </div>
+
+      {/* Lane 2: Operational Readiness — how ready is the operation behind
+          the score. */}
+      <div className="px-8 pt-6 pb-2">
+        <div className="flex items-center gap-2">
+          <Server size={15} color={C.accent} />
+          <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.accent }}>Operational Readiness</span>
+        </div>
+        <div className="text-xs mt-1" style={{ color: C.muted, marginLeft: 23 }}>How ready is the operation behind the score — procedures, principles, and system hygiene.</div>
+      </div>
+
+      {/* SOP Reliability + Security Principles + Systems Flagged */}
+      <div className="px-8 grid grid-cols-3 gap-5">
+        <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+          <div className="text-sm font-semibold mb-1" style={{ color: C.ink }}>SOP Reliability</div>
+          <div className="text-[11px] mb-3" style={{ color: C.muted }}>Clean vs. exception-flagged runs recorded this session.</div>
+          {SOP_RELIABILITY === null ? (
+            <div className="text-xs" style={{ color: C.muted }}>No procedure runs completed yet — reliability has no empirical basis until at least one run finishes.</div>
+          ) : (
+            <div className="flex items-center gap-5">
+              <Donut
+                segments={[
+                  { pct: SOP_RELIABILITY.reliabilityPct, color: C.green },
+                  { pct: 100 - SOP_RELIABILITY.reliabilityPct, color: C.amber },
+                ]}
+                centerValue={`${SOP_RELIABILITY.reliabilityPct}%`}
+              />
+              <div className="text-xs space-y-1.5" style={{ color: C.muted }}>
+                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full shrink-0" style={{ background: C.green }} /> Clean ({SOP_RELIABILITY.cleanRuns})</div>
+                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full shrink-0" style={{ background: C.amber }} /> Exception flagged ({SOP_RELIABILITY.completedRuns - SOP_RELIABILITY.cleanRuns})</div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+          <div className="text-sm font-semibold mb-1" style={{ color: C.ink }}>Security Principles Operationalized</div>
+          <div className="text-[11px] mb-3" style={{ color: C.muted }}>{PRINCIPLE_STATUS_COUNTS.total} principles across {PRINCIPLE_DOMAINS.length} domains.</div>
+          <div className="flex items-center gap-5">
+            <Donut
+              segments={[
+                { pct: PRINCIPLES_OPERATIONALIZED_PCT, color: C.green },
+                { pct: PRINCIPLES_PARTIAL_PCT, color: C.amber },
+                { pct: PRINCIPLES_NOT_OPERATIONALIZED_PCT, color: C.red },
+              ]}
+              centerValue={`${PRINCIPLES_OPERATIONALIZED_PCT}%`}
+            />
+            <div className="text-xs space-y-1.5" style={{ color: C.muted }}>
+              <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full shrink-0" style={{ background: C.green }} /> Operationalized ({PRINCIPLE_STATUS_COUNTS.operationalized})</div>
+              <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full shrink-0" style={{ background: C.amber }} /> Partial ({PRINCIPLE_STATUS_COUNTS.partial})</div>
+              <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full shrink-0" style={{ background: C.red }} /> Not yet ({PRINCIPLE_STATUS_COUNTS["not-operationalized"]})</div>
+            </div>
+          </div>
+          <div className="text-[11px] mt-3 pt-2.5" style={{ borderTop: `1px solid ${C.border}`, color: C.muted }}>
+            {PRINCIPLE_DOMAINS_WITH_GAP} of {PRINCIPLE_DOMAINS.length} domains carry a gap
+          </div>
+        </div>
+
+        <SummaryTile
+          icon={Server} iconColor={C.red} iconBg={C.redBg}
+          label="Systems Flagged"
+          value={<>{SYSTEM_OPERATIONAL_ITEMS.length}<span className="text-lg font-normal" style={{ color: C.muted }}> / {SYSTEMS.length}</span></>}
+        >
+          <div className="text-[11px] mt-2" style={{ color: C.muted }}>
+            {SYSTEM_OPERATIONAL_ITEMS.length === 0 ? "no system carries an open operational-readiness flag" : "carry an open operational-readiness flag — see below"}
+          </div>
+        </SummaryTile>
+      </div>
+
+      {/* Systems Needing Operational Attention */}
+      <div className="px-8 pt-5">
+        <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+          <div className="text-sm font-semibold mb-1" style={{ color: C.ink }}>Systems Needing Operational Attention</div>
+          <div className="text-[11px] mb-3" style={{ color: C.muted }}>From the System Register cockpit — resilience, vulnerability, testing, vendor, and identity posture per system.</div>
+          {SYSTEM_OPERATIONAL_ITEMS.length === 0 ? (
+            <div className="text-xs" style={{ color: C.muted }}>No system carries an open operational-readiness flag right now.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[10px] uppercase tracking-wide" style={{ color: C.muted }}>
+                  <th className="text-left font-medium pb-2">System</th>
+                  <th className="text-left font-medium pb-2 pl-3">Flags</th>
+                </tr>
+              </thead>
+              <tbody>
+                {SYSTEM_OPERATIONAL_ITEMS.map(({ system, items }) => (
+                  <tr key={system.id} style={{ borderTop: `1px solid ${C.border}` }}>
+                    <td className="py-3 pr-2 align-top whitespace-nowrap" style={{ color: C.ink, fontWeight: 500 }}>{system.name}</td>
+                    <td className="py-3 pl-3">
+                      <div className="flex flex-col gap-2">
+                        {items.map((item, i) => {
+                          const sev = operationalSeverityColor(item.severity);
+                          return (
+                            <div key={i} className="flex items-start gap-2">
+                              <Pill text={item.label} color={sev.color} bg={sev.bg} />
+                              <span className="text-xs" style={{ color: C.muted }}>{item.detail}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
 
       {/* Supporting detail toggle */}
@@ -734,8 +887,8 @@ export default function ExecutiveDashboard({ onNavigate }: { onNavigate?: (pageI
         </div>
       </div>
 
-      {/* Exposure by System + Control Assurance by Category */}
-      <div className="px-8 pt-5 grid grid-cols-2 gap-5">
+      {/* Exposure by System */}
+      <div className="px-8 pt-5">
         <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
           <div className="text-sm font-semibold mb-4" style={{ color: C.ink }}>Exposure by System</div>
           <div className="space-y-4">
@@ -750,21 +903,6 @@ export default function ExecutiveDashboard({ onNavigate }: { onNavigate?: (pageI
             ))}
           </div>
           <div className="text-[11px] mt-4" style={{ color: C.muted }}>Share of total sensitive records/transactions held per vendor.</div>
-        </div>
-
-        <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-          <div className="text-sm font-semibold mb-4" style={{ color: C.ink }}>Control Assurance by Category</div>
-          <div className="space-y-4">
-            {CATEGORY_AVERAGES.map((d) => (
-              <div key={d.label} className="flex items-center gap-3">
-                <div className="w-36 shrink-0 text-sm" style={{ color: C.ink }}>{d.label}</div>
-                <div className="flex-1 h-2.5 rounded-full overflow-hidden" style={{ background: C.panel2 }}>
-                  <div className="h-full rounded-full" style={{ width: `${d.pct}%`, background: C.accent }} />
-                </div>
-                <div className="w-10 text-sm text-right font-medium" style={{ color: C.ink }}>{d.pct}%</div>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -817,9 +955,9 @@ export default function ExecutiveDashboard({ onNavigate }: { onNavigate?: (pageI
 
       {/* Footer disclaimer */}
       <div className="px-8 pt-5 pb-8">
-        <div className="rounded-lg px-4 py-3 flex items-center justify-between gap-3 text-[11px]" style={{ background: C.panel2, color: C.muted }}>
-          <span className="flex items-center gap-2"><ShieldCheck size={12} /> Every figure on this page is computed live from ACME's Cyber Assurance model and Risk Register — nothing here is hand-typed.</span>
-          <span>Recalculated on every load, not a cached snapshot</span>
+        <div className="rounded-lg px-4 py-3 flex flex-col gap-1.5 text-[11px]" style={{ background: C.panel2, color: C.muted }}>
+          <span className="flex items-center gap-2"><ShieldCheck size={12} /> Assurance-lane figures are computed live from ACME's Cyber Assurance model and Risk Register — recalculated on every load, not a cached snapshot.</span>
+          <span style={{ marginLeft: 20 }}>Operational Readiness draws from the Security Principles library and System Register cockpit; SOP reliability reflects procedure runs recorded in this browser session.</span>
         </div>
       </div>
     </div>
