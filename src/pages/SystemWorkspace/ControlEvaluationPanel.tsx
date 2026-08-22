@@ -582,7 +582,7 @@ const STEPS = [
   { id: "implementation", label: "Implementation Coverage", icon: Layers },
   { id: "findings", label: "Findings & Remediation", icon: Wrench },
 ] as const;
-type EvaluationStep = (typeof STEPS)[number]["id"];
+export type EvaluationStep = (typeof STEPS)[number]["id"];
 
 export interface WalkDomainProgress {
   domain: string;
@@ -613,6 +613,10 @@ interface ControlEvaluationPanelProps {
   system: WorkspaceSystem;
   onClose: () => void;
   walk?: PanelWalkState;
+  // Lands the panel on a step other than Control Scoring — used when a
+  // caller already knows the operator is here to file or work a finding
+  // (the Outstanding Actions tab), not to re-score the control.
+  initialStep?: EvaluationStep;
 }
 
 // Full-space operator panel for a single control row, organized as the
@@ -624,11 +628,12 @@ interface ControlEvaluationPanelProps {
 // RuntimeFacts copy, validate it with buildLiveEngine, and only persist +
 // reload once that comes back clean.
 export function ControlEvaluationPanel({
-  row: committedRow, system, onClose, walk,
+  row: committedRow, system, onClose, walk, initialStep,
 }: ControlEvaluationPanelProps) {
   // Lands on Control Scoring — the operator's stated job, and now the first
-  // step in the rail, so the landing place and the declared order agree.
-  const [activeStep, setActiveStep] = useState<EvaluationStep>("scoring");
+  // step in the rail, so the landing place and the declared order agree —
+  // unless a caller asked to land somewhere else (initialStep).
+  const [activeStep, setActiveStep] = useState<EvaluationStep>(initialStep ?? "scoring");
   const [attachingLane, setAttachingLane] = useState<PrismaLevel | null>(null);
   const [editingLaneEvidenceId, setEditingLaneEvidenceId] = useState<EvidenceId | null>(null);
   const [showMaturityDetails, setShowMaturityDetails] = useState(false);

@@ -12,7 +12,7 @@ const SEVERITY_COLOR: Record<string, string> = { critical: C.red, high: C.red, m
 // Presentation-layer routing only — which tab best explains a cockpit item's
 // domain. Not a scoring decision; mirrors the existing POLICY_BY_CONTROL/
 // STATUS_META pattern of small local lookup tables.
-const DOMAIN_TO_TAB: Partial<Record<string, SystemWorkspaceTab>> = {
+export const DOMAIN_TO_TAB: Partial<Record<string, SystemWorkspaceTab>> = {
   "Security Testing": "testing",
   Resilience: "testing",
   "Incident Response": "testing",

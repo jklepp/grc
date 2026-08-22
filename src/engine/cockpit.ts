@@ -17,6 +17,7 @@ import type { SecurityTestingApi } from "./securityTesting";
 import type { ResilienceApi } from "./resilience";
 import type { IncidentResponseApi } from "./incidentResponse";
 import type { VendorsApi } from "./vendors";
+import type { CadenceStatus } from "./assurance";
 import type { SystemId } from "../graph/ids";
 
 export interface CockpitItem {
@@ -24,6 +25,20 @@ export interface CockpitItem {
   label: string;
   detail: string;
   severity: "critical" | "high" | "medium" | "low" | "info";
+}
+
+// One cadence-tracked obligation this system owes on a schedule. Unlike
+// CockpitItem above (overdue-only, no date), this carries the real
+// CadenceStatus so a caller can plot it on a timeline or sort it — the
+// Outstanding Actions tab's "Due & Recurring" panel is the first consumer.
+// `domain` matches the strings CockpitItem already uses for the same
+// sources, so a page can route both through the same domain->tab lookup
+// (see AttentionRequired.tsx's DOMAIN_TO_TAB).
+export interface DueRecurringItem {
+  key: string;
+  title: string;
+  domain: string;
+  cadence: CadenceStatus;
 }
 
 export function createCockpit(
@@ -171,7 +186,63 @@ export function createCockpit(
     };
   }
 
-  return { cockpitSummary };
+  // Every cadence-tracked obligation this system owes, whether or not it's
+  // currently overdue — cockpitSummary's attentionRequired only ever surfaces
+  // the overdue ones, with no date to plot. Only sources with an actual
+  // record are included: a domain that has never been touched at all has no
+  // cadence to report yet (cockpitSummary's "never conducted" items cover
+  // that gap in words, not on a timeline).
+  function dueRecurringForSystem(systemId: SystemId): DueRecurringItem[] {
+    const idPosture = identity.identityPostureForSystem(systemId);
+    const secTests = securityTesting.securityTestsForSystem(systemId);
+    const resil = resilience.resilienceForSystem(systemId);
+    const ir = incidentResponse.irForSystem(systemId);
+    const vendorPosture = vendors.vendorsForSystem(systemId);
+
+    const items: DueRecurringItem[] = [];
+
+    if (idPosture.review) {
+      items.push({ key: "access-review", title: "Access Review", domain: "Identity & Access", cadence: idPosture.review.cadence });
+    }
+
+    (["penetration-test", "red-team"] as const).forEach((type) => {
+      const latest = secTests.latestByType[type];
+      if (latest) {
+        items.push({
+          key: `security-test-${type}`,
+          title: type === "penetration-test" ? "Penetration Test" : "Red Team Exercise",
+          domain: "Security Testing",
+          cadence: latest.cadence,
+        });
+      }
+    });
+
+    if (resil.lastDrTest) {
+      items.push({ key: "dr-test", title: "DR Test", domain: "Resilience", cadence: resil.lastDrTest.cadence });
+    }
+
+    if (ir.lastTabletop) {
+      items.push({ key: "ir-tabletop", title: "IR Tabletop", domain: "Incident Response", cadence: ir.lastTabletop.cadence });
+    }
+    if (ir.planCurrency) {
+      items.push({ key: "ir-plan-review", title: "IR Plan Review", domain: "Incident Response", cadence: ir.planCurrency.cadence });
+    }
+
+    vendorPosture.vendors.forEach((v) => {
+      if (v.assurance) {
+        items.push({
+          key: `vendor-reassessment-${v.vendorId}`,
+          title: `Vendor Reassessment — ${v.vendor?.name ?? v.vendorId}`,
+          domain: "Vendor Assurance",
+          cadence: v.assurance.cadence,
+        });
+      }
+    });
+
+    return items.sort((a, b) => (a.cadence.dueAt ?? "").localeCompare(b.cadence.dueAt ?? ""));
+  }
+
+  return { cockpitSummary, dueRecurringForSystem };
 }
 
 export type CockpitApi = ReturnType<typeof createCockpit>;

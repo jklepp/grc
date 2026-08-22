@@ -16,7 +16,9 @@ import { ScopeReviewModal } from "./ScopeReviewModal";
 import { SystemRisk } from "./SystemRisk";
 import { SystemFindings } from "./SystemFindings";
 import { SystemAssets } from "./SystemAssets";
+import { SystemActions } from "./SystemActions";
 import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
+import type { EvaluationStep } from "./ControlEvaluationPanel";
 import { ControlAssessmentWalk } from "./ControlAssessmentWalk";
 import { keyControlAssessmentQueue } from "./recordAssessment";
 import AddSystemWizard from "../../components/AddSystemWizard";
@@ -57,6 +59,10 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
     onSubTabChange?.(tab);
   }
   const [selectedControlId, setSelectedControlId] = useState<ControlId | null>(null);
+  // Which step ControlEvaluationPanel should land on for the control above —
+  // set alongside selectedControlId so a caller (SystemActions' rows) can
+  // land straight on Findings & Remediation instead of Control Scoring.
+  const [selectedControlStep, setSelectedControlStep] = useState<EvaluationStep | undefined>(undefined);
   const [scopeReviewOpen, setScopeReviewOpen] = useState(false);
   const [requestedWave, setRequestedWave] = useState<ReviewWave | null>(null);
   const [assessmentWalkOpen, setAssessmentWalkOpen] = useState(false);
@@ -91,6 +97,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   }), [coverageBreakdown, system]);
 
   const cockpit = useMemo(() => liveEngine.cockpit.cockpitSummary(system.id), [liveEngine, system]);
+  const dueRecurring = useMemo(() => liveEngine.cockpit.dueRecurringForSystem(system.id), [liveEngine, system]);
   const identity = useMemo(() => liveEngine.identity.identityPostureForSystem(system.id), [liveEngine, system]);
   const exposure = useMemo(() => liveEngine.exposure.exposureForSystem(system.id), [liveEngine, system]);
   const secTests = useMemo(() => liveEngine.securityTesting.securityTestsForSystem(system.id), [liveEngine, system]);
@@ -138,6 +145,15 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   function openControlsGroup(selection: ControlSelection) {
     setControlsSelection(selection);
     changeSubTab("controls");
+  }
+
+  // The one place a control gets opened in ControlEvaluationPanel — used by
+  // both the Controls table's row click and the Actions tab's rows, so a
+  // caller that already knows which step matters (e.g. Findings &
+  // Remediation, for a gap with nothing filed yet) can say so.
+  function selectControl(controlId: ControlId, step?: EvaluationStep) {
+    setSelectedControlId(controlId);
+    setSelectedControlStep(step);
   }
 
   const findings = useMemo(() => liveEngine.findings.findingsForSystem(system.id), [liveEngine, system]);
@@ -238,7 +254,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           keyControlRemaining={assessmentQueue.length}
           onStartAssessment={assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
           walkActive={assessmentWalkOpen}
-          onSelectRow={(row) => setSelectedControlId(row.controlId)}
+          onSelectRow={(row) => selectControl(row.controlId)}
           onOpenScopeReview={openScopeReview}
           initialSelection={controlsSelection ?? undefined}
         />
@@ -247,6 +263,19 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
       {subTab === "risk" && <SystemRisk topRisks={topRisks} />}
 
       {subTab === "findings" && <SystemFindings systemId={system.id} findings={findings} />}
+
+      {subTab === "actions" && (
+        <SystemActions
+          matrix={matrix}
+          formalAssessment={formalAssessment}
+          findings={findings}
+          dueRecurring={dueRecurring}
+          onNavigate={changeSubTab}
+          onSelectControl={selectControl}
+          onSelectControlsGroup={openControlsGroup}
+          onStartAssessment={assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
+        />
+      )}
 
       {subTab === "assets" && <SystemAssets systemId={systemId} />}
 
@@ -274,7 +303,8 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           key={selectedRow.controlId}
           row={selectedRow}
           system={system}
-          onClose={() => setSelectedControlId(null)}
+          initialStep={selectedControlStep}
+          onClose={() => { setSelectedControlId(null); setSelectedControlStep(undefined); }}
         />
       )}
 
