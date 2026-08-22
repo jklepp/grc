@@ -105,6 +105,16 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
   // because it exists to ORDER this review's own sections, not to describe the
   // grading queue. On a runtime-created system the two differed roughly four to
   // one, so the rail advertised 21 and the walk opened with 90.
+  // A key control still waiting on an inheritance decision here does not
+  // belong in the technical queue yet — see recordAssessment.ts's
+  // keyControlAssessmentQueue. Excluding it is what lets Control Assessment
+  // open before every inheritance claim is confirmed (readyForAssessment
+  // below): the controls that are ready stay ready, the undecided ones just
+  // don't show up to be graded until Scope Review says what they are.
+  const pendingScopeIds = useMemo(() => new Set([
+    ...groups.filter((g) => g.bucket === "vendor-inherited").flatMap((g) => g.remaining.map((item) => item.control.id)),
+    ...groups.filter((g) => g.bucket === "enterprise").flatMap((g) => g.remaining.map((item) => item.control.id)),
+  ]), [groups]);
   const assessmentQueue = useMemo(() => keyControlAssessmentQueue(
     liveEngine.compliance.systemControlMatrix(systemId).map((row) => ({
       ...row,
@@ -112,9 +122,19 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
     })),
     liveEngine.graph.assetsBySystem[systemId] ?? [],
     (assetId, controlId) => liveEngine.applicability.resolveApplicability(assetId, controlId).required,
-  ), [liveEngine, systemId]);
+    pendingScopeIds,
+  ), [liveEngine, systemId, pendingScopeIds]);
   const technicalRemaining = assessmentQueue.length;
   const everythingDone = outOfScopeDone && inheritedDone;
+  // Internal inheritance is worked claim-by-claim and can take a while to
+  // finish end to end (many small central programs); gating every applicable
+  // key control behind it meant a system with 40 controls ready to grade sat
+  // idle until the last program on a long internal list was confirmed.
+  // External inheritance is usually a short, provider-driven list, so it
+  // still has to be settled first — see pendingScopeIds above for how an
+  // undecided internal claim's controls stay out of the queue in the
+  // meantime rather than leaking in ungraded.
+  const readyForAssessment = outOfScopeDone && externalDone;
 
   // What each internal claim actually stands on: ACME's own program-level
   // evidence, read from the same coverage derivation everything else uses —
@@ -224,14 +244,26 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
     setPendingNote("");
   }
 
-  function confirmGroup(group: InheritanceGroup) {
+  function noteForGroup(group: InheritanceGroup): string {
     const evidence = programEvidence[group.id];
-    const note = group.bucket === "vendor-inherited"
+    return group.bucket === "vendor-inherited"
       ? group.report
         ? `Accepted ${group.report.title} as covering ${group.domain} for this boundary.`
         : `Accepted ${group.coveredBy}'s coverage of ${group.domain} — no report or certification on file.`
       : `Confirmed ACME's central ${group.domain} program covers this boundary (${evidence?.evidenced ?? 0} of ${evidence?.total ?? group.controls.length} controls evidenced at program level).`;
-    commitReviews(group.remaining.map((item) => review(item.control.id, group.bucket, "confirm", note)));
+  }
+
+  function confirmGroup(group: InheritanceGroup) {
+    commitReviews(group.remaining.map((item) => review(item.control.id, group.bucket, "confirm", noteForGroup(group))));
+  }
+
+  // The bulk action External/Internal were missing next to Out of Scope's
+  // "Confirm all" — one claim, one program, and a required report or
+  // certification each carry enough weight to deserve their own row, but
+  // clicking through a long list of them one at a time added nothing a
+  // single decision couldn't cover.
+  function confirmAllGroups(list: InheritanceGroup[]) {
+    commitReviews(list.flatMap((g) => g.remaining.map((item) => review(item.control.id, g.bucket, "confirm", noteForGroup(g)))));
   }
 
   function takeOwnership(group: InheritanceGroup, item: ReviewWaveControl) {
@@ -239,6 +271,15 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
       item.control.id, group.bucket, "reject",
       "Rejected inheritance — ACME evidences this control directly on this boundary.",
     )]);
+  }
+
+  // The reversal takeOwnership never had: a claim already accepted for this
+  // one control, re-confirmed after a second look. Out of Scope has always
+  // let a confirmed exclusion be pulled back (reversalRow); an inheritance
+  // claim decided one way, individually, deserves the same way back the
+  // other.
+  function confirmSingleItem(group: InheritanceGroup, item: ReviewWaveControl) {
+    commitReviews([review(item.control.id, group.bucket, "confirm", noteForGroup(group))]);
   }
 
   if (!open) return null;
@@ -463,11 +504,11 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
               <RailItem
                 icon={SystemOwnedIcon}
                 title="Control Assessment"
-                detail={everythingDone
+                detail={readyForAssessment
                   ? `${technicalRemaining} key control${technicalRemaining === 1 ? "" : "s"} to grade`
-                  : `After scope review · ${technicalRemaining} to grade`}
+                  : `After Out of Scope and External Inheritance · ${technicalRemaining} to grade`}
                 state="pending"
-                disabled={!everythingDone}
+                disabled={!readyForAssessment}
                 onClick={() => { onClose(); onStartTechnicalReview(); }}
               />
             </RailGroup>
@@ -606,9 +647,24 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
                 description={view === "external"
                   ? `Controls ${system?.provider ?? "the provider"} runs for this boundary. Each row is one covered domain — accept the report or certification that backs it.`
                   : "Controls covered by ACME's own central programs — run by us, evidenced at program level like any other control. Confirm each program actually reaches this boundary."}
-                aside={<StatusPill tone={(view === "external" ? externalDone : internalDone) ? "success" : "neutral"}>
-                  {view === "external" ? `${externalConfirmed} of ${externalGroups.length} confirmed` : `${internalConfirmed} of ${internalGroups.length} confirmed`}
-                </StatusPill>}
+                aside={(() => {
+                  const shown = view === "external" ? externalGroups : internalGroups;
+                  const unit = view === "external" ? "claim" : "program";
+                  const remainingGroups = shown.filter((g) => g.remaining.length > 0);
+                  const done = view === "external" ? externalDone : internalDone;
+                  return (
+                    <div className="flex items-center gap-2">
+                      {remainingGroups.length > 1 && (
+                        <Button size="sm" icon={Check} disabled={!canWrite} onClick={() => confirmAllGroups(remainingGroups)}>
+                          Confirm all {remainingGroups.length} {unit}{remainingGroups.length === 1 ? "" : "s"}
+                        </Button>
+                      )}
+                      <StatusPill tone={done ? "success" : "neutral"}>
+                        {view === "external" ? `${externalConfirmed} of ${externalGroups.length} confirmed` : `${internalConfirmed} of ${internalGroups.length} confirmed`}
+                      </StatusPill>
+                    </div>
+                  );
+                })()}
               >
                 <Well padded={false} className="flex-1 min-h-0 overflow-y-auto">
                   {(view === "external" ? externalGroups : internalGroups).map((group, index, shown) => {
@@ -682,9 +738,18 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
                                       <span className={`${TX.help} ml-2 font-mono`} style={{ color: C.muted }}>{item.control.id}</span>
                                     </div>
                                     {decided ? (
-                                      <StatusPill tone={rejected ? "warning" : "success"}>
-                                        {rejected ? "ACME-owned" : "Confirmed"}
-                                      </StatusPill>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        <StatusPill tone={rejected ? "warning" : "success"}>
+                                          {rejected ? "ACME-owned" : "Confirmed"}
+                                        </StatusPill>
+                                        <Button
+                                          size="sm"
+                                          disabled={!canWrite}
+                                          onClick={() => rejected ? confirmSingleItem(group, item) : takeOwnership(group, item)}
+                                        >
+                                          {rejected ? "Confirm inheritance" : "Take ownership"}
+                                        </Button>
+                                      </div>
                                     ) : (
                                       <Button size="sm" disabled={!canWrite} onClick={() => takeOwnership(group, item)}>
                                         Take ownership
@@ -718,7 +783,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
                 {sectionRemaining[nextSection] > 0 ? ` · ${sectionRemaining[nextSection]}` : ""}
               </Button>
             )
-            : everythingDone && technicalRemaining > 0
+            : readyForAssessment && technicalRemaining > 0
               ? (
                 <Button
                   variant="primary"

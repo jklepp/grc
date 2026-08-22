@@ -163,6 +163,14 @@ export interface FrameworkReadiness {
 // lane 3's count so a surface can name them, not just tally them.
 export interface FormalAssessmentStatus {
   scopeDecided: boolean;
+  // The population behind scopeDecided: every out-of-scope exclusion, external
+  // inheritance claim, and internal inheritance claim a human has to confirm or
+  // reject. Kept separate from applicability's pendingControls, which is only
+  // the narrower set a deterministic rule could not resolve on its own — a
+  // runtime-created system can clear that set with nothing decided, because
+  // every inheritance wave still starts unconfirmed (see isRuntimeCreatedSystem).
+  scopeRemainingCount: number;
+  scopeTotalCount: number;
   controlsAssessed: boolean;
   gapsRecorded: boolean;
   gapControlsMissingFinding: Array<{ controlId: ControlId; control: Control }>;
@@ -543,7 +551,6 @@ export function createReview(
   // the cockpit, or a second surface — without recomputing them.
   function formalAssessmentForSystem(systemId: SystemId): FormalAssessmentStatus {
     const matrix = compliance.systemControlMatrix(systemId);
-    const summary = compliance.controlApplicabilitySummary(systemId);
     const systemFindings = findings.findingsForSystem(systemId);
     const findingControlIds = new Set(systemFindings.map((f) => f.controlId));
 
@@ -551,12 +558,23 @@ export function createReview(
     const gapControls = matrix.filter((row) => (GAP_CONTROL_STATUSES as readonly string[]).includes(row.status));
     const gapControlsMissingFinding = gapControls.filter((row) => !findingControlIds.has(row.controlId));
 
-    const scopeDecided = summary.pending === 0;
+    // Scope is decided once a human has confirmed or rejected every
+    // out-of-scope exclusion and inheritance claim Scope Review presents —
+    // the same three waves auditReadinessForSystem's scopeConfirmed checks,
+    // not applicability's narrower pendingControls (a rule-ambiguity count
+    // that a fresh runtime system can already read as zero).
+    const walk = wavesForSystem(systemId);
+    const scopeWaves = [walk.waves["not-applicable"], walk.waves["vendor-inherited"], walk.waves.enterprise];
+    const scopeRemainingCount = scopeWaves.reduce((sum, w) => sum + w.remaining.length, 0);
+    const scopeTotalCount = scopeWaves.reduce((sum, w) => sum + w.total, 0);
+    const scopeDecided = scopeRemainingCount === 0;
     const controlsAssessed = matrix.every((row) => row.status !== "unassessed");
     const gapsRecorded = gapControlsMissingFinding.length === 0;
 
     return {
       scopeDecided,
+      scopeRemainingCount,
+      scopeTotalCount,
       controlsAssessed,
       gapsRecorded,
       gapControlsMissingFinding,

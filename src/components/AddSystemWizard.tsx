@@ -16,11 +16,12 @@ import {
   ORGS, VENDORS, PROVIDER_CERTIFICATIONS, HOSTING_TYPES, INHERITED_DOMAINS,
   AVAILABILITY_TIERS, DATA_SUBJECT_TYPES, ASSET_TYPE_CATEGORIES, ASSET_TYPES,
   DATA_ROLE_META, getAllDataTypes, CLOUD_REGIONS, RETENTION_OPTIONS, RESIDENCY_OPTIONS,
-  SYSTEM_REGULATORY_CONTEXTS, IDENTITY_TYPES, NETWORK_EXPOSURES,
+  IDENTITY_TYPES, NETWORK_EXPOSURES,
   IMPACT_LEVELS, IMPACT_LEVEL_LABELS, SECURITY_OBJECTIVES, SECURITY_OBJECTIVE_LABELS,
   defaultSecurityCategory, overallImpactLevel,
   getLiveEngine, baseFacts, commitRuntimeFacts,
 } from "../engine";
+import { FRAMEWORKS } from "../graph/nodes/controls";
 import type { Engine } from "../engine";
 import { buildLiveEngine } from "../engine/liveGraph";
 import type { RuntimeFacts } from "../engine/liveGraph";
@@ -33,7 +34,7 @@ import type { AssetDataType, DataRole } from "../graph/edges/assetDataTypes";
 import { DATA_ROLES } from "../graph/edges/assetDataTypes";
 import type { IdentityType } from "../graph/nodes/identity";
 import type {
-  AvailabilityTier, DataSubjectType, HostingType, NetworkExposure, SecurityCategory, SecurityObjective, System, SystemRegulatoryContext,
+  AvailabilityTier, DataSubjectType, HostingType, NetworkExposure, SecurityCategory, SecurityObjective, System,
 } from "../graph/nodes/systems";
 import type { ClassificationTier } from "../graph/nodes/taxonomy";
 import type { AssessmentScope } from "../graph/nodes/assessmentScope";
@@ -374,7 +375,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   const [internetFacing, setInternetFacing] = useState(false);
   const [usesAI, setUsesAI] = useState(false);
   const [autonomousActions, setAutonomousActions] = useState(false);
-  const [regulatoryContext, setRegulatoryContext] = useState<SystemRegulatoryContext[]>([]);
+  const [standards, setStandards] = useState<string[]>([]);
   const [identityTypes, setIdentityTypes] = useState<IdentityType[]>([]);
   const [networkExposure, setNetworkExposure] = useState<NetworkExposure[]>([]);
   const [hasThirdPartyIntegration, setHasThirdPartyIntegration] = useState(false);
@@ -462,7 +463,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     setInternetFacing(source.internetFacing);
     setUsesAI(source.aiUsage.usesAI);
     setAutonomousActions(source.aiUsage.autonomousActions);
-    setRegulatoryContext([...source.regulatoryContext]);
+    setStandards([...source.standards]);
     setIdentityTypes([...source.onboardingProfile.identityTypes]);
     setNetworkExposure([...source.onboardingProfile.networkExposure]);
     setHasThirdPartyIntegration(source.onboardingProfile.hasThirdPartyIntegration);
@@ -573,7 +574,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     setAvailabilityTier(AVAILABILITY_TIERS[1]); setSecurityCategory(defaultSecurityCategory()); setUserCount(0); setRegions([]); setSubjects([]);
     setApproxRecords(0); setRetention(RETENTION_OPTIONS[0]); setResidency(RESIDENCY_OPTIONS[0]);
     setSystemDataTypeIds([]); setDataSearch(""); setInternetFacing(false);
-    setUsesAI(false); setAutonomousActions(false); setRegulatoryContext([]);
+    setUsesAI(false); setAutonomousActions(false); setStandards([]);
     setIdentityTypes([]); setNetworkExposure([]); setHasThirdPartyIntegration(false); setSdlcApplicable(false);
     setOwnerOrgId(ORGS[0]?.id ?? ""); setAssessor(""); setAssessmentTarget(defaultAssessmentTarget());
     setAssets([blankAsset(0)]); setActorDrafts([]); setFlowDrafts([]); setAgentDrafts([]); setDryRun(null);
@@ -740,7 +741,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       hostingType,
       provider,
       standards: [...new Set([
-        ...(sourceSystem?.standards ?? []),
+        ...standards,
         ...PROVIDER_CERTIFICATIONS.filter((c) => c.provider === provider).map((c) => c.standard),
       ])],
       mission: mission.trim(),
@@ -763,7 +764,11 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
         residency: residency ? [residency] : [],
       },
       aiUsage: { usesAI, autonomousActions: usesAI && autonomousActions },
-      regulatoryContext,
+      // Not asked in this wizard — see the Applicable Frameworks field below,
+      // which replaced it. Carried forward untouched on an edit/clone rather
+      // than dropped, so a system already tagged sox/ai-regulated/etc. doesn't
+      // lose that tag the next time someone edits it here.
+      regulatoryContext: sourceSystem?.regulatoryContext ?? [],
       onboardingProfile: { identityTypes, networkExposure, hasThirdPartyIntegration, sdlcApplicable },
     };
 
@@ -1338,7 +1343,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                     </FieldGrid>
                   </Section>
 
-                  <Section icon={SlidersHorizontal} title="Operational characteristics" description="These choices add targeted vendor, development, AI, and regulatory requirements.">
+                  <Section icon={SlidersHorizontal} title="Operational characteristics" description="These choices add targeted vendor, development, and AI requirements.">
                     <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
                       <ToggleCard
                         checked={hasThirdPartyIntegration}
@@ -1363,15 +1368,15 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                         )}
                       </ToggleCard>
                     </div>
-                    <Field label="Regulatory context" note="Business obligations that apply beyond the data profile captured on the next step.">
+                    <Field label="Applicable frameworks" note="Which frameworks this system is assessed against. Drives framework readiness and report generation on the system screen.">
                       <div className="flex flex-wrap gap-2">
-                        {SYSTEM_REGULATORY_CONTEXTS.map((r) => (
+                        {FRAMEWORKS.map((f) => (
                           <ChoiceChip
-                            key={r}
-                            selected={regulatoryContext.includes(r)}
-                            onClick={() => setRegulatoryContext((prev) => (prev.includes(r) ? prev.filter((x) => x !== r) : [...prev, r]))}
+                            key={f}
+                            selected={standards.includes(f)}
+                            onClick={() => setStandards((prev) => (prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]))}
                           >
-                            {r.replace(/-/g, " ")}
+                            {f}
                           </ChoiceChip>
                         ))}
                       </div>

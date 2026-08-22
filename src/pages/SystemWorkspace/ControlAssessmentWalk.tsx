@@ -52,10 +52,19 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
     responsibility: liveEngine.compliance.responsibilityForControl(systemId, row.controlId),
   }));
   const systemAssets = liveEngine.graph.assetsBySystem[systemId] ?? [];
+  // Same exclusion Scope Review counts against: a key control still waiting
+  // on an inheritance decision does not belong in this walk — that decision
+  // is Scope Review's, not a rating the assessor should be asked to invent.
+  const scopeWaves = liveEngine.review.wavesForSystem(systemId).waves;
+  const pendingScopeIds = new Set([
+    ...scopeWaves["vendor-inherited"].remaining.map((item) => item.control.id),
+    ...scopeWaves.enterprise.remaining.map((item) => item.control.id),
+  ]);
   const queue = keyControlAssessmentQueue(
     matrix,
     systemAssets,
     (assetId, ctrlId) => liveEngine.applicability.resolveApplicability(assetId, ctrlId).required,
+    pendingScopeIds,
   );
 
   const [domainOrder, setDomainOrder] = useState<string[]>([]);

@@ -220,7 +220,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
       {subTab === "overview" && (
         <SystemOverview
           system={system} cockpit={cockpit} compliance={posture.compliance}
-          statusCounts={statusCounts} applicabilitySummary={applicabilitySummary}
+          statusCounts={statusCounts}
           exposure={exposure}
           dataTypes={dataTypes} onNavigate={changeSubTab}
           onOpenScopeReview={openScopeReview} onSelectControlsGroup={openControlsGroup}

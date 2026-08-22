@@ -5,13 +5,12 @@ import { C } from "../../../theme";
 import { SectionHeader } from "../shared/SectionHeader";
 import { Callout, StatusPill, TX, WizardTokens, WZ } from "../../../components/wizard/WizardUI";
 import type { FormalAssessmentStatus } from "../../../engine/review";
-import type { ControlMatrixRow, ApplicabilitySummary } from "../types";
+import type { ControlMatrixRow } from "../types";
 
 type ControlStatus = ControlMatrixRow["status"];
 
 interface AssessmentReadinessProps {
   statusCounts: Record<ControlStatus, number>;
-  applicabilitySummary: ApplicabilitySummary;
   formalAssessment: FormalAssessmentStatus;
   onScopeClick: () => void;
   onAssessClick: () => void;
@@ -182,20 +181,21 @@ const FORMAL_ASSESSMENT_CHECKS = ["scope", "assess", "gaps"] as const;
 // checks, not a sequential wizard. The first deficient check in
 // scope->assess->gaps->remediate order (the natural workflow sequence) is
 // marked as next; the order on screen never reshuffles.
-export function AssessmentReadiness({ statusCounts, applicabilitySummary, formalAssessment, onScopeClick, onAssessClick, onGapsClick, onRemediateClick }: AssessmentReadinessProps) {
-  const pendingCount = applicabilitySummary?.pending ?? 0;
+export function AssessmentReadiness({ statusCounts, formalAssessment, onScopeClick, onAssessClick, onGapsClick, onRemediateClick }: AssessmentReadinessProps) {
+  const pendingCount = formalAssessment.scopeRemainingCount;
   const assessmentCount = statusCounts.unassessed ?? 0;
   const gapsMissingCount = formalAssessment.gapControlsMissingFinding.length;
   const remediationCount = formalAssessment.remediationCount;
 
   // Denominators for the gauges. Each one is the population its own check runs
   // over, so an arc never mixes two questions:
-  //   scope     — every control the tier baseline matched, decided or not
+  //   scope     — every exclusion and inheritance claim Scope Review presents,
+  //               decided or not (see formalAssessmentForSystem)
   //   assess    — every applicable control, i.e. the whole control matrix
   //   gaps      — every control carrying a gap, recorded or not
   //   remediate — assessed controls, of which the clean ones are the progress
-  const decidedCount = (applicabilitySummary?.applicable ?? 0) + (applicabilitySummary?.notApplicable ?? 0);
-  const matchedCount = decidedCount + pendingCount;
+  const matchedCount = formalAssessment.scopeTotalCount;
+  const decidedCount = matchedCount - pendingCount;
   const matrixCount = Object.values(statusCounts).reduce((sum, n) => sum + n, 0);
   const assessedCount = matrixCount - assessmentCount;
 

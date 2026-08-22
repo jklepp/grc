@@ -9,7 +9,7 @@ import { Panel } from "./shared/Panel";
 import { ASSESSMENT_SELECTION, DEFAULT_SELECTION } from "./SystemControls";
 import type { ControlSelection } from "./SystemControls";
 import type {
-  ApplicabilitySummary, CockpitSummary, ControlMatrixRow, ExposurePosture, WorkspaceDataType, WorkspaceSystem,
+  CockpitSummary, ControlMatrixRow, ExposurePosture, WorkspaceDataType, WorkspaceSystem,
 } from "./types";
 import type { SystemWorkspaceTab } from "./tabs";
 import type { FormalAssessmentStatus, ReviewWave } from "../../engine/review";
@@ -19,7 +19,6 @@ interface SystemOverviewProps {
   cockpit: CockpitSummary;
   compliance: number | null;
   statusCounts: Record<ControlMatrixRow["status"], number>;
-  applicabilitySummary: ApplicabilitySummary;
   exposure: ExposurePosture;
   dataTypes: WorkspaceDataType[];
   onNavigate: (tab: SystemWorkspaceTab) => void;
@@ -32,7 +31,7 @@ interface SystemOverviewProps {
 
 export function SystemOverview(props: SystemOverviewProps) {
   const {
-    system, cockpit, compliance, statusCounts, applicabilitySummary, exposure,
+    system, cockpit, compliance, statusCounts, exposure,
     dataTypes, onNavigate, onOpenScopeReview, onSelectControlsGroup, onStartAssessment, onGenerateIsoReport,
     formalAssessment,
   } = props;
@@ -56,7 +55,6 @@ export function SystemOverview(props: SystemOverviewProps) {
       <Panel>
         <AssessmentReadiness
           statusCounts={statusCounts}
-          applicabilitySummary={applicabilitySummary}
           formalAssessment={formalAssessment}
           onScopeClick={() => onOpenScopeReview("not-applicable")}
           onAssessClick={onStartAssessment ?? (() => onSelectControlsGroup(ASSESSMENT_SELECTION))}

@@ -24,19 +24,15 @@ const ROW_GAP = 10;
 const rowSpan = (n: number) => n * ROW_H + (n - 1) * ROW_GAP;
 const LADDER_H = rowSpan(PRISMA_LEVELS.length);
 const COMPLIANCE_H = rowSpan(3); // Policy through Implemented
-const TILE_GAP = 12;
-const TILE_H = (LADDER_H - TILE_GAP) / 2; // two tiles fill the ladder height exactly
-const COMPLIANCE_TIP = TILE_H / 2; // brace tips land on their tile's vertical center
-const ASSURANCE_TIP = TILE_H + TILE_GAP + TILE_H / 2;
 
 // A hero-style tile matching the app's existing gradient "Current Assurance"
 // card style — a fixed brand color per metric, not score-driven, so
 // Compliance and Assurance stay visually distinct from each other no matter
-// what the numbers do. Fills its flex track so the tile column can be pinned
-// to the ladder's height.
+// what the numbers do. Sized to its content and centered by its flex parent,
+// not stretched — each tile now sits alone against the span of rows it reads.
 function ScoreTile({ label, sub, value, pct, gradient }: { label: string; sub: string; value: ReactNode; pct: number | null; gradient: string }) {
   return (
-    <div className="rounded-xl px-4 py-3 flex-1 flex items-center justify-between gap-3" style={{ background: gradient }}>
+    <div className="rounded-xl px-4 py-3 w-full flex items-center justify-between gap-3" style={{ background: gradient }}>
       <div className="min-w-0">
         <div className="text-2xl font-semibold text-white" style={{ fontFamily: "'Source Serif 4', serif" }}>{value}</div>
         <div className="text-xs mt-1 text-white/85">{label}</div>
@@ -51,11 +47,12 @@ const ASSURANCE_GRADIENT = `linear-gradient(135deg, ${C.accent} 0%, ${C.accentSt
 const COMPLIANCE_GRADIENT = `linear-gradient(135deg, ${C.amber} 0%, #2C4A78 100%)`;
 
 // A real curly-brace path (flat back against the grouped rows, tip poking
-// left) ending in a small filled dot. The dot plus color-matching to the
-// tile does the tile↔brace linking — no leader line reaching across the
-// gap. `tipY` lets the tip sit off-center within the curve so it can land
-// level with its tile's center while the curve itself still spans the full
-// row range it's bracketing.
+// left). Color-matching to the tile does the tile↔brace linking. `tipY`
+// lets the tip sit off-center within the curve so it can land level with
+// the vertical center of the row range it's bracketing, independent of
+// where the tile itself sits. Wrap in `transform: scaleX(-1)` to flip it —
+// flat back on the left against the rows, tip poking right toward a tile
+// on the other side.
 function CurlyBrace({ height, width, color, strokeWidth = 2, tipY }: { height: number; width: number; color: string; strokeWidth?: number; tipY?: number }) {
   const tip = tipY ?? height / 2;
   const r = Math.min(width, tip, height - tip) * 0.9;
@@ -70,7 +67,6 @@ function CurlyBrace({ height, width, color, strokeWidth = 2, tipY }: { height: n
   `;
   return (
     <svg width={width} height={height} style={{ overflow: "visible" }}>
-      <circle cx={-4} cy={tip} r={2.5} fill={color} />
       <path d={d} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
@@ -102,29 +98,33 @@ export function PrismaLadder({ system, compliance, assurance }: PrismaLadderProp
         description="Two readings of one five-level ladder — Compliance stops at Implemented, Assurance weighs all five."
       />
       <div className="flex gap-3 items-start">
-        <div className="w-[280px] shrink-0 flex flex-col" style={{ height: LADDER_H, gap: TILE_GAP }}>
-          <ScoreTile label="Compliance" sub="Through Implemented" value={compliance == null ? "—" : `${compliance}%`} pct={compliance} gradient={COMPLIANCE_GRADIENT} />
+        <div className="w-[220px] shrink-0 flex items-start justify-center" style={{ height: LADDER_H }}>
           <ScoreTile label="Assurance" sub="All five levels" value={assurance == null ? "—" : `${assurance}%`} pct={assurance} gradient={ASSURANCE_GRADIENT} />
         </div>
 
-        <div className="flex gap-4 items-stretch min-w-0 flex-1">
-          <div className="relative w-[44px] shrink-0" style={{ height: LADDER_H }}>
-            <div className="absolute" style={{ left: 6, top: 0 }}>
-              <CurlyBrace height={COMPLIANCE_H} width={14} color={C.amber} tipY={COMPLIANCE_TIP} />
-            </div>
-            <div className="absolute" style={{ left: 26, top: 0 }}>
-              <CurlyBrace height={LADDER_H} width={14} color={C.accent} tipY={ASSURANCE_TIP} />
-            </div>
+        <div className="relative w-[20px] shrink-0" style={{ height: LADDER_H }}>
+          <div className="absolute" style={{ left: 6, top: 0 }}>
+            <CurlyBrace height={LADDER_H} width={14} color={C.accent} tipY={LADDER_H / 2} />
           </div>
+        </div>
 
-          <div className="flex flex-col flex-1 min-w-0 max-w-[520px]" style={{ gap: ROW_GAP }}>
-            {rows.map((row) => (
-              <div key={row.level} className="flex items-center gap-2.5" style={{ height: ROW_H }}>
-                <div className="w-[92px] shrink-0 text-xs font-semibold" style={{ color: C.ink }}>{row.level}</div>
-                <div className="flex-1 min-w-0"><CoverageBar pct={row.pct} color={row.color} barHeight={7} /></div>
-              </div>
-            ))}
+        <div className="flex flex-col flex-1 min-w-0 max-w-[420px]" style={{ gap: ROW_GAP }}>
+          {rows.map((row) => (
+            <div key={row.level} className="flex items-center gap-2.5" style={{ height: ROW_H }}>
+              <div className="w-[92px] shrink-0 text-xs font-semibold" style={{ color: C.ink }}>{row.level}</div>
+              <div className="flex-1 min-w-0"><CoverageBar pct={row.pct} color={row.color} barHeight={7} /></div>
+            </div>
+          ))}
+        </div>
+
+        <div className="relative w-[20px] shrink-0" style={{ height: COMPLIANCE_H }}>
+          <div className="absolute" style={{ left: 0, top: 0, transform: "scaleX(-1)" }}>
+            <CurlyBrace height={COMPLIANCE_H} width={14} color={C.amber} tipY={COMPLIANCE_H / 2} />
           </div>
+        </div>
+
+        <div className="w-[220px] shrink-0 flex items-start justify-center" style={{ height: COMPLIANCE_H }}>
+          <ScoreTile label="Compliance" sub="Through Implemented" value={compliance == null ? "—" : `${compliance}%`} pct={compliance} gradient={COMPLIANCE_GRADIENT} />
         </div>
       </div>
     </div>
