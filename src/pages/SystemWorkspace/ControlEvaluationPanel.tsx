@@ -40,7 +40,7 @@ import type { AssetOption } from "./formHelpers";
 import type { ControlAssessment, ControlEvidenceDraft, ControlInstance, EvidenceDraft, Engine, EngineFinding, FindingDraft, LevelRating, ScoredEvidence } from "../../engine";
 import type { RuntimeFacts } from "../../engine/liveGraph";
 import type { AssetId, ControlId, EvidenceId, FindingId, SystemId } from "../../graph/ids";
-import type { ComplianceRating, EvidenceType, PrismaLevel } from "../../graph/nodes/taxonomy";
+import type { Basis, ComplianceRating, EvidenceType, PrismaLevel } from "../../graph/nodes/taxonomy";
 import type { EvidenceCollectorType, EvidenceResult, IndependenceLevel } from "../../graph/nodes/evidence";
 import type { ArtifactSensitivity, EvidenceReviewDecision } from "../../graph/nodes/evidenceProvenance";
 import type { FindingSeverity, FindingSource, RemediationStatus } from "../../graph/nodes/findings";
@@ -627,6 +627,36 @@ function FindingForm({ initial, assetOptions, onCancel, onSubmit }: FindingFormP
   );
 }
 
+// The document a lane's rating was derived FROM, shown inside that lane.
+//
+// Policy and Procedure do not sample evidence — they read the policy and SOP
+// libraries, and the record they read is already in the graph. Without this the
+// panel contradicted itself: it named POL-05 as the governing policy one step
+// away, rated the Policy lane 100 because POL-05 cites the control by name, and
+// then reported "None attached" on that same lane, which reads as "nobody has
+// substantiated this" when the substantiation is what produced the rating.
+//
+// Deliberately NOT an Evidence record. Minting one would put a document nobody
+// collected into the evidence store, where it would be sampled, aged and
+// counted as a collection — the derivation's source and a collected artifact
+// are different things and must stay so. The supporting line is the lane's own
+// rationale, quoted from the engine rather than restated here (2.7).
+function LaneDerivedFrom({ code, title, detail, rationale, basis }: {
+  code: string; title: string; detail?: string | null; rationale: string; basis?: Basis | null;
+}) {
+  return (
+    <Well hollow className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2.5 flex-wrap">
+        <ScrollText size={13} color={C.muted} className="shrink-0" />
+        <span className={TX.body} style={{ color: C.ink }}>{code} &middot; {title}</span>
+        <span className="ml-auto shrink-0"><BasisTag basis={basis} /></span>
+      </div>
+      {detail && <div className={TX.help} style={{ color: C.muted }}>{detail}</div>}
+      <div className={TX.help} style={{ color: C.muted }}>{rationale}</div>
+    </Well>
+  );
+}
+
 // The catalog's requirement, rendered so a clamp has somewhere sensible to
 // land: the lead-in as prose, then one row per numbered clause. The controls
 // written as a single sentence — most of them — parse to no clauses and render
@@ -816,6 +846,28 @@ export function ControlEvaluationPanel({
   const requirementClauseCount = parseControlRequirement(row.control.description).clauses.length;
   const governingPolicy = POLICY_BY_CONTROL[row.control.id];
   const governingProcedure = PROCEDURE_BY_CONTROL[row.control.id];
+  // Which lanes have a document behind them at all. Only the two that read
+  // libraries rather than sample: Implemented, Measured and Managed derive from
+  // evidence prevalence and the review calendar, so an empty lane there really
+  // does mean nothing is attached.
+  const laneDerivedDoc: Partial<Record<PrismaLevel, { code: string; title: string; detail: string | null }>> = {
+    ...(governingPolicy && {
+      Policy: {
+        code: governingPolicy.code,
+        title: governingPolicy.title,
+        detail: `Last reviewed ${governingPolicy.lastReviewed}.`,
+      },
+    }),
+    ...(governingProcedure && {
+      Procedure: {
+        code: governingProcedure.procedure.code,
+        title: governingProcedure.procedure.title,
+        detail: governingProcedure.step
+          ? `Step: ${governingProcedure.step} · owned by ${governingProcedure.procedure.owner}.`
+          : `Owned by ${governingProcedure.procedure.owner}.`,
+      },
+    }),
+  };
   const drawerClauses = row.control.frameworks.filter((f) => system.standards.includes(f.standard));
   const statusMeta = STATUS_META[row.status];
   const respMeta = RESPONSIBILITY_META[row.responsibility];
@@ -1345,7 +1397,7 @@ export function ControlEvaluationPanel({
               <Section
                 icon={FileCheck2}
                 title="Evidence by lane"
-                description="Substantiate each lane with an artifact — the policy document, the SOP extract, the test output, the metric, the review minutes. Implemented-lane records are sampled for scoring; the other lanes' records document the claim behind the derived rating."
+                description="Policy and Procedure already carry the library record their rating was derived from; attach an artifact to the others — the test output, the metric, the review minutes. Implemented-lane records are sampled for scoring; the other lanes' records document the claim behind the derived rating."
               >
                 {PRISMA_LEVELS.map((level, idx) => {
                   const laneLevels = gradingLevels ?? assessment.levels;
@@ -1355,6 +1407,7 @@ export function ControlEvaluationPanel({
                   // a number the operator never picked.
                   const laneRating = effectiveRating(laneState, laneLevels, level, assessed);
                   const records = laneEvidence[level];
+                  const derivedFrom = laneDerivedDoc[level];
                   return (
                     <Well key={level} className="flex flex-col gap-3">
                       <div className="flex items-center gap-2.5 flex-wrap">
@@ -1371,8 +1424,13 @@ export function ControlEvaluationPanel({
                         >
                           {laneRating == null ? "Not yet assessed" : `${laneRating} — ${COMPLIANCE_LABELS[laneRating]}`}
                         </span>
-                        <StatusPill tone={records.length === 0 ? "warning" : "success"}>
-                          {records.length === 0 ? "None attached" : `${records.length} attached`}
+                        {/* A lane with a derived source is substantiated even
+                            with nothing attached, so it must not wear the same
+                            amber "None attached" as a lane nothing backs. */}
+                        <StatusPill tone={records.length > 0 ? "success" : derivedFrom ? "neutral" : "warning"}>
+                          {records.length > 0
+                            ? `${records.length} attached`
+                            : derivedFrom ? `Derived from ${derivedFrom.code}` : "None attached"}
                         </StatusPill>
                         {attachingLane !== level && (
                           <span className="ml-auto">
@@ -1386,6 +1444,15 @@ export function ControlEvaluationPanel({
                           </span>
                         )}
                       </div>
+                      {derivedFrom && (
+                        <LaneDerivedFrom
+                          code={derivedFrom.code}
+                          title={derivedFrom.title}
+                          detail={derivedFrom.detail}
+                          rationale={laneLevels[level].rationale}
+                          basis={laneLevels[level].basis}
+                        />
+                      )}
                       {records.length > 0 && (
                         <div className="flex flex-col gap-2">
                           {records.map((e) => editingLaneEvidenceId === e.id ? (
