@@ -117,11 +117,14 @@ export function Section({ icon: Icon, title, description, aside, grow = false, c
 }
 
 // Reference material a step has to keep in view while the work happens beside
-// it — as opposed to a Section, which frames work of its own. Two differences
-// earn it a primitive rather than a Section with small padding (1.2):
+// it — as opposed to a Section, which frames work of its own. It wears the same
+// header as a Section (icon square, 13.5px title) on purpose: it sits in the
+// same column as the Sections it informs, and a smaller title made it read as a
+// caption on the card below rather than as a block in its own right. Two things
+// still earn it a primitive rather than a Section (1.2):
 //
-//   * its header is one line, because a block that exists to leave room for
-//     the work below it cannot spend 52px on chrome first; and
+//   * it carries no description line — the content IS the explanation, and a
+//     sentence about it would say the same thing twice; and
 //   * its body is height-bounded and MEASURED. Content that fits renders in
 //     full with no disclosure at all; only content that overruns `maxHeight`
 //     clamps, fades, and gains a toggle. Assuming the clamp instead would put
@@ -150,9 +153,16 @@ export function Brief({ icon: Icon, label, aside, maxHeight = 108, expandLabel =
   const fade = `linear-gradient(to bottom, #000 ${Math.max(0, maxHeight - 40)}px, transparent ${maxHeight}px)`;
   return (
     <section style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: WZ.radius.card }}>
-      <header className="flex items-center gap-2.5 px-4 py-2.5" style={{ borderBottom: `1px solid ${C.border}` }}>
-        {Icon && <Icon size={14} color={C.accent} className="shrink-0" />}
-        <span className={TX.label} style={{ color: C.ink }}>{label}</span>
+      <header className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${C.border}` }}>
+        {Icon && (
+          <span
+            className="w-7 h-7 flex items-center justify-center shrink-0"
+            style={{ background: C.accentBg, color: C.accent, borderRadius: WZ.radius.control }}
+          >
+            <Icon size={15} />
+          </span>
+        )}
+        <h3 className={TX.sectionTitle} style={{ color: C.ink }}>{label}</h3>
         {aside && <div className="ml-auto shrink-0 flex items-center gap-2">{aside}</div>}
       </header>
       <div className="px-4 py-3.5 flex flex-col gap-2.5">

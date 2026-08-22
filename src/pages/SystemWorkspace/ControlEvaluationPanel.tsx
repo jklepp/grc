@@ -655,14 +655,15 @@ function RequirementText({ description }: { description: string }) {
   );
 }
 
-// The requirement itself is no longer a step. It rides above the lanes in
-// Scoring, where the call is actually made (see RequirementText); what stays
-// here is the material an assessor goes and looks up — the written authority,
-// the clause mappings, the scoring breakdown — which is what the step is named
-// for now (2.1: name a step for what the user is doing).
+// Declared order, and the rail reads it top to bottom (4.1). Scoring leads
+// because it is the job; the requirement it is graded against rides above the
+// lanes inside that step (see RequirementText), so nothing has to be looked up
+// before the work can start. Authority & Mapping follows as the material an
+// assessor goes and consults — the written authority, the clause mappings, the
+// scoring breakdown — which is what it is named for (2.1).
 const STEPS = [
-  { id: "authority", label: "Authority & mapping", icon: ScrollText },
-  { id: "scoring", label: "Scoring and Evidence", icon: Gauge },
+  { id: "scoring", label: "Control Scoring", icon: Gauge },
+  { id: "authority", label: "Authority & Mapping", icon: ScrollText },
   { id: "implementation", label: "Implementation Coverage", icon: Layers },
   { id: "findings", label: "Findings & Remediation", icon: Wrench },
 ] as const;
@@ -710,8 +711,8 @@ interface ControlEvaluationPanelProps {
 export function ControlEvaluationPanel({
   row: committedRow, system, onClose, walk,
 }: ControlEvaluationPanelProps) {
-  // Lands on Scoring and Evidence — the operator's stated job — with the
-  // requirement context one step up the rail rather than in the way.
+  // Lands on Control Scoring — the operator's stated job, and now the first
+  // step in the rail, so the landing place and the declared order agree.
   const [activeStep, setActiveStep] = useState<EvaluationStep>("scoring");
   const [attachingLane, setAttachingLane] = useState<PrismaLevel | null>(null);
   const [editingLaneEvidenceId, setEditingLaneEvidenceId] = useState<EvidenceId | null>(null);
@@ -1151,7 +1152,7 @@ export function ControlEvaluationPanel({
         <WizardPane>
           {saveError && <SaveErrorCallout problems={saveError} />}
 
-          {/* ===== Authority & mapping ===== */}
+          {/* ===== Authority & Mapping ===== */}
           {activeStep === "authority" && (
             <>
               {(governingPolicy || governingProcedure) && (
@@ -1241,7 +1242,7 @@ export function ControlEvaluationPanel({
             </>
           )}
 
-          {/* ===== Scoring and Evidence ===== */}
+          {/* ===== Control Scoring ===== */}
           {/* The step renders the same sections whether or not a fact exists,
               so the walk and the table open an identical page. Unassessed
               controls add a banner naming WHY every lane reads 0 (nobody has
@@ -1296,7 +1297,7 @@ export function ControlEvaluationPanel({
                       <StatusPill tone="neutral">{requirementClauseCount} requirements</StatusPill>
                     )}
                     <Button size="sm" iconRight={ChevronRight} onClick={() => setActiveStep("authority")}>
-                      Authority &amp; mapping
+                      Authority &amp; Mapping
                     </Button>
                   </>
                 }
