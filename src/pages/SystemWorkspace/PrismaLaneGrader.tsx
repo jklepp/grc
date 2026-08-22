@@ -131,7 +131,7 @@ export function laneGraderBlocker(args: {
   const implemented = value.ratings.Implemented;
 
   if (!assessed && !isProgramScoped && assetOptions.length === 0) {
-    return "No asset in this boundary requires this control, so it cannot be assessed here.";
+    return "No registered asset requires this asset-scoped control. Update asset attributes or mark it Not Applicable.";
   }
   if (!value.assessedBy.trim()) return "Name the assessor of record.";
   if (!assessed) {
@@ -314,7 +314,7 @@ export function PrismaLaneGrader({
             </>
           )}
           {!isProgramScoped && assetOptions.length === 0 && (
-            <InlineHint tone="warning">No asset in this boundary requires this control, so it cannot be assessed here.</InlineHint>
+            <InlineHint tone="warning">No registered asset requires this asset-scoped control. Update the asset attributes, or use Mark Not Applicable in Scope below.</InlineHint>
           )}
         </Well>
       )}

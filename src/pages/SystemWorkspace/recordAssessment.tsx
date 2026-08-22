@@ -120,6 +120,9 @@ export function recordKeyControlAssessment(
     coveragePct: 100,
     independence: "internal",
     collectorType: "manual",
+    // Program controls live at the system boundary. Asset controls name every
+    // required sample; the grader blocks the save when that population is
+    // empty and routes the operator to an explicit applicability decision.
     assetIds: isProgramScoped ? [] : recordAssetOptions.map((a) => a.assetId),
     note: `Attested ${input.rating} — ${COMPLIANCE_LABELS[input.rating]}.${reviewerSuffix}`,
   };
@@ -132,8 +135,10 @@ export function recordKeyControlAssessment(
 
 // Applicable key controls with no fact recorded yet — the punch list both the
 // Overview "Assess" tile and the Controls tab's "Assess N key controls"
-// button walk. A program-scoped key control applies everywhere; anything
-// else needs at least one required asset in this boundary.
+// button walk. The system is the assessment boundary, so every applicable
+// key control belongs here even when no individual asset samples its
+// Implemented lane. Asset applicability narrows evidence coverage; it must
+// not make a system-level control disappear from the completion queue.
 //
 // `pendingScopeIds` excludes controls still waiting on a Scope Review
 // decision (an unconfirmed inheritance claim). Without it, a key control
@@ -142,14 +147,11 @@ export function recordKeyControlAssessment(
 // surface for a decision that belongs in Scope Review.
 export function keyControlAssessmentQueue(
   matrix: ControlMatrixRow[],
-  systemAssets: ReadonlyArray<{ id: string }>,
-  isRequired: (assetId: string, controlId: ControlId) => boolean,
   pendingScopeIds?: ReadonlySet<ControlId>,
 ): ControlMatrixRow[] {
   return matrix.filter((row) => {
     if (!row.keyControl || row.status !== "unassessed") return false;
     if (pendingScopeIds?.has(row.controlId)) return false;
-    if (row.keyControl.scope === "program") return true;
-    return systemAssets.some((asset) => isRequired(asset.id, row.controlId));
+    return true;
   });
 }

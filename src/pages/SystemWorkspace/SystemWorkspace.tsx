@@ -74,6 +74,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
 
   const system = systems.find((s) => s.id === systemId);
   if (!system) throw new Error(`Unknown system: ${systemId}`);
+  const activeSystemId = system.id;
   const reportSystem = system;
   const matrix = useMemo(
     () => liveEngine.compliance.systemControlMatrix(system.id).map((row) => ({
@@ -118,10 +119,8 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   const assessmentQueue = useMemo(
     () => keyControlAssessmentQueue(
       matrix,
-      liveEngine.graph.assetsBySystem[system.id] ?? [],
-      (assetId, controlId) => liveEngine.applicability.resolveApplicability(assetId, controlId).required,
     ),
-    [matrix, liveEngine, system.id]
+    [matrix]
   );
 
   const assessor = liveEngine.graph.assessmentScopeBySystem[system.id]?.assessor ?? "";
@@ -178,7 +177,16 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   );
 
   function openMissingFinding() {
-    const firstGap = formalAssessment.gapControlsMissingFinding[0];
+    // A program control can retain a historical partial assessment after its
+    // applicability premise is removed. The graph correctly refuses to hang a
+    // new system finding on that out-of-scope program, so do not route the
+    // operator into an editor that can only reject the finding. Scope Review
+    // remains the place to resolve that stale applicability decision.
+    const firstGap = formalAssessment.gapControlsMissingFinding.find(({ controlId }) => {
+      const gapRow = matrix.find((candidate) => candidate.controlId === controlId);
+      return gapRow?.keyControl?.scope !== "program"
+        || liveEngine.applicability.resolveProgramApplicability(activeSystemId, controlId).required;
+    });
     if (firstGap) selectControl(firstGap.controlId, "findings");
     else openControlsGroup(DEFAULT_SELECTION);
   }
@@ -230,7 +238,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           dataTypes={dataTypes} onNavigate={changeSubTab}
           onOpenScopeReview={openScopeReview} onSelectControlsGroup={openControlsGroup}
           onOpenMissingFinding={openMissingFinding}
-          onStartAssessment={assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
+          onStartAssessment={formalAssessment.scopeDecided && assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
           onGenerateIsoReport={generateIsoReport}
           formalAssessment={formalAssessment}
         />
@@ -258,7 +266,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           applicabilitySummary={applicabilitySummary} posture={posture}
           findingsByControl={findingsByControl}
           keyControlRemaining={assessmentQueue.length}
-          onStartAssessment={assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
+          onStartAssessment={formalAssessment.scopeDecided && assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
           walkActive={assessmentWalkOpen}
           onSelectRow={(row) => selectControl(row.controlId)}
           onOpenScopeReview={openScopeReview}
@@ -300,7 +308,8 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         onClose={() => setAssessmentWalkOpen(false)}
         onGoToRemediation={() => {
           setAssessmentWalkOpen(false);
-          openMissingFinding();
+          if (formalAssessment.gapControlsMissingFinding.length > 0) openMissingFinding();
+          else changeSubTab("findings");
         }}
       />
 

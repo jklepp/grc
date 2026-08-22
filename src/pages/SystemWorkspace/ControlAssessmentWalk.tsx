@@ -1,16 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, ClipboardCheck, Wrench } from "lucide-react";
 import { C } from "../../theme";
-import { COMPLIANCE_LABELS } from "../../engine";
 import { useLiveEngine } from "../../engine/useLiveEngine";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
-  Button, Callout, CompletionScreen, HeaderStat, ProgressBar, StatTile, TX, WizardBanner, WizardChrome,
-  WizardFooter, WizardHeader, WizardOutcomePane, WZ,
+  Button, CompletionScreen, HeaderStat, StatTile, WizardBanner, WizardChrome,
+  WizardFooter, WizardHeader, WizardOutcomePane,
 } from "../../components/wizard/WizardUI";
 import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
 import { keyControlAssessmentQueue } from "./recordAssessment";
-import type { ComplianceRating } from "../../graph/nodes/taxonomy";
 import type { ControlId, SystemId } from "../../graph/ids";
 import type { ControlMatrixRow } from "./types";
 
@@ -22,13 +20,6 @@ function today(): string {
 // keyed on the control id and rebuilt from scratch each time, so an in-panel
 // transition cannot survive the swap — the hold has to live out here, where it
 // also gets to say what was recorded and what is coming.
-interface Advancing {
-  controlId: string;
-  controlName: string;
-  domain: string;
-  rating: ComplianceRating;
-}
-
 interface ControlAssessmentWalkProps {
   open: boolean;
   systemId: SystemId;
@@ -51,7 +42,6 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
     ...row,
     responsibility: liveEngine.compliance.responsibilityForControl(systemId, row.controlId),
   }));
-  const systemAssets = liveEngine.graph.assetsBySystem[systemId] ?? [];
   // Same exclusion Scope Review counts against: a key control still waiting
   // on an inheritance decision does not belong in this walk — that decision
   // is Scope Review's, not a rating the assessor should be asked to invent.
@@ -62,8 +52,6 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
   ]);
   const queue = keyControlAssessmentQueue(
     matrix,
-    systemAssets,
-    (assetId, ctrlId) => liveEngine.applicability.resolveApplicability(assetId, ctrlId).required,
     pendingScopeIds,
   );
 
@@ -73,17 +61,19 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
   const [initialTotal, setInitialTotal] = useState(0);
   const [reviewer, setReviewer] = useState("");
   const [skippedIds, setSkippedIds] = useState<ReadonlySet<ControlId>>(new Set());
-  const [advancing, setAdvancing] = useState<Advancing | null>(null);
+  const [recordedIds, setRecordedIds] = useState<ReadonlySet<ControlId>>(new Set());
 
   // Skipped controls stay unassessed (and in the live queue) but leave the
   // walk's "remaining" view, so the walk can finish around them.
   const remainingByDomain = useMemo(() => {
     const groups: Record<string, ControlMatrixRow[]> = {};
     queue.forEach((row) => {
-      if (!skippedIds.has(row.controlId)) (groups[row.control.domain] ??= []).push(row);
+      if (!skippedIds.has(row.controlId) && !recordedIds.has(row.controlId)) {
+        (groups[row.control.domain] ??= []).push(row);
+      }
     });
     return groups;
-  }, [queue, skippedIds]);
+  }, [queue, skippedIds, recordedIds]);
 
   // Reset to a clean slate every time the walk opens, snapshotting the
   // starting queue and its domain breakdown — the rail's totals and order
@@ -92,7 +82,7 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
     if (!open) return;
     setReviewer(liveEngine.graph.assessmentScopeBySystem[systemId]?.assessor ?? "");
     setSkippedIds(new Set());
-    setAdvancing(null);
+    setRecordedIds(new Set());
     const totals: Record<string, number> = {};
     queue.forEach((row) => { totals[row.control.domain] = (totals[row.control.domain] ?? 0) + 1; });
     const order = Object.keys(totals).sort();
@@ -119,11 +109,11 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
 
   const current = remainingByDomain[activeDomain]?.[0] ?? null;
   const remainingTotal = Object.values(remainingByDomain).reduce((sum, rows) => sum + rows.length, 0);
-  const decidedCount = Math.max(0, initialTotal - queue.length);
   const skippedCount = queue.filter((row) => skippedIds.has(row.controlId)).length;
+  const decidedCount = Math.max(0, initialTotal - remainingTotal - skippedCount);
   const complete = initialTotal > 0 && remainingTotal === 0;
   const formalAssessment = liveEngine.review.formalAssessmentForSystem(systemId);
-  const missingFindingCount = formalAssessment.gapControlsMissingFinding.length;
+  const remediationCount = formalAssessment.residualCount;
 
   if (complete) {
     return (
@@ -162,7 +152,7 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
                   Review skipped controls &middot; {skippedCount}
                 </Button>
               )
-              : missingFindingCount > 0 && onGoToRemediation
+              : remediationCount > 0 && onGoToRemediation
                 ? (
                 <Button
                   variant="primary"
@@ -170,7 +160,7 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
                   iconRight={ArrowRight}
                   onClick={() => { onClose(); onGoToRemediation(); }}
                 >
-                  Record Findings &middot; {missingFindingCount}
+                  Continue to Findings &amp; Remediation &middot; {remediationCount}
                 </Button>
                 )
                 : undefined}
@@ -184,53 +174,6 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
   // (empty domain order, no active domain) — show nothing rather than
   // flashing the completion screen.
   if (!current) return null;
-
-  if (advancing) {
-    const next = current.controlId === advancing.controlId ? null : current;
-    return (
-      <Modal open onClose={onClose} width={1180} height={840}>
-        <WizardChrome>
-          <WizardBanner icon={ClipboardCheck} title="Control Assessment Wizard" />
-          <WizardHeader
-            icon={ClipboardCheck}
-            title="Control Assessment"
-            description="One control recorded. Read what was written, then carry on to the next."
-            aside={<HeaderStat label="Assessed" value={`${decidedCount} of ${initialTotal}`} />}
-            onClose={<ModalCloseButton onClose={onClose} />}
-          />
-          <WizardOutcomePane center>
-            <div className="w-full max-w-2xl flex flex-col gap-5">
-              <Callout tone="success" title={`${advancing.controlId} recorded — Implemented ${advancing.rating} · ${COMPLIANCE_LABELS[advancing.rating]}.`}>
-                {advancing.controlName}
-              </Callout>
-              <div className="flex flex-col gap-2">
-                <div className={TX.label} style={{ color: C.muted }}>Next</div>
-                <div className={TX.stepTitle} style={{ color: C.ink, fontFamily: WZ.serif }}>
-                  {next ? `${next.control.id} · ${next.control.name}` : "Wrapping up this assessment"}
-                </div>
-                {next && (
-                  <div className={TX.help} style={{ color: C.muted }}>{next.control.domain}</div>
-                )}
-              </div>
-              <ProgressBar value={decidedCount} total={initialTotal} label="Key controls assessed" />
-              <div className={TX.help} style={{ color: C.muted }}>
-                {decidedCount} of {initialTotal} assessed
-              </div>
-            </div>
-          </WizardOutcomePane>
-          <WizardFooter
-            position={`${activeDomain} · ${remainingByDomain[activeDomain]?.length ?? 0} left`}
-            close={<Button onClick={onClose}>Close</Button>}
-            primary={(
-              <Button variant="primary" iconRight={ArrowRight} onClick={() => setAdvancing(null)}>
-                Continue
-              </Button>
-            )}
-          />
-        </WizardChrome>
-      </Modal>
-    );
-  }
 
   return (
     <ControlEvaluationPanel
@@ -250,21 +193,11 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
         initialTotal,
         reviewer,
         onReviewerChange: setReviewer,
-        onRecorded: (rating, continueWalk) => {
+        onRecorded: (_rating, continueWalk) => {
+          setRecordedIds((previous) => new Set(previous).add(current.controlId));
           if (!continueWalk) {
             onClose();
-            return;
           }
-          // Hold the confirmation before the queue swaps the panel out from
-          // under the operator, until they say to move on — a timed
-          // auto-advance either forced the operator to skim, or sat there
-          // uselessly for anyone reading it slowly.
-          setAdvancing({
-            controlId: current.control.id,
-            controlName: current.control.name,
-            domain: current.control.domain,
-            rating,
-          });
         },
         onSkip: () => setSkippedIds((prev) => new Set(prev).add(current.controlId)),
       }}

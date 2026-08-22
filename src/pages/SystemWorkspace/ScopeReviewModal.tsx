@@ -120,21 +120,15 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
       ...row,
       responsibility: liveEngine.compliance.responsibilityForControl(systemId, row.controlId),
     })),
-    liveEngine.graph.assetsBySystem[systemId] ?? [],
-    (assetId, controlId) => liveEngine.applicability.resolveApplicability(assetId, controlId).required,
     pendingScopeIds,
   ), [liveEngine, systemId, pendingScopeIds]);
   const technicalRemaining = assessmentQueue.length;
   const everythingDone = outOfScopeDone && inheritedDone;
-  // Internal inheritance is worked claim-by-claim and can take a while to
-  // finish end to end (many small central programs); gating every applicable
-  // key control behind it meant a system with 40 controls ready to grade sat
-  // idle until the last program on a long internal list was confirmed.
-  // External inheritance is usually a short, provider-driven list, so it
-  // still has to be settled first — see pendingScopeIds above for how an
-  // undecided internal claim's controls stay out of the queue in the
-  // meantime rather than leaking in ungraded.
-  const readyForAssessment = outOfScopeDone && externalDone;
+  // Control Assessment is the next phase, so every Scope Review prerequisite
+  // must be settled before its rail item or footer action becomes available.
+  // This keeps the visible step order aligned with System Readiness and avoids
+  // a walk whose queue silently grows as inheritance decisions arrive later.
+  const readyForAssessment = everythingDone;
 
   // What each internal claim actually stands on: ACME's own program-level
   // evidence, read from the same coverage derivation everything else uses —

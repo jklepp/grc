@@ -6,7 +6,7 @@ import { AssessmentReadiness } from "./overview/AssessmentReadiness";
 import { AttentionRequired } from "./overview/AttentionRequired";
 import { SystemSnapshot } from "./overview/SystemSnapshot";
 import { Panel } from "./shared/Panel";
-import { ASSESSMENT_SELECTION, DEFAULT_SELECTION } from "./SystemControls";
+import { ASSESSMENT_SELECTION } from "./SystemControls";
 import type { ControlSelection } from "./SystemControls";
 import type {
   CockpitSummary, ExposurePosture, WorkspaceDataType, WorkspaceSystem,
@@ -59,7 +59,7 @@ export function SystemOverview(props: SystemOverviewProps) {
           onScopeClick={() => onOpenScopeReview("not-applicable")}
           onAssessClick={onStartAssessment ?? (() => onSelectControlsGroup(ASSESSMENT_SELECTION))}
           onGapsClick={onOpenMissingFinding}
-          onRemediateClick={() => onSelectControlsGroup(DEFAULT_SELECTION)}
+          onRemediateClick={() => onNavigate("findings")}
         />
       </Panel>
 

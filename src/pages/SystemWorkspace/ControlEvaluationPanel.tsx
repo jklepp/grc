@@ -1653,7 +1653,7 @@ export function ControlEvaluationPanel({
           {activeStep === "findings" && (
             <Section
               icon={Wrench}
-              title="Findings & remediation"
+              title="Findings & Remediation"
               description="Open gaps recorded against this control, who owns them, and when they are due."
               aside={
                 <span className="flex items-center gap-2">
