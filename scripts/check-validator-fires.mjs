@@ -400,6 +400,64 @@ try {
     }
   });
 
+  // ---- Dormant assessments -------------------------------------------------
+  // The mirror image of everything above: three checks are deliberately EXEMPT
+  // for a pair a human has scoped out, so this asserts a graph loads clean where
+  // the previous block asserts graphs are refused. Without it, the exemption
+  // could widen to swallow real corruption and every test here would still pass.
+  console.log("\nDormant assessments (scoped-out pairs keep their facts)");
+  const dormantCases = [
+    // The one authored PRISMA override in the corpus, on an assessed control:
+    // exercises the override exemption, the declared-scope exemption and the
+    // short-population exemption at once.
+    ["an assessed control scoped out by a confirmed review", "IAC-21"],
+    // No override, but in scope and sampled across two assets.
+    ["an assessed, sampled control scoped out", "IAC-10"],
+  ];
+  dormantCases.forEach(([label, controlId]) => {
+    const facts = fresh();
+    facts.controlReviews = [...(facts.controlReviews ?? []), {
+      systemId: "SYS-003", controlId, bucket: "not-applicable", stance: "confirm",
+      note: "invented for this test", reviewedBy: "test", reviewedAt: "2026-01-01",
+    }];
+    try {
+      createEngine(loadGraph(facts));
+      console.log(`  ok    ${label} (${controlId})`);
+      passed++;
+    } catch (err) {
+      console.log(`  FAIL  ${label} (${controlId}) — should load clean but threw`);
+      console.log(`        got: ${err.message.split("\n").slice(0, 3).join(" ").slice(0, 260)}`);
+      failed++;
+    }
+  });
+
+  // ...and the exemption must not fire without a human decision. A REJECTED
+  // review (the "pull it back in" record) reads the same fields the other way
+  // round, so it is the sharpest thing to prove does NOT exempt.
+  {
+    const facts = fresh();
+    const scope = facts.assessmentScopes.find((s) => s.systemId === "SYS-003");
+    scope.controlIds = scope.controlIds.filter((id) => id !== "IAC-21");
+    facts.controlReviews = [...(facts.controlReviews ?? []), {
+      systemId: "SYS-003", controlId: "IAC-21", bucket: "not-applicable", stance: "reject",
+      note: "invented for this test", reviewedBy: "test", reviewedAt: "2026-01-01",
+    }];
+    try {
+      createEngine(loadGraph(facts));
+      console.log("  FAIL  a REJECTED not-applicable review must not exempt anything — accepted it");
+      failed++;
+    } catch (err) {
+      if (/there is no derived rating to override|is not in its declared assessment scope/.test(err.message)) {
+        console.log("  ok    a REJECTED not-applicable review does not exempt");
+        passed++;
+      } else {
+        console.log("  FAIL  a REJECTED not-applicable review — threw for the wrong reason");
+        console.log(`        got: ${err.message.split("\n").slice(0, 2).join(" ").slice(0, 220)}`);
+        failed++;
+      }
+    }
+  }
+
   console.log(`\n${passed} passed, ${failed} failed\n`);
   process.exitCode = failed === 0 ? 0 : 1;
 } finally {

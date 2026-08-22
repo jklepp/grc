@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Link2, BookOpenText, Layers, FileCheck2, Wrench, Gauge, Plus, Pencil, Trash2, Check, ChevronRight,
-  ScrollText, Network, ClipboardCheck, ShieldCheck,
+  ScrollText, Network, ClipboardCheck, ShieldCheck, Ban,
 } from "lucide-react";
 import { C } from "../../theme";
 import {
@@ -751,6 +751,13 @@ export function ControlEvaluationPanel({
   const [editingFindingId, setEditingFindingId] = useState<FindingId | null>(null);
   const [saveError, setSaveError] = useState<string[] | null>(null);
   const [gapNudge, setGapNudge] = useState<{ level: PrismaLevel; rating: ComplianceRating } | null>(null);
+  // Scope-exclusion state: the reason disclosure is open, and whether an
+  // exclusion is already staged. `excludeStaged` is not cosmetic — see
+  // savingAssessment, which has to stop routing Save through the grader once
+  // the operator has said this control does not apply at all.
+  const [excluding, setExcluding] = useState(false);
+  const [excludeNote, setExcludeNote] = useState("");
+  const [excludeStaged, setExcludeStaged] = useState(false);
   const liveEngine = useLiveEngine();
 
   // Every edit below — evidence, findings — stages into this local copy
@@ -892,7 +899,12 @@ export function ControlEvaluationPanel({
   // An unassessed control has nothing on record, so the grader IS the save.
   // An assessed one only routes through it when the operator actually touched
   // it; otherwise the footer is just committing staged evidence or findings.
-  const savingAssessment = !assessed || laneDirty;
+  //
+  // A staged exclusion overrides all of that. Saying "this control does not
+  // apply here" is the opposite of grading it, and on an unassessed control the
+  // grader's own blocker would otherwise refuse the save — demanding a rating
+  // for a control the operator has just declared out of scope.
+  const savingAssessment = !excludeStaged && (!assessed || laneDirty);
   const saveBlocker = savingAssessment ? laneBlocker : null;
   const canSave = savingAssessment ? saveBlocker === null : pendingChanges.length > 0;
   const unsavedCount = pendingChanges.length + (laneDirty ? 1 : 0);
@@ -971,6 +983,9 @@ export function ControlEvaluationPanel({
     setCreatingFinding(false);
     setCreatingFindingInitial(null);
     setEditingFindingId(null);
+    setExcluding(false);
+    setExcludeNote("");
+    setExcludeStaged(false);
   }
 
   function requestClose() {
@@ -1097,6 +1112,35 @@ export function ControlEvaluationPanel({
 
   function handleUpdateFinding(findingId: FindingId, patch: Omit<FindingDraft, "controlId">, label: string) {
     stageMutation(label, (existing) => updateFinding(existing, findingId, patch));
+  }
+
+  // Scope's other direction, recorded where the operator already is. The three
+  // Scope Review sections only ask about controls the engine surfaced — a
+  // control that simply applies and was never questioned is reachable from none
+  // of them, which is what the All Controls browser used to cover. It belongs on
+  // the control rather than in a catalog list: this is the screen someone is
+  // reading when they work out the premise does not hold here.
+  //
+  // Same ControlReview record Scope Review writes (bucket "not-applicable",
+  // stance "confirm"), staged like every other edit so it goes out through the
+  // same dry run and the same Save.
+  function handleMarkOutOfScope(reason: string) {
+    const staged = stageMutation(
+      `Marked out of scope — ${row.control.id}`,
+      (existing) => upsertControlReview(existing, {
+        systemId: system.id,
+        controlId: row.control.id,
+        bucket: "not-applicable",
+        stance: "confirm",
+        note: reason,
+        reviewedBy: laneState.assessedBy.trim() || assessorOfRecord,
+        reviewedAt: new Date().toISOString().slice(0, 10),
+      }),
+    );
+    if (!staged) return;
+    setExcluding(false);
+    setExcludeNote("");
+    setExcludeStaged(true);
   }
 
   return (
@@ -1549,6 +1593,74 @@ export function ControlEvaluationPanel({
                   ))}
                 </Section>
               )}
+
+              {/* The scope escape hatch, at the bottom of Scoring because it is
+                  what you reach for when grading turns out to be the wrong
+                  question. Same three labels Scope Review settled on — `Mark
+                  out of scope…` opens the reason, `Confirm out of scope`
+                  records it — so the two surfaces read as one decision made in
+                  two places, not two different ones. */}
+              <Section
+                icon={Ban}
+                title="Scope"
+                description="This control is in scope for this boundary. Record an exclusion if its premise does not hold here."
+              >
+                {excludeStaged ? (
+                  <Callout tone="warning" title="Marked out of scope — not saved yet">
+                    Goes out with the rest of your changes when you save. The control then leaves this
+                    system's applicable set and appears under Out of Scope in Scope Review, which is where
+                    it can be pulled back in.
+                  </Callout>
+                ) : excluding ? (
+                  <Well hollow className="flex flex-col gap-3.5">
+                    {/* Said before the decision, not after. An assessed control
+                        keeps everything it carries — the engine exempts a
+                        scoped-out pair from the checks that assume it is still
+                        live (see DORMANT ASSESSMENTS in validateDerivations)
+                        rather than deleting the record to stay consistent. */}
+                    {assessed && (
+                      <Callout tone="warning" title="This control has been assessed.">
+                        Its PRISMA ratings, evidence and findings stay on record and remain readable, but
+                        stop counting toward this system's scores once it leaves the applicable set.
+                        Pulling the control back into scope restores them.
+                      </Callout>
+                    )}
+                    <Field
+                      label="Reason"
+                      note="Required — why this control does not apply to this boundary."
+                      error={excludeNote.trim() ? null : "Enter a reason before recording the exclusion."}
+                    >
+                      <TextInput
+                        value={excludeNote}
+                        onChange={(e) => setExcludeNote(e.target.value)}
+                        placeholder="e.g. No physical facility inside this boundary"
+                        aria-label={`Reason ${row.control.id} is out of scope`}
+                      />
+                    </Field>
+                    <div className="flex items-center justify-end gap-2.5">
+                      <Button size="sm" onClick={() => { setExcluding(false); setExcludeNote(""); }}>Cancel</Button>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        icon={Check}
+                        disabled={!excludeNote.trim()}
+                        onClick={() => handleMarkOutOfScope(excludeNote.trim())}
+                      >
+                        Confirm out of scope
+                      </Button>
+                    </div>
+                  </Well>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    icon={Ban}
+                    onClick={() => { setExcluding(true); setExcludeNote(""); }}
+                  >
+                    Mark out of scope…
+                  </Button>
+                )}
+              </Section>
             </>
           )}
 

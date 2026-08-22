@@ -35,7 +35,7 @@ export function score(severity: SeverityLevel, likelihood: LikelihoodLevel): num
 // A primary contributor carries the scenario; a contributing one participates
 // in it. Averaging them as equals would let four healthy participants wash out
 // the one asset the risk is actually about, which is the failure mode the
-// portfolio average had.
+// enterprise-wide average had.
 const ROLE_WEIGHT: Record<string, number> = { primary: 3, contributing: 1 };
 
 // ---- Board-level derivations -------------------------------------------------

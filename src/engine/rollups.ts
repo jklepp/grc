@@ -398,7 +398,7 @@ export function createRollups(
   // figures the Executive Dashboard shows. Weighted by each system's FIPS 199
   // overall impact, the same weight the enterprise hop uses, so a category is
   // not reported as healthy because the small boundary is good at it.
-  const categoryPortfolioAverages = ASSURANCE_CATEGORIES.map((label) => {
+  const categoryEnterpriseAverages = ASSURANCE_CATEGORIES.map((label) => {
     const entries = systemRollups
       .filter((s) => s.categories[label].raw !== null)
       .map((s) => ({
@@ -616,7 +616,7 @@ export function createRollups(
     systemRollups,
     systemRollupById,
     enterprise,
-    categoryPortfolioAverages,
+    categoryEnterpriseAverages,
     flowLayoutForSystem,
     inboundFlowCount,
     TOTAL_ACTOR_COUNT: graph.actorAccess.length,

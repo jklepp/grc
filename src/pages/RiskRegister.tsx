@@ -440,7 +440,7 @@ export default function RiskRegister() {
                     <StatTile label="Probability" value={`${("probability" in selected ? selected.probability : annualProbabilityRange(selected.residual.likelihood))[0]}-${("probability" in selected ? selected.probability : annualProbabilityRange(selected.residual.likelihood))[1]}%`} sub="annual" />
                     <StatTile label="Loss Magnitude" value={formatUSD(("lossMagnitude" in selected ? selected.lossMagnitude : lossMagnitudeRange(selected.exposure, selected.residual.likelihood))[0])} sub={`to ${formatUSD(("lossMagnitude" in selected ? selected.lossMagnitude : lossMagnitudeRange(selected.exposure, selected.residual.likelihood))[1])}`} />
                     <StatTile label="Residual Exposure" value={formatUSD(selected.exposure)} sub="Annualized loss expectancy" />
-                    {/* Was a portfolio-wide average for whichever assurance
+                    {/* Was an enterprise-wide average for whichever assurance
                         category this risk's free-text linkedControl mapped to —
                         the same number for every risk in that category, unable
                         to move when the assets involved moved. Now it's read

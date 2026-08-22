@@ -22,7 +22,6 @@ import type { CockpitItem } from "../engine/cockpit";
 
 const RISKS = getAllRisks();
 const ASSET_SUMMARIES = getAllAssets();
-const CATEGORY_PORTFOLIO_AVERAGES = getCategoryAverages();
 
 // Enterprise Assurance: weighted by each system's FIPS 199 overall impact, so
 // a weak High system drags it down harder than a weak Low one and it can't be
@@ -34,8 +33,8 @@ const CATEGORY_PORTFOLIO_AVERAGES = getCategoryAverages();
 // every asset into one pool, so the two would not have agreed. Now there is one
 // enterprise assurance figure and this is a read of it.
 const ENTERPRISE = getEnterprise();
-const PORTFOLIO_ASSURANCE_PCT = ENTERPRISE.assurance ?? 0;
-const ASSURANCE_GAP = PORTFOLIO_ASSURANCE_PCT - ASSURANCE_TARGET;
+const ENTERPRISE_ASSURANCE_PCT = ENTERPRISE.assurance ?? 0;
+const ASSURANCE_GAP = ENTERPRISE_ASSURANCE_PCT - ASSURANCE_TARGET;
 
 // How much of the applicable control estate the number above is speaking for.
 //
@@ -62,15 +61,16 @@ const COMPLIANCE_COVERAGE_PCT = ENTERPRISE_COVERAGE.coveredPct;
 function trendTo(current: number, stepsBack: number[]): number[] {
   return stepsBack.map((delta) => Math.max(0, Math.min(100, current - delta)));
 }
-const ASSURANCE_TREND = trendTo(PORTFOLIO_ASSURANCE_PCT, [10, 7, 5, 3, 2, 0]);
+const ASSURANCE_TREND = trendTo(ENTERPRISE_ASSURANCE_PCT, [10, 7, 5, 3, 2, 0]);
 const ASSURANCE_DELTA = ASSURANCE_TREND[ASSURANCE_TREND.length - 1] - ASSURANCE_TREND[0];
 
 // Control Assurance by Category: the real 6 Assurance Categories, averaged
-// across every asset in the register — the same categories the Asset
-// Register's detail panel breaks each asset down into. Computed once in
-// assets.js (portfolioCategoryAverages) so the Risk Register's board view
-// can cite the identical numbers for its per-risk assurance figure.
-const CATEGORY_AVERAGES = CATEGORY_PORTFOLIO_AVERAGES;
+// across systems and weighted by each system's FIPS 199 overall impact — the
+// same categories the Asset Register's detail panel breaks each asset down
+// into. Computed once in engine/rollups.ts (categoryEnterpriseAverages) so the
+// Risk Register's board view can cite the identical numbers for its per-risk
+// assurance figure.
+const CATEGORY_AVERAGES = getCategoryAverages();
 const WEAKEST_CATEGORY = [...CATEGORY_AVERAGES].sort((a, b) => (a.pct ?? -1) - (b.pct ?? -1))[0];
 const STRONGEST_CATEGORY = [...CATEGORY_AVERAGES].sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1))[0];
 
@@ -216,7 +216,7 @@ function formatUSD(n: number): string {
 function handleExport() {
   const snapshot = {
     generatedAt: new Date().toISOString(),
-    enterpriseAssurance: PORTFOLIO_ASSURANCE_PCT,
+    enterpriseAssurance: ENTERPRISE_ASSURANCE_PCT,
     assuranceTarget: ASSURANCE_TARGET,
     systemsBelowTarget: SYSTEMS_BELOW_TARGET.length,
     systemCount: SYSTEMS.length,
@@ -410,7 +410,7 @@ export default function ExecutiveDashboard({ onNavigate }: { onNavigate?: (pageI
       {/* KPI strip — Enterprise Assurance is the hero everything else rolls up
           to, so it gets a double-wide dark tile; the other three stay flat. */}
       <div className="px-8 grid grid-cols-5 gap-5">
-        <HeroAssuranceTile pct={PORTFOLIO_ASSURANCE_PCT} target={ASSURANCE_TARGET} gap={ASSURANCE_GAP} />
+        <HeroAssuranceTile pct={ENTERPRISE_ASSURANCE_PCT} target={ASSURANCE_TARGET} gap={ASSURANCE_GAP} />
 
         <SummaryTile
           icon={AlertTriangle} iconColor={C.red} iconBg={C.redBg}
@@ -846,7 +846,7 @@ export default function ExecutiveDashboard({ onNavigate }: { onNavigate?: (pageI
             </button>
           </div>
           <div className="flex items-center gap-6">
-            <AssuranceRing pct={PORTFOLIO_ASSURANCE_PCT} color={C.accent} />
+            <AssuranceRing pct={ENTERPRISE_ASSURANCE_PCT} color={C.accent} />
             <div className="flex-1 space-y-2.5 text-xs">
               <div className="flex items-center justify-between"><span style={{ color: C.muted }}>TARGET</span><span style={{ color: C.ink, fontWeight: 600 }}>{ASSURANCE_TARGET}%</span></div>
               <div className="flex items-center justify-between"><span style={{ color: C.muted }}>WEAKEST AREA</span><span style={{ color: C.red, fontWeight: 600 }}>{WEAKEST_CATEGORY.label} {WEAKEST_CATEGORY.pct}%</span></div>

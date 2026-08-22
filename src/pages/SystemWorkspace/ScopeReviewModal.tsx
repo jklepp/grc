@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Ban, Check, ChevronDown, ChevronLeft, ChevronRight, ListChecks, Target } from "lucide-react";
+import { ArrowRight, Ban, Check, ChevronDown, ChevronRight, History, Target } from "lucide-react";
 import { C } from "../../theme";
 import { commitRuntimeFacts, RESPONSIBILITIES } from "../../engine";
 import { upsertControlReview } from "../../engine/runtimeMutations";
@@ -9,7 +9,7 @@ import { APPLICABILITY_META, RESPONSIBILITY_META } from "./controlMeta";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
   Button, Callout, CompletionScreen, Field, HeaderStat, InlineField, InlineHint,
-  RailGroup, RailItem, SaveErrorCallout, SearchInput, Section, StatTile, StatusPill, TextInput, TX, Well,
+  RailGroup, RailItem, SaveErrorCallout, Section, StatTile, StatusPill, TextInput, TX, Well,
   WizardBanner, WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardPane, WizardRail,
 } from "../../components/wizard/WizardUI";
 import type { ControlReview } from "../../graph/edges/controlReviews";
@@ -17,25 +17,19 @@ import type { InheritanceGroup, ReviewWave, ReviewWaveControl } from "../../engi
 import type { ControlId, SystemId } from "../../graph/ids";
 import type { Control } from "../../graph/nodes/controls";
 
-// One row of the All Controls browser: every control the catalog defines
-// against this system, whether it currently applies or was excluded (by rule
-// or by a prior override), so an operator can find and flip any single one —
-// not just the ones the scope review surfaced as needing a decision.
-interface AllControlsRow {
-  control: Control;
-  inScope: boolean;
-  reason: string | null;
-}
-
-// The three decision surfaces plus the browser. Scope is exclusion-shaped:
-// being in scope needs no ceremony (the assessment walk is its human touch),
-// so the review asks only "confirm what is OUT" — the short list a person
-// should actually read — then splits inheritance by who covers it. External
-// inheritance is accepted against the provider's report or certification;
-// internal inheritance is ACME's own programs, standing on ACME's own
-// program-level evidence, where the question is whether the program reaches
-// this boundary — never a self-attestation.
-type ScopeView = "out-of-scope" | "external" | "internal" | "all";
+// The three decision surfaces. Scope is exclusion-shaped: being in scope needs
+// no ceremony (the assessment walk is its human touch), so the review asks only
+// "confirm what is OUT" — the short list a person should actually read — then
+// splits inheritance by who covers it. External inheritance is accepted against
+// the provider's report or certification; internal inheritance is ACME's own
+// programs, standing on ACME's own program-level evidence, where the question is
+// whether the program reaches this boundary — never a self-attestation.
+//
+// There is deliberately no catalog browser here any more. Excluding a control
+// the rules never questioned is a judgement about that one control, so it lives
+// on the control itself — the Scope section of ControlEvaluationPanel — not in a
+// searchable list bolted to the side of a guided review.
+type ScopeView = "out-of-scope" | "external" | "internal";
 
 // The review sections in the order the rail shows them. Both the guided
 // hand-off and the footer's Continue button walk this order rather than
@@ -67,6 +61,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
   const system = liveEngine.graph.systemById[systemId];
   const walk = liveEngine.review.wavesForSystem(systemId);
   const groups = liveEngine.review.inheritanceGroupsForSystem(systemId);
+  const dormant = liveEngine.review.dormantAssessmentsForSystem(systemId);
   const summary = liveEngine.compliance.controlApplicabilitySummary(systemId);
 
   const [view, setView] = useState<ScopeView>("out-of-scope");
@@ -80,11 +75,6 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
 
   // Inherited coverage state: which claim's control list is unfolded.
   const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
-
-  // All Controls browser state.
-  const [allQuery, setAllQuery] = useState("");
-  const [excludingId, setExcludingId] = useState<ControlId | null>(null);
-  const [excludeNote, setExcludeNote] = useState("");
 
   const naWave = walk.waves["not-applicable"];
   const naItems = [...naWave.remaining, ...naWave.decidedItems];
@@ -126,31 +116,6 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
 
   const canWrite = reviewer.trim().length > 0;
 
-  const allControlsMatrix = liveEngine.compliance.systemControlMatrix(systemId);
-  const allControlsNotApplicable = liveEngine.compliance.notApplicableControlsForSystem(systemId);
-  const allControlRows: AllControlsRow[] = useMemo(() => {
-    const rows: AllControlsRow[] = [
-      ...allControlsMatrix.map((row) => ({ control: row.control, inScope: true, reason: null })),
-      ...allControlsNotApplicable.map((item) => ({ control: item.control, inScope: false, reason: item.reason })),
-    ];
-    return rows.sort((a, b) => (
-      a.control.domain === b.control.domain
-        ? a.control.id.localeCompare(b.control.id)
-        : a.control.domain.localeCompare(b.control.domain)
-    ));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [systemId, allControlsMatrix, allControlsNotApplicable]);
-
-  const filteredAllControlRows = useMemo(() => {
-    const q = allQuery.trim().toLowerCase();
-    if (!q) return allControlRows;
-    return allControlRows.filter((row) =>
-      row.control.id.toLowerCase().includes(q)
-      || row.control.name.toLowerCase().includes(q)
-      || row.control.domain.toLowerCase().includes(q)
-    );
-  }, [allControlRows, allQuery]);
-
   // Where to land when the modal OPENS: the earliest section still holding
   // work, so re-opening resumes rather than restarting. Navigation once
   // inside walks SECTION_ORDER instead — see the hand-off effect and the
@@ -175,9 +140,6 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
     setExcludingPendingId(null);
     setPendingNote("");
     setExpandedGroupId(null);
-    setAllQuery("");
-    setExcludingId(null);
-    setExcludeNote("");
     if (initialWave === "vendor-inherited") setView("external");
     else if (initialWave === "enterprise") setView("internal");
     else setView(nextViewWithWork());
@@ -260,12 +222,6 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
     )]);
   }
 
-  function markControlOutOfScope(control: Control, note: string) {
-    if (!commitReviews([review(control.id, "not-applicable", "confirm", note)])) return;
-    setExcludingId(null);
-    setExcludeNote("");
-  }
-
   if (!open) return null;
 
   const outOfScopeState = view === "out-of-scope" ? "active" : outOfScopeDone ? "done" : "pending";
@@ -274,9 +230,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
   const SystemOwnedIcon = RESPONSIBILITY_META[RESPONSIBILITIES.INTERNAL].Icon;
   const naMeta = APPLICABILITY_META["not-applicable"];
 
-  const footerPosition = view === "all"
-    ? `All controls · ${filteredAllControlRows.length} shown`
-    : view === "external"
+  const footerPosition = view === "external"
       ? `External inheritance · ${externalConfirmed} of ${externalGroups.length} claims confirmed`
       : view === "internal"
         ? `Internal inheritance · ${internalConfirmed} of ${internalGroups.length} programs confirmed`
@@ -315,6 +269,17 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
   // derived by the rules or just typed. These had drifted to three labels for
   // the in-scope act alone ("Pull into scope" / "Mark applicable" / "Mark in
   // scope"), which reads as three different decisions.
+  //
+  // A decided row keeps its `Mark in scope` action rather than freezing into a
+  // status pill. isForcedNotApplicable and isForcedApplicable are the same
+  // record read two ways (see engine/review.ts), so the engine has always been
+  // able to undo an exclusion — only the UI made it one-way. It mattered less
+  // while the All Controls browser offered a second route back; with that gone
+  // this list is the only one, and a scope call nobody can reverse is a trap.
+  const reversalRow = (control: Control) => (
+    <Button size="sm" disabled={!canWrite} onClick={() => pullIntoScope(control)}>Mark in scope</Button>
+  );
+
   const exclusionRow = (item: ReviewWaveControl, isLast: boolean) => {
     const decided = Boolean(item.review);
     const excluded = item.review?.stance === "confirm";
@@ -329,9 +294,12 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
             <div className={`${TX.help} mt-1.5`} style={{ color: C.muted }}>{item.reason}</div>
           </div>
           {decided ? (
-            <StatusPill tone={excluded ? "neutral" : "success"} icon={excluded ? Ban : Check}>
-              {excluded ? "Out of scope" : "In scope"}
-            </StatusPill>
+            <div className="flex items-center gap-2 shrink-0">
+              <StatusPill tone={excluded ? "neutral" : "success"} icon={excluded ? Ban : Check}>
+                {excluded ? "Out of scope" : "In scope"}
+              </StatusPill>
+              {excluded && reversalRow(item.control)}
+            </div>
           ) : (
             <div className="flex items-center gap-2 shrink-0">
               <Button size="sm" disabled={!canWrite} onClick={() => pullIntoScope(item.control)}>Mark in scope</Button>
@@ -359,9 +327,12 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
             <div className={`${TX.help} mt-1.5`} style={{ color: C.ink }}>{item.reason}</div>
           </div>
           {decided ? (
-            <StatusPill tone={excluded ? "neutral" : "success"} icon={excluded ? Ban : Check}>
-              {excluded ? "Out of scope" : "In scope"}
-            </StatusPill>
+            <div className="flex items-center gap-2 shrink-0">
+              <StatusPill tone={excluded ? "neutral" : "success"} icon={excluded ? Ban : Check}>
+                {excluded ? "Out of scope" : "In scope"}
+              </StatusPill>
+              {excluded && reversalRow(item.control)}
+            </div>
           ) : (
             <div className="flex items-center gap-2 shrink-0">
               <Button size="sm" disabled={!canWrite} onClick={() => pullIntoScope(item.control)}>Mark in scope</Button>
@@ -477,110 +448,10 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
                 onClick={() => { onClose(); onStartTechnicalReview(); }}
               />
             </RailGroup>
-
-            <RailGroup label="Browse">
-              <RailItem
-                icon={ListChecks}
-                title="All Controls"
-                detail={`${allControlRows.length} in the catalog`}
-                state={view === "all" ? "active" : "pending"}
-                onClick={() => setView("all")}
-              />
-            </RailGroup>
           </WizardRail>
 
           <WizardPane>
             {saveError && <SaveErrorCallout problems={saveError} />}
-
-            {view === "all" && (
-              <Section
-                grow
-                icon={ListChecks}
-                title="All controls"
-                description="Every control the catalog defines against this system — set any one in or out of scope directly."
-                aside={<StatusPill tone="neutral">{filteredAllControlRows.length} shown</StatusPill>}
-              >
-                <SearchInput
-                  value={allQuery}
-                  onChange={setAllQuery}
-                  placeholder="Search by id, name, or domain…"
-                  ariaLabel="Search controls"
-                  className="md:max-w-[380px]"
-                />
-                <Well padded={false} className="flex-1 min-h-0 overflow-y-auto">
-                  {filteredAllControlRows.length === 0 && (
-                    <div className={`${TX.help} text-center py-8`} style={{ color: C.muted }}>
-                      No controls match that search.
-                    </div>
-                  )}
-                  {filteredAllControlRows.map((row, index) => (
-                    <div
-                      key={row.control.id}
-                      style={{ borderBottom: index < filteredAllControlRows.length - 1 ? `1px solid ${C.border}` : undefined }}
-                    >
-                      <div className="flex items-start gap-3 px-3.5 py-3">
-                        <div className="min-w-0 flex-1">
-                          <div className={TX.itemTitle} style={{ color: C.ink }}>{row.control.name}</div>
-                          <div className={`${TX.help} mt-1.5`} style={{ color: C.muted }}>
-                            <span className="font-mono">{row.control.id}</span> · {row.control.domain}
-                          </div>
-                          {!row.inScope && row.reason && (
-                            <div className={`${TX.help} mt-1.5`} style={{ color: C.muted }}>{row.reason}</div>
-                          )}
-                        </div>
-                        <StatusPill tone={row.inScope ? "success" : "neutral"} icon={row.inScope ? Check : Ban}>
-                          {row.inScope ? "In scope" : "Out of scope"}
-                        </StatusPill>
-                        {row.inScope ? (
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            disabled={!canWrite}
-                            onClick={() => { setExcludingId(row.control.id); setExcludeNote(""); }}
-                          >
-                            Mark out of scope…
-                          </Button>
-                        ) : (
-                          <Button size="sm" disabled={!canWrite} onClick={() => pullIntoScope(row.control)}>
-                            Mark in scope
-                          </Button>
-                        )}
-                      </div>
-                      {excludingId === row.control.id && (
-                        <div className="px-3.5 pb-3.5">
-                          <Well hollow className="flex flex-col gap-3.5">
-                            <Field
-                              label="Reason"
-                              note="Required — why this control does not apply to this boundary."
-                              error={excludeNote.trim() ? null : "Enter a reason before recording the exclusion."}
-                            >
-                              <TextInput
-                                value={excludeNote}
-                                onChange={(e) => setExcludeNote(e.target.value)}
-                                placeholder="e.g. No physical facility inside this boundary"
-                                aria-label={`Reason ${row.control.id} is out of scope`}
-                              />
-                            </Field>
-                            <div className="flex items-center justify-end gap-2.5">
-                              <Button size="sm" onClick={() => { setExcludingId(null); setExcludeNote(""); }}>Cancel</Button>
-                              <Button
-                                size="sm"
-                                variant="primary"
-                                icon={Check}
-                                disabled={!excludeNote.trim()}
-                                onClick={() => markControlOutOfScope(row.control, excludeNote.trim())}
-                              >
-                                Confirm out of scope
-                              </Button>
-                            </div>
-                          </Well>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </Well>
-              </Section>
-            )}
 
             {view === "out-of-scope" && everythingDone && (
               <CompletionScreen
@@ -632,7 +503,9 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
                 >
                   {derivedExclusions.length === 0 ? (
                     <Callout tone="info" title="Nothing is excluded by rule.">
-                      Every control in the catalog applies to this boundary. The All Controls browser can pull any control out with a stated reason.
+                      Every control in the catalog applies to this boundary. To take one out, open it from the
+                      Controls tab and record the exclusion in its Scope section — the reason belongs with the
+                      control it is about.
                     </Callout>
                   ) : (
                     <Well padded={false}>
@@ -640,6 +513,65 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
                     </Well>
                   )}
                 </Section>
+
+                {/* The history behind an exclusion, which the exclusion row
+                    itself cannot carry: these controls were graded before
+                    somebody decided they do not apply here. Shown as a record,
+                    not a decision — there is nothing to confirm, which is why
+                    it sits inside Out of Scope rather than earning a rail
+                    entry of its own. Absent entirely when nothing qualifies. */}
+                {dormant.length > 0 && (
+                  <Section
+                    icon={History}
+                    title="Assessed, then scoped out"
+                    description="These carry an assessment from before they were excluded. The record stays readable and stops counting toward this system's scores; pulling a control back into scope makes it count again."
+                    aside={<StatusPill tone="neutral">{dormant.length} retained</StatusPill>}
+                  >
+                    <Well padded={false}>
+                      {dormant.map((d, index) => (
+                        <div
+                          key={d.control.id}
+                          className="px-3.5 py-3"
+                          style={{ borderBottom: index < dormant.length - 1 ? `1px solid ${C.border}` : undefined }}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className={TX.itemTitle} style={{ color: C.ink }}>{d.control.name}</div>
+                              <div className={`${TX.help} mt-1`} style={{ color: C.muted }}>
+                                <span className="font-mono">{d.control.id}</span> · {d.control.domain}
+                              </div>
+                              {d.reason && (
+                                <div className={`${TX.help} mt-1.5`} style={{ color: C.muted }}>{d.reason}</div>
+                              )}
+                              <div className={`${TX.help} mt-1.5`} style={{ color: C.muted }}>
+                                Scoped out by {d.reviewedBy || "an unnamed reviewer"}
+                                {d.reviewedAt && ` on ${d.reviewedAt}`}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <StatusPill tone="neutral" icon={History}>Dormant</StatusPill>
+                              {reversalRow(d.control)}
+                            </div>
+                          </div>
+                          {/* What actually survives, counted rather than
+                              scored — there is no live rating to quote once
+                              the control has left the applicable set. */}
+                          <div className="flex items-center gap-2 flex-wrap mt-2.5">
+                            {d.inDeclaredScope && <StatusPill tone="neutral">In declared assessment scope</StatusPill>}
+                            {d.evidenceCount > 0 && <StatusPill tone="neutral">{d.evidenceCount} evidence</StatusPill>}
+                            {d.mechanismCount > 0 && <StatusPill tone="neutral">{d.mechanismCount} mechanism{d.mechanismCount === 1 ? "" : "s"}</StatusPill>}
+                            {d.findingCount > 0 && <StatusPill tone="warning">{d.findingCount} finding{d.findingCount === 1 ? "" : "s"}</StatusPill>}
+                            {d.overrides.map((o) => (
+                              <StatusPill key={`${d.control.id}-${o.level}`} tone="neutral">
+                                {o.level} {o.rating} · assessor override
+                              </StatusPill>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </Well>
+                  </Section>
+                )}
               </>
             )}
 
@@ -756,9 +688,6 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
           position={footerPosition}
           hint={footerHint}
           close={<Button onClick={onClose}>Close</Button>}
-          back={view === "all"
-            ? <Button icon={ChevronLeft} onClick={() => setView("out-of-scope")}>Back</Button>
-            : undefined}
           primary={showContinue && nextSection
             ? (
               <Button variant="primary" iconRight={ArrowRight} onClick={() => setView(nextSection)}>

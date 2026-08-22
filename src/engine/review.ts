@@ -148,6 +148,36 @@ export interface FrameworkReadiness {
   blocked: number;
 }
 
+// A control this system assessed and then scoped out — the history behind an
+// exclusion, which the exclusion itself does not carry.
+//
+// Everything here is read from raw facts rather than from assessment.
+// assessmentFor() returns null the moment a control leaves the applicable set,
+// which is correct (there is no live score any more) but means the record it
+// was computed from is the only thing left to report. That is also why the
+// counts below are counts and not a rating: what survives is the material an
+// assessor filed, not a number the engine still stands behind.
+export interface DormantAssessment {
+  control: Control;
+  // The exclusion: why it went out, and who said so.
+  reason: string;
+  reviewedBy: string;
+  reviewedAt: string;
+  // What is still on record underneath it.
+  //
+  // inDeclaredScope is the one part of the record that does not always survive,
+  // and that is pre-existing behaviour rather than a gap here: liveGraph prunes
+  // a RUNTIME-owned scope down to what currently applies, so excluding a control
+  // drops its scope entry. A YAML-curated engagement's declared list is never
+  // pruned, so there the entry stays and this reads true. Either way the
+  // evidence, mechanisms, findings and overrides below are untouched.
+  inDeclaredScope: boolean;
+  evidenceCount: number;
+  findingCount: number;
+  mechanismCount: number;
+  overrides: Array<{ level: string; rating: number; assessedBy: string; assessedAt: string; note: string }>;
+}
+
 function proposedBucket(
   graph: Graph,
   systemId: SystemId,
@@ -427,9 +457,59 @@ export function createReview(
     };
   }
 
+  // Controls scoped out by a confirmed review that still carry assessment
+  // facts. The same pairs validateDerivations exempts under DORMANT
+  // ASSESSMENTS — that exemption is what keeps these facts loadable, and this
+  // is what makes them visible instead of merely tolerated.
+  //
+  // A control excluded before anyone assessed it has nothing underneath and is
+  // not listed: it is an ordinary exclusion, already shown as one.
+  function dormantAssessmentsForSystem(systemId: SystemId): DormantAssessment[] {
+    const assetIds = new Set((graph.assetsBySystem[systemId] ?? []).map((a) => a.id));
+    const scope = graph.assessmentScopeBySystem[systemId];
+    const inScopeList = new Set<string>(scope?.controlIds ?? []);
+
+    return graph.controls
+      .filter((control) => isForcedNotApplicable(graph, systemId, control.id))
+      .map((control) => {
+        const evidenceCount = graph.evidence.filter(
+          (e) => e.controlId === control.id && e.assetIds.some((id) => assetIds.has(id))
+        ).length;
+        const findingCount = graph.findings.filter(
+          (f) => f.controlId === control.id && assetIds.has(f.assetId)
+        ).length;
+        const mechanismCount = graph.implementationMechanisms.filter(
+          (m) => m.controlId === control.id && assetIds.has(m.assetId)
+        ).length;
+        const overrides = graph.prismaOverrides
+          .filter((o) => o.systemId === systemId && o.controlId === control.id)
+          .map((o) => ({
+            level: o.level, rating: o.rating, assessedBy: o.assessedBy, assessedAt: o.assessedAt, note: o.note ?? "",
+          }));
+        const review = reviewFor(graph, systemId, control.id);
+        return {
+          control,
+          reason: review?.note ?? "",
+          reviewedBy: review?.reviewedBy ?? "",
+          reviewedAt: review?.reviewedAt ?? "",
+          inDeclaredScope: inScopeList.has(control.id),
+          evidenceCount,
+          findingCount,
+          mechanismCount,
+          overrides,
+        };
+      })
+      .filter((d) => (
+        d.inDeclaredScope || d.evidenceCount > 0 || d.findingCount > 0
+        || d.mechanismCount > 0 || d.overrides.length > 0
+      ))
+      .sort((a, b) => a.control.id.localeCompare(b.control.id));
+  }
+
   return {
     wavesForSystem,
     inheritanceGroupsForSystem,
+    dormantAssessmentsForSystem,
     frameworkReadiness,
     auditReadinessForSystem,
     inheritanceClaimed: (systemId: SystemId, controlId: ControlId) => inheritanceClaimed(graph, systemId, controlId),

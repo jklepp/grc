@@ -14,7 +14,9 @@
 // the import itself exploding.
 import { CLASS_ORDER } from "../theme";
 import { CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES } from "../graph/nodes/taxonomy";
+import { isForcedNotApplicable } from "./review";
 import type { Engine } from "./create";
+import type { ControlId, SystemId } from "../graph/ids";
 
 export function validateDerivations(engine: Engine, options: { throwOnFailure?: boolean } = {}): string[] {
   const { throwOnFailure = true } = options;
@@ -23,6 +25,28 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
   const check = (condition: boolean, message: string) => {
     if (!condition) problems.push(message);
   };
+
+  // DORMANT ASSESSMENTS
+  //
+  // A control can be assessed and later scoped out — an assessor grades it,
+  // then someone works out its premise never held on this boundary and records
+  // an exclusion with a reason and a name. Three checks below would otherwise
+  // read that history as corruption: the override has no derived rating left to
+  // sit on, the declared scope lists something no longer applicable, and every
+  // asset that used to be sampled now looks like a short population.
+  //
+  // None of that is wrong, it is just over. The facts stay on record — deleting
+  // an assessment to satisfy a validator would destroy exactly the audit trail
+  // this tool exists to keep, and for a control assessed in the authored YAML
+  // there is nothing a runtime write could delete anyway. So a pair a human has
+  // scoped out is exempt from the checks that assume it is still live.
+  //
+  // Deliberately narrow: only a CONFIRMED not-applicable review counts (the
+  // same record isForcedApplicable reads the other way round), so this cannot
+  // be reached by a rule, a derivation, or an unanswered pending question. A
+  // person has to have said so.
+  const scopedOutByReview = (systemId: SystemId, controlId: ControlId) =>
+    isForcedNotApplicable(graph, systemId, controlId);
 
   // The graph's tier vocabulary and the theme's display order are defined
   // separately — presentation shouldn't import the model. Them disagreeing,
@@ -150,6 +174,7 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
     applicability.requiredControlsForAsset(a.id).forEach((c) => {
       a.systemIds.forEach((sid) => {
         if (!graph.assessedPairs.has(`${sid}::${c.id}`)) return;
+        if (scopedOutByReview(sid, c.id)) return; // dormant — see DORMANT ASSESSMENTS
         check(
           a.controls.some((i) => i.systemId === sid && i.controlId === c.id),
           `asset ${a.id}: ${c.id} is required here and is in ${sid}'s assessment scope, but no instance sampled this asset under that system — the control's Implemented rating would be computed over a short population`
@@ -254,6 +279,10 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
     const applicable = new Set(applicability.applicableControlsForSystem(system.id).map((c) => c.id));
 
     declared.forEach((id) => {
+      // A scoped-out pair keeps its scope entry as history — see DORMANT
+      // ASSESSMENTS. It is neither an empty claim nor scope creep; it is a
+      // control this system did assess, before deciding it does not apply.
+      if (scopedOutByReview(system.id, id as ControlId)) return;
       check(
         supported.has(id),
         `assessment scope for ${system.id} lists ${id}, but no evidence, mechanism, override, not-implemented declaration or finding on this system supports it — an assessed control with nothing behind it is an empty claim`
@@ -357,6 +386,9 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
   // Same contract as an applicability exception: an override that agrees with
   // the derivation is dead text that looks like a considered judgment.
   graph.prismaOverrides.forEach((o) => {
+    // The override outlives the assessment it was made against once the pair is
+    // scoped out — see DORMANT ASSESSMENTS.
+    if (scopedOutByReview(o.systemId, o.controlId)) return;
     const a = assessment.assessmentFor(o.systemId, o.controlId);
     check(
       a !== null && a.assessed,

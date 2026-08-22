@@ -10,6 +10,17 @@ Not a compliance checklist tool. Risk supports assurance; it is not the primary 
 - Applicability must be explainable; deterministic rules win over silent AI decisions.
 - Keep assurance scores separate from assessment coverage %.
 
+## Vocabulary
+Use the app's own words in code, UI, and discussion; do not invent shorthand for concepts that already have names.
+- **Enterprise** — the all-systems rollup. Canonical. `PORTFOLIO_ASSURANCE_PCT` / `categoryPortfolioAverages` are the old name for the same figure: rename when you touch them, never add a new use of "portfolio".
+- **Ladder** / **rung** — the PRISMA maturity ladder only (Policy → Managed). Never say "ladder" about tiers.
+- **Tier baseline** — the control set a classification tier puts in scope (`control-baselines.yaml`, `baselineForSystem`). Tiers select baselines; they do not have rungs.
+- **External Inheritance** — provider-run domains, backed by a report or certification. Say "report", never a generic "attestation" (SOC 2 is specifically an attestation engagement).
+- **Internal Inheritance** — ACME-run central programs, backed by ACME's own program-level evidence. Never "self-attestation".
+- **The authored dataset** — the facts in `src/graph/facts/*.yaml`. Not "the corpus".
+- **Promotion** — the build-time operation that moves wizard-created facts from the browser into the authored dataset. An internal operation, not a concept the UI teaches; explain it before leaning on it.
+- Not app words, do not use: "thin system", "corpus", "portfolio", "baseline ladder".
+
 ## Code map
 - Engine: `src/engine/` (assessment, levels, assurance, rollups, profile, applicability, evidence, cockpit, findings)
 - Graph: `src/graph/` — facts/edges, including `Finding`, `Org` (team/user/business unit), `Evidence Source` entities

@@ -4,7 +4,7 @@
 // Governance") that existed so the Risk Register could show a control family in
 // a column. It was doing far more work than that. riskRegister.js mapped it
 // through LINKED_CONTROL_CATEGORY to one of the six assurance categories, then
-// looked up that category's PORTFOLIO-WIDE average, and presented the result as
+// looked up that category's ENTERPRISE-WIDE average, and presented the result as
 // this risk's control assurance. So every risk mapping to "Identity & Access"
 // reported the same number, computed across all fifteen assets — including
 // assets that have nothing to do with the risk.
@@ -12,7 +12,7 @@
 // It's now edges/riskContributors.ts: which assets actually carry the scenario,
 // and which key controls actually hold it down. engine/risk.ts reads assurance
 // from those, so RISK-001's number comes from the RAG service and the vector
-// store rather than from a portfolio average, and it moves when they move.
+// store rather than from an enterprise-wide average, and it moves when they move.
 //
 // The ordered level arrays replace SEVERITY_VALUE / LIKELIHOOD_VALUE. The
 // numeric weight of a tier is its position in the ordering, so the two can't

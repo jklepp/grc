@@ -2,7 +2,7 @@
 //
 // What replaces `linkedControl`, the free-text string that used to be a risk's
 // only connection to the rest of the model. That string was routed through a
-// hand-typed map to an assurance category, and the category's PORTFOLIO-WIDE
+// hand-typed map to an assurance category, and the category's ENTERPRISE-WIDE
 // average was then reported as the risk's control assurance — so RISK-001,
 // a cross-tenant defect in the retrieval path, reported a number computed
 // across all fifteen assets including the payroll connector and the audit log

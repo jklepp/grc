@@ -456,7 +456,7 @@ export function createSelectors(
     getAllKeyControls: () => graph.keyControls,
     getAllEvidence: () => graph.evidence.map(evidenceApi.scoreEvidence),
     getEnterprise: () => rollups.enterprise,
-    getCategoryAverages: () => rollups.categoryPortfolioAverages,
+    getCategoryAverages: () => rollups.categoryEnterpriseAverages,
 
     // Traversal
     getInstancesForAsset, getInstance, getControlAssessments,
