@@ -1,9 +1,10 @@
-import React from "react";
-import { Calendar, ChevronRight, ClipboardCheck, FileWarning, Wrench } from "lucide-react";
+import React, { useState } from "react";
+import { Calendar, Check, ChevronRight, ClipboardCheck, FileWarning, ListChecks, Wrench } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { C } from "../../theme";
 import { Panel } from "./shared/Panel";
 import { SectionHeader } from "./shared/SectionHeader";
-import { Button, StatusPill } from "../../components/wizard/WizardUI";
+import { Button, Callout, StatusPill, TX, WizardTokens, WZ } from "../../components/wizard/WizardUI";
 import type { Tone } from "../../components/wizard/WizardUI";
 import { STATUS_META, RESPONSIBILITY_META } from "./controlMeta";
 import { DOMAIN_TO_TAB } from "./overview/AttentionRequired";
@@ -66,177 +67,125 @@ function cadenceTone(cadence: CadenceStatus): Tone {
   return "neutral";
 }
 
-// ---- Panel 1: Due & Recurring ------------------------------------------------
+// ---- Group 1: Due & Recurring ------------------------------------------------
 
-function DueRecurringPanel({ items, onNavigate }: {
+function DueRecurringList({ items, onNavigate }: {
   items: DueRecurringItem[];
   onNavigate: (tab: SystemWorkspaceTab) => void;
 }) {
-  const overdueCount = items.filter((i) => i.cadence.overdue).length;
   const sorted = [...items].sort((a, b) => (a.cadence.dueAt ?? "").localeCompare(b.cadence.dueAt ?? ""));
 
-  return (
-    <Panel>
-      <SectionHeader
-        icon={Calendar}
-        title="Due & Recurring"
-        description="Cadence-based obligations this system owes on a schedule — access reviews, testing, DR, IR, and vendor reassessment."
-        aside={items.length > 0 ? <StatusPill tone={overdueCount > 0 ? "danger" : "neutral"}>{items.length}</StatusPill> : undefined}
-      />
-      {sorted.length === 0 ? (
-        <EmptyNote>Nothing scheduled for this system yet.</EmptyNote>
-      ) : (
-        <RowList>
-          {sorted.map((item) => {
-            const tab = DOMAIN_TO_TAB[item.domain] ?? "testing";
-            const tone = cadenceTone(item.cadence);
-            const label = item.cadence.overdue
-              ? `Overdue${item.cadence.dueAt ? ` · was due ${item.cadence.dueAt}` : ""}`
-              : item.cadence.daysUntilDue != null ? `Due in ${item.cadence.daysUntilDue}d` : "Not tracked";
-            return (
-              <ActionRow
-                key={item.key}
-                onClick={() => onNavigate(tab)}
-                left={(
-                  <>
-                    <div className="text-sm font-semibold" style={{ color: C.ink }}>{item.title}</div>
-                    <div className="text-xs mt-0.5" style={{ color: C.muted }}>
-                      {item.domain}{item.cadence.lastAt ? ` · Last performed ${item.cadence.lastAt}` : " · Never performed"}
-                    </div>
-                  </>
-                )}
-                right={<StatusPill tone={tone}>{label}</StatusPill>}
-              />
-            );
-          })}
-        </RowList>
-      )}
-    </Panel>
-  );
-}
-
-// ---- Panel 2: Controls to Assess --------------------------------------------
-
-function ControlsToAssessPanel({ matrix, onSelectControl, onStartAssessment, onSelectControlsGroup }: {
-  matrix: ControlMatrixRow[];
-  onSelectControl: (controlId: ControlId, step?: EvaluationStep) => void;
-  onStartAssessment?: () => void;
-  onSelectControlsGroup: (selection: ControlSelection) => void;
-}) {
-  const rows = matrix.filter((r) => r.status === "unassessed");
+  if (sorted.length === 0) return <EmptyNote>Nothing scheduled for this system yet.</EmptyNote>;
 
   return (
-    <Panel>
-      <SectionHeader
-        icon={ClipboardCheck}
-        title="Controls to Assess"
-        description="Applicable controls with no PRISMA score on record yet for this system."
-        aside={(
-          <div className="flex items-center gap-2">
-            {rows.length > 0 && <StatusPill tone="neutral">{rows.length}</StatusPill>}
-            {rows.length > 0 && (
-              <Button size="sm" onClick={onStartAssessment ?? (() => onSelectControlsGroup(ASSESSMENT_SELECTION))}>
-                {onStartAssessment ? "Start Assessment" : "Open in Controls"}
-              </Button>
+    <RowList>
+      {sorted.map((item) => {
+        const tab = DOMAIN_TO_TAB[item.domain] ?? "testing";
+        const tone = cadenceTone(item.cadence);
+        const label = item.cadence.overdue
+          ? `Overdue${item.cadence.dueAt ? ` · was due ${item.cadence.dueAt}` : ""}`
+          : item.cadence.daysUntilDue != null ? `Due in ${item.cadence.daysUntilDue}d` : "Not tracked";
+        return (
+          <ActionRow
+            key={item.key}
+            onClick={() => onNavigate(tab)}
+            left={(
+              <>
+                <div className="text-sm font-semibold" style={{ color: C.ink }}>{item.title}</div>
+                <div className="text-xs mt-0.5" style={{ color: C.muted }}>
+                  {item.domain}{item.cadence.lastAt ? ` · Last performed ${item.cadence.lastAt}` : " · Never performed"}
+                </div>
+              </>
             )}
-          </div>
-        )}
-      />
-      {rows.length === 0 ? (
-        <EmptyNote>Every applicable control has been assessed.</EmptyNote>
-      ) : (
-        <RowList>
-          {rows.map((row) => {
-            const respMeta = RESPONSIBILITY_META[row.responsibility];
-            return (
-              <ActionRow
-                key={row.controlId}
-                onClick={() => onSelectControl(row.controlId)}
-                left={(
-                  <div className="text-sm truncate" style={{ color: C.ink }}>
-                    <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded mr-1.5" style={{ background: C.accentBg, color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-                      {row.control.id}
-                    </span>
-                    {row.control.name}
-                    <span className="text-xs ml-2" style={{ color: C.muted }}>{row.control.domain}</span>
-                  </div>
-                )}
-                right={respMeta ? (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded" style={{ background: respMeta.bg, color: respMeta.color }}>
-                    <respMeta.Icon size={11} /> {respMeta.label}
-                  </span>
-                ) : null}
-              />
-            );
-          })}
-        </RowList>
-      )}
-    </Panel>
+            right={<StatusPill tone={tone}>{label}</StatusPill>}
+          />
+        );
+      })}
+    </RowList>
   );
 }
 
-// ---- Panel 3: Gaps Needing a Finding -----------------------------------------
+// ---- Group 2: Controls to Assess --------------------------------------------
 
-function GapsPanel({ matrix, gapControlsMissingFinding, onSelectControl, onSelectControlsGroup }: {
+function ControlsToAssessList({ rows, onSelectControl }: {
+  rows: ControlMatrixRow[];
+  onSelectControl: (controlId: ControlId, step?: EvaluationStep) => void;
+}) {
+  if (rows.length === 0) return <EmptyNote>Every applicable control has been assessed.</EmptyNote>;
+
+  return (
+    <RowList>
+      {rows.map((row) => {
+        const respMeta = RESPONSIBILITY_META[row.responsibility];
+        return (
+          <ActionRow
+            key={row.controlId}
+            onClick={() => onSelectControl(row.controlId)}
+            left={(
+              <div className="text-sm truncate" style={{ color: C.ink }}>
+                <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded mr-1.5" style={{ background: C.accentBg, color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
+                  {row.control.id}
+                </span>
+                {row.control.name}
+                <span className="text-xs ml-2" style={{ color: C.muted }}>{row.control.domain}</span>
+              </div>
+            )}
+            right={respMeta ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded" style={{ background: respMeta.bg, color: respMeta.color }}>
+                <respMeta.Icon size={11} /> {respMeta.label}
+              </span>
+            ) : null}
+          />
+        );
+      })}
+    </RowList>
+  );
+}
+
+// ---- Group 3: Gaps Needing a Finding -----------------------------------------
+
+function GapsList({ matrix, gapControlsMissingFinding, onSelectControl }: {
   matrix: ControlMatrixRow[];
   gapControlsMissingFinding: FormalAssessmentStatus["gapControlsMissingFinding"];
   onSelectControl: (controlId: ControlId, step?: EvaluationStep) => void;
-  onSelectControlsGroup: (selection: ControlSelection) => void;
 }) {
   const statusByControl = new Map(matrix.map((r) => [r.controlId, r.status]));
 
+  if (gapControlsMissingFinding.length === 0) return <EmptyNote>Every gap on this system has a Finding on record.</EmptyNote>;
+
   return (
-    <Panel>
-      <SectionHeader
-        icon={FileWarning}
-        title="Gaps Needing a Finding"
-        description="Controls scored partial, deficient, or not implemented with nothing filed against them yet."
-        aside={(
-          <div className="flex items-center gap-2">
-            {gapControlsMissingFinding.length > 0 && <StatusPill tone="danger">{gapControlsMissingFinding.length}</StatusPill>}
-            {gapControlsMissingFinding.length > 0 && (
-              <Button size="sm" onClick={() => onSelectControlsGroup(DEFAULT_SELECTION)}>Open in Controls</Button>
+    <RowList>
+      {gapControlsMissingFinding.map(({ controlId, control }) => {
+        const status = statusByControl.get(controlId);
+        const meta = status ? STATUS_META[status] : null;
+        return (
+          <ActionRow
+            key={controlId}
+            // Lands straight on Findings & Remediation — this row exists
+            // because there's nothing filed yet, so that's the step that
+            // matters, not Control Scoring.
+            onClick={() => onSelectControl(controlId, "findings")}
+            left={(
+              <div className="text-sm truncate" style={{ color: C.ink }}>
+                <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded mr-1.5" style={{ background: C.accentBg, color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
+                  {control.id}
+                </span>
+                {control.name}
+              </div>
             )}
-          </div>
-        )}
-      />
-      {gapControlsMissingFinding.length === 0 ? (
-        <EmptyNote>Every gap on this system has a Finding on record.</EmptyNote>
-      ) : (
-        <RowList>
-          {gapControlsMissingFinding.map(({ controlId, control }) => {
-            const status = statusByControl.get(controlId);
-            const meta = status ? STATUS_META[status] : null;
-            return (
-              <ActionRow
-                key={controlId}
-                // Lands straight on Findings & Remediation — this row exists
-                // because there's nothing filed yet, so that's the step that
-                // matters, not Control Scoring.
-                onClick={() => onSelectControl(controlId, "findings")}
-                left={(
-                  <div className="text-sm truncate" style={{ color: C.ink }}>
-                    <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded mr-1.5" style={{ background: C.accentBg, color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-                      {control.id}
-                    </span>
-                    {control.name}
-                  </div>
-                )}
-                right={meta ? (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded" style={{ background: meta.bg, color: meta.color }}>
-                    <meta.Icon size={11} /> {meta.label}
-                  </span>
-                ) : null}
-              />
-            );
-          })}
-        </RowList>
-      )}
-    </Panel>
+            right={meta ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded" style={{ background: meta.bg, color: meta.color }}>
+                <meta.Icon size={11} /> {meta.label}
+              </span>
+            ) : null}
+          />
+        );
+      })}
+    </RowList>
   );
 }
 
-// ---- Panel 4: Remediation Pipeline -------------------------------------------
+// ---- Group 4: Remediation Pipeline -------------------------------------------
 
 // Three real buckets, not four — "ready to remediate" would need something
 // on record that says the fix is actually done, and nothing does. Overdue
@@ -281,42 +230,93 @@ function SubLabel({ tone, children }: { tone?: "danger"; children: React.ReactNo
   );
 }
 
-function RemediationPipelinePanel({ findings, onSelectControl, onNavigate }: {
-  findings: EngineFinding[];
+function RemediationPipelineList({ open, onSelectControl }: {
+  open: EngineFinding[];
   onSelectControl: (controlId: ControlId, step?: EvaluationStep) => void;
-  onNavigate: (tab: SystemWorkspaceTab) => void;
 }) {
-  const open = findings.filter((f) => f.open);
   const needsCap = open.filter((f) => !f.remediationPlan);
   const overdue = open.filter((f) => f.remediationPlan && f.overdue);
   const inRemediation = open.filter((f) => f.remediationPlan && !f.overdue);
 
+  if (open.length === 0) return <EmptyNote>No open findings on this system.</EmptyNote>;
+
   return (
-    <Panel>
-      <SectionHeader
-        icon={Wrench}
-        title="Remediation Pipeline"
-        description="Every open Finding for this system, staged by what it needs next."
-        aside={(
-          <div className="flex items-center gap-2">
-            {open.length > 0 && <StatusPill tone="danger">{open.length} open</StatusPill>}
-            <Button size="sm" onClick={() => onNavigate("findings")}>Open Findings &amp; CAPs</Button>
-          </div>
-        )}
-      />
-      {open.length === 0 ? (
-        <EmptyNote>No open findings on this system.</EmptyNote>
-      ) : (
-        <RowList>
-          {needsCap.length > 0 && <SubLabel>Needs a CAP</SubLabel>}
-          {needsCap.map((f) => <FindingRow key={f.id} f={f} onSelectControl={onSelectControl} />)}
-          {overdue.length > 0 && <SubLabel tone="danger">Overdue</SubLabel>}
-          {overdue.map((f) => <FindingRow key={f.id} f={f} onSelectControl={onSelectControl} />)}
-          {inRemediation.length > 0 && <SubLabel>In Remediation</SubLabel>}
-          {inRemediation.map((f) => <FindingRow key={f.id} f={f} onSelectControl={onSelectControl} />)}
-        </RowList>
+    <RowList>
+      {needsCap.length > 0 && <SubLabel>Needs a CAP</SubLabel>}
+      {needsCap.map((f) => <FindingRow key={f.id} f={f} onSelectControl={onSelectControl} />)}
+      {overdue.length > 0 && <SubLabel tone="danger">Overdue</SubLabel>}
+      {overdue.map((f) => <FindingRow key={f.id} f={f} onSelectControl={onSelectControl} />)}
+      {inRemediation.length > 0 && <SubLabel>In Remediation</SubLabel>}
+      {inRemediation.map((f) => <FindingRow key={f.id} f={f} onSelectControl={onSelectControl} />)}
+    </RowList>
+  );
+}
+
+// ---- Actions Overview: one accordion, grouped by action type -----------------
+
+const GROUPS = ["due", "assess", "gaps", "remediate"] as const;
+type GroupId = (typeof GROUPS)[number];
+
+// Each row collapses to a marker/title/description/count, exactly like the
+// System Readiness checklist (AssessmentReadiness.tsx) — but these four are
+// independent buckets of open work, not sequential steps, so expanding one
+// reveals its own row list inline instead of navigating away. Only one group
+// is open at a time; clicking the open group's row closes it.
+function GroupRow({ icon: Icon, title, description, count, expanded, onToggle, actions, children }: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  count: number;
+  expanded: boolean;
+  onToggle: () => void;
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const clear = count === 0;
+  return (
+    <div
+      className="transition-colors"
+      style={{
+        background: expanded ? C.accentBg : C.bg,
+        border: `1px solid ${expanded ? C.accent : C.border}`,
+        borderRadius: WZ.radius.control,
+      }}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        aria-label={`${title} — ${clear ? "clear" : `${count} open`}`}
+        className="wz-focusable wz-hover w-full flex items-start gap-3 px-3.5 py-3 text-left transition-colors"
+      >
+        <span
+          className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+          style={{
+            border: `1.5px solid ${clear ? C.green : expanded ? C.accent : C.border}`,
+            background: clear ? C.greenBg : expanded ? C.accent : "transparent",
+            color: clear ? C.green : expanded ? WZ.onAccent : C.muted,
+          }}
+        >
+          {clear ? <Check size={13} /> : <Icon size={13} />}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className={`${TX.itemTitle} block`} style={{ color: C.ink }}>{title}</span>
+          <span className={`${TX.help} block mt-1.5`} style={{ color: C.muted }}>{description}</span>
+        </span>
+        <span className="shrink-0 flex items-center gap-2 mt-0.5">
+          <StatusPill tone={clear ? "success" : "danger"} icon={clear ? Check : undefined}>
+            {clear ? "Clear" : `${count} open`}
+          </StatusPill>
+          <ChevronRight size={14} color={C.muted} style={{ transform: expanded ? "rotate(90deg)" : undefined, transition: "transform 120ms" }} />
+        </span>
+      </button>
+      {expanded && (
+        <div className="px-3.5 pb-3.5">
+          {actions && <div className="flex justify-end mb-1">{actions}</div>}
+          {children}
+        </div>
       )}
-    </Panel>
+    </div>
   );
 }
 
@@ -345,22 +345,93 @@ export function SystemActions({
   matrix, formalAssessment, findings, dueRecurring,
   onNavigate, onSelectControl, onSelectControlsGroup, onStartAssessment,
 }: SystemActionsProps) {
+  const assessRows = matrix.filter((r) => r.status === "unassessed");
+  const openFindings = findings.filter((f) => f.open);
+  const counts: Record<GroupId, number> = {
+    due: dueRecurring.length,
+    assess: assessRows.length,
+    gaps: formalAssessment.gapControlsMissingFinding.length,
+    remediate: openFindings.length,
+  };
+
+  const [expandedId, setExpandedId] = useState<GroupId | null>(null);
+  const toggle = (id: GroupId) => setExpandedId((cur) => (cur === id ? null : id));
+
+  const doneCount = GROUPS.filter((id) => counts[id] === 0).length;
+  const allClear = doneCount === GROUPS.length;
+
   return (
-    <div className="px-8 pb-10 space-y-6">
-      <DueRecurringPanel items={dueRecurring} onNavigate={onNavigate} />
-      <ControlsToAssessPanel
-        matrix={matrix}
-        onSelectControl={onSelectControl}
-        onStartAssessment={onStartAssessment}
-        onSelectControlsGroup={onSelectControlsGroup}
-      />
-      <GapsPanel
-        matrix={matrix}
-        gapControlsMissingFinding={formalAssessment.gapControlsMissingFinding}
-        onSelectControl={onSelectControl}
-        onSelectControlsGroup={onSelectControlsGroup}
-      />
-      <RemediationPipelinePanel findings={findings} onSelectControl={onSelectControl} onNavigate={onNavigate} />
+    <div className="px-8 pb-10">
+      <Panel>
+        <WizardTokens>
+        <SectionHeader
+          icon={ListChecks}
+          title="Actions"
+          description="Every outstanding action for this system, grouped by what it needs: scheduled work coming due, controls still unassessed, gaps with no Finding filed, and open Findings in remediation."
+          aside={<StatusPill tone={allClear ? "success" : "neutral"}>{doneCount} of {GROUPS.length} clear</StatusPill>}
+        />
+        {allClear ? (
+          <Callout tone="success" title="Nothing outstanding.">
+            No scheduled work is due, every applicable control is assessed, and every gap has a Finding on record.
+          </Callout>
+        ) : (
+          <div className="flex flex-col gap-2.5">
+            <GroupRow
+              icon={Calendar}
+              title="Due & Recurring"
+              description="Cadence-based obligations this system owes on a schedule — access reviews, testing, DR, IR, and vendor reassessment."
+              count={counts.due}
+              expanded={expandedId === "due"}
+              onToggle={() => toggle("due")}
+            >
+              <DueRecurringList items={dueRecurring} onNavigate={onNavigate} />
+            </GroupRow>
+
+            <GroupRow
+              icon={ClipboardCheck}
+              title="Controls to Assess"
+              description="Applicable controls with no PRISMA score on record yet for this system."
+              count={counts.assess}
+              expanded={expandedId === "assess"}
+              onToggle={() => toggle("assess")}
+              actions={assessRows.length > 0 ? (
+                <Button size="sm" onClick={onStartAssessment ?? (() => onSelectControlsGroup(ASSESSMENT_SELECTION))}>
+                  {onStartAssessment ? "Start Assessment" : "Open in Controls"}
+                </Button>
+              ) : undefined}
+            >
+              <ControlsToAssessList rows={assessRows} onSelectControl={onSelectControl} />
+            </GroupRow>
+
+            <GroupRow
+              icon={FileWarning}
+              title="Gaps Needing a Finding"
+              description="Controls scored partial, deficient, or not implemented with nothing filed against them yet."
+              count={counts.gaps}
+              expanded={expandedId === "gaps"}
+              onToggle={() => toggle("gaps")}
+              actions={counts.gaps > 0 ? (
+                <Button size="sm" onClick={() => onSelectControlsGroup(DEFAULT_SELECTION)}>Open in Controls</Button>
+              ) : undefined}
+            >
+              <GapsList matrix={matrix} gapControlsMissingFinding={formalAssessment.gapControlsMissingFinding} onSelectControl={onSelectControl} />
+            </GroupRow>
+
+            <GroupRow
+              icon={Wrench}
+              title="Remediation Pipeline"
+              description="Every open Finding for this system, staged by what it needs next."
+              count={counts.remediate}
+              expanded={expandedId === "remediate"}
+              onToggle={() => toggle("remediate")}
+              actions={<Button size="sm" onClick={() => onNavigate("findings")}>Open Findings &amp; CAPs</Button>}
+            >
+              <RemediationPipelineList open={openFindings} onSelectControl={onSelectControl} />
+            </GroupRow>
+          </div>
+        )}
+        </WizardTokens>
+      </Panel>
     </div>
   );
 }
