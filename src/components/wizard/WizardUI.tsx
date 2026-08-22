@@ -722,7 +722,11 @@ export function HeaderStat({ label, value }: { label: string; value: ReactNode }
 // `enter` slides the body in on mount — for a wizard that swaps its whole
 // subject (the control assessment walk remounts the panel per control), so the
 // arrival reads as a new thing rather than the same page with different words.
-export function WizardBody({ children, enter = false }: { children: ReactNode; enter?: boolean }) {
+// `single` drops the rail column for a surface that has one pane and no steps
+// to walk — the finding editor, where a rail would either sit empty or invent
+// stages the task does not have. Added to the primitive rather than hand-rolled
+// in the caller (CONTRACT 1.2).
+export function WizardBody({ children, enter = false, single = false }: { children: ReactNode; enter?: boolean; single?: boolean }) {
   const [settled, setSettled] = useState(!enter);
   useEffect(() => {
     if (settled) return;
@@ -731,7 +735,7 @@ export function WizardBody({ children, enter = false }: { children: ReactNode; e
   }, [settled]);
   return (
     <div
-      className="flex-1 min-h-0 grid grid-cols-[172px_minmax(0,1fr)] lg:grid-cols-[208px_minmax(0,1fr)]"
+      className={`flex-1 min-h-0 grid ${single ? "grid-cols-[minmax(0,1fr)]" : "grid-cols-[172px_minmax(0,1fr)] lg:grid-cols-[208px_minmax(0,1fr)]"}`}
       style={{
         gridTemplateRows: "minmax(0, 1fr)",
         opacity: settled ? 1 : 0,

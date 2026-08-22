@@ -12,15 +12,7 @@ import type {
   ApplicabilitySummary, CockpitSummary, ControlMatrixRow, ExposurePosture, WorkspaceDataType, WorkspaceSystem,
 } from "./types";
 import type { SystemWorkspaceTab } from "./tabs";
-import type { ReviewWave } from "../../engine/review";
-
-interface FormalAssessmentStatus {
-  scopeDecided: boolean;
-  controlsAssessed: boolean;
-  gapsRecorded: boolean;
-  gapControlsMissingFinding: ControlMatrixRow[];
-  complete: boolean;
-}
+import type { FormalAssessmentStatus, ReviewWave } from "../../engine/review";
 
 interface SystemOverviewProps {
   system: WorkspaceSystem;

@@ -10,7 +10,7 @@ import { SystemData } from "./SystemData";
 import { SystemIdentity } from "./SystemIdentity";
 import { SystemSecurity } from "./SystemSecurity";
 import { SystemTesting } from "./SystemTesting";
-import { SystemControls, DEFAULT_SELECTION, REMEDIATION_STATUSES } from "./SystemControls";
+import { SystemControls, DEFAULT_SELECTION } from "./SystemControls";
 import type { ControlSelection } from "./SystemControls";
 import { ScopeReviewModal } from "./ScopeReviewModal";
 import { SystemRisk } from "./SystemRisk";
@@ -153,29 +153,13 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
     return counts;
   }, [findings]);
 
-  // "Formally assessed" (Completion, stage 4 of the assessment workflow):
-  // scope is fully decided, every applicable control has been PRISMA-graded,
-  // and every control still sitting at partial/deficient/not-implemented has
-  // a Finding — a gap/CAP — on record for it. This is deliberately a lower
-  // bar than "audit-ready" (see engine/review.ts): it does not require those
-  // gaps to already be remediated, only recorded, matching how an assessment
-  // engagement actually completes.
-  const gapControlsMissingFinding = useMemo(() => {
-    const findingControlIds = new Set(findings.map((f) => f.controlId));
-    return matrix.filter((row) => (REMEDIATION_STATUSES as readonly string[]).includes(row.status) && !findingControlIds.has(row.controlId));
-  }, [matrix, findings]);
-  const formalAssessment = useMemo(() => {
-    const scopeDecided = applicabilitySummary.pending === 0;
-    const controlsAssessed = (statusCounts.unassessed ?? 0) === 0;
-    const gapsRecorded = gapControlsMissingFinding.length === 0;
-    return {
-      scopeDecided,
-      controlsAssessed,
-      gapsRecorded,
-      gapControlsMissingFinding,
-      complete: scopeDecided && controlsAssessed && gapsRecorded,
-    };
-  }, [applicabilitySummary, statusCounts, gapControlsMissingFinding]);
+  // Read, not derived here. The four System Readiness lanes are one engine
+  // derivation (review.formalAssessmentForSystem) so the export, the cockpit
+  // and this page cannot drift into three answers.
+  const formalAssessment = useMemo(
+    () => liveEngine.review.formalAssessmentForSystem(system.id),
+    [liveEngine, system.id]
+  );
 
   async function generateIsoReport() {
     const { exportIso27001SystemReportPdf } = await import("../../utils/exportIso27001SystemReportPdf");
@@ -262,7 +246,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
 
       {subTab === "risk" && <SystemRisk topRisks={topRisks} />}
 
-      {subTab === "findings" && <SystemFindings findings={findings} />}
+      {subTab === "findings" && <SystemFindings systemId={system.id} findings={findings} />}
 
       {subTab === "assets" && <SystemAssets systemId={systemId} />}
 

@@ -49,23 +49,35 @@ export function suggestedFindingSeverity(rating: ComplianceRating): FindingSever
 }
 
 export function createFindings(graph: Graph, ctx: EngineContext) {
-  function riskIdsFor(assetId: AssetId, controlId: ControlId): RiskId[] {
+  // Which risks this finding contributes to.
+  //
+  // With an asset named, this is the precise intersection it always was: the
+  // risk has to name BOTH this control and this asset as carrying the scenario.
+  //
+  // Without one, there is nothing to intersect on, so the match falls back to
+  // the control alone — narrowed to risks that actually touch this finding's
+  // own system, so an assetless finding on one boundary cannot claim a risk
+  // carried entirely by another. Broader than the two-sided match by
+  // construction, which is the honest reading: "this control is weak here" says
+  // less about which asset is exposed than "this control is weak on that box".
+  function riskIdsFor(controlId: ControlId, assetId: AssetId | undefined, systemId: SystemId): RiskId[] {
     return graph.risks
-      .filter(
-        (r) =>
-          (graph.controlsByRisk[r.id] ?? []).some((c) => c.controlId === controlId) &&
-          (graph.assetsByRisk[r.id] ?? []).some((a) => a.assetId === assetId)
-      )
+      .filter((r) => {
+        if (!(graph.controlsByRisk[r.id] ?? []).some((c) => c.controlId === controlId)) return false;
+        const riskAssets = graph.assetsByRisk[r.id] ?? [];
+        if (assetId) return riskAssets.some((a) => a.assetId === assetId);
+        return riskAssets.some((a) => (graph.assetById[a.assetId]?.systemIds ?? []).includes(systemId));
+      })
       .map((r) => r.id);
   }
 
   function buildFinding(f: Finding) {
-    const asset = graph.assetById[f.assetId];
+    const asset = f.assetId ? graph.assetById[f.assetId] ?? null : null;
     const control = graph.keyControlById[f.controlId];
     const owner = graph.orgById[f.ownerId];
     const remediationOwner = f.remediationOwnerId ? graph.orgById[f.remediationOwnerId] : null;
     const evidenceIds = graph.evidence.filter((e) => e.findingId === f.id).map((e) => e.id);
-    const riskIds = riskIdsFor(f.assetId, f.controlId);
+    const riskIds = riskIdsFor(f.controlId, f.assetId, f.systemId);
     // "Open" means anything short of Complete — the single predicate every
     // consumer (overdue, cockpit counts, the Managed-level penalty) should
     // read instead of re-deriving its own status check.
@@ -78,7 +90,13 @@ export function createFindings(graph: Graph, ctx: EngineContext) {
       control,
       owner,
       remediationOwner,
-      systemIds: asset.systemIds,
+      // The finding's own boundary, not the asset's. These agreed for every
+      // finding that existed when systemId was introduced (each was derived
+      // from its asset), and they keep agreeing because validate.ts refuses an
+      // asset that does not belong to the named system. Kept as an array so
+      // every existing `systemIds.includes(...)` reader is unchanged.
+      systemIds: [f.systemId],
+      assetName: asset?.name ?? null,
       evidenceIds,
       riskIds,
       open,
@@ -102,6 +120,8 @@ export function createFindings(graph: Graph, ctx: EngineContext) {
     FINDING_BY_ID: findingById,
     findingsForSystem: (systemId: SystemId) => allFindings.filter((f) => f.systemIds.includes(systemId)),
     findingsForAsset: (assetId: AssetId) => allFindings.filter((f) => f.assetId === assetId),
+    findingsForControl: (systemId: SystemId, controlId: ControlId) =>
+      allFindings.filter((f) => f.systemId === systemId && f.controlId === controlId),
     findingsForRisk: (riskId: RiskId) => allFindings.filter((f) => f.riskIds.includes(riskId)),
     // Open items raised by a specific domain (a pen test, a DR test, an IR
     // tabletop...) rather than a routine control-gap review — what the

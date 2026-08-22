@@ -188,7 +188,14 @@ export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts 
       ...base.controlReviews.filter((review) => !runtime.controlReviews.some((r) => r.systemId === review.systemId && r.controlId === review.controlId)),
       ...runtime.controlReviews,
     ],
-    findings: [...base.findings, ...runtime.findings],
+    // Supersede by id, the same discipline controlReviews and assessmentScopes
+    // use. A YAML-authored finding edited in the app is copied into runtime by
+    // updateFinding; without this the two copies would both survive the merge
+    // and fail validate.ts's duplicate-id check.
+    findings: [
+      ...base.findings.filter((f) => !runtime.findings.some((r) => r.id === f.id)),
+      ...runtime.findings,
+    ],
     // Sparse, at most one row per system — replace (never append to) the
     // baseline row for any system runtime declares one for, the same
     // "supersede by systemId" discipline assessmentScopes above uses.
@@ -223,7 +230,12 @@ function pruneDanglingAssetEdges(facts: GraphFacts): GraphFacts {
     notImplemented: facts.notImplemented.filter((entry) => hasAsset(entry.assetId)),
     ownerOverrides: facts.ownerOverrides.filter((entry) => hasAsset(entry.assetId)),
     implementationOverrides: facts.implementationOverrides.filter((entry) => hasAsset(entry.assetId)),
-    findings: facts.findings.filter((finding) => hasAsset(finding.assetId)),
+    // A finding belongs to its system, so it survives an asset going away —
+    // only the optional locator does. Dropping the whole record here would
+    // delete the gap along with the box it was noticed on.
+    findings: facts.findings.map((finding) => (
+      finding.assetId && !hasAsset(finding.assetId) ? { ...finding, assetId: undefined } : finding
+    )),
     evidence: facts.evidence.filter((entry) => entry.assetIds.every(hasAsset)),
     riskAssets: facts.riskAssets.filter((edge) => hasAsset(edge.assetId)),
     applicabilityExceptions: facts.applicabilityExceptions.filter((entry) => hasAsset(entry.assetId)),

@@ -120,6 +120,17 @@ try {
       // check first, masking the one under test.
       f.evidence.forEach((e) => { if (e.findingId === f.findings[0].id) delete e.findingId; });
     }, /is not a key control/],
+    // The finding's anchor is (systemId, controlId); assetId is an optional
+    // locator. These three hold that shape in place — without them the anchor
+    // could quietly go back to being whatever the asset said.
+    ["finding on a non-system", (f) => { f.findings[0].systemId = "SYS-NOPE"; }, /systemId "SYS-NOPE" is not a system/],
+    ["finding whose asset is on another boundary", (f) => {
+      const other = f.assets.find((a) => !a.systemIds.includes(f.findings[0].systemId));
+      f.findings[0].assetId = other.id;
+      // Evidence citing this finding names the OLD asset, and that check runs
+      // first — clear the link so the boundary check is what fires.
+      f.evidence.forEach((e) => { if (e.findingId === f.findings[0].id) delete e.findingId; });
+    }, /does not belong to .*, so the gap names a boundary its own asset is not in/],
     ["risk owned by a non-org", (f) => { f.risks[0].ownerId = "nobody"; }, /is not an org/],
     ["stale risksWithoutAssets note", (f) => {
       const linked = f.riskAssets[0].riskId;
@@ -377,6 +388,22 @@ try {
       f.notImplemented = f.notImplemented.filter((n) => n.controlId !== controlId);
       f.findings = f.findings.filter((x) => x.controlId !== controlId);
     }, /which no system assesses/],
+
+    // Dropping the asset must not drop the check with it. An assetless finding
+    // still has to name a control that applies SOMEWHERE in its own system,
+    // otherwise it is a gap against something that is not there — the same
+    // claim the per-asset test refuses, asked one level up.
+    ["assetless finding whose control applies nowhere in its system", (f) => {
+      const finding = f.findings[0];
+      delete finding.assetId;
+      // Excuse the control from every asset in the system, so nothing in the
+      // boundary requires it any more.
+      (f.assets ?? []).forEach((a) => {
+        if (!a.systemIds.includes(finding.systemId)) return;
+        f.applicabilityExceptions.push({ assetId: a.id, controlId: finding.controlId, reason: "invented for this test" });
+      });
+      f.evidence.forEach((e) => { if (e.findingId === finding.id) delete e.findingId; });
+    }, /is not required on any asset in .*, so there is no implementation for this finding to live under/],
   ];
 
   console.log("\nDerivational checks (validateDerivations, via createEngine)");

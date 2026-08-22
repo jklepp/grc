@@ -11,6 +11,7 @@ import type { RuntimeFacts } from "./liveGraph";
 import { emptyRuntimeFacts } from "./liveGraph";
 import type { ActorId, AssetId, EvidenceArtifactId, EvidenceId, EvidenceReviewId, FindingId, SystemId } from "../graph/ids";
 import type { Asset, ImpactLevel } from "../graph/nodes/assets";
+import type { Finding } from "../graph/nodes/findings";
 import {
   defaultSecurityCategory, isImpactLevel, overallImpactLevel,
   type SecurityCategory, type System,
@@ -76,6 +77,21 @@ function migrateAsset(asset: Asset & { criticalityFactors?: LegacyCriticalityFac
   };
 }
 
+// Findings saved before systemId existed carried only an asset, and the system
+// was read off that asset. Backfill it here rather than dropping the record: a
+// finding is somebody's tracked gap, and losing it silently to a schema change
+// is the worst outcome available. A finding whose asset can no longer be
+// resolved has nothing left to derive a boundary from, so it IS dropped —
+// nothing downstream could place it.
+function migrateFindings(findings: Array<Finding & { assetId?: AssetId }>, assets: Asset[]): Finding[] {
+  const systemOfAsset = new Map(assets.map((a) => [a.id, a.systemIds[0]]));
+  return findings.flatMap((finding) => {
+    if (finding.systemId) return [finding];
+    const systemId = finding.assetId ? systemOfAsset.get(finding.assetId) : undefined;
+    return systemId ? [{ ...finding, systemId }] : [];
+  });
+}
+
 export function loadRuntimeFacts(): RuntimeFacts {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -102,7 +118,9 @@ export function loadRuntimeFacts(): RuntimeFacts {
       notImplemented: Array.isArray(parsed.notImplemented) ? parsed.notImplemented : empty.notImplemented,
       prismaOverrides: Array.isArray(parsed.prismaOverrides) ? parsed.prismaOverrides : empty.prismaOverrides,
       controlReviews: Array.isArray(parsed.controlReviews) ? parsed.controlReviews : empty.controlReviews,
-      findings: Array.isArray(parsed.findings) ? parsed.findings : empty.findings,
+      findings: Array.isArray(parsed.findings)
+        ? migrateFindings(parsed.findings, Array.isArray(parsed.assets) ? parsed.assets.filter(hasValidSystemIds) : [])
+        : empty.findings,
       backupConfigs: Array.isArray(parsed.backupConfigs) ? parsed.backupConfigs : empty.backupConfigs,
       drTests: Array.isArray(parsed.drTests) ? parsed.drTests : empty.drTests,
       sdlcPostures: Array.isArray(parsed.sdlcPostures) ? parsed.sdlcPostures : empty.sdlcPostures,

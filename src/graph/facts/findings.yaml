@@ -7,6 +7,7 @@
   detail: "The service role was provisioned with broad read access across every data store in the
     boundary and has not been scoped since."
   assetId: "AST-003-03"
+  systemId: "SYS-003"
   controlId: "IAC-21"
   remediationStatus: "In Progress"
   ownerId: "ml-platform-team"
@@ -20,6 +21,7 @@
   detail: "DLP is required by the Data Classification & Handling Policy but nothing is deployed on the
     ingestion path. Surfaced by NCC Group's 2026 penetration test (SECTEST-SYS-003-2026-01)."
   assetId: "AST-003-05"
+  systemId: "SYS-003"
   controlId: "NET-17"
   remediationStatus: "Planned"
   ownerId: "s-patel"
@@ -35,6 +37,7 @@
   detail: "No retention or disposal schedule exists for embeddings — the gap was raised during the
     2026-06-03 cross-tenant exposure tabletop (TTX-SYS-003-2026-01)."
   assetId: "AST-003-04"
+  systemId: "SYS-003"
   controlId: "DCH-18"
   remediationStatus: "Planned"
   ownerId: "ml-platform-team"
@@ -49,6 +52,7 @@
   title: "Complete manager-role quarterly access recertification"
   detail: "The recertification campaign runs, but the manager-role slice is past due rather than complete."
   assetId: "AST-042-01"
+  systemId: "SYS-042"
   controlId: "IAC-17"
   remediationStatus: "In Progress"
   ownerId: "r-chen"

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -8,15 +8,17 @@ import {
 import { C } from "../../theme";
 import {
   PRISMA_LEVELS, COMPLIANCE_LABELS,
-  FINDING_SEVERITY_META, FINDING_REMEDIATION_STATUS_META, FINDING_SEVERITIES, FINDING_SOURCES, REMEDIATION_STATUSES,
+  FINDING_SEVERITY_META, FINDING_REMEDIATION_STATUS_META,
   isGapRating, suggestedFindingSeverity,
   INSTANCE_STATUS_META,
   EVIDENCE_TYPES, EVIDENCE_RESULTS, INDEPENDENCE_LEVELS,
   EVIDENCE_COLLECTOR_TYPES, ARTIFACT_SENSITIVITIES, EVIDENCE_REVIEW_DECISIONS,
-  assetsForSystem, getDataFlows, ORGS, baseFacts,
+  assetsForSystem, getDataFlows, baseFacts,
   evaluateControl, addPrismaOverride, updateEvidence, removeEvidence, addFinding, updateFinding, commitRuntimeFacts,
 } from "../../engine";
-import { upsertControlReview } from "../../engine/runtimeMutations";
+import { upsertControlReview, addClosureEvidence } from "../../engine/runtimeMutations";
+import { FindingEditor } from "./FindingEditor";
+import type { FindingFormState } from "./FindingEditor";
 import { buildLiveEngine } from "../../engine/liveGraph";
 import { effectiveRating, initialLaneGraderState, laneGraderBlocker, laneGrades, PrismaLaneGrader } from "./PrismaLaneGrader";
 import type { LaneGraderState } from "./PrismaLaneGrader";
@@ -42,7 +44,7 @@ import type { AssetId, ControlId, EvidenceId, FindingId, SystemId } from "../../
 import type { Basis, ComplianceRating, EvidenceType, PrismaLevel } from "../../graph/nodes/taxonomy";
 import type { EvidenceCollectorType, EvidenceResult, IndependenceLevel } from "../../graph/nodes/evidence";
 import type { ArtifactSensitivity, EvidenceReviewDecision } from "../../graph/nodes/evidenceProvenance";
-import type { FindingSeverity, FindingSource, RemediationStatus } from "../../graph/nodes/findings";
+import type { RemediationStatus } from "../../graph/nodes/findings";
 import type { SecurityPrinciple } from "../../data/securityPrinciples";
 import type { ControlMatrixRow, WorkspaceSystem } from "./types";
 
@@ -510,122 +512,6 @@ function EvidenceForm({ initial, assetOptions, isProgramScoped, prismaLevel, onC
   );
 }
 
-interface FindingFormState {
-  title: string;
-  detail: string;
-  assetId: string;
-  severity: FindingSeverity;
-  source: FindingSource | "";
-  ownerId: string;
-  remediationStatus: RemediationStatus;
-  due: string;
-  remediationPlan: string;
-  remediationOwnerId: string;
-  targetDate: string;
-}
-
-const EMPTY_FINDING_FORM: FindingFormState = {
-  title: "", detail: "", assetId: "", severity: "medium", source: "",
-  ownerId: "", remediationStatus: "Planned", due: "", remediationPlan: "", remediationOwnerId: "", targetDate: "",
-};
-
-interface FindingFormProps {
-  initial?: Partial<FindingFormState>;
-  assetOptions: AssetOption[];
-  onCancel: () => void;
-  onSubmit: (draft: Omit<FindingDraft, "controlId">) => void;
-}
-
-function FindingForm({ initial, assetOptions, onCancel, onSubmit }: FindingFormProps) {
-  const [form, setForm] = useState<FindingFormState>({
-    ...EMPTY_FINDING_FORM,
-    assetId: assetOptions[0]?.assetId ?? "",
-    ownerId: ORGS[0]?.id ?? "",
-    due: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-    ...initial,
-  });
-  function setField<K extends keyof FindingFormState>(key: K, value: FindingFormState[K]) {
-    setForm((current) => ({ ...current, [key]: value }));
-  }
-  const ready = form.title.trim() && form.assetId && form.ownerId && form.remediationStatus && form.due;
-
-  function submitFinding() {
-    const asset = assetOptions.find((option) => option.assetId === form.assetId);
-    const owner = ORGS.find((org) => org.id === form.ownerId);
-    if (!asset || !owner) return;
-    const remediationOwner = form.remediationOwnerId
-      ? ORGS.find((org) => org.id === form.remediationOwnerId)
-      : undefined;
-    onSubmit({
-      title: form.title.trim(), detail: form.detail.trim(), assetId: asset.assetId,
-      severity: form.severity, source: form.source || undefined, ownerId: owner.id,
-      remediationStatus: form.remediationStatus, due: form.due,
-      remediationPlan: form.remediationPlan.trim() || undefined,
-      remediationOwnerId: remediationOwner?.id, targetDate: form.targetDate || undefined,
-    });
-  }
-
-  return (
-    <Well className="flex flex-col gap-3.5">
-      <FieldGrid cols={2}>
-        <Field label="Title" span2 error={form.title.trim() ? null : "Required — say what was found."}>
-          <TextInput value={form.title} onChange={(e) => setField("title", e.target.value)} placeholder="What was found" />
-        </Field>
-        <Field label="Detail" span2 note="Optional.">
-          <TextInput value={form.detail} onChange={(e) => setField("detail", e.target.value)} placeholder="What's actually wrong" />
-        </Field>
-        <Field label="Asset">
-          <Select value={form.assetId} aria-label="Asset" onChange={(e) => setField("assetId", e.target.value)}>
-            {assetOptions.map((a) => <option key={a.assetId} value={a.assetId}>{a.label}</option>)}
-          </Select>
-        </Field>
-        <Field label="Severity">
-          <Select value={form.severity} aria-label="Severity" onChange={(e) => setField("severity", selectedValue(FINDING_SEVERITIES, e.target.value, form.severity))}>
-            {FINDING_SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </Select>
-        </Field>
-        <Field label="Source">
-          <Select value={form.source} aria-label="Source" onChange={(e) => setField("source", e.target.value === "" ? "" : selectedValue(FINDING_SOURCES, e.target.value, form.source || "control-gap"))}>
-            <option value="">control-gap (default)</option>
-            {FINDING_SOURCES.filter((s) => s !== "control-gap").map((s) => <option key={s} value={s}>{s.replace(/-/g, " ")}</option>)}
-          </Select>
-        </Field>
-        <Field label="Owner">
-          <Select value={form.ownerId} aria-label="Owner" onChange={(e) => setField("ownerId", e.target.value)}>
-            {ORGS.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </Select>
-        </Field>
-        <Field label="Remediation status">
-          <Select value={form.remediationStatus} aria-label="Remediation status" onChange={(e) => setField("remediationStatus", selectedValue(REMEDIATION_STATUSES, e.target.value, form.remediationStatus))}>
-            {REMEDIATION_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </Select>
-        </Field>
-        <Field label="Due" error={form.due ? null : "Required."}>
-          <TextInput type="date" value={form.due} aria-label="Due date" onChange={(e) => setField("due", e.target.value)} />
-        </Field>
-        <Field label="Remediation owner" note="Optional.">
-          <Select value={form.remediationOwnerId} aria-label="Remediation owner" onChange={(e) => setField("remediationOwnerId", e.target.value)}>
-            <option value="">Same as owner</option>
-            {ORGS.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </Select>
-        </Field>
-        <Field label="Target date" note="Optional.">
-          <TextInput type="date" value={form.targetDate} aria-label="Target date" onChange={(e) => setField("targetDate", e.target.value)} />
-        </Field>
-        <Field label="Remediation plan" span2 note="Optional.">
-          <TextInput value={form.remediationPlan} onChange={(e) => setField("remediationPlan", e.target.value)} placeholder="What will fix this" />
-        </Field>
-      </FieldGrid>
-      <div className="flex items-center justify-end gap-2.5">
-        <Button onClick={onCancel}>Cancel</Button>
-        <Button variant="primary" icon={Check} disabled={!ready} onClick={submitFinding}>
-          {initial ? "Save finding" : "Create finding"}
-        </Button>
-      </div>
-    </Well>
-  );
-}
-
 // The document a lane's rating was derived FROM, shown inside that lane.
 //
 // Policy and Procedure do not sample evidence — they read the policy and SOP
@@ -793,6 +679,16 @@ export function ControlEvaluationPanel({
     [liveEngine, system.id, committedRow.control.id]
   );
   const assessorOfRecord = liveEngine.graph.assessmentScopeBySystem[system.id]?.assessor ?? "";
+
+  // Assets a given control is actually required on — what FindingEditor offers
+  // as the optional locator. Anything else would produce a draft the dry run
+  // refuses on applicability grounds.
+  const findingAssetOptions = useCallback(
+    (controlId: ControlId): AssetOption[] => (liveEngine.graph.assetsBySystem[system.id] ?? [])
+      .filter((asset) => liveEngine.applicability.resolveApplicability(asset.id, controlId).required)
+      .map((asset) => ({ assetId: asset.id, label: asset.name })),
+    [liveEngine, system.id]
+  );
 
   // The whole assessment form, in one place. Seeded from the walk's reviewer
   // when there is one, so a name typed on the first control carries to every
@@ -1106,12 +1002,30 @@ export function ControlEvaluationPanel({
     else setSavedSummary(summary);
   }
 
-  function handleCreateFinding(draft: Omit<FindingDraft, "controlId">) {
-    stageMutation(`Created finding — ${draft.title}`, (existing) => addFinding(existing, { ...draft, controlId: row.control.id }, system.id));
+  // The panel supplies both anchor fields: the control it is open on, and the
+  // boundary it is open in. A finding is a gap in that (system, control) — the
+  // form only describes it.
+  function handleCreateFinding(draft: Omit<FindingDraft, "systemId">, closureEvidence: string) {
+    stageMutation(`Created finding — ${draft.title}`, (existing) => {
+      let next = addFinding(existing, { ...draft, systemId: system.id }, system.id);
+      if (!closureEvidence) return next;
+      const created = next.findings[next.findings.length - 1];
+      return addClosureEvidence(next, {
+        findingId: created.id, text: closureEvidence,
+        fallbackAssetIds: findingAssetOptions(draft.controlId).map((o) => o.assetId),
+      });
+    });
   }
 
-  function handleUpdateFinding(findingId: FindingId, patch: Omit<FindingDraft, "controlId">, label: string) {
-    stageMutation(label, (existing) => updateFinding(existing, findingId, patch));
+  function handleUpdateFinding(findingId: FindingId, patch: Omit<FindingDraft, "systemId">, closureEvidence: string, label: string) {
+    stageMutation(label, (existing) => {
+      const next = updateFinding(existing, findingId, patch);
+      if (!closureEvidence) return next;
+      return addClosureEvidence(next, {
+        findingId, text: closureEvidence,
+        fallbackAssetIds: findingAssetOptions(patch.controlId).map((o) => o.assetId),
+      });
+    });
   }
 
   // Scope's other direction, recorded where the operator already is. The three
@@ -1739,9 +1653,9 @@ export function ControlEvaluationPanel({
               }
             >
               {creatingFinding && (
-                <FindingForm
-                  initial={creatingFindingInitial ?? undefined}
-                  assetOptions={assetOptions}
+                <FindingEditor
+                  initial={{ ...creatingFindingInitial, controlId: row.control.id }}
+                  assetOptionsFor={findingAssetOptions}
                   onCancel={() => { setCreatingFinding(false); setCreatingFindingInitial(null); }}
                   onSubmit={handleCreateFinding}
                 />
@@ -1752,17 +1666,18 @@ export function ControlEvaluationPanel({
                   {controlFindings.map((f) => {
                     if (editingFindingId === f.id) {
                       return (
-                        <FindingForm
+                        <FindingEditor
                           key={f.id}
                           initial={{
-                            title: f.title, detail: f.detail, assetId: f.assetId, severity: f.severity ?? "medium",
+                            title: f.title, detail: f.detail, controlId: f.controlId, assetId: f.assetId ?? "",
+                            severity: f.severity ?? "medium",
                             source: f.source ?? "", ownerId: f.ownerId, remediationStatus: f.remediationStatus,
                             due: f.due, remediationPlan: f.remediationPlan ?? "",
                             remediationOwnerId: f.remediationOwnerId ?? "", targetDate: f.targetDate ?? "",
                           }}
-                          assetOptions={assetOptions}
+                          assetOptionsFor={findingAssetOptions}
                           onCancel={() => setEditingFindingId(null)}
-                          onSubmit={(patch) => handleUpdateFinding(f.id, patch, `Updated finding — ${patch.title}`)}
+                          onSubmit={(patch, closureEvidence) => handleUpdateFinding(f.id, patch, closureEvidence, `Updated finding — ${patch.title}`)}
                         />
                       );
                     }
@@ -1778,7 +1693,7 @@ export function ControlEvaluationPanel({
                         </div>
                         {f.detail && <div className={TX.help} style={{ color: C.muted }}>{f.detail}</div>}
                         <div className={TX.help} style={{ color: C.muted }}>
-                          {assetName(system, f.assetId)}
+                          {f.assetId ? assetName(system, f.assetId) : "No asset named — tracked against the control"}
                           {f.source && f.source !== "control-gap" && ` · Source: ${f.source.replace(/-/g, " ")}`}
                         </div>
                         {f.remediationPlan && <div className={TX.help} style={{ color: C.ink }}>{f.remediationPlan}</div>}

@@ -6,6 +6,7 @@ import { upsertControlReview } from "../../engine/runtimeMutations";
 import { loadRuntimeFacts } from "../../engine/runtimeFactsStore";
 import { useLiveEngine } from "../../engine/useLiveEngine";
 import { APPLICABILITY_META, RESPONSIBILITY_META } from "./controlMeta";
+import { keyControlAssessmentQueue } from "./recordAssessment";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
   Button, Callout, CompletionScreen, Field, HeaderStat, InlineField, InlineHint,
@@ -94,7 +95,25 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
   const externalDone = externalRemaining === 0;
   const internalDone = internalRemaining === 0;
   const inheritedDone = externalDone && internalDone;
-  const technicalRemaining = walk.waves["system-owned"].remaining.length;
+  // What the Control Assessment Wizard will ACTUALLY put in front of the
+  // operator when they leave here — built the same way that wizard builds it,
+  // from the same function, so this screen cannot promise a workload the next
+  // screen does not deliver.
+  //
+  // This used to read walk.waves["system-owned"].remaining.length, which is a
+  // different population: that wave drops inherited and program-scoped controls
+  // because it exists to ORDER this review's own sections, not to describe the
+  // grading queue. On a runtime-created system the two differed roughly four to
+  // one, so the rail advertised 21 and the walk opened with 90.
+  const assessmentQueue = useMemo(() => keyControlAssessmentQueue(
+    liveEngine.compliance.systemControlMatrix(systemId).map((row) => ({
+      ...row,
+      responsibility: liveEngine.compliance.responsibilityForControl(systemId, row.controlId),
+    })),
+    liveEngine.graph.assetsBySystem[systemId] ?? [],
+    (assetId, controlId) => liveEngine.applicability.resolveApplicability(assetId, controlId).required,
+  ), [liveEngine, systemId]);
+  const technicalRemaining = assessmentQueue.length;
   const everythingDone = outOfScopeDone && inheritedDone;
 
   // What each internal claim actually stands on: ACME's own program-level
@@ -436,13 +455,17 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
               />
               {/* Named for the surface it opens — the Control Assessment
                   Wizard — so the rail, the footer's Continue and the System
-                  Readiness card all say the same words (2.2). */}
+                  Readiness card all say the same words (2.2). The TITLE names
+                  the destination; the DETAIL has to name the population, because
+                  the readiness card counts every unassessed control while this
+                  counts only the ones the walk will stop on. Same words for the
+                  same place, different words for different numbers. */}
               <RailItem
                 icon={SystemOwnedIcon}
                 title="Control Assessment"
                 detail={everythingDone
-                  ? `${technicalRemaining} queued for grading`
-                  : `After scope review · ${walk.waves["system-owned"].total}`}
+                  ? `${technicalRemaining} key control${technicalRemaining === 1 ? "" : "s"} to grade`
+                  : `After scope review · ${technicalRemaining} to grade`}
                 state="pending"
                 disabled={!everythingDone}
                 onClick={() => { onClose(); onStartTechnicalReview(); }}
@@ -462,7 +485,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
                     <StatTile label="In scope" value={summary.applicable} />
                     <StatTile label="Out of scope" value={naItems.length} />
                     <StatTile label="Claims confirmed" value={groups.length} />
-                    <StatTile label="Remaining Technical" value={technicalRemaining} hint="Queued for grading" />
+                    <StatTile label="To grade" value={technicalRemaining} hint="Key controls the assessment walk will ask about" />
                   </div>
                 }
                 signature={<>Reviewed by <b style={{ color: C.ink }}>{reviewer.trim() || assessor}</b> · completed {today()}</>}

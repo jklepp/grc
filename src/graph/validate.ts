@@ -196,7 +196,9 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
       check(Boolean(finding), `evidence ${e.id}: findingId "${e.findingId}" is not a finding`);
       if (finding) {
         check(finding.controlId === e.controlId, `evidence ${e.id}: findingId "${e.findingId}" is filed against control ${finding.controlId}, but this record is for ${e.controlId}`);
-        check(e.assetIds.includes(finding.assetId), `evidence ${e.id}: findingId "${e.findingId}" is filed against asset ${finding.assetId}, which this record doesn't name`);
+        // Only checkable when the finding names an asset; an assetless finding
+        // is tied to its control, which the next check already covers.
+        check(!finding.assetId || e.assetIds.includes(finding.assetId), `evidence ${e.id}: findingId "${e.findingId}" is filed against asset ${finding.assetId}, which this record doesn't name`);
       }
     }
   });
@@ -344,8 +346,8 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
       check(Boolean(finding), `implementation override ${o.assetId}/${o.controlId}: findingId "${o.findingId}" is not a finding`);
       if (finding) {
         check(
-          finding.assetId === o.assetId && finding.controlId === o.controlId,
-          `implementation override ${o.assetId}/${o.controlId}: findingId "${o.findingId}" points at a finding filed against ${finding.assetId}/${finding.controlId} instead`
+          finding.controlId === o.controlId && (!finding.assetId || finding.assetId === o.assetId),
+          `implementation override ${o.assetId}/${o.controlId}: findingId "${o.findingId}" points at a finding filed against ${finding.assetId ?? finding.systemId}/${finding.controlId} instead`
         );
       }
     }
@@ -381,7 +383,15 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
   check(new Set(graph.orgs.map((o) => o.id)).size === graph.orgs.length, `orgs: duplicate id`);
 
   graph.findings.forEach((f) => {
-    check(has(graph.assetById, f.assetId), `finding ${f.id}: assetId "${f.assetId}" is not an asset`);
+    check(has(graph.systemById, f.systemId), `finding ${f.id}: systemId "${f.systemId}" is not a system`);
+    // The asset is an optional locator, but a bogus one — or one on a different
+    // boundary — would put the gap somewhere it cannot be. This is also what
+    // keeps engine/findings.ts's systemIds honest.
+    check(!f.assetId || has(graph.assetById, f.assetId), `finding ${f.id}: assetId "${f.assetId}" is not an asset`);
+    check(
+      !f.assetId || !graph.assetById[f.assetId] || graph.assetById[f.assetId].systemIds.includes(f.systemId),
+      `finding ${f.id}: assetId "${f.assetId}" does not belong to ${f.systemId}, so the gap names a boundary its own asset is not in`
+    );
     check(has(graph.keyControlById, f.controlId), `finding ${f.id}: controlId "${f.controlId}" is not a key control`);
     check(has(graph.orgById, f.ownerId), `finding ${f.id}: ownerId "${f.ownerId}" is not an org`);
     check(REMEDIATION_STATUSES.includes(f.remediationStatus), `finding ${f.id}: remediationStatus "${f.remediationStatus}" is not one of ${REMEDIATION_STATUSES.join(", ")}`);

@@ -164,7 +164,7 @@ export function planPromotion(
   const artifactIds = new Set(evidence.flatMap((e) => e.artifactIds ?? []));
   const evidenceArtifacts = runtime.evidenceArtifacts.filter((a) => artifactIds.has(a.id));
   const evidenceReviews = runtime.evidenceReviews.filter((r) => evidenceIds.has(r.evidenceId));
-  const findings = runtime.findings.filter((f) => assetIds.has(f.assetId));
+  const findings = runtime.findings.filter((f) => f.systemId === systemId);
 
   const bySystem = <T extends { systemId: string }>(rows: readonly T[]): T[] =>
     rows.filter((row) => row.systemId === systemId);

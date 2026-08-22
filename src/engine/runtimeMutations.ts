@@ -70,7 +70,7 @@ export function removeRuntimeSystem(runtime: RuntimeFacts, systemId: SystemId): 
     notImplemented: runtime.notImplemented.filter((entry) => !assetIds.has(entry.assetId)),
     prismaOverrides: runtime.prismaOverrides.filter((override) => override.systemId !== systemId),
     controlReviews: runtime.controlReviews.filter((review) => review.systemId !== systemId),
-    findings: runtime.findings.filter((finding) => !assetIds.has(finding.assetId)),
+    findings: runtime.findings.filter((finding) => finding.systemId !== systemId),
     // System Register cockpit domains are keyed by system id alone, not by
     // asset — without these the rows outlive the system and the graph
     // validator rejects the delete ("systemId … is not a system").
@@ -246,10 +246,80 @@ export function addFinding(runtime: RuntimeFacts, draft: FindingDraft, systemId?
   return systemId ? addControlToScope(next, systemId, draft.controlId) : next;
 }
 
+// Closure evidence: the record that says what actually fixed a finding.
+//
+// Two links, because they mean different things (see engine/findings.ts): the
+// evidence names the finding it closes, which is how it appears in the derived
+// evidenceIds; and the finding names this record specifically, which is the
+// hand-picked "this is the proof" subset. Doing one without the other leaves
+// either an orphan record or a closure claim with nothing behind it, so this
+// composes both the way evaluateControl composes scope-plus-support.
+//
+// Typed as a self-attestation on purpose. Someone wrote a sentence saying the
+// work is done; calling that an auditor examination or a technical test would
+// overstate it, and evidence scoring reads evidenceType to decide how much a
+// record is worth.
+export function addClosureEvidence(
+  runtime: RuntimeFacts,
+  input: { findingId: Finding["id"]; text: string; fallbackAssetIds: AssetId[] },
+): RuntimeFacts {
+  const finding = runtime.findings.find((f) => f.id === input.findingId)
+    ?? baseFacts().findings.find((f) => f.id === input.findingId);
+  if (!finding) throw new Error(`addClosureEvidence: no finding ${input.findingId}`);
+
+  // Which assets the closure record names.
+  //
+  // The finding's own asset when it has one. When it does not, the caller's
+  // fallback — the assets this control is actually required on in this system.
+  // That is not optional tidiness: validateDerivations refuses evidence for an
+  // asset-scoped control that names no assets, so an assetless finding on an
+  // asset-scoped control would otherwise be impossible to close. The list is
+  // empty only for a program-scoped control, which is exactly the case where
+  // assetless evidence is correct.
+  //
+  // Applicability lives in the engine and this module is pure facts-in/facts-out,
+  // so the caller resolves it and passes the answer rather than this reaching
+  // for a derivation it has no access to.
+  const assetIds = finding.assetId ? [finding.assetId] : input.fallbackAssetIds;
+  const withEvidence = addEvidence(runtime, {
+    source: input.text,
+    evidenceType: "Self-attestation",
+    controlId: finding.controlId,
+    assetIds,
+    coveragePct: 100,
+    result: "pass",
+    // "internal" is the honest level: ACME asserting its own fix. There is no
+    // "self-assessed" level — self-attestation is the evidenceType above.
+    independence: "internal",
+    findingId: finding.id,
+    note: `Closure evidence for ${finding.id}.`,
+    prismaLevel: "Implemented",
+  });
+  const evidenceId = withEvidence.evidence[withEvidence.evidence.length - 1].id;
+  return updateFinding(withEvidence, finding.id, {
+    closureEvidenceIds: [...(finding.closureEvidenceIds ?? []), evidenceId],
+  });
+}
+
 export function updateFinding(runtime: RuntimeFacts, findingId: Finding["id"], patch: Partial<FindingDraft>): RuntimeFacts {
+  // Copy-on-write for YAML-authored findings, the same move addControlToScope
+  // makes for a YAML engagement's scope. Three of the four findings in the
+  // corpus are authored, and without this editing one mapped over a runtime
+  // list that never contained it: no match, no change, a clean commit, and a
+  // form that closed as if it had saved. mergeFacts supersedes by id, so the
+  // runtime copy replaces the authored one rather than duplicating it.
+  const present = runtime.findings.some((finding) => finding.id === findingId);
+  const seeded = present
+    ? runtime
+    : (() => {
+        const authored = baseFacts().findings.find((finding) => finding.id === findingId);
+        if (!authored) throw new Error(`updateFinding: no finding ${findingId}`);
+        return { ...runtime, findings: [...runtime.findings, authored] };
+      })();
+
   return {
-    ...runtime,
-    findings: runtime.findings.map((finding) => {
+    ...seeded,
+    findings: seeded.findings.map((finding) => {
       if (finding.id !== findingId) return finding;
       const remediationStatus = patch.remediationStatus ?? finding.remediationStatus;
       return {

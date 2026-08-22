@@ -71,6 +71,16 @@ export function pendingConfirmedNotApplicable(graph: Graph, systemId: SystemId, 
   return review?.stance === "confirm" && review.bucket === "not-applicable";
 }
 
+// Control statuses that represent a gap needing remediation — the population
+// lane 4 counts and lane 3 expects a Finding for.
+//
+// Named GAP_CONTROL_STATUSES, not REMEDIATION_STATUSES, on purpose. That name
+// is already taken by the finding CAP lifecycle (Planned/In Progress/Blocked/
+// Complete) in graph/nodes/findings.ts, and two constants sharing a name across
+// sibling modules is how a page ends up comparing control statuses against CAP
+// statuses, matching nothing, and reporting "0 gaps" with no test failing.
+export const GAP_CONTROL_STATUSES = ["partial", "deficient", "not-implemented"] as const;
+
 export const REVIEW_WAVES = ["not-applicable", "vendor-inherited", "enterprise", "system-owned"] as const;
 export type ReviewWave = (typeof REVIEW_WAVES)[number];
 
@@ -146,6 +156,20 @@ export interface FrameworkReadiness {
   unconfirmed: number;
   unassessed: number;
   blocked: number;
+}
+
+// The four System Readiness lanes, derived once. Consumers read this rather
+// than recomputing it — gapControlsMissingFinding carries the controls behind
+// lane 3's count so a surface can name them, not just tally them.
+export interface FormalAssessmentStatus {
+  scopeDecided: boolean;
+  controlsAssessed: boolean;
+  gapsRecorded: boolean;
+  gapControlsMissingFinding: Array<{ controlId: ControlId; control: Control }>;
+  remediationCount: number;
+  openFindingCount: number;
+  overdueFindingCount: number;
+  complete: boolean;
 }
 
 // A control this system assessed and then scoped out — the history behind an
@@ -476,7 +500,7 @@ export function createReview(
           (e) => e.controlId === control.id && e.assetIds.some((id) => assetIds.has(id))
         ).length;
         const findingCount = graph.findings.filter(
-          (f) => f.controlId === control.id && assetIds.has(f.assetId)
+          (f) => f.controlId === control.id && f.systemId === systemId
         ).length;
         const mechanismCount = graph.implementationMechanisms.filter(
           (m) => m.controlId === control.id && assetIds.has(m.assetId)
@@ -506,10 +530,51 @@ export function createReview(
       .sort((a, b) => a.control.id.localeCompare(b.control.id));
   }
 
+  // "Formally assessed" — the completion bar for an assessment engagement, and
+  // what the System Readiness card's four lanes read.
+  //
+  // Deliberately a LOWER bar than audit-ready: it does not require the gaps to
+  // be fixed, only that scope is decided, every applicable control is graded,
+  // and everything still sitting at partial/deficient/not-implemented has a
+  // Finding on record. That is how an engagement actually completes.
+  //
+  // This lived in SystemWorkspace.tsx, which put a derivation in a page and
+  // meant the readiness lanes could not be read by anything else — the export,
+  // the cockpit, or a second surface — without recomputing them.
+  function formalAssessmentForSystem(systemId: SystemId): FormalAssessmentStatus {
+    const matrix = compliance.systemControlMatrix(systemId);
+    const summary = compliance.controlApplicabilitySummary(systemId);
+    const systemFindings = findings.findingsForSystem(systemId);
+    const findingControlIds = new Set(systemFindings.map((f) => f.controlId));
+
+    // Controls carrying a gap, whether or not anybody has written it down.
+    const gapControls = matrix.filter((row) => (GAP_CONTROL_STATUSES as readonly string[]).includes(row.status));
+    const gapControlsMissingFinding = gapControls.filter((row) => !findingControlIds.has(row.controlId));
+
+    const scopeDecided = summary.pending === 0;
+    const controlsAssessed = matrix.every((row) => row.status !== "unassessed");
+    const gapsRecorded = gapControlsMissingFinding.length === 0;
+
+    return {
+      scopeDecided,
+      controlsAssessed,
+      gapsRecorded,
+      gapControlsMissingFinding,
+      // Lane 4: residual position. Every control still at a gap status, which
+      // is what "how much is left to fix" means — open findings are how those
+      // gaps are tracked, not a second population to add on top.
+      remediationCount: gapControls.length,
+      openFindingCount: systemFindings.filter((f) => f.open).length,
+      overdueFindingCount: systemFindings.filter((f) => f.overdue).length,
+      complete: scopeDecided && controlsAssessed && gapsRecorded,
+    };
+  }
+
   return {
     wavesForSystem,
     inheritanceGroupsForSystem,
     dormantAssessmentsForSystem,
+    formalAssessmentForSystem,
     frameworkReadiness,
     auditReadinessForSystem,
     inheritanceClaimed: (systemId: SystemId, controlId: ControlId) => inheritanceClaimed(graph, systemId, controlId),

@@ -4,18 +4,10 @@ import type { LucideIcon } from "lucide-react";
 import { C } from "../../../theme";
 import { SectionHeader } from "../shared/SectionHeader";
 import { Callout, StatusPill, TX, WizardTokens, WZ } from "../../../components/wizard/WizardUI";
-import { REMEDIATION_STATUSES } from "../SystemControls";
+import type { FormalAssessmentStatus } from "../../../engine/review";
 import type { ControlMatrixRow, ApplicabilitySummary } from "../types";
 
 type ControlStatus = ControlMatrixRow["status"];
-
-interface FormalAssessmentStatus {
-  scopeDecided: boolean;
-  controlsAssessed: boolean;
-  gapsRecorded: boolean;
-  gapControlsMissingFinding: ControlMatrixRow[];
-  complete: boolean;
-}
 
 interface AssessmentReadinessProps {
   statusCounts: Record<ControlStatus, number>;
@@ -84,18 +76,17 @@ type CheckId = (typeof CHECKS)[number];
 // alongside it but not required for the system to count as formally assessed.
 const FORMAL_ASSESSMENT_CHECKS = ["scope", "assess", "gaps"] as const;
 
-// A read of every count already exists elsewhere (Scope from
-// applicability.pendingControlsForSystem, Assessment from statusCounts.unassessed,
-// Gaps from formalAssessment.gapControlsMissingFinding, Remediation from the
-// same REMEDIATION_STATUSES SystemControls' work-queue tile uses) — four
-// independent Complete/Deficient checks, not a sequential wizard. The first
+// Every count is READ, never derived here: Scope from the applicability
+// summary, Assessment from statusCounts.unassessed, and Gaps + Remediation
+// from review.formalAssessmentForSystem — four independent Complete/Deficient
+// checks, not a sequential wizard. The first
 // deficient check in scope->assess->gaps->remediate order (the natural
 // workflow sequence) is marked as next; the order on screen never reshuffles.
 export function AssessmentReadiness({ statusCounts, applicabilitySummary, formalAssessment, onScopeClick, onAssessClick, onGapsClick, onRemediateClick }: AssessmentReadinessProps) {
   const pendingCount = applicabilitySummary?.pending ?? 0;
   const assessmentCount = statusCounts.unassessed ?? 0;
   const gapsMissingCount = formalAssessment.gapControlsMissingFinding.length;
-  const remediationCount = REMEDIATION_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
+  const remediationCount = formalAssessment.remediationCount;
 
   const checks: Record<CheckId, { icon: LucideIcon; title: string; description: string; complete: boolean; count: number; onClick: () => void }> = {
     scope: {
@@ -109,7 +100,11 @@ export function AssessmentReadiness({ statusCounts, applicabilitySummary, formal
     assess: {
       icon: ClipboardCheck,
       title: "Control Assessment",
-      description: "Applicable controls have been evaluated and PRISMA-scored.",
+      // Counts EVERY applicable control still unassessed, whoever is
+      // responsible for it. Scope Review's rail item of the same name counts
+      // only the key controls its walk will stop on, so the two numbers differ
+      // and both are right — this description is what tells them apart.
+      description: "Every applicable control has been evaluated and PRISMA-scored, including the ones covered by inheritance.",
       complete: assessmentCount === 0,
       count: assessmentCount,
       onClick: onAssessClick,

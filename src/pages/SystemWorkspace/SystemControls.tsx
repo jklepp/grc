@@ -3,6 +3,8 @@ import type { CSSProperties, ReactNode } from "react";
 import { RadioTower, Layers, ChevronUp, ChevronDown, ChevronsUpDown, ClipboardCheck } from "lucide-react";
 import { C } from "../../theme";
 import { SectionHeader } from "./shared/SectionHeader";
+import { FilterSelect } from "./shared/FilterSelect";
+import { GAP_CONTROL_STATUSES } from "../../engine/review";
 import {
   STATUS_META, STATUS_ORDER, STATUS_RANK, RESPONSIBILITY_META, APPLICABILITY_META,
   EVIDENCE_HEALTH_META, EVIDENCE_HEALTH_ORDER, evidenceHealthForRow,
@@ -133,8 +135,11 @@ const NOT_APPLICABLE_META = APPLICABILITY_META["not-applicable"];
 // not yet at a resolved good state (Inherited/Satisfied). Pending applicability
 // calls are a separate concern — see APPLICABILITY REVIEW below — because
 // "nobody decided if this applies" is not the same claim as "this failed."
-export const REMEDIATION_STATUSES = ["partial", "deficient", "not-implemented"] as const satisfies readonly ControlStatus[];
-const REMEDIATION_STATUS_SET: ReadonlySet<ControlStatus> = new Set(REMEDIATION_STATUSES);
+// The gap statuses come from the engine now (GAP_CONTROL_STATUSES). They used
+// to be declared here as REMEDIATION_STATUSES — the same name graph/nodes/
+// findings.ts uses for the CAP lifecycle, which is how a page could end up
+// comparing control statuses against CAP statuses and silently matching none.
+const REMEDIATION_STATUS_SET: ReadonlySet<ControlStatus> = new Set(GAP_CONTROL_STATUSES);
 
 // The default table view and its escape hatch. Landing on "everything that's
 // wrong" beats landing on an empty table or a 162-row unfiltered dump.
@@ -345,7 +350,7 @@ function StatusChart({
   // Every examined status, largest first. Zeros are pulled out below: an
   // empty track is a row of nothing, and four of them break the rhythm of
   // the bars that do carry data. They still get said, just in one line.
-  const examined = [...RESOLVED_STATUSES, ...REMEDIATION_STATUSES]
+  const examined = [...RESOLVED_STATUSES, ...GAP_CONTROL_STATUSES]
     .map((status) => ({ status, count: statusCounts[status] ?? 0 }))
     .sort((a, b) => b.count - a.count);
   const present = examined.filter((r) => r.count > 0);
@@ -451,25 +456,6 @@ function StatusChart({
 const RESPONSIBILITY_ORDER = ["enterprise", "vendor", "shared", "internal"] as const satisfies readonly Responsibility[];
 
 // A single <select> filter, styled to match the rest of the card. `null`
-// value means "any" and is always the first option.
-interface FilterOption { value: string; label: string }
-function FilterSelect({ label, value, onChange, options }: { label: string; value: string | null; onChange: (value: string | null) => void; options: FilterOption[] }) {
-  return (
-    <label className="flex items-center gap-1.5 text-[11px]" style={{ color: C.muted }}>
-      {label}
-      <select
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value || null)}
-        className="text-[11px] font-medium rounded px-1.5 py-1"
-        style={{ background: C.panel2, color: C.ink, border: `1px solid ${C.border}` }}
-      >
-        <option value="">Any</option>
-        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    </label>
-  );
-}
-
 // Filters layer on top of whichever chip is selected: pick "Shared
 // Responsibility" as the base, then narrow to "Deficient" with the Status
 // filter, or pick "Not Assessed" as the base and narrow to "AI Security"

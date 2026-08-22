@@ -122,16 +122,29 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
   graph.findings.forEach((f) => {
     const keyControl = graph.keyControlById[f.controlId];
     if (keyControl?.scope === "program") {
-      const asset = graph.assetById[f.assetId];
       check(
-        Boolean(asset) && asset.systemIds.some((sid) => applicability.resolveProgramApplicability(sid, f.controlId).required),
-        `finding ${f.id}: ${f.controlId} is program-scoped and not required for any of ${asset?.systemIds.join(", ") ?? f.assetId}, so there is no assessment for this finding to live under`
+        applicability.resolveProgramApplicability(f.systemId, f.controlId).required,
+        `finding ${f.id}: ${f.controlId} is program-scoped and not required for ${f.systemId}, so there is no assessment for this finding to live under`
       );
       return;
     }
+    // With an asset named, the strict per-asset test the check has always run:
+    // the gap is claimed to sit on that implementation, so that implementation
+    // has to be required there.
+    if (f.assetId) {
+      check(
+        applicability.resolveApplicability(f.assetId, f.controlId).required,
+        `finding ${f.id}: ${f.controlId} is not required for ${f.assetId}, so there is no implementation for this finding to live under`
+      );
+      return;
+    }
+    // Without one, the same question asked at the boundary: is this control
+    // required anywhere in the system the finding names? A gap against a control
+    // that does not apply here is still a claim about something that is not
+    // there, whether or not an asset was singled out.
     check(
-      applicability.resolveApplicability(f.assetId, f.controlId).required,
-      `finding ${f.id}: ${f.controlId} is not required for ${f.assetId}, so there is no implementation for this finding to live under`
+      (graph.assetsBySystem[f.systemId] ?? []).some((a) => applicability.resolveApplicability(a.id, f.controlId).required),
+      `finding ${f.id}: ${f.controlId} is not required on any asset in ${f.systemId}, so there is no implementation for this finding to live under`
     );
   });
 
@@ -273,7 +286,7 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
     graph.implementationMechanisms.forEach((m) => { if (assetIds.has(m.assetId)) supported.add(m.controlId); });
     graph.implementationOverrides.forEach((o) => { if (assetIds.has(o.assetId)) supported.add(o.controlId); });
     graph.notImplemented.forEach((n) => { if (assetIds.has(n.assetId)) supported.add(n.controlId); });
-    graph.findings.forEach((f) => { if (assetIds.has(f.assetId)) supported.add(f.controlId); });
+    graph.findings.forEach((f) => { if (f.systemId === system.id) supported.add(f.controlId); });
 
     const declared = new Set<string>(scope.controlIds);
     const applicable = new Set(applicability.applicableControlsForSystem(system.id).map((c) => c.id));
