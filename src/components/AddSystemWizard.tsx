@@ -258,6 +258,14 @@ interface DryRunResult {
   applicability?: ReturnType<typeof appEngine.compliance.controlApplicabilitySummary>;
   proposedWaves?: { notApplicable: number; vendorInherited: number; companyLevel: number; remainingTechnical: number };
   readinessLabel?: string;
+  // Controls this system currently declares in scope that this edit's candidate
+  // graph no longer resolves as applicable — buildLiveEngine's scope correction
+  // prunes these silently on save (see liveGraph.ts), so without this the
+  // operator would only learn a control (and whatever evidence, mechanism, or
+  // not-implemented call was recorded against it) dropped out of scope by
+  // noticing its absence later, not by being told now while they can still
+  // undo the change that caused it.
+  droppedAssessedControls?: { id: string; friendlyName: string; domain: string }[];
 }
 
 function defaultAssessmentTarget(): string {
@@ -934,6 +942,22 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     const applicability = engine.compliance.controlApplicabilitySummary(systemId);
     const walk = engine.review.wavesForSystem(systemId);
     const readiness = engine.review.auditReadinessForSystem(systemId);
+
+    // Only an edit has a "before" to lose work against — a fresh create or
+    // clone starts from nothing, so there is nothing this system's own history
+    // could orphan.
+    let droppedAssessedControls: DryRunResult["droppedAssessedControls"];
+    if (editingSystemId) {
+      const previouslyDeclared = appEngine.graph.assessmentScopeBySystem[editingSystemId]?.controlIds ?? [];
+      const stillApplicable = new Set(engine.applicability.applicableControlsForSystem(systemId).map((c) => c.id));
+      droppedAssessedControls = previouslyDeclared
+        .filter((id) => !stillApplicable.has(id))
+        .map((id) => {
+          const control = appEngine.graph.keyControlById[id];
+          return { id, friendlyName: control?.friendlyName ?? id, domain: control?.domain ?? "" };
+        });
+    }
+
     setDryRun({
       problems: [],
       systemId,
@@ -948,6 +972,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
         remainingTechnical: walk.waves["system-owned"].remaining.length,
       },
       readinessLabel: readiness.overall,
+      droppedAssessedControls,
     });
     setChecking(false);
   }
@@ -1989,6 +2014,26 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
                 {!checking && dryRun && dryRun.problems.length === 0 && (
                   <StepBody>
+                    {dryRun.droppedAssessedControls && dryRun.droppedAssessedControls.length > 0 && (
+                      <Callout
+                        tone="warning"
+                        title={`${dryRun.droppedAssessedControls.length} previously assessed control${dryRun.droppedAssessedControls.length === 1 ? "" : "s"} will drop out of scope.`}
+                      >
+                        <p>
+                          These changes mean the controls below no longer apply to this system. Saving will remove
+                          them from its assessment scope — any evidence, mechanism, or not-implemented call already
+                          recorded against them stays on file but stops counting toward this system's coverage. Go
+                          back and undo the change if that's not intended.
+                        </p>
+                        <ul className="mt-1.5 flex flex-col gap-1">
+                          {dryRun.droppedAssessedControls.map((c) => (
+                            <li key={c.id} className={TX.help} style={{ color: C.ink }}>
+                              {c.id} · {c.friendlyName}{c.domain ? ` — ${c.domain}` : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      </Callout>
+                    )}
                     <Section icon={Gauge} title="Derived posture" description="Computed from the facts you entered — not a recorded assessment result.">
                       <div className="grid gap-3 grid-cols-1 md:grid-cols-3">
                         <StatTile

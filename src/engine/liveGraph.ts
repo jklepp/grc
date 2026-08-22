@@ -284,12 +284,26 @@ export function buildLiveEngine(baseFacts: GraphFacts, runtime: RuntimeFacts): B
     const applicableIds = new Set(
       trialEngine.applicability.applicableControlsForSystem(scope.systemId).map((c) => c.id)
     );
+    const isRuntimeOwned = runtimeScopeSystemIds.has(scope.systemId);
+    // A wizard-owned scope is corrected in both directions: enterprise-wide
+    // evidence adds a control the moment it becomes applicable (below), and
+    // an edit that changes what applies to the system (dropping AI usage or
+    // an AI-kind asset, say) drops a control that no longer belongs — the
+    // wizard carries the old scope's controlIds forward verbatim on edit, so
+    // without this a stale entry fails "not applicable to that system" on the
+    // next save, for a control the operator never touched. A YAML-curated
+    // engagement's declared list is never pruned this way — see the
+    // "supported, undeclared" comment above for why that stays a loud
+    // validator failure instead of a silent correction.
+    const prunedControlIds = isRuntimeOwned
+      ? scope.controlIds.filter((id) => applicableIds.has(id))
+      : scope.controlIds;
     const additions = [...enterpriseSupportedControlIds].filter(
-      (id) => applicableIds.has(id) && !scope.controlIds.includes(id)
+      (id) => applicableIds.has(id) && !prunedControlIds.includes(id)
     );
-    if (additions.length > 0) {
-      correctedAssessmentScopes.push({ ...scope, controlIds: [...scope.controlIds, ...additions] });
-    } else if (runtimeScopeSystemIds.has(scope.systemId)) {
+    if (prunedControlIds.length !== scope.controlIds.length || additions.length > 0) {
+      correctedAssessmentScopes.push({ ...scope, controlIds: [...prunedControlIds, ...additions] });
+    } else if (isRuntimeOwned) {
       correctedAssessmentScopes.push(scope);
     }
   });

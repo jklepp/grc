@@ -42,6 +42,20 @@ export function createProfile(graph: Graph, rollups: RollupsApi) {
     return categoryWeightsFor(tier)[category as AssuranceCategory] ?? 0;
   }
 
+  // The score reached when a control clears exactly this PRISMA level —
+  // every weight at or below the level counted in full, nothing above it.
+  // This is the same weighted formula prismaScore uses (HITRUST's own
+  // 15/20/40/10/15), so a target computed here and a real assessment score
+  // are always the same arithmetic and can be compared directly.
+  function targetScoreForLevel(level: PrismaLevel): number {
+    return display(
+      PRISMA_LEVELS.filter((l) => meetsLevel(level, l)).reduce(
+        (sum, l) => sum + PRISMA_LEVEL_WEIGHTS[l] * 100,
+        0
+      )
+    ) as number;
+  }
+
   // The score reached when every PRISMA level up to and including the tier's
   // required maturity is Fully Compliant, and every level above it is
   // Non-Compliant.
@@ -70,22 +84,25 @@ export function createProfile(graph: Graph, rollups: RollupsApi) {
     const required = ASSURANCE_CATEGORIES.map((c) => profile[c].maturity).reduce((a, b) =>
       meetsLevel(b as PrismaLevel, a as PrismaLevel) ? b : a
     );
-    return display(
-      PRISMA_LEVELS.filter((level) => meetsLevel(required as PrismaLevel, level)).reduce(
-        (sum, level) => sum + PRISMA_LEVEL_WEIGHTS[level] * 100,
-        0
-      )
-    );
+    return targetScoreForLevel(required as PrismaLevel);
   }
 
   // Per-category met / partial / gap for one system against its tier's minimum.
   //
-  // "met" means every level up to the required one is Fully Compliant across the
-  // category; "partial" means the required level is reached on average but not
-  // everywhere; anything else is a gap. Judged from the level ratings rather
-  // than from the category score, so a category cannot clear its bar on the
-  // strength of a strong Policy rating while the rung that was actually required
-  // is failing.
+  // Judged the way a real HITRUST assessor reads a PRISMA score: against the
+  // single weighted composite (prismaScore's 15/20/40/10/15 blend), not by
+  // demanding every rung independently hit Fully Compliant. A control that is
+  // strong on Policy/Procedure/Implemented and merely adequate on Measured/
+  // Managed still clears its bar — those two rungs are only 25% of the
+  // formula between them, so unevenness there is exactly what a real audit
+  // tolerates rather than gates on. The old all-rungs-must-be-100 rule was
+  // stricter than any real engagement: it let one soft rating fail a category
+  // outright regardless of how strong the rest of the blend was.
+  //
+  // "met" clears the category's target composite outright. "partial" sits
+  // within 75% of the target — a real assessor's corrective-action-plan zone,
+  // flagged for remediation rather than treated as a fail. Further off than
+  // that, or nothing assessed yet, is a genuine gap.
   function evaluateSystemAgainstProfile(systemId: SystemId) {
     const system = rollups.systemRollupById[systemId];
     if (!system) return null;
@@ -109,24 +126,18 @@ export function createProfile(graph: Graph, rollups: RollupsApi) {
       const required = profile[category];
       const rollup = system.categories[category];
       const requiredLevel = required.maturity as PrismaLevel;
-
-      // Every level at or below the bar has to be Fully Compliant for the
-      // category to have met it.
-      const rungs = PRISMA_LEVELS.filter((level) => meetsLevel(requiredLevel, level));
+      const target = targetScoreForLevel(requiredLevel);
       const scored = rollup.assessments;
 
-      const allFull = scored.length > 0 && rungs.every((level) =>
-        scored.every((a) => a.levels[level].rating === 100)
-      );
-      const mostlyThere = scored.length > 0 && rungs.every((level) =>
-        (rollup.levelAverages[level] ?? 0) >= 75
-      );
+      const status: ProfileEvaluationStatus =
+        rollup.score == null ? "gap"
+        : rollup.score >= target ? "met"
+        : rollup.score >= target * 0.75 ? "partial"
+        : "gap";
 
-      const failingControls = scored.filter((a) =>
-        rungs.some((level) => a.levels[level].rating <= 25)
-      );
-
-      const status: ProfileEvaluationStatus = scored.length === 0 ? "gap" : allFull ? "met" : mostlyThere ? "partial" : "gap";
+      // Which controls are actually holding the category back — named so a
+      // reader sees what's behind the aggregate verdict, not just the verdict.
+      const failingControls = scored.filter((a) => (a.rawScore ?? 0) < target);
 
       result[category] = {
         status,
