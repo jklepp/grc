@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import type { CSSProperties, ReactNode } from "react";
-import { RadioTower, Layers, ChevronUp, ChevronDown, ChevronsUpDown, ClipboardCheck } from "lucide-react";
+import type { ReactNode } from "react";
+import { RadioTower, Layers, ClipboardCheck } from "lucide-react";
 import { C } from "../../theme";
 import { SectionHeader } from "./shared/SectionHeader";
 import { FilterSelect } from "./shared/FilterSelect";
@@ -10,6 +10,7 @@ import {
   EVIDENCE_HEALTH_META, EVIDENCE_HEALTH_ORDER, evidenceHealthForRow,
 } from "./controlMeta";
 import { StatRing } from "./shared/StatRing";
+import { TableHeaderCell } from "./shared/TableHeaderCell";
 import type { ControlMatrixRow, ApplicabilitySummary } from "./types";
 import type { ControlId } from "../../graph/ids";
 import type { Responsibility } from "../../graph/edges/controlImplementations";
@@ -44,36 +45,6 @@ type FindingsByControl = Partial<Record<ControlId, number>>;
 // still real data, just lower priority than these six answers, so they moved
 // into ControlEvaluationPanel instead of occupying columns here.
 const CONTROL_GRID = "2fr 130px 90px 160px 130px 80px";
-
-function SortIcon({ dir }: { dir: SortState["dir"] | null }) {
-  if (!dir) return <ChevronsUpDown size={11} style={{ opacity: 0.5 }} />;
-  return dir === "asc" ? <ChevronUp size={11} /> : <ChevronDown size={11} />;
-}
-
-interface HeaderCellProps {
-  label: ReactNode;
-  sortKey?: SortKey;
-  sort?: SortState | null;
-  onSort?: (key: SortKey) => void;
-  first?: boolean;
-}
-
-function HeaderCell({ label, sortKey, sort, onSort, first = false }: HeaderCellProps) {
-  const style: CSSProperties = { borderLeft: first ? "none" : `1px solid ${C.border}`, paddingLeft: first ? 0 : 12, color: C.muted };
-  if (sortKey == null) {
-    return <div style={style}>{label}</div>;
-  }
-  const active = sort?.key === sortKey;
-  return (
-    <button
-      onClick={() => onSort?.(sortKey)}
-      className="flex items-center gap-1 text-left"
-      style={{ ...style, color: active ? C.ink : C.muted }}
-    >
-      {label} <SortIcon dir={active ? sort.dir : null} />
-    </button>
-  );
-}
 
 function ControlRow({ row, onSelect, findingsCount }: { row: ControlMatrixRow; onSelect: (row: ControlMatrixRow) => void; findingsCount?: number }) {
   const meta = STATUS_META[row.status];
@@ -598,12 +569,12 @@ function SelectedControlsTable({
       </div>
       <FilterBar filters={filters} onChange={onFilterChange} domainOptions={domainOptions} frameworkOptions={frameworkOptions} showStatusFilters />
       <div className="grid text-[10px] font-semibold uppercase tracking-wide px-4 py-2.5" style={{ gridTemplateColumns: CONTROL_GRID, background: C.panel2, borderBottom: `1px solid ${C.border}`, color: C.muted }}>
-        <HeaderCell label="CONTROL" first />
-        <HeaderCell label="STATUS" sortKey="status" sort={sort} onSort={onSort} />
-        <HeaderCell label="ASSURANCE" sortKey="assurance" sort={sort} onSort={onSort} />
-        <HeaderCell label="RESPONSIBILITY" sortKey="responsibility" sort={sort} onSort={onSort} />
-        <HeaderCell label="EVIDENCE" sortKey="evidence" sort={sort} onSort={onSort} />
-        <HeaderCell label="FINDINGS" sortKey="findings" sort={sort} onSort={onSort} />
+        <TableHeaderCell label="CONTROL" first />
+        <TableHeaderCell label="STATUS" sortKey="status" sort={sort} onSort={onSort} />
+        <TableHeaderCell label="ASSURANCE" sortKey="assurance" sort={sort} onSort={onSort} />
+        <TableHeaderCell label="RESPONSIBILITY" sortKey="responsibility" sort={sort} onSort={onSort} />
+        <TableHeaderCell label="EVIDENCE" sortKey="evidence" sort={sort} onSort={onSort} />
+        <TableHeaderCell label="FINDINGS" sortKey="findings" sort={sort} onSort={onSort} />
       </div>
       <div style={{ maxHeight: 480, overflowY: "auto" }}>
         {rows.map((row) => (

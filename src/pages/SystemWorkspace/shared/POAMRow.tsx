@@ -13,32 +13,22 @@ const THEME_COLOR: Record<string, string> = {
   muted: C.muted,
 };
 
-// One finding, as a POA&M row. Read-only by default — that is how the Testing
-// tab's pen-test and tabletop sections use it.
+// One finding, as a read-only POA&M card — a handful of them inside the
+// Testing tab's pen-test and tabletop sections, where a finding is supporting
+// detail rather than the list being worked.
 //
-// `onOpen` and `actions` are what Findings & CAPs adds on top: the same row,
-// made operable. Extended rather than forked so a change to how a finding reads
-// lands everywhere at once (CONTRACT 1.2/1.4).
-export function POAMRow({ item, onOpen, actions, selected = false }: {
-  item: EngineFinding;
-  onOpen?: () => void;
-  actions?: React.ReactNode;
-  selected?: boolean;
-}) {
+// Findings & CAPs is the surface where findings ARE the work, and it renders
+// them as a sortable table instead (see SystemFindings). This card used to
+// carry that page's click-to-open and action strip; both moved there when the
+// list became a table, so nothing operable is left here.
+export function POAMRow({ item }: { item: EngineFinding }) {
   const statusMeta = FINDING_REMEDIATION_STATUS_META[item.remediationStatus];
   const meta = { color: THEME_COLOR[statusMeta?.color] ?? C.muted, label: statusMeta?.label ?? item.remediationStatus };
   const sevMeta = item.severity ? FINDING_SEVERITY_META[item.severity] : null;
   return (
     <div
-      className={`rounded-lg p-4 mb-2${onOpen ? " cursor-pointer" : ""}`}
-      onClick={onOpen}
-      role={onOpen ? "button" : undefined}
-      tabIndex={onOpen ? 0 : undefined}
-      onKeyDown={onOpen ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } } : undefined}
-      style={{
-        background: C.panel,
-        border: `1px solid ${selected ? C.accent : C.border}`,
-      }}
+      className="rounded-lg p-4 mb-2"
+      style={{ background: C.panel, border: `1px solid ${C.border}` }}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -72,17 +62,6 @@ export function POAMRow({ item, onOpen, actions, selected = false }: {
         </span>
         <span className="flex items-center gap-1" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}><Link2 size={11} /> {item.jira}</span>
       </div>
-      {actions && (
-        <div
-          className="flex items-center gap-2 flex-wrap mt-3 pt-3"
-          style={{ borderTop: `1px solid ${C.border}` }}
-          // The row itself opens the editor; a click on an action button must
-          // not do both.
-          onClick={(e) => e.stopPropagation()}
-        >
-          {actions}
-        </div>
-      )}
     </div>
   );
 }

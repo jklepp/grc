@@ -6,3 +6,4 @@ export { CadenceBadge } from "./CadenceBadge";
 export { CoverageBar } from "./CoverageBar";
 export { POAMRow } from "./POAMRow";
 export { SectionHeader } from "./SectionHeader";
+export { TableHeaderCell } from "./TableHeaderCell";
