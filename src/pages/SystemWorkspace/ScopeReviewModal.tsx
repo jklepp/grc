@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Ban, Check, ListChecks, Target } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { ArrowRight, Ban, Check, ChevronDown, ChevronRight, ListChecks, Target } from "lucide-react";
 import { C } from "../../theme";
 import { commitRuntimeFacts, RESPONSIBILITIES } from "../../engine";
 import { upsertControlReview } from "../../engine/runtimeMutations";
@@ -8,73 +8,34 @@ import { useLiveEngine } from "../../engine/useLiveEngine";
 import { APPLICABILITY_META, RESPONSIBILITY_META } from "./controlMeta";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
-  ActionCard, Button, Callout, CompletionScreen, Field, HeaderStat, InlineField, InlineHint, ProgressBar,
+  Button, Callout, CompletionScreen, Field, HeaderStat, InlineField, InlineHint,
   RailGroup, RailItem, SaveErrorCallout, SearchInput, Section, StatTile, StatusPill, TextInput, TX, Well,
-  WizardBanner, WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardRail, WZ,
+  WizardBanner, WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardRail,
 } from "../../components/wizard/WizardUI";
-import type { Tone } from "../../components/wizard/WizardUI";
-import type { ReviewWave, ReviewWaveControl } from "../../engine/review";
+import type { ControlReview } from "../../graph/edges/controlReviews";
+import type { InheritanceGroup, ReviewWave, ReviewWaveControl } from "../../engine/review";
 import type { ControlId, SystemId } from "../../graph/ids";
 import type { Control } from "../../graph/nodes/controls";
 
 // One row of the All Controls browser: every control the catalog defines
 // against this system, whether it currently applies or was excluded (by rule
 // or by a prior override), so an operator can find and flip any single one —
-// not just the ones a derived wave already surfaced as needing a decision.
+// not just the ones the scope review surfaced as needing a decision.
 interface AllControlsRow {
   control: Control;
   inScope: boolean;
   reason: string | null;
 }
 
-// The three buckets an operator actually decides card-by-card. "Remaining
-// technical" is not walked here — once these three are clear, this modal
-// hands off to the existing key-control grading queue (ControlEvaluationPanel)
-// rather than reinventing a second walk for it.
-const SCOPE_WAVES: ReviewWave[] = ["not-applicable", "vendor-inherited", "enterprise"];
-
-const WAVE_COPY: Record<ReviewWave, { label: string; hint: string; confirmAction?: string; confirmSub?: string; confirmedLabel?: string }> = {
-  "not-applicable": { label: "Not Applicable", hint: "Confirm derived exclusions, or pull a control back into scope." },
-  "vendor-inherited": {
-    label: "External Inherited", hint: "Confirm the provider actually runs this control for this boundary.",
-    confirmAction: "Confirm External Inherited", confirmSub: "The provider runs this control for us",
-    confirmedLabel: "Confirmed External Inherited",
-  },
-  enterprise: {
-    label: "Internal Inherited", hint: "Confirm this system is covered by ACME's central program or process.",
-    confirmAction: "Confirm Internal Inherited", confirmSub: "ACME's central program covers this control",
-    confirmedLabel: "Confirmed Internal Inherited",
-  },
-  "system-owned": { label: "Remaining Technical", hint: "Grade the controls ACME still has to evidence on this boundary." },
-};
-
-const BUCKET_META: Record<ReviewWave, { Icon: typeof Ban; color: string; bg: string }> = {
-  "not-applicable": APPLICABILITY_META["not-applicable"],
-  "vendor-inherited": RESPONSIBILITY_META[RESPONSIBILITIES.VENDOR],
-  enterprise: RESPONSIBILITY_META[RESPONSIBILITIES.ENTERPRISE],
-  "system-owned": RESPONSIBILITY_META[RESPONSIBILITIES.INTERNAL],
-};
-
-// Each bucket's existing app color, expressed in the wizard kit's tone
-// vocabulary so the pill on the decision card is the same component every
-// other status in every wizard uses.
-const BUCKET_TONE: Record<ReviewWave, Tone> = {
-  "not-applicable": "neutral",
-  "vendor-inherited": "info",
-  enterprise: "success",
-  "system-owned": "neutral",
-};
-
-const HOLD_MS = 900;
-const ENTER_DELAY_MS = 30;
+// The two decision surfaces plus the browser. Scope is exclusion-shaped now:
+// being in scope needs no ceremony (the assessment walk is its human touch),
+// so the review asks only "confirm what is OUT" — the short list a person
+// should actually read — and "accept what the inherited coverage stands on,"
+// asked per report rather than per control.
+type ScopeView = "out-of-scope" | "inherited" | "all";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
-}
-
-interface JustDecided {
-  control: Control;
-  label: string;
 }
 
 interface ScopeReviewModalProps {
@@ -89,25 +50,41 @@ interface ScopeReviewModalProps {
 export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTechnicalReview, initialWave = null }: ScopeReviewModalProps) {
   const liveEngine = useLiveEngine();
   const walk = liveEngine.review.wavesForSystem(systemId);
-  const [wave, setWave] = useState<ReviewWave>(initialWave ?? SCOPE_WAVES[0]);
-  const [reviewer, setReviewer] = useState(assessor);
-  const [rejectingId, setRejectingId] = useState<ControlId | null>(null);
-  const [rejectNote, setRejectNote] = useState("");
-  const [justDecided, setJustDecided] = useState<JustDecided | null>(null);
-  const [entering, setEntering] = useState(false);
-  const [saveError, setSaveError] = useState<string[] | null>(null);
-  const timersRef = useRef<number[]>([]);
+  const groups = liveEngine.review.inheritanceGroupsForSystem(systemId);
+  const summary = liveEngine.compliance.controlApplicabilitySummary(systemId);
 
-  // The wizard's second mode: every control in the catalog, browsable and
-  // individually toggleable, rather than only the ones a derived wave
-  // surfaced. Reuses the exact same override (upsertControlReview, bucket
-  // "not-applicable") the wave walk above already writes — an operator can
-  // pull any control out of scope here, or put it back, and the wave walk
-  // picks up the result the next time it renders.
-  const [view, setView] = useState<"walk" | "all">("walk");
+  const [view, setView] = useState<ScopeView>("out-of-scope");
+  const [reviewer, setReviewer] = useState(assessor);
+  const [saveError, setSaveError] = useState<string[] | null>(null);
+
+  // Out-of-scope review state: at most one pending question is being answered
+  // "out" at a time, with its typed reason.
+  const [excludingPendingId, setExcludingPendingId] = useState<ControlId | null>(null);
+  const [pendingNote, setPendingNote] = useState("");
+
+  // Inherited coverage state: which claim's control list is unfolded.
+  const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
+
+  // All Controls browser state.
   const [allQuery, setAllQuery] = useState("");
   const [excludingId, setExcludingId] = useState<ControlId | null>(null);
   const [excludeNote, setExcludeNote] = useState("");
+
+  const naWave = walk.waves["not-applicable"];
+  const naItems = [...naWave.remaining, ...naWave.decidedItems];
+  const pendingItems = naItems.filter((item) => item.forceReview);
+  const derivedExclusions = naItems.filter((item) => !item.forceReview);
+  const pendingRemaining = pendingItems.filter((item) => !item.review);
+  const exclusionsRemaining = naWave.remaining.filter((item) => !item.forceReview);
+  const outOfScopeRemaining = naWave.remaining.length;
+  const outOfScopeDone = outOfScopeRemaining === 0;
+
+  const groupsConfirmed = groups.filter((g) => g.remaining.length === 0).length;
+  const inheritedDone = groups.every((g) => g.remaining.length === 0);
+  const technicalRemaining = walk.waves["system-owned"].remaining.length;
+  const everythingDone = outOfScopeDone && inheritedDone;
+
+  const canWrite = reviewer.trim().length > 0;
 
   const allControlsMatrix = liveEngine.compliance.systemControlMatrix(systemId);
   const allControlsNotApplicable = liveEngine.compliance.notApplicableControlsForSystem(systemId);
@@ -134,89 +111,26 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
     );
   }, [allControlRows, allQuery]);
 
-  function markControlOutOfScope(control: Control, note: string) {
-    setSaveError(null);
-    const runtime = upsertControlReview(loadRuntimeFacts(), {
-      systemId, controlId: control.id, bucket: "not-applicable", stance: "confirm",
-      note, reviewedBy: reviewer.trim() || assessor, reviewedAt: today(),
-    });
-    const { engine, problems } = commitRuntimeFacts(runtime);
-    if (!engine) { setSaveError(problems); return; }
-    setExcludingId(null);
-    setExcludeNote("");
-  }
-
-  function markControlInScope(control: Control) {
-    setSaveError(null);
-    const runtime = upsertControlReview(loadRuntimeFacts(), {
-      systemId, controlId: control.id, bucket: "not-applicable", stance: "reject",
-      note: "Pulled back into scope via the Control Scope Wizard.",
-      reviewedBy: reviewer.trim() || assessor, reviewedAt: today(),
-    });
-    const { engine, problems } = commitRuntimeFacts(runtime);
-    if (!engine) setSaveError(problems);
-  }
-
-  function clearTimers() {
-    timersRef.current.forEach((t) => window.clearTimeout(t));
-    timersRef.current = [];
-  }
-
   // Reset to a clean slate every time the modal opens, landed on whichever
-  // scope wave still has work (or the requested one, if the Controls tab
-  // asked for a specific bucket).
+  // surface the caller asked for — the two inherited waves both map to the
+  // Inherited Coverage view now that they are reviewed per report.
   useEffect(() => {
     if (!open) return;
-    clearTimers();
-    setJustDecided(null);
-    setEntering(false);
-    setRejectingId(null);
-    setRejectNote("");
     setSaveError(null);
-    setView("walk");
+    setExcludingPendingId(null);
+    setPendingNote("");
+    setExpandedGroupId(null);
     setAllQuery("");
     setExcludingId(null);
     setExcludeNote("");
-    const target = initialWave && SCOPE_WAVES.includes(initialWave) ? initialWave : null;
-    setWave(target ?? SCOPE_WAVES.find((w) => walk.waves[w].remaining.length > 0) ?? SCOPE_WAVES[SCOPE_WAVES.length - 1]);
+    setView(initialWave === "vendor-inherited" || initialWave === "enterprise" ? "inherited" : "out-of-scope");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  useEffect(() => () => clearTimers(), []);
-
-  const current = walk.waves[wave];
-  const remainingCount = current.remaining.length;
-
-  // Once the active wave is empty (and we're not still celebrating its last
-  // card), move on to the next scope wave with work left.
-  useEffect(() => {
-    if (!open || justDecided || remainingCount > 0) return;
-    const nextWave = SCOPE_WAVES.slice(SCOPE_WAVES.indexOf(wave) + 1).find((w) => walk.waves[w].remaining.length > 0);
-    if (nextWave) setWave(nextWave);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, justDecided, remainingCount, wave, walk]);
-
-  const scopeComplete = SCOPE_WAVES.every((w) => walk.waves[w].remaining.length === 0);
-  const technicalRemaining = walk.waves["system-owned"].remaining.length;
-  const scopeTotal = SCOPE_WAVES.reduce((sum, w) => sum + walk.waves[w].total, 0);
-  const scopeDecided = SCOPE_WAVES.reduce((sum, w) => sum + walk.waves[w].decidedItems.length, 0);
-
-  const canWrite = reviewer.trim().length > 0;
-  const bucketMeta = BUCKET_META[wave];
-  const waveCopy = WAVE_COPY[wave];
-  const SystemOwnedIcon = BUCKET_META["system-owned"].Icon;
-
-  function saveOne(control: Control, stance: "confirm" | "reject", note: string): boolean {
+  function commitReviews(reviews: ControlReview[]): boolean {
     setSaveError(null);
-    const runtime = upsertControlReview(loadRuntimeFacts(), {
-      systemId,
-      controlId: control.id,
-      bucket: wave,
-      stance,
-      note,
-      reviewedBy: reviewer.trim(),
-      reviewedAt: today(),
-    });
+    if (reviews.length === 0) return true;
+    const runtime = reviews.reduce(upsertControlReview, loadRuntimeFacts());
     const { engine, problems } = commitRuntimeFacts(runtime);
     if (!engine) {
       setSaveError(problems);
@@ -225,44 +139,153 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
     return true;
   }
 
-  function decide(control: Control, stance: "confirm" | "reject", note: string, label: string) {
-    if (!saveOne(control, stance, note)) return;
-    setRejectingId(null);
-    setRejectNote("");
-    setJustDecided({ control, label });
-    const t1 = window.setTimeout(() => {
-      setJustDecided(null);
-      setEntering(true);
-      const t2 = window.setTimeout(() => setEntering(false), ENTER_DELAY_MS);
-      timersRef.current.push(t2);
-    }, HOLD_MS);
-    timersRef.current.push(t1);
+  function review(controlId: ControlId, bucket: ControlReview["bucket"], stance: ControlReview["stance"], note: string): ControlReview {
+    return { systemId, controlId, bucket, stance, note, reviewedBy: reviewer.trim() || assessor, reviewedAt: today() };
   }
 
-  function destinationLabel(controlId: ControlId): string {
-    const destination = walk.proposedBucket(controlId);
-    if (destination === wave) return "This control is independently required there, so rejecting will not move it.";
-    return `Rejecting moves this control to ${WAVE_COPY[destination as ReviewWave].label} for review.`;
+  function confirmExclusion(item: ReviewWaveControl) {
+    commitReviews([review(item.control.id, "not-applicable", "confirm", item.reason)]);
+  }
+
+  function pullIntoScope(control: Control) {
+    commitReviews([review(control.id, "not-applicable", "reject", "Marked applicable during scope review.")]);
+  }
+
+  function confirmAllExclusions() {
+    commitReviews(exclusionsRemaining.map((item) => review(item.control.id, "not-applicable", "confirm", item.reason)));
+  }
+
+  function confirmPendingOut(item: ReviewWaveControl, note: string) {
+    if (!commitReviews([review(item.control.id, "not-applicable", "confirm", note)])) return;
+    setExcludingPendingId(null);
+    setPendingNote("");
+  }
+
+  function confirmGroup(group: InheritanceGroup) {
+    commitReviews(group.remaining.map((item) => review(item.control.id, group.bucket, "confirm", `Confirmed via ${group.title}.`)));
+  }
+
+  function takeOwnership(group: InheritanceGroup, item: ReviewWaveControl) {
+    commitReviews([review(
+      item.control.id, group.bucket, "reject",
+      "Rejected inheritance — ACME evidences this control directly on this boundary.",
+    )]);
+  }
+
+  function markControlOutOfScope(control: Control, note: string) {
+    if (!commitReviews([review(control.id, "not-applicable", "confirm", note)])) return;
+    setExcludingId(null);
+    setExcludeNote("");
   }
 
   if (!open) return null;
 
-  const displayItem: ReviewWaveControl | null = justDecided
-    ? { control: justDecided.control, reason: "", responsibility: null, review: null, proposed: true }
-    : current.remaining[0] ?? null;
+  const outOfScopeState = view === "out-of-scope" ? "active" : outOfScopeDone ? "done" : "pending";
+  const inheritedState = view === "inherited" ? "active" : inheritedDone ? "done" : "pending";
+  const SystemOwnedIcon = RESPONSIBILITY_META[RESPONSIBILITIES.INTERNAL].Icon;
+  const naMeta = APPLICABILITY_META["not-applicable"];
 
-  // One place says where you are, the same way the Add System wizard's footer
-  // does: the browser is a destination, a finished scope is a terminal state,
-  // and otherwise it's wave N of the three.
   const footerPosition = view === "all"
     ? `All controls · ${filteredAllControlRows.length} shown`
-    : scopeComplete
-      ? "Scope complete"
-      : `Wave ${SCOPE_WAVES.indexOf(wave) + 1} of ${SCOPE_WAVES.length} · ${waveCopy.label}`;
+    : view === "inherited"
+      ? `Inherited coverage · ${groupsConfirmed} of ${groups.length} claims confirmed`
+      : outOfScopeDone
+        ? "Out-of-scope review complete"
+        : `Out-of-scope review · ${outOfScopeRemaining} to decide`;
 
   const footerHint = !canWrite
     ? <InlineHint tone="warning">Name a reviewer of record before any scope decision can be saved.</InlineHint>
     : undefined;
+
+  const exclusionRow = (item: ReviewWaveControl, isLast: boolean) => {
+    const decided = Boolean(item.review);
+    const excluded = item.review?.stance === "confirm";
+    return (
+      <div key={item.control.id} style={{ borderBottom: isLast ? undefined : `1px solid ${C.border}` }}>
+        <div className="flex items-start gap-3 px-3.5 py-3">
+          <div className="min-w-0 flex-1">
+            <div className={TX.itemTitle} style={{ color: C.ink }}>{item.control.name}</div>
+            <div className={`${TX.help} mt-1`} style={{ color: C.muted }}>
+              <span className="font-mono">{item.control.id}</span> · {item.control.domain}
+            </div>
+            <div className={`${TX.help} mt-1.5`} style={{ color: C.muted }}>{item.reason}</div>
+          </div>
+          {decided ? (
+            <StatusPill tone={excluded ? "neutral" : "success"} icon={excluded ? Ban : Check}>
+              {excluded ? "Out of scope" : "In scope"}
+            </StatusPill>
+          ) : (
+            <div className="flex items-center gap-2 shrink-0">
+              <Button size="sm" disabled={!canWrite} onClick={() => pullIntoScope(item.control)}>Pull into scope</Button>
+              <Button size="sm" variant="primary" icon={Ban} disabled={!canWrite} onClick={() => confirmExclusion(item)}>
+                Confirm out of scope
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const pendingRow = (item: ReviewWaveControl, isLast: boolean) => {
+    const decided = Boolean(item.review);
+    const excluded = item.review?.stance === "confirm" && item.review.bucket === "not-applicable";
+    return (
+      <div key={item.control.id} style={{ borderBottom: isLast ? undefined : `1px solid ${C.border}` }}>
+        <div className="flex items-start gap-3 px-3.5 py-3">
+          <div className="min-w-0 flex-1">
+            <div className={TX.itemTitle} style={{ color: C.ink }}>{item.control.name}</div>
+            <div className={`${TX.help} mt-1`} style={{ color: C.muted }}>
+              <span className="font-mono">{item.control.id}</span> · {item.control.domain}
+            </div>
+            <div className={`${TX.help} mt-1.5`} style={{ color: C.ink }}>{item.reason}</div>
+          </div>
+          {decided ? (
+            <StatusPill tone={excluded ? "neutral" : "success"} icon={excluded ? Ban : Check}>
+              {excluded ? "Out of scope" : "In scope"}
+            </StatusPill>
+          ) : (
+            <div className="flex items-center gap-2 shrink-0">
+              <Button size="sm" disabled={!canWrite} onClick={() => pullIntoScope(item.control)}>Mark applicable</Button>
+              <Button
+                size="sm"
+                variant="danger"
+                icon={Ban}
+                disabled={!canWrite}
+                onClick={() => { setExcludingPendingId(item.control.id); setPendingNote(""); }}
+              >
+                Out of scope…
+              </Button>
+            </div>
+          )}
+        </div>
+        {excludingPendingId === item.control.id && !decided && (
+          <div className="px-3.5 pb-3.5">
+            <Well hollow className="flex flex-col gap-3.5">
+              <Field
+                label="Reason"
+                note="Required — this was flagged as an open question, so the exclusion needs its own answer, not the question restated."
+                error={pendingNote.trim() ? null : "Enter why this control is out of scope for this boundary."}
+              >
+                <TextInput
+                  value={pendingNote}
+                  onChange={(e) => setPendingNote(e.target.value)}
+                  placeholder="Why doesn't this control's premise hold here?"
+                  aria-label={`Reason ${item.control.id} is out of scope`}
+                />
+              </Field>
+              <div className="flex items-center justify-end gap-2.5">
+                <Button size="sm" onClick={() => { setExcludingPendingId(null); setPendingNote(""); }}>Cancel</Button>
+                <Button size="sm" variant="primary" icon={Check} disabled={!pendingNote.trim()} onClick={() => confirmPendingOut(item, pendingNote.trim())}>
+                  Confirm out of scope
+                </Button>
+              </div>
+            </Well>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <Modal open={open} onClose={onClose} width={1040} height={720}>
@@ -271,10 +294,10 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
         <WizardHeader
           icon={Target}
           title="Scope Determination"
-          description="Confirm which controls apply to this boundary before technical review begins, or open All Controls to set any control in or out of scope directly. Every decision is recorded with who made it and when."
+          description="Everything the baseline, rules, and frameworks bring in scope stays in scope — assessment is its confirmation. What needs a person is the short list going OUT, and accepting the reports the inherited coverage stands on."
           aside={
             <>
-              <HeaderStat label="Scope decided" value={`${scopeDecided} of ${scopeTotal}`} />
+              <HeaderStat label="In scope" value={`${summary.applicable} of ${summary.total}`} />
               <InlineField label="Reviewer">
                 <TextInput
                   value={reviewer}
@@ -290,32 +313,32 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
         />
 
         <WizardBody>
-          <WizardRail label="Scope waves">
+          <WizardRail label="Scope review">
             <RailGroup connected>
-              {SCOPE_WAVES.map((w) => {
-                const projection = walk.waves[w];
-                const isDone = projection.remaining.length === 0;
-                return (
-                  <RailItem
-                    key={w}
-                    icon={BUCKET_META[w].Icon}
-                    title={WAVE_COPY[w].label}
-                    detail={isDone
-                      ? `${projection.decidedItems.length} of ${projection.total} decided`
-                      : `${projection.remaining.length} of ${projection.total} remaining`}
-                    state={isDone ? "done" : view === "walk" && w === wave ? "active" : "pending"}
-                    onClick={() => { if (!justDecided) { setWave(w); setView("walk"); } }}
-                  />
-                );
-              })}
+              <RailItem
+                icon={naMeta.Icon}
+                title="Out of Scope"
+                detail={outOfScopeDone
+                  ? `${naItems.length} decided`
+                  : `${outOfScopeRemaining} of ${naItems.length} to decide`}
+                state={outOfScopeState}
+                onClick={() => setView("out-of-scope")}
+              />
+              <RailItem
+                icon={RESPONSIBILITY_META[RESPONSIBILITIES.VENDOR].Icon}
+                title="Inherited Coverage"
+                detail={`${groupsConfirmed} of ${groups.length} claims confirmed`}
+                state={inheritedState}
+                onClick={() => setView("inherited")}
+              />
               <RailItem
                 icon={SystemOwnedIcon}
                 title="Remaining Technical"
-                detail={scopeComplete
+                detail={outOfScopeDone
                   ? `${technicalRemaining} queued for grading`
-                  : `Not started · ${walk.waves["system-owned"].total}`}
+                  : `After out-of-scope review · ${walk.waves["system-owned"].total}`}
                 state="pending"
-                disabled={!scopeComplete}
+                disabled={!outOfScopeDone}
                 onClick={() => { onClose(); onStartTechnicalReview(); }}
               />
             </RailGroup>
@@ -331,246 +354,254 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
             </RailGroup>
           </WizardRail>
 
-          <div className="p-6 overflow-y-auto flex flex-col min-w-0" style={{ background: C.bg }}>
-            {view === "all" ? (
-              <div className="flex flex-col gap-4 flex-1 min-h-0">
-                {saveError && <SaveErrorCallout problems={saveError} />}
-                <Section
-                  grow
-                  icon={ListChecks}
-                  title="All controls"
-                  description="Every control the catalog defines against this system — set any one in or out of scope directly."
-                  aside={<StatusPill tone="neutral">{filteredAllControlRows.length} shown</StatusPill>}
-                >
-                  <SearchInput
-                    value={allQuery}
-                    onChange={setAllQuery}
-                    placeholder="Search by id, name, or domain…"
-                    ariaLabel="Search controls"
-                    className="md:max-w-[380px]"
-                  />
-                  <Well padded={false} className="flex-1 min-h-0 overflow-y-auto">
-                    {filteredAllControlRows.length === 0 && (
-                      <div className={`${TX.help} text-center py-8`} style={{ color: C.muted }}>
-                        No controls match that search.
-                      </div>
-                    )}
-                    {filteredAllControlRows.map((row, index) => (
-                      <div
-                        key={row.control.id}
-                        style={{ borderBottom: index < filteredAllControlRows.length - 1 ? `1px solid ${C.border}` : undefined }}
-                      >
-                        <div className="flex items-start gap-3 px-3.5 py-3">
-                          <div className="min-w-0 flex-1">
-                            <div className={TX.itemTitle} style={{ color: C.ink }}>{row.control.name}</div>
-                            <div className={`${TX.help} mt-1.5`} style={{ color: C.muted }}>
-                              <span className="font-mono">{row.control.id}</span> · {row.control.domain}
-                            </div>
-                            {!row.inScope && row.reason && (
-                              <div className={`${TX.help} mt-1.5`} style={{ color: C.muted }}>{row.reason}</div>
-                            )}
+          <div className="p-6 overflow-y-auto flex flex-col min-w-0 gap-4" style={{ background: C.bg }}>
+            {saveError && <SaveErrorCallout problems={saveError} />}
+
+            {view === "all" && (
+              <Section
+                grow
+                icon={ListChecks}
+                title="All controls"
+                description="Every control the catalog defines against this system — set any one in or out of scope directly."
+                aside={<StatusPill tone="neutral">{filteredAllControlRows.length} shown</StatusPill>}
+              >
+                <SearchInput
+                  value={allQuery}
+                  onChange={setAllQuery}
+                  placeholder="Search by id, name, or domain…"
+                  ariaLabel="Search controls"
+                  className="md:max-w-[380px]"
+                />
+                <Well padded={false} className="flex-1 min-h-0 overflow-y-auto">
+                  {filteredAllControlRows.length === 0 && (
+                    <div className={`${TX.help} text-center py-8`} style={{ color: C.muted }}>
+                      No controls match that search.
+                    </div>
+                  )}
+                  {filteredAllControlRows.map((row, index) => (
+                    <div
+                      key={row.control.id}
+                      style={{ borderBottom: index < filteredAllControlRows.length - 1 ? `1px solid ${C.border}` : undefined }}
+                    >
+                      <div className="flex items-start gap-3 px-3.5 py-3">
+                        <div className="min-w-0 flex-1">
+                          <div className={TX.itemTitle} style={{ color: C.ink }}>{row.control.name}</div>
+                          <div className={`${TX.help} mt-1.5`} style={{ color: C.muted }}>
+                            <span className="font-mono">{row.control.id}</span> · {row.control.domain}
                           </div>
-                          <StatusPill tone={row.inScope ? "success" : "neutral"} icon={row.inScope ? Check : Ban}>
-                            {row.inScope ? "In scope" : "Out of scope"}
-                          </StatusPill>
-                          {row.inScope ? (
-                            <Button
-                              size="sm"
-                              variant="danger"
-                              disabled={!canWrite}
-                              onClick={() => { setExcludingId(row.control.id); setExcludeNote(""); }}
-                            >
-                              Mark out of scope
-                            </Button>
-                          ) : (
-                            <Button size="sm" disabled={!canWrite} onClick={() => markControlInScope(row.control)}>
-                              Mark in scope
-                            </Button>
+                          {!row.inScope && row.reason && (
+                            <div className={`${TX.help} mt-1.5`} style={{ color: C.muted }}>{row.reason}</div>
                           )}
                         </div>
-                        {excludingId === row.control.id && (
-                          <div className="px-3.5 pb-3.5">
-                            <Well hollow className="flex flex-col gap-3.5">
-                              <Field
-                                label="Reason"
-                                note="Required — why this control does not apply to this boundary."
-                                error={excludeNote.trim() ? null : "Enter a reason before recording the exclusion."}
-                              >
-                                <TextInput
-                                  value={excludeNote}
-                                  onChange={(e) => setExcludeNote(e.target.value)}
-                                  placeholder="e.g. No physical facility inside this boundary"
-                                  aria-label={`Reason ${row.control.id} is out of scope`}
-                                />
-                              </Field>
-                              <div className="flex items-center justify-end gap-2.5">
-                                <Button size="sm" onClick={() => { setExcludingId(null); setExcludeNote(""); }}>Cancel</Button>
-                                <Button
-                                  size="sm"
-                                  variant="primary"
-                                  icon={Check}
-                                  disabled={!excludeNote.trim()}
-                                  onClick={() => markControlOutOfScope(row.control, excludeNote.trim())}
-                                >
-                                  Mark out of scope
-                                </Button>
-                              </div>
-                            </Well>
-                          </div>
+                        <StatusPill tone={row.inScope ? "success" : "neutral"} icon={row.inScope ? Check : Ban}>
+                          {row.inScope ? "In scope" : "Out of scope"}
+                        </StatusPill>
+                        {row.inScope ? (
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            disabled={!canWrite}
+                            onClick={() => { setExcludingId(row.control.id); setExcludeNote(""); }}
+                          >
+                            Mark out of scope
+                          </Button>
+                        ) : (
+                          <Button size="sm" disabled={!canWrite} onClick={() => pullIntoScope(row.control)}>
+                            Mark in scope
+                          </Button>
                         )}
                       </div>
-                    ))}
-                  </Well>
-                </Section>
-              </div>
-            ) : scopeComplete && !justDecided ? (
+                      {excludingId === row.control.id && (
+                        <div className="px-3.5 pb-3.5">
+                          <Well hollow className="flex flex-col gap-3.5">
+                            <Field
+                              label="Reason"
+                              note="Required — why this control does not apply to this boundary."
+                              error={excludeNote.trim() ? null : "Enter a reason before recording the exclusion."}
+                            >
+                              <TextInput
+                                value={excludeNote}
+                                onChange={(e) => setExcludeNote(e.target.value)}
+                                placeholder="e.g. No physical facility inside this boundary"
+                                aria-label={`Reason ${row.control.id} is out of scope`}
+                              />
+                            </Field>
+                            <div className="flex items-center justify-end gap-2.5">
+                              <Button size="sm" onClick={() => { setExcludingId(null); setExcludeNote(""); }}>Cancel</Button>
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                icon={Check}
+                                disabled={!excludeNote.trim()}
+                                onClick={() => markControlOutOfScope(row.control, excludeNote.trim())}
+                              >
+                                Mark out of scope
+                              </Button>
+                            </div>
+                          </Well>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </Well>
+              </Section>
+            )}
+
+            {view === "out-of-scope" && everythingDone && (
               <CompletionScreen
                 title="Scope confirmed"
-                description="Every derived call for this system has been confirmed or overridden by a named reviewer. This is the record an auditor will ask for."
+                description="Every exclusion carries a named reviewer's decision and every inherited claim names the report it stands on. This is the record an auditor will ask for."
                 tiles={
                   <div className="grid gap-3 grid-cols-2 xl:grid-cols-4">
-                    {SCOPE_WAVES.map((w) => (
-                      <StatTile key={w} label={WAVE_COPY[w].label} value={walk.waves[w].total} />
-                    ))}
+                    <StatTile label="In scope" value={summary.applicable} />
+                    <StatTile label="Out of scope" value={naItems.length} />
+                    <StatTile label="Claims confirmed" value={groups.length} />
                     <StatTile label="Remaining Technical" value={technicalRemaining} hint="Queued for grading" />
                   </div>
                 }
                 signature={<>Reviewed by <b style={{ color: C.ink }}>{reviewer.trim() || assessor}</b> · completed {today()}</>}
               />
-            ) : displayItem ? (
-              <div className="flex flex-col flex-1 min-h-0 gap-4">
-                {saveError && <SaveErrorCallout problems={saveError} />}
+            )}
 
-                <div className="flex items-center gap-3">
-                  <span className={`${TX.label} shrink-0`} style={{ color: C.muted }}>{waveCopy.label}</span>
-                  <ProgressBar
-                    value={current.decidedItems.length}
-                    total={current.total}
-                    label={`${waveCopy.label} progress`}
-                  />
-                  <span className={`${TX.help} shrink-0`} style={{ color: C.muted }}>{remainingCount} left</span>
+            {view === "out-of-scope" && !everythingDone && (
+              <>
+                <div className="grid gap-3 grid-cols-2 xl:grid-cols-4">
+                  <StatTile label="In scope" value={summary.applicable} />
+                  <StatTile label="Provider-inherited" value={summary.byResponsibility.vendor} />
+                  <StatTile label="Program-covered" value={summary.byResponsibility.enterprise} />
+                  <StatTile label="Yours to evidence" value={summary.byResponsibility.owned + summary.byResponsibility.shared} />
                 </div>
 
-                <div className="flex-1 flex items-start justify-center">
-                  <div
-                    className="w-full max-w-2xl"
-                    style={{
-                      background: C.panel,
-                      border: `1px solid ${justDecided ? C.green : C.border}`,
-                      borderRadius: WZ.radius.card,
-                      opacity: entering ? 0 : 1,
-                      transform: entering ? "translateX(40px)" : "translateX(0)",
-                      transition: "border-color 180ms ease, transform 340ms cubic-bezier(.2,.7,.3,1), opacity 320ms ease",
-                    }}
+                {pendingItems.length > 0 && (
+                  <Section
+                    icon={naMeta.Icon}
+                    title="Open questions"
+                    description="Applicability the rules deliberately could not resolve — each needs its own answer."
+                    aside={<StatusPill tone={pendingRemaining.length > 0 ? "warning" : "success"}>
+                      {pendingRemaining.length > 0 ? `${pendingRemaining.length} to answer` : "All answered"}
+                    </StatusPill>}
                   >
-                    <div className="p-5 flex flex-col gap-4">
-                      <div>
-                        <div className={TX.eyebrow} style={{ color: C.accent }}>
-                          {displayItem.control.id} · {displayItem.control.domain}
-                        </div>
-                        <h3 className={`${TX.stepTitle} mt-2`} style={{ color: C.ink, fontFamily: WZ.serif }}>
-                          {displayItem.control.name}
-                        </h3>
-                        <p className={`${TX.lead} mt-2.5`} style={{ color: C.ink }}>{displayItem.control.description}</p>
-                      </div>
+                    <Well padded={false}>
+                      {pendingItems.map((item, index) => pendingRow(item, index === pendingItems.length - 1))}
+                    </Well>
+                  </Section>
+                )}
 
-                      {/* The derived reason is a full sentence, so it gets the
-                          block message treatment rather than a pill — a pill
-                          would refuse to wrap and blow out the card. */}
-                      {!justDecided && displayItem.reason && (
-                        <Callout tone={BUCKET_TONE[wave]} icon={bucketMeta.Icon} title={`Derived as ${waveCopy.label}.`}>
-                          {displayItem.reason}
-                        </Callout>
-                      )}
+                <Section
+                  icon={Ban}
+                  title="Derived exclusions"
+                  description="Controls whose premise does not hold in this boundary. Read the reason, then confirm — or pull the control back into scope."
+                  aside={exclusionsRemaining.length > 1 ? (
+                    <Button size="sm" icon={Check} disabled={!canWrite} onClick={confirmAllExclusions}>
+                      Confirm all {exclusionsRemaining.length}
+                    </Button>
+                  ) : undefined}
+                >
+                  {derivedExclusions.length === 0 ? (
+                    <Callout tone="info" title="Nothing is excluded by rule.">
+                      Every control in the catalog applies to this boundary. The All Controls browser can pull any control out with a stated reason.
+                    </Callout>
+                  ) : (
+                    <Well padded={false}>
+                      {derivedExclusions.map((item, index) => exclusionRow(item, index === derivedExclusions.length - 1))}
+                    </Well>
+                  )}
+                </Section>
+              </>
+            )}
 
-                      {justDecided ? (
-                        <Callout tone="success" title={`${justDecided.label}.`}>Advancing to the next control…</Callout>
-                      ) : wave === "not-applicable" ? (
-                        <div className="flex flex-col sm:flex-row gap-3">
-                          <ActionCard
-                            icon={Ban}
-                            tone="primary"
-                            title="Not applicable"
-                            description="Confirm the derived exclusion"
-                            disabled={!canWrite}
-                            onClick={() => decide(displayItem.control, "confirm", displayItem.reason, "Marked Not Applicable")}
-                          />
-                          <ActionCard
-                            icon={ArrowRight}
-                            title="Mark applicable"
-                            description="Pull this control back into scope"
-                            disabled={!canWrite}
-                            onClick={() => decide(displayItem.control, "reject", "Marked applicable during scope review.", "Marked Applicable")}
-                          />
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex flex-col sm:flex-row gap-3">
-                            <ActionCard
-                              icon={Check}
-                              tone="primary"
-                              title={waveCopy.confirmAction ?? "Confirm"}
-                              description={waveCopy.confirmSub ?? ""}
-                              disabled={!canWrite}
-                              onClick={() => decide(displayItem.control, "confirm", displayItem.reason, waveCopy.confirmedLabel ?? "Confirmed")}
-                            />
-                            <ActionCard
-                              icon={Ban}
-                              tone="danger"
-                              title="Reject"
-                              description="Bring it back into ACME's scope"
-                              disabled={!canWrite}
-                              onClick={() => setRejectingId(displayItem.control.id)}
-                            />
+            {view === "inherited" && (
+              <Section
+                grow
+                icon={RESPONSIBILITY_META[RESPONSIBILITIES.VENDOR].Icon}
+                title="Inherited coverage"
+                description="These controls are in scope; someone else runs them. Each claim is reviewed against the report it stands on — confirming a report claims every control it backs, in one signed decision."
+                aside={<StatusPill tone={inheritedDone ? "success" : "neutral"}>
+                  {groupsConfirmed} of {groups.length} confirmed
+                </StatusPill>}
+              >
+                <Well padded={false} className="flex-1 min-h-0 overflow-y-auto">
+                  {groups.map((group, index) => {
+                    const confirmed = group.remaining.length === 0;
+                    const expanded = expandedGroupId === group.id;
+                    const meta = group.bucket === "vendor-inherited"
+                      ? RESPONSIBILITY_META[RESPONSIBILITIES.VENDOR]
+                      : RESPONSIBILITY_META[RESPONSIBILITIES.ENTERPRISE];
+                    return (
+                      <div key={group.id} style={{ borderBottom: index < groups.length - 1 ? `1px solid ${C.border}` : undefined }}>
+                        <div className="flex items-start gap-3 px-3.5 py-3">
+                          <meta.Icon size={16} style={{ color: meta.color, marginTop: 2 }} />
+                          <div className="min-w-0 flex-1">
+                            <div className={TX.itemTitle} style={{ color: C.ink }}>{group.title}</div>
+                            <div className={`${TX.help} mt-1`} style={{ color: C.muted }}>
+                              {group.evidenceType ? `${group.evidenceType} · ${group.assessedAt}` : "Backed by the central program itself — no separate attestation on file"}
+                              {" · "}{group.controls.length} control{group.controls.length === 1 ? "" : "s"}
+                            </div>
+                            {group.reference && expanded && (
+                              <div className={`${TX.help} mt-1.5`} style={{ color: C.muted }}>{group.reference}</div>
+                            )}
                           </div>
-
-                          {rejectingId === displayItem.control.id && (
-                            <Well hollow className="flex flex-col gap-3.5">
-                              <InlineHint tone="info">{destinationLabel(displayItem.control.id)}</InlineHint>
-                              <Field
-                                label="Reason"
-                                note="Required — recorded against the control as the reviewer's override."
-                                error={rejectNote.trim() ? null : "Enter why the derived call does not hold here."}
-                              >
-                                <TextInput
-                                  value={rejectNote}
-                                  onChange={(e) => setRejectNote(e.target.value)}
-                                  placeholder="Why doesn't the derived call hold on this boundary?"
-                                  aria-label={`Reason for rejecting ${displayItem.control.id}`}
-                                />
-                              </Field>
-                              <div className="flex items-center justify-end gap-2.5">
-                                <Button size="sm" onClick={() => { setRejectingId(null); setRejectNote(""); }}>Cancel</Button>
-                                <Button
-                                  size="sm"
-                                  variant="primary"
-                                  icon={Check}
-                                  disabled={!rejectNote.trim()}
-                                  onClick={() => decide(
-                                    displayItem.control,
-                                    "reject",
-                                    rejectNote.trim(),
-                                    `Rejected — moved to ${WAVE_COPY[walk.proposedBucket(displayItem.control.id) as ReviewWave].label}`,
-                                  )}
-                                >
-                                  Save and continue
-                                </Button>
-                              </div>
-                            </Well>
+                          <button
+                            type="button"
+                            className={`${TX.help} flex items-center gap-1 shrink-0 mt-0.5`}
+                            style={{ color: C.muted }}
+                            aria-label={`${expanded ? "Hide" : "Show"} controls covered by ${group.title}`}
+                            onClick={() => setExpandedGroupId(expanded ? null : group.id)}
+                          >
+                            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            {expanded ? "Hide" : "Controls"}
+                          </button>
+                          {confirmed ? (
+                            <StatusPill tone="success" icon={Check}>Confirmed</StatusPill>
+                          ) : (
+                            <Button size="sm" variant="primary" icon={Check} disabled={!canWrite} onClick={() => confirmGroup(group)}>
+                              Confirm coverage · {group.remaining.length}
+                            </Button>
                           )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : null}
+                        </div>
+                        {expanded && (
+                          <div className="px-3.5 pb-3">
+                            <Well hollow padded={false}>
+                              {group.controls.map((item, i) => {
+                                const decided = Boolean(item.review);
+                                const rejected = item.review?.stance === "reject";
+                                return (
+                                  <div
+                                    key={item.control.id}
+                                    className="flex items-center gap-3 px-3 py-2"
+                                    style={{ borderBottom: i < group.controls.length - 1 ? `1px solid ${C.border}` : undefined }}
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <span className={TX.help} style={{ color: C.ink }}>{item.control.name}</span>
+                                      <span className={`${TX.help} ml-2 font-mono`} style={{ color: C.muted }}>{item.control.id}</span>
+                                    </div>
+                                    {decided ? (
+                                      <StatusPill tone={rejected ? "warning" : "success"}>
+                                        {rejected ? "ACME-owned" : "Confirmed"}
+                                      </StatusPill>
+                                    ) : (
+                                      <Button size="sm" disabled={!canWrite} onClick={() => takeOwnership(group, item)}>
+                                        Take ownership
+                                      </Button>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </Well>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </Well>
+              </Section>
+            )}
           </div>
         </WizardBody>
 
         <WizardFooter position={footerPosition} hint={footerHint}>
-          {view === "all" && <Button onClick={() => setView("walk")}>Back to review</Button>}
-          {scopeComplete && technicalRemaining > 0 && (
+          {view === "all" && <Button onClick={() => setView("out-of-scope")}>Back to review</Button>}
+          {outOfScopeDone && technicalRemaining > 0 && (
             <Button
               variant="primary"
               iconRight={ArrowRight}

@@ -358,6 +358,7 @@ export function assembleGraph(facts: GraphFacts): Graph {
     // Derived membership sets
     controlProfiles: resolveControlProfiles(facts.controlProfile),
     categoryWeights: facts.controlProfile.categoryWeights,
+    controlBaselines: facts.controlBaselines,
 
     assetScopedControls: facts.keyControls.filter((c) => c.scope === "asset"),
     programScopedControls: facts.keyControls.filter((c) => c.scope === "program"),

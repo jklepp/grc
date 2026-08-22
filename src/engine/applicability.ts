@@ -319,9 +319,25 @@ export function createApplicability(graph: Graph, classification: Classification
   // out of scope. A control is applicable if EITHER reading says so, and the
   // standards a system certifies against then decide which report it appears
   // in, not whether it is assessed.
+  // The tier baseline this system's classification selects — the policy half
+  // of scope (WHICH controls a tier carries; control-profile.yaml says how
+  // WELL). Empty when the tier defines no baseline, in which case scope
+  // derives from rules and frameworks exactly as it did before baselines
+  // existed.
+  function baselineForSystem(systemId: SystemId): { tier: string | null; controlIds: readonly ControlId[] } {
+    const tier = classification.systemClassification(systemId);
+    if (!tier) return { tier: null, controlIds: [] };
+    return { tier, controlIds: graph.controlBaselines[tier] ?? [] };
+  }
+
   function applicableControlsForSystem(systemId: SystemId): Control[] {
     const system = graph.systemById[systemId];
     const byStandard = new Set(controlsForStandards(system.standards).map((c) => c.id));
+
+    // Baseline first: at a tier with a published baseline, membership is a
+    // policy statement, and the rules and framework citations below add the
+    // content-conditional overlays on top of it.
+    baselineForSystem(systemId).controlIds.forEach((id) => byStandard.add(id));
 
     (graph.assetsBySystem[systemId] ?? []).forEach((asset) => {
       (requiredByAsset[asset.id] ?? []).forEach((id) => byStandard.add(id));
@@ -355,6 +371,7 @@ export function createApplicability(graph: Graph, classification: Classification
   function pendingControlsForSystem(systemId: SystemId): { control: Control; reason: string }[] {
     const system = graph.systemById[systemId];
     const byStandard = new Set(controlsForStandards(system.standards).map((c) => c.id));
+    baselineForSystem(systemId).controlIds.forEach((id) => byStandard.add(id));
     (graph.assetsBySystem[systemId] ?? []).forEach((asset) => {
       (requiredByAsset[asset.id] ?? []).forEach((id) => byStandard.add(id));
     });
@@ -378,6 +395,7 @@ export function createApplicability(graph: Graph, classification: Classification
     resolveProgramApplicability,
     programControlsForSystem,
     controlsForStandards,
+    baselineForSystem,
     applicableControlsForSystem: (systemId: SystemId) => applicableBySystem[systemId] ?? [],
     pendingControlsForSystem,
     PROGRAM_CONTROL_IDS: programControlIds,

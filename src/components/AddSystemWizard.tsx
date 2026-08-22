@@ -256,7 +256,23 @@ interface DryRunResult {
   assurance?: number | null;
   coverage?: { applicable: number; assessed: number; assessedPct: number; inherited: number } | null;
   applicability?: ReturnType<typeof appEngine.compliance.controlApplicabilitySummary>;
-  proposedWaves?: { notApplicable: number; vendorInherited: number; companyLevel: number; remainingTechnical: number };
+  // The scope story the way Scope Determination now tells it: policy baseline
+  // plus conditional overlays in, exclusions and open questions out, and the
+  // human work remaining after create (confirm exclusions, confirm inherited
+  // claims per report, grade what ACME owns).
+  scopePlan?: {
+    tier: string | null;
+    baselineCount: number;
+    conditionalCount: number;
+    inScope: number;
+    excluded: number;
+    pending: number;
+    vendorInherited: number;
+    programCovered: number;
+    ownedOrShared: number;
+    inheritedClaims: number;
+    remainingTechnical: number;
+  };
   readinessLabel?: string;
   // Controls this system currently declares in scope that this edit's candidate
   // graph no longer resolves as applicable — buildLiveEngine's scope correction
@@ -965,12 +981,24 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       assurance: rollup?.overallAssurance ?? null,
       coverage: rollup?.coverage ?? null,
       applicability,
-      proposedWaves: {
-        notApplicable: walk.waves["not-applicable"].remaining.length,
-        vendorInherited: walk.waves["vendor-inherited"].remaining.length,
-        companyLevel: walk.waves.enterprise.remaining.length,
-        remainingTechnical: walk.waves["system-owned"].remaining.length,
-      },
+      scopePlan: (() => {
+        const baseline = engine.applicability.baselineForSystem(systemId);
+        const baselineSet = new Set(baseline.controlIds);
+        const applicableControls = engine.applicability.applicableControlsForSystem(systemId);
+        return {
+          tier: baseline.tier,
+          baselineCount: baseline.controlIds.length,
+          conditionalCount: applicableControls.filter((c) => !baselineSet.has(c.id)).length,
+          inScope: applicability.applicable,
+          excluded: walk.waves["not-applicable"].remaining.filter((item) => !item.forceReview).length,
+          pending: applicability.pending,
+          vendorInherited: applicability.byResponsibility.vendor,
+          programCovered: applicability.byResponsibility.enterprise,
+          ownedOrShared: applicability.byResponsibility.owned + applicability.byResponsibility.shared,
+          inheritedClaims: engine.review.inheritanceGroupsForSystem(systemId).length,
+          remainingTechnical: walk.waves["system-owned"].remaining.length,
+        };
+      })(),
       readinessLabel: readiness.overall,
       droppedAssessedControls,
     });
@@ -2007,7 +2035,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                   step={7}
                   total={total}
                   title="Derived scope"
-                  description="Classification and the four review buckets are derived from your entries. Nothing here is a claimed assessment — an assessor confirms and grades these controls on the system screen after create."
+                  description="Classification selects the tier's published control baseline; the rules add what this system's contents require on top. Nothing here is a claimed assessment — an assessor reviews the exclusions and grades the controls on the system screen after create."
                 />
 
                 {checking && <Callout tone="info" title="Checking…">Recomputing the derived scope from your entries.</Callout>}
@@ -2054,47 +2082,54 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                       </div>
                     </Section>
 
-                    {dryRun.applicability && (
+                    {dryRun.scopePlan && (
                       <Section
                         icon={ClipboardCheck}
-                        title={`${dryRun.applicability.applicable} applicable controls`}
-                        description="Derived from framework scope, assets, exposure and declared operating characteristics."
-                        aside={<StatusPill tone="neutral">{dryRun.applicability.pending} pending review</StatusPill>}
+                        title={`${dryRun.scopePlan.inScope} controls in scope`}
+                        description={dryRun.scopePlan.baselineCount > 0
+                          ? `${dryRun.scopePlan.tier} tier baseline (${dryRun.scopePlan.baselineCount} controls, published policy) plus ${dryRun.scopePlan.conditionalCount} conditional for what this system actually contains.`
+                          : "No published baseline for this tier yet — scope derives from framework citations and applicability rules."}
+                        aside={dryRun.scopePlan.excluded + dryRun.scopePlan.pending > 0
+                          ? <StatusPill tone="neutral">{dryRun.scopePlan.excluded + dryRun.scopePlan.pending} out or open</StatusPill>
+                          : undefined}
                       >
                         <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-                          {([
-                            ["System owned", dryRun.applicability.byResponsibility.owned],
-                            ["Shared", dryRun.applicability.byResponsibility.shared],
-                            ["Enterprise", dryRun.applicability.byResponsibility.enterprise],
-                            ["Vendor", dryRun.applicability.byResponsibility.vendor],
-                          ] as const).map(([label, value]) => (
-                            <StatTile key={label} label={label} value={value} />
-                          ))}
+                          <StatTile label="Provider-inherited" value={dryRun.scopePlan.vendorInherited} hint="Runs under the provider's reports" />
+                          <StatTile label="Program-covered" value={dryRun.scopePlan.programCovered} hint="ACME's central programs" />
+                          <StatTile label="Yours to evidence" value={dryRun.scopePlan.ownedOrShared} hint="Owned or shared on this boundary" />
+                          <StatTile label="Out of scope" value={dryRun.scopePlan.excluded} hint="Premise absent — confirmed after create" />
                         </div>
                       </Section>
                     )}
 
-                    {dryRun.proposedWaves && (
+                    {dryRun.scopePlan && (
                       <Section
                         icon={ListChecks}
-                        title="Proposed review queues"
-                        description="After create, the assessor walks these in Scope Review. The wizard does not grade controls."
+                        title="What a person decides after create"
+                        description="Scope Determination asks only for decisions a human should actually make — nothing in scope needs a per-control click."
                       >
-                        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-                          {([
-                            ["Not applicable", dryRun.proposedWaves.notApplicable, "Confirm the derived exclusions"],
-                            ["External inherited", dryRun.proposedWaves.vendorInherited, "Confirm the provider split"],
-                            ["Internal inherited", dryRun.proposedWaves.companyLevel, "Confirm program incorporation"],
-                            ["Remaining technical", dryRun.proposedWaves.remainingTechnical, "PRISMA grade what ACME still owns"],
-                          ] as const).map(([label, value, hint]) => (
-                            <StatTile key={label} label={label} value={value} hint={hint} />
-                          ))}
+                        <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+                          <StatTile
+                            label="Confirm exclusions"
+                            value={dryRun.scopePlan.excluded + dryRun.scopePlan.pending}
+                            hint={dryRun.scopePlan.pending > 0 ? `Including ${dryRun.scopePlan.pending} open question${dryRun.scopePlan.pending === 1 ? "" : "s"}` : "Each with its derived reason"}
+                          />
+                          <StatTile
+                            label="Accept inherited claims"
+                            value={dryRun.scopePlan.inheritedClaims}
+                            hint="Reviewed per report, not per control"
+                          />
+                          <StatTile
+                            label="Grade remaining technical"
+                            value={dryRun.scopePlan.remainingTechnical}
+                            hint="PRISMA-graded in the assessment walk"
+                          />
                         </div>
                       </Section>
                     )}
 
                     <Callout tone="success" title="Derived scope validated.">
-                      Continue to assign the assessor, then confirm and grade controls on the system screen.
+                      Continue to assign the assessor, then review exclusions and grade controls on the system screen.
                     </Callout>
                   </StepBody>
                 )}
@@ -2128,13 +2163,15 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                   step={8}
                   total={total}
                   title="Launch assessment"
-                  description={`Assign the assessment and set its target date. ${editingSystemId ? "Saving recalculates the system's scope without changing its recorded evidence." : "Creating the system opens Scope Review. External- and internal-inherited coverage stay unclaimed until an assessor confirms them."}`}
+                  description={`Assign the assessment and set its target date. ${editingSystemId ? "Saving recalculates the system's scope without changing its recorded evidence." : "Creating the system opens Scope Determination: confirm what is out of scope, accept the reports inherited coverage stands on, then grade what ACME owns."}`}
                 />
                 <StepBody>
                   <Section icon={Gauge} title="Initial assessment plan" description="What the engine will propose the moment this system exists.">
-                    <Callout tone="info" title="Proposed, not claimed.">
-                      Controls in {provider || "the chosen provider"}'s certified domains are proposed as vendor-inherited from its
-                      reports. They are not a standing claim until an assessor confirms that split on the system screen.
+                    <Callout tone="info" title="In scope by policy, out of scope by review.">
+                      Everything the tier baseline, framework citations, and applicability rules bring in scope stays
+                      in scope — assessment is its confirmation. Scope Determination asks the assessor only to confirm
+                      the derived exclusions, answer any open questions, and accept the reports (like{" "}
+                      {provider || "the chosen provider"}'s certifications) that inherited coverage stands on.
                     </Callout>
                   </Section>
 

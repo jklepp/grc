@@ -114,6 +114,23 @@ export interface ReviewWaveProjection {
   total: number;
 }
 
+// One inherited-coverage claim and everything it backs on this boundary.
+// kind "provider" is a vendor certification, "enterprise" an internal program
+// attestation, "program" a program-scoped domain no attestation names — the
+// claim there rests on the central program itself.
+export interface InheritanceGroup {
+  id: string;
+  kind: "provider" | "enterprise" | "program";
+  bucket: "vendor-inherited" | "enterprise";
+  title: string;
+  reference: string;
+  evidenceType: string | null;
+  assessedAt: string | null;
+  domains: readonly string[];
+  controls: ReviewWaveControl[];
+  remaining: ReviewWaveControl[];
+}
+
 export interface FrameworkReadiness {
   standard: string;
   band: AuditReadinessBand;
@@ -249,6 +266,75 @@ export function createReview(
     };
   }
 
+  // The inherited half of a system's in-scope controls, grouped by what the
+  // claim actually stands on — a provider certification, an enterprise
+  // attestation, or (for program-scoped controls with no attestation) the
+  // central program for their domain. This is the review unit a person can
+  // honestly evaluate: "do I accept this report for this boundary" is one
+  // decision covering every control it backs, where the per-control fan-out
+  // is bookkeeping the confirm writes for them.
+  function inheritanceGroupsForSystem(systemId: SystemId): InheritanceGroup[] {
+    const system = graph.systemById[systemId];
+    const walk = wavesForSystem(systemId);
+    const groups = new Map<string, InheritanceGroup>();
+
+    const add = (key: string, seed: Omit<InheritanceGroup, "controls" | "remaining">, item: ReviewWaveControl) => {
+      if (!groups.has(key)) groups.set(key, { ...seed, controls: [], remaining: [] });
+      const group = groups.get(key)!;
+      group.controls.push(item);
+      if (!decisionMade(item.review, systemId, seed.bucket)) group.remaining.push(item);
+    };
+
+    const vendorWave = walk.waves["vendor-inherited"];
+    [...vendorWave.remaining, ...vendorWave.decidedItems].forEach((item) => {
+      const cert = graph.providerCertifications.find(
+        (c) => c.provider === system.provider && c.domains.includes(item.control.domain)
+      );
+      if (cert) {
+        add(cert.id, {
+          id: cert.id, kind: "provider", bucket: "vendor-inherited",
+          title: `${cert.provider} ${cert.standard} ${cert.reportType === "type-2" ? "Type II" : "Type I"}`,
+          reference: cert.reference, evidenceType: cert.evidenceType,
+          assessedAt: cert.issuedAt, domains: cert.domains,
+        }, item);
+      } else {
+        add(`provider-uncovered`, {
+          id: "provider-uncovered", kind: "provider", bucket: "vendor-inherited",
+          title: `${system.provider} — no covering report on file`,
+          reference: "", evidenceType: null, assessedAt: null, domains: [],
+        }, item);
+      }
+    });
+
+    const enterpriseWave = walk.waves.enterprise;
+    [...enterpriseWave.remaining, ...enterpriseWave.decidedItems].forEach((item) => {
+      const attestation = (graph.attestationsByDomain[item.control.domain] ?? [])[0];
+      if (attestation) {
+        add(attestation.id, {
+          id: attestation.id, kind: "enterprise", bucket: "enterprise",
+          title: attestation.program,
+          reference: attestation.reference, evidenceType: attestation.evidenceType,
+          assessedAt: attestation.assessedAt, domains: attestation.domains,
+        }, item);
+      } else {
+        // Program-scoped controls whose domain no attestation names: the
+        // claim rests on ACME's central program for that domain itself.
+        add(`program::${item.control.domain}`, {
+          id: `program::${item.control.domain}`, kind: "program", bucket: "enterprise",
+          title: `ACME central program — ${item.control.domain}`,
+          reference: "", evidenceType: null, assessedAt: null, domains: [item.control.domain],
+        }, item);
+      }
+    });
+
+    // Providers first, then attestations, then bare program domains, each
+    // block alphabetical — the strongest-backed claims lead.
+    const rank = { provider: 0, enterprise: 1, program: 2 } as const;
+    return [...groups.values()].sort((a, b) =>
+      rank[a.kind] === rank[b.kind] ? a.title.localeCompare(b.title) : rank[a.kind] - rank[b.kind]
+    );
+  }
+
   function frameworkReadiness(systemId: SystemId, standard: string): FrameworkReadiness {
     const mapped = graph.inScopeControls.filter((c) => c.frameworks.some((f) => f.standard === standard));
     const applicableIds = new Set(applicability.applicableControlsForSystem(systemId).map((c) => c.id));
@@ -355,6 +441,7 @@ export function createReview(
 
   return {
     wavesForSystem,
+    inheritanceGroupsForSystem,
     frameworkReadiness,
     auditReadinessForSystem,
     inheritanceClaimed: (systemId: SystemId, controlId: ControlId) => inheritanceClaimed(graph, systemId, controlId),

@@ -256,9 +256,12 @@ export function createCompliance(
         if (review?.stance === "confirm" && review.bucket === "not-applicable" && review.note.trim()) {
           return { control, reason: review.note };
         }
+        const baseline = applicability.baselineForSystem(systemId);
         return {
           control,
-          reason: `No framework ${system.name} certifies against (${system.standards.join(", ")}) cites ${control.id}, and no applicability rule matches an asset in this boundary.`,
+          reason: baseline.controlIds.length > 0
+            ? `Not in the ${baseline.tier} tier baseline, no framework ${system.name} certifies against (${system.standards.join(", ")}) cites ${control.id}, and no applicability rule matches an asset in this boundary.`
+            : `No framework ${system.name} certifies against (${system.standards.join(", ")}) cites ${control.id}, and no applicability rule matches an asset in this boundary.`,
         };
       });
   }

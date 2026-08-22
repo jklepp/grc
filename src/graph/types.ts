@@ -95,6 +95,14 @@ export interface GraphFacts {
   // what lets a second dataset answer it differently.
   controlProfile: ControlProfileDefinition;
 
+  // The other half of the profile: WHICH controls a tier carries, where the
+  // profile above says how WELL. Derived per tier by
+  // scripts/generate-control-baselines.mjs (intersection of the authored
+  // reference systems at that tier) and then curated as policy. A tier with no
+  // authored reference system has no entry, and systems at that tier derive
+  // scope from rules and frameworks alone.
+  controlBaselines: Partial<Record<ClassificationTier, ControlId[]>>;
+
   // Edges
   assetDataTypes: AssetDataType[];
   dataFlows: DataFlow[];
@@ -358,6 +366,7 @@ export interface Graph {
   // category has to reach at this tier, and what it counts for.
   readonly controlProfiles: Readonly<Record<ClassificationTier, Record<AssuranceCategory, ControlProfileEntry>>>;
   readonly categoryWeights: CategoryWeights;
+  readonly controlBaselines: Readonly<Partial<Record<ClassificationTier, readonly ControlId[]>>>;
 
   readonly assetScopedControls: readonly KeyControl[];
   readonly programScopedControls: readonly KeyControl[];

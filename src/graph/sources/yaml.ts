@@ -130,6 +130,7 @@ export const YAML_FACTS: GraphFacts = {
   ),
 
   controlProfile: read("control-profile"),
+  controlBaselines: read("control-baselines"),
 
   // Edges
   assetDataTypes: read("asset-data-types"),

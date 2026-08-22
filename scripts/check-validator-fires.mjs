@@ -98,6 +98,15 @@ try {
     // its category's number. The equivalent guard now is the assessment-scope
     // parity pair in the derivational suite below.
 
+    ["control baseline naming a non-control", (f) => { f.controlBaselines.Restricted.push("CTL-NOPE"); }, /is not a control/],
+    ["control baseline listing a control twice", (f) => { f.controlBaselines.Restricted.push(f.controlBaselines.Restricted[0]); }, /listed twice/],
+    ["non-monotonic tier baselines", (f) => {
+      // A Confidential baseline requiring a control Restricted drops breaks
+      // the tier ladder: pick one catalog control the Restricted list omits.
+      const inRestricted = new Set(f.controlBaselines.Restricted);
+      const dropped = f.controls.find((c) => !inRestricted.has(c.id));
+      f.controlBaselines.Confidential = [dropped.id];
+    }, /must be monotonic/],
     ["applicability rule on a program control", (f) => {
       const program = f.keyControls.find((c) => c.scope === "program");
       if (program) f.applicabilityRules[0].controlId = program.id;

@@ -304,6 +304,30 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
     );
   });
 
+  // The tier baselines are policy: every id must be a real, in-scope control,
+  // and a lower tier must never require a control a higher tier drops — a
+  // Restricted system relaxing below Confidential is a data-entry mistake,
+  // not a tailoring decision.
+  Object.entries(graph.controlBaselines).forEach(([tier, controlIds]) => {
+    check(CLASSIFICATION_TIERS.includes(tier as (typeof CLASSIFICATION_TIERS)[number]), `control baseline "${tier}" is not a classification tier`);
+    const seen = new Set<string>();
+    (controlIds ?? []).forEach((id) => {
+      check(has(graph.controlById, id), `control baseline ${tier}: "${id}" is not a control`);
+      check((graph.controlById[id]?.frameworks.length ?? 0) > 0, `control baseline ${tier}: ${id} cites no framework clause, so it is out of scope everywhere and cannot be baselined`);
+      check(!seen.has(id), `control baseline ${tier}: "${id}" is listed twice`);
+      seen.add(id);
+    });
+  });
+  for (let i = 0; i < CLASSIFICATION_TIERS.length - 1; i++) {
+    const lower = graph.controlBaselines[CLASSIFICATION_TIERS[i]];
+    const higher = graph.controlBaselines[CLASSIFICATION_TIERS[i + 1]];
+    if (!lower || !higher) continue;
+    const higherSet = new Set(higher);
+    lower.forEach((id) => {
+      check(higherSet.has(id), `control baseline: ${CLASSIFICATION_TIERS[i]} requires ${id} but ${CLASSIFICATION_TIERS[i + 1]} does not — baselines must be monotonic up the tier ladder`);
+    });
+  }
+
   graph.applicabilityExceptions.forEach((e) => {
     check(has(graph.assetById, e.assetId), `applicability exception: assetId "${e.assetId}" is not an asset`);
     check(has(graph.keyControlById, e.controlId), `applicability exception: controlId "${e.controlId}" is not a key control`);

@@ -1,0 +1,116 @@
+# Per-tier control baselines — WHICH controls a system at a classification tier
+# carries, completing the control profile (control-profile.yaml), which says how
+# WELL they must be done. The 800-53 shape: categorize, select the published
+# baseline, tailor out with documented justification (control reviews).
+#
+# Derived by scripts/generate-control-baselines.mjs as the intersection of
+# applicable controls across every authored system at the tier — content-
+# conditional controls (AI, custom SDLC, single-system certifications) fall to
+# the applicability rules as overlays rather than being frozen into policy here.
+# Reviewing an edit to this file IS the policy act; the build validates every id
+# and that lower tiers stay subsets of higher ones.
+#
+# A tier with no authored reference system is deliberately absent: the engine
+# derives scope for such systems from rules and frameworks exactly as before.
+
+# Public: no authored reference system — no baseline defined.
+# Internal: no authored reference system — no baseline defined.
+# Confidential: no authored reference system — no baseline defined.
+# Restricted — intersection of SYS-003 (Production AI Platform) ∩ SYS-042 (Workday).
+# Applicable somewhere at this tier but left to conditional overlays: AAT-10, AAT-16, AAT-17, TDA-20, WEB-03.
+Restricted:
+  - "AAT-01" # Artificial Intelligence (AI) & Autonomous Technologies Governance
+  - "AST-01" # Asset Governance
+  - "AST-02" # Asset Inventories
+  - "AST-05" # Security of Assets & Media
+  - "AST-09" # Secure Disposal, Destruction or Re-Use of Equipment
+  - "BCD-01" # Business Continuity Management System (BCMS)
+  - "BCD-04" # Contingency Plan Testing & Exercises
+  - "BCD-08" # Alternate Storage Site
+  - "BCD-11" # Data Backups
+  - "BCD-12" # Technology Assets, Applications and/or Services (TAAS) Recovery & Reconstitution
+  - "CAP-01" # Capacity & Performance Management
+  - "CFG-01" # Configuration Management Program
+  - "CFG-02" # Secure Baseline Configurations
+  - "CFG-03" # Least Functionality
+  - "CHG-01" # Change Management Program
+  - "CHG-02" # Configuration Change Control
+  - "CLD-01" # Cloud Services
+  - "CLD-04" # Application Programming Interface (API) Security
+  - "CLD-06" # Multi-Tenant Environments
+  - "CPL-01" # Statutory, Regulatory & Contractual Compliance
+  - "CPL-03" # Security, Compliance & Resilience Assessments
+  - "CRY-03" # Transmission Confidentiality
+  - "CRY-05" # Encrypting Data At Rest
+  - "CRY-09" # Cryptographic Key Management
+  - "DCH-01" # Data Protection
+  - "DCH-02" # Data & Asset Classification
+  - "DCH-09" # System Media Sanitization
+  - "DCH-18" # Media & Data Retention
+  - "DCH-19" # Geographic Location of Data
+  - "END-01" # Endpoint Device Management (EDM)
+  - "END-02" # Endpoint Protection Measures
+  - "END-06" # Endpoint File Integrity Monitoring (FIM)
+  - "END-08" # Phishing & Spam Protection
+  - "GOV-01" # Security, Compliance & Resilience Program (SCRP)
+  - "GOV-05" # Measures of Performance
+  - "GOV-09" # Define Control Objectives
+  - "HRS-01" # Human Resources Security Management
+  - "HRS-04" # Personnel Screening
+  - "HRS-09" # Personnel Lifecycle
+  - "HRS-11" # Separation of Duties (SoD)
+  - "IAC-01" # Identity & Access Management (IAM)
+  - "IAC-06" # Multi-Factor Authentication (MFA)
+  - "IAC-07" # User Provisioning & De-Provisioning
+  - "IAC-10" # Authenticator Management
+  - "IAC-16" # Privileged Account Management (PAM)
+  - "IAC-17" # Periodic Review of Account Privileges
+  - "IAC-20" # Access Enforcement
+  - "IAC-21" # Least Privilege
+  - "IAO-04" # Threat Analysis & Flaw Remediation During Development
+  - "IRO-01" # Incident Response Operations
+  - "IRO-02" # Incident Handling
+  - "IRO-04" # Incident Response Plan (IRP)
+  - "IRO-06" # Incident Response Testing
+  - "IRO-10" # Incident Stakeholder Reporting
+  - "MDM-01" # Device Trust & Mobile Management
+  - "MNT-01" # Maintenance Operations
+  - "MNT-05" # Remote Maintenance
+  - "MON-01" # Continuous Monitoring
+  - "MON-02" # Centralized Collection of Security Event Logs
+  - "MON-03" # Content of Event Logs
+  - "MON-08" # Protection of Event Logs
+  - "NET-01" # Network Security Controls (NSC)
+  - "NET-03" # Boundary Protection
+  - "NET-06" # Network Segmentation (macrosegementation)
+  - "NET-14" # Remote Access
+  - "NET-17" # Data Loss Prevention (DLP)
+  - "OPS-01" # Operations Security
+  - "PES-01" # Physical & Environmental Protections
+  - "PES-03" # Physical Access Control
+  - "PRI-01" # Data Privacy Program
+  - "PRI-02" # Data Privacy Notice
+  - "PRI-04" # Restrict Collection To Identified Purpose
+  - "PRI-05" # Personal Data (PD) Retention & Disposal
+  - "PRI-06" # Data Subject Empowerment
+  - "PRM-07" # Security Program Resourcing & SDLC
+  - "RSK-01" # Risk Management Program
+  - "RSK-04" # Risk Assessment
+  - "RSK-06" # Risk Remediation
+  - "SAT-02" # Security Awareness & Training
+  - "SEA-01" # Secure Engineering Principles
+  - "TDA-01" # Technology Development & Acquisition
+  - "TDA-06" # Secure Software Development Practices (SSDP)
+  - "TDA-09" # Security, Compliance & Resilience Testing Throughout Development
+  - "TDA-18" # Input Data Validation
+  - "THR-01" # Threat Intelligence
+  - "TPM-01" # Third-Party Management
+  - "TPM-04" # Third-Party Services
+  - "TPM-08" # Review of Third-Party Services
+  - "TPM-11" # Third-Party Incident Response & Recovery Capabilities
+  - "VPM-01" # Vulnerability & Patch Management Program (VPMP)
+  - "VPM-05" # Software & Firmware Patching
+  - "VPM-06" # Vulnerability Scanning
+  - "VPM-07" # Penetration Testing
+  - "WEB-01" # Web Security
+
