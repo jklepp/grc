@@ -25,14 +25,14 @@ import { implementedFactInput, previewFactInput, recordKeyControlAssessment } fr
 import { loadRuntimeFacts } from "../../engine/runtimeFactsStore";
 import { useLiveEngine } from "../../engine/useLiveEngine";
 import { PRINCIPLE_DOMAINS, STATUS_META as PRINCIPLE_STATUS_META } from "../../data/securityPrinciples";
-import { STATUS_META, IMPLEMENTATION_META, RESPONSIBILITY_META, ratingColor, assetName, evidenceHealthForRow } from "./controlMeta";
+import { STATUS_META, IMPLEMENTATION_META, RESPONSIBILITY_META, ratingColor, assetName, evidenceHealthForRow, parseControlRequirement } from "./controlMeta";
 import { POLICY_BY_CONTROL, PROCEDURE_BY_CONTROL } from "./policyLookup";
 import { BasisTag } from "../../components/BasisTag";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
-  Button, Callout, CheckRow, ChoiceChip, CompletionScreen, DisclosureButton, EmptyState, Field, FieldGrid, InlineField, InlineHint,
+  Brief, Button, Callout, CheckRow, ChoiceChip, CompletionScreen, DisclosureButton, EmptyState, Field, FieldGrid, InlineField, InlineHint,
   ProgressBar, RailGroup, RailItem, SaveErrorCallout, Section, Select, StatusPill, TextInput, toneColor, TX, Well,
-  WizardBanner, WizardBody, WizardChrome, WizardFooter, WizardRail, WZ,
+  WizardBanner, WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardOutcomePane, WizardPane, WizardRail, WizardStrip, WZ,
 } from "../../components/wizard/WizardUI";
 import type { Tone } from "../../components/wizard/WizardUI";
 import { selectedValue } from "./formHelpers";
@@ -627,8 +627,41 @@ function FindingForm({ initial, assetOptions, onCancel, onSubmit }: FindingFormP
   );
 }
 
+// The catalog's requirement, rendered so a clamp has somewhere sensible to
+// land: the lead-in as prose, then one row per numbered clause. The controls
+// written as a single sentence — most of them — parse to no clauses and render
+// as the paragraph they already were.
+function RequirementText({ description }: { description: string }) {
+  const { lead, clauses } = parseControlRequirement(description);
+  return (
+    <div className="flex flex-col gap-2.5">
+      <p className={TX.lead} style={{ color: C.ink }}>{lead}</p>
+      {clauses.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {clauses.map((clause, i) => (
+            <div key={i} className="flex items-start gap-2.5">
+              <span
+                className={`${TX.code} w-[18px] h-[18px] mt-0.5 rounded-full flex items-center justify-center shrink-0`}
+                style={{ border: `1.5px solid ${C.border}`, color: C.muted }}
+              >
+                {i + 1}
+              </span>
+              <span className={TX.lead} style={{ color: C.ink }}>{clause}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The requirement itself is no longer a step. It rides above the lanes in
+// Scoring, where the call is actually made (see RequirementText); what stays
+// here is the material an assessor goes and looks up — the written authority,
+// the clause mappings, the scoring breakdown — which is what the step is named
+// for now (2.1: name a step for what the user is doing).
 const STEPS = [
-  { id: "requirements", label: "Control Requirements", icon: BookOpenText },
+  { id: "authority", label: "Authority & mapping", icon: ScrollText },
   { id: "scoring", label: "Scoring and Evidence", icon: Gauge },
   { id: "implementation", label: "Implementation Coverage", icon: Layers },
   { id: "findings", label: "Findings & Remediation", icon: Wrench },
@@ -777,6 +810,9 @@ export function ControlEvaluationPanel({
 
   if (!draftEngine) return null;
 
+  // Only used to label the brief; the clause rows themselves come from the
+  // same parse inside RequirementText.
+  const requirementClauseCount = parseControlRequirement(row.control.description).clauses.length;
   const governingPolicy = POLICY_BY_CONTROL[row.control.id];
   const governingProcedure = PROCEDURE_BY_CONTROL[row.control.id];
   const drawerClauses = row.control.frameworks.filter((f) => system.standards.includes(f.standard));
@@ -808,15 +844,13 @@ export function ControlEvaluationPanel({
   const saveBlocker = savingAssessment ? laneBlocker : null;
   const canSave = savingAssessment ? saveBlocker === null : pendingChanges.length > 0;
   const unsavedCount = pendingChanges.length + (laneDirty ? 1 : 0);
+  // Two acts, two labels, and no more: in the walk the primary commits *and*
+  // advances, so it names both; in the editor it is the one final commit, so
+  // it carries one label whatever happens to be staged behind it. The three
+  // variants this used to cycle through read as three different buttons (2.6).
   const saveLabel = walk
     ? walkRemaining === 1 ? "Save and finish" : "Save and continue"
-    : !assessed
-      ? "Save assessment"
-      : savingAssessment
-        ? "Save assessment"
-        : pendingChanges.length > 0
-          ? `Save ${pendingChanges.length} change${pendingChanges.length === 1 ? "" : "s"}`
-          : "Save";
+    : "Save changes";
   const assetOptions = row.instances.length > 0
     ? row.instances.map((inst) => ({ assetId: inst.assetId, label: assetName(system, inst.assetId) }))
     : assetsForSystem(system.id).map((a) => ({ assetId: a.id, label: a.name }));
@@ -1019,31 +1053,32 @@ export function ControlEvaluationPanel({
       {walk
         ? <WizardBanner icon={ClipboardCheck} title="Control Assessment Wizard" />
         : <WizardBanner icon={ShieldCheck} title="System Control Editor" />}
-      {/* ---- Header ---- */}
-      <div className="flex items-start justify-between px-6 py-4 gap-4" style={{ borderBottom: `1px solid ${C.border}`, background: C.panel }}>
-        <div className="flex items-center justify-between gap-4 flex-1 min-w-0">
-          <div className="min-w-0">
-            <div className={`${TX.eyebrow} mb-1.5`} style={{ color: C.accent }}>{row.control.id} · {row.control.domain}</div>
-            <h2 className={TX.modalTitle} style={{ color: C.ink, fontFamily: WZ.serif }}>{row.control.name}</h2>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap shrink-0">
+      {/* ---- Header ----
+           The subject here is one specific control, so its id and domain ride
+           in the kit's `eyebrow` slot rather than in a header this file draws
+           for itself. */}
+      <WizardHeader
+        icon={walk ? ClipboardCheck : ShieldCheck}
+        eyebrow={`${row.control.id} · ${row.control.domain}`}
+        title={row.control.name}
+        aside={
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             {unsavedCount > 0 && <StatusPill tone="warning">{unsavedCount} unsaved</StatusPill>}
             <StatusPill color={statusMeta.color} surface={statusMeta.bg} icon={statusMeta.Icon}>{statusMeta.label}</StatusPill>
             {respMeta && <StatusPill color={respMeta.color} surface={respMeta.bg} icon={respMeta.Icon}>{respMeta.label}</StatusPill>}
             {implMeta && <StatusPill color={implMeta.color} surface={implMeta.bg} icon={implMeta.Icon}>{implMeta.type}</StatusPill>}
             <GlancePill Icon={Gauge} label="Assurance" value={row.score != null ? `${row.score}${row.assessment?.band?.label ? ` · ${row.assessment.band.label}` : ""}` : "—"} />
           </div>
-        </div>
-        <ModalCloseButton onClose={requestClose} />
-      </div>
+        }
+        onClose={<ModalCloseButton onClose={requestClose} />}
+      />
 
       {/* ---- Walk strip: overall progress + who is signing ----
            The assessor used to be typed here, in the chrome, where it read as
            decoration while silently disabling Save. It is a labelled, required
            field in the grader now; this only reports it. */}
       {walk && (
-        <div className="flex items-center gap-3 px-6 py-2.5" style={{ borderBottom: `1px solid ${C.border}`, background: C.panel }}>
-          <ClipboardCheck size={13} color={C.accent} className="shrink-0" />
+        <WizardStrip icon={ClipboardCheck}>
           <span className={`${TX.label} shrink-0`} style={{ color: C.muted }}>
             Assessed {walk.decidedCount} of {walk.initialTotal}
           </span>
@@ -1053,11 +1088,11 @@ export function ControlEvaluationPanel({
               {laneState.assessedBy.trim() || "not named yet"}
             </span>
           </InlineField>
-        </div>
+        </WizardStrip>
       )}
 
       {savedSummary ? (
-        <div className="flex-1 min-h-0 overflow-y-auto px-8 flex flex-col" style={{ background: C.bg }}>
+        <WizardOutcomePane>
           <CompletionScreen
             title="Changes saved"
             description={`${savedSummary.length} change${savedSummary.length === 1 ? "" : "s"} recorded on ${row.control.id} · ${row.control.name}.`}
@@ -1071,11 +1106,8 @@ export function ControlEvaluationPanel({
                 ))}
               </Well>
             }
-          >
-            <Button variant="primary" onClick={() => setSavedSummary(null)}>Continue editing</Button>
-            <Button onClick={onClose}>Close</Button>
-          </CompletionScreen>
-        </div>
+          />
+        </WizardOutcomePane>
       ) : (
       <WizardBody enter={Boolean(walk)}>
         {/* ---- Rail: walk domains (walk mode only), then this control's steps ---- */}
@@ -1116,16 +1148,12 @@ export function ControlEvaluationPanel({
         </WizardRail>
 
         {/* ---- Content pane ---- */}
-        <div className="p-6 overflow-y-auto flex flex-col gap-4" style={{ background: C.bg }}>
+        <WizardPane>
           {saveError && <SaveErrorCallout problems={saveError} />}
 
-          {/* ===== Control Requirements ===== */}
-          {activeStep === "requirements" && (
+          {/* ===== Authority & mapping ===== */}
+          {activeStep === "authority" && (
             <>
-              <Section icon={BookOpenText} title="Common control requirement" description="What the catalog asks of any system this control applies to.">
-                <p className={TX.lead} style={{ color: C.ink }}>{row.control.description}</p>
-              </Section>
-
               {(governingPolicy || governingProcedure) && (
                 <Section icon={ScrollText} title="Policies and procedures" description="The written authority this control is evidenced against.">
                   {governingPolicy && (
@@ -1250,6 +1278,32 @@ export function ControlEvaluationPanel({
                   </span>
                 </Callout>
               )}
+              {/* What the catalog asks, directly above the lanes that answer
+                  it. This used to be a step of its own, which meant the walk
+                  opened on Scoring with the requirement one rail click away in
+                  the bottom-left — the operator graded against a control they
+                  had to go and read somewhere else. `Brief` measures rather
+                  than assumes: only the handful of controls written as long
+                  enumerated lists clamp, and those clamp on a clause boundary
+                  with the count in view. */}
+              <Brief
+                icon={BookOpenText}
+                label="What this control asks"
+                expandLabel={requirementClauseCount > 0 ? "Read the rest" : "Read it in full"}
+                aside={
+                  <>
+                    {requirementClauseCount > 0 && (
+                      <StatusPill tone="neutral">{requirementClauseCount} requirements</StatusPill>
+                    )}
+                    <Button size="sm" iconRight={ChevronRight} onClick={() => setActiveStep("authority")}>
+                      Authority &amp; mapping
+                    </Button>
+                  </>
+                }
+              >
+                <RequirementText description={row.control.description} />
+              </Brief>
+
               {!assessed && (
                 <Callout tone="warning" title="Nothing is on record for this control yet — the score is null, not zero.">
                   No fact backs {row.control.id} on this boundary. The lanes below show what the graph <i>would</i> derive
@@ -1596,15 +1650,23 @@ export function ControlEvaluationPanel({
               )}
             </Section>
           )}
-        </div>
+        </WizardPane>
       </WizardBody>
       )}
 
       {/* Save/Discard always live at the bottom — every edit above stages
           into the draft rather than committing, so this is the one place
           that actually persists (or throws away) what changed. Walk mode
-          keeps its domain position and Skip alongside them. */}
-      {!savedSummary && (
+          keeps its domain position and Skip alongside them, and gets the same
+          Discard: it stages the identical draft, so withholding it there left
+          a staged surface with no way back (5.7). */}
+      {savedSummary ? (
+        <WizardFooter
+          position={`${savedSummary.length} change${savedSummary.length === 1 ? "" : "s"} recorded`}
+          close={<Button onClick={onClose}>Close</Button>}
+          primary={<Button variant="primary" onClick={() => setSavedSummary(null)}>Continue</Button>}
+        />
+      ) : (
         <WizardFooter
           position={walk
             ? `${walk.activeDomain} · ${walk.domains.find((d) => d.domain === walk.activeDomain)?.remaining ?? 0} left`
@@ -1614,21 +1676,21 @@ export function ControlEvaluationPanel({
           hint={saveBlocker
             ? <InlineHint tone="warning">{saveBlocker}</InlineHint>
             : undefined}
-        >
-          {walk?.onSkip && <Button iconRight={ChevronRight} onClick={walk.onSkip}>Skip for now</Button>}
-          {!walk && (
-            <Button disabled={unsavedCount === 0} onClick={discardDraft}>Discard</Button>
+          close={<Button onClick={requestClose}>Close</Button>}
+          skip={walk?.onSkip ? <Button iconRight={ChevronRight} onClick={walk.onSkip}>Skip for now</Button> : undefined}
+          discard={<Button disabled={unsavedCount === 0} onClick={discardDraft}>Discard</Button>}
+          primary={(
+            <Button
+              variant="primary"
+              icon={walk ? undefined : Check}
+              iconRight={walk ? ChevronRight : undefined}
+              disabled={!canSave}
+              onClick={() => (savingAssessment ? commitAssessment(Boolean(walk)) : saveDraft())}
+            >
+              {saveLabel}
+            </Button>
           )}
-          <Button
-            variant="primary"
-            icon={walk ? undefined : Check}
-            iconRight={walk ? ChevronRight : undefined}
-            disabled={!canSave}
-            onClick={() => (savingAssessment ? commitAssessment(Boolean(walk)) : saveDraft())}
-          >
-            {saveLabel}
-          </Button>
-        </WizardFooter>
+        />
       )}
       </WizardChrome>
     </Modal>

@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from "react";
-import type { ComponentProps, CSSProperties, ReactNode } from "react";
+import type { ComponentProps, CSSProperties, ReactNode, Ref } from "react";
 import { AlertTriangle, Check, ChevronDown, ChevronRight, Info, Plus, Search, Trash2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { C } from "../../theme";
 
 // One visual system for the Add / Edit System wizard.
+//
+// The behavioural rules these primitives exist to enforce — naming, what to
+// ask a human, navigation order, write discipline — are in CONTRACT.md beside
+// this file. Read it before changing a wizard surface.
 //
 // Every wizard step composes these primitives instead of writing its own
 // panel/label/button styling, so "selected", "saved", "disabled" and "error"
@@ -108,6 +112,64 @@ export function Section({ icon: Icon, title, description, aside, grow = false, c
         {aside && <div className="shrink-0">{aside}</div>}
       </header>
       <div className={`p-4 flex flex-col gap-4 ${grow ? "flex-1 min-h-0" : ""}`}>{children}</div>
+    </section>
+  );
+}
+
+// Reference material a step has to keep in view while the work happens beside
+// it — as opposed to a Section, which frames work of its own. Two differences
+// earn it a primitive rather than a Section with small padding (1.2):
+//
+//   * its header is one line, because a block that exists to leave room for
+//     the work below it cannot spend 52px on chrome first; and
+//   * its body is height-bounded and MEASURED. Content that fits renders in
+//     full with no disclosure at all; only content that overruns `maxHeight`
+//     clamps, fades, and gains a toggle. Assuming the clamp instead would put
+//     the common short case behind a click to serve a rare long one, which is
+//     the failure this replaced.
+export function Brief({ icon: Icon, label, aside, maxHeight = 108, expandLabel = "Read the rest", children }: {
+  icon?: LucideIcon; label: string; aside?: ReactNode;
+  maxHeight?: number; expandLabel?: ReactNode; children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const bodyRef = React.useRef<HTMLDivElement>(null);
+  // Measured on every resize, not just on mount: the pane reflows when the
+  // modal is resized or a sibling section expands, and a clamp that was right
+  // at one width is wrong at another.
+  React.useLayoutEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    const measure = () => setOverflows(el.scrollHeight > maxHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [maxHeight, children]);
+  const clamped = overflows && !open;
+  const fade = `linear-gradient(to bottom, #000 ${Math.max(0, maxHeight - 40)}px, transparent ${maxHeight}px)`;
+  return (
+    <section style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: WZ.radius.card }}>
+      <header className="flex items-center gap-2.5 px-4 py-2.5" style={{ borderBottom: `1px solid ${C.border}` }}>
+        {Icon && <Icon size={14} color={C.accent} className="shrink-0" />}
+        <span className={TX.label} style={{ color: C.ink }}>{label}</span>
+        {aside && <div className="ml-auto shrink-0 flex items-center gap-2">{aside}</div>}
+      </header>
+      <div className="px-4 py-3.5 flex flex-col gap-2.5">
+        <div
+          ref={bodyRef}
+          style={clamped
+            ? { maxHeight, overflow: "hidden", maskImage: fade, WebkitMaskImage: fade }
+            : undefined}
+        >
+          {children}
+        </div>
+        {overflows && (
+          <DisclosureButton open={open} onToggle={() => setOpen((v) => !v)}>
+            {open ? "Show less" : expandLabel}
+          </DisclosureButton>
+        )}
+      </div>
     </section>
   );
 }
@@ -559,7 +621,7 @@ export function WizardChrome({ children }: { children: ReactNode }) {
 }
 
 // Names the surface the operator is inside — the one solid-accent strip at
-// the very top of every wizard-like modal ("Scope Determination Wizard",
+// the very top of every wizard-like modal ("Scope Review Wizard",
 // "System Control Editor"), so which flow you are in is answered before the
 // header. Title only; context, actions and close stay in WizardHeader.
 export function WizardBanner({ icon: Icon, title }: { icon?: LucideIcon; title: string }) {
@@ -574,11 +636,19 @@ export function WizardBanner({ icon: Icon, title }: { icon?: LucideIcon; title: 
   );
 }
 
-export function WizardHeader({ icon: Icon, title, description, aside, onClose }: {
-  icon: LucideIcon; title: string; description: string; aside?: ReactNode; onClose?: ReactNode;
+// The one header every wizard-like surface wears, directly under the banner:
+// icon square, optional eyebrow naming the subject, title, supporting line,
+// then chrome-level asides and the close control.
+//
+// `eyebrow` exists because the assessment panel's subject is a specific
+// control — its id and domain belong above the name, not folded into it. A
+// surface with no second line omits `description` rather than inventing a
+// header of its own.
+export function WizardHeader({ icon: Icon, eyebrow, title, description, aside, onClose }: {
+  icon: LucideIcon; eyebrow?: ReactNode; title: ReactNode; description?: ReactNode; aside?: ReactNode; onClose?: ReactNode;
 }) {
   return (
-    <header className="flex items-start justify-between gap-4 px-6 py-4" style={{ borderBottom: `1px solid ${C.border}`, background: C.panel }}>
+    <header className="flex items-start justify-between gap-4 px-6 py-4 shrink-0" style={{ borderBottom: `1px solid ${C.border}`, background: C.panel }}>
       <div className="flex items-start gap-3 min-w-0">
         <span
           className="w-8 h-8 flex items-center justify-center shrink-0"
@@ -587,8 +657,9 @@ export function WizardHeader({ icon: Icon, title, description, aside, onClose }:
           <Icon size={16} />
         </span>
         <div className="min-w-0">
+          {eyebrow && <div className={`${TX.eyebrow} mb-1.5`} style={{ color: C.accent }}>{eyebrow}</div>}
           <h1 className={TX.modalTitle} style={{ color: C.ink, fontFamily: WZ.serif }}>{title}</h1>
-          <p className={`${TX.help} mt-1.5 max-w-[90ch]`} style={{ color: C.muted }}>{description}</p>
+          {description && <p className={`${TX.help} mt-1.5 max-w-[90ch]`} style={{ color: C.muted }}>{description}</p>}
         </div>
       </div>
       <div className="flex items-center gap-4 shrink-0">
@@ -596,6 +667,22 @@ export function WizardHeader({ icon: Icon, title, description, aside, onClose }:
         {onClose}
       </div>
     </header>
+  );
+}
+
+// A secondary chrome band under the header: where a wizard is up to across
+// the whole run, and who is signing it. Distinct from the footer's position
+// slot, which reports the step in hand — this reports the run. Chrome, so it
+// lives here rather than being drawn inside a surface (1.1).
+export function WizardStrip({ icon: Icon, children }: { icon?: LucideIcon; children: ReactNode }) {
+  return (
+    <div
+      className="flex items-center gap-3 px-6 py-2.5 shrink-0"
+      style={{ borderBottom: `1px solid ${C.border}`, background: C.panel }}
+    >
+      {Icon && <Icon size={13} color={C.accent} className="shrink-0" />}
+      {children}
+    </div>
   );
 }
 
@@ -647,6 +734,42 @@ export function WizardBody({ children, enter = false }: { children: ReactNode; e
   );
 }
 
+// The scrolling content column of `WizardBody` — one padding, one background,
+// one scroll container in every wizard, instead of the three slightly
+// different class strings the surfaces had each grown.
+//
+// `flow` stacks the pane's own children on the standard gap. A step that
+// composes `StepHeader` + `StepBody` already carries that rhythm internally
+// and passes `flow={false}` so it is not spaced twice.
+export function WizardPane({ children, flow = true, paneRef }: {
+  children: ReactNode; flow?: boolean; paneRef?: Ref<HTMLDivElement>;
+}) {
+  return (
+    <div
+      ref={paneRef}
+      className={`p-6 overflow-y-auto min-w-0 ${flow ? "flex flex-col gap-4" : ""}`}
+      style={{ background: C.bg }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// The full-width pane a wizard shows when there is no rail to show beside it:
+// the completion screen, and the hold between one walk item and the next.
+// `center` is for a short interstitial that should sit in the middle of the
+// frame rather than reading from the top.
+export function WizardOutcomePane({ children, center = false }: { children: ReactNode; center?: boolean }) {
+  return (
+    <div
+      className={`flex-1 min-h-0 px-8 ${center ? "flex items-center justify-center" : "overflow-y-auto flex flex-col"}`}
+      style={{ background: C.bg }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function WizardRail({ label = "Wizard steps", children }: { label?: string; children: ReactNode }) {
   return (
     <nav aria-label={label} className="p-3 overflow-y-auto" style={{ borderRight: `1px solid ${C.border}`, background: C.panel }}>
@@ -680,18 +803,23 @@ export type RailState = "active" | "done" | "pending";
 
 // The one rail row. `marker` is a step number, `icon` a glyph — done always
 // wins and shows a check, so "finished" reads the same in every wizard.
-export function RailItem({ icon: Icon, marker, title, detail, state, onClick, disabled, ariaLabel }: {
+export function RailItem({ icon: Icon, marker, title, detail, state, complete = false, onClick, disabled, ariaLabel }: {
   icon?: LucideIcon;
   marker?: ReactNode;
   title: string;
   detail?: ReactNode;
   state: RailState;
+  // A finished section stays finished while it's the active view: `complete`
+  // keeps the green check in the marker circle while the row itself carries
+  // the active highlight — without it, activating a done section would swap
+  // the check back to the section icon, which reads as un-finishing it.
+  complete?: boolean;
   onClick?: () => void;
   disabled?: boolean;
   ariaLabel?: string;
 }) {
   const isActive = state === "active";
-  const isDone = state === "done";
+  const isDone = state === "done" || complete;
   return (
     <button
       type="button"
@@ -710,9 +838,9 @@ export function RailItem({ icon: Icon, marker, title, detail, state, onClick, di
       <span
         className={`${TX.code} w-[22px] h-[22px] rounded-full flex items-center justify-center shrink-0`}
         style={{
-          border: `1.5px solid ${isActive ? C.accent : isDone ? C.green : C.border}`,
-          background: isActive ? C.accent : isDone ? C.greenBg : "transparent",
-          color: isActive ? WZ.onAccent : isDone ? C.green : C.muted,
+          border: `1.5px solid ${isDone ? C.green : isActive ? C.accent : C.border}`,
+          background: isDone ? C.greenBg : isActive ? C.accent : "transparent",
+          color: isDone ? C.green : isActive ? WZ.onAccent : C.muted,
         }}
       >
         {isDone ? <Check size={11} /> : Icon ? <Icon size={11} /> : marker}
@@ -727,16 +855,36 @@ export function RailItem({ icon: Icon, marker, title, detail, state, onClick, di
 
 // Step position on the left, blocking reason next to it, actions on the right —
 // the same footer grammar in every wizard.
-export function WizardFooter({ position, hint, children }: {
-  position: ReactNode; hint?: ReactNode; children?: ReactNode;
+//
+// The action cluster is named slots rather than free children because its
+// order is a contract rule (4.7), and free children let every call site
+// re-invent it — two surfaces had already drifted to a trailing `Close` after
+// the primary. Rendered order is fixed here, once: abandon furthest from the
+// commit, then Back, then Skip, then Discard beside the single `primary`,
+// which is always last.
+export function WizardFooter({ position, hint, close, back, skip, discard, primary }: {
+  position: ReactNode;
+  hint?: ReactNode;
+  // Abandon the surface: `Cancel` / `Close`.
+  close?: ReactNode;
+  back?: ReactNode;
+  skip?: ReactNode;
+  // Staged surfaces only (5.7) — an immediate surface holds nothing to throw away.
+  discard?: ReactNode;
+  primary?: ReactNode;
 }) {
+  const actions = [close, back, skip, discard, primary].filter(Boolean);
   return (
-    <footer className="flex items-center gap-4 px-6 py-3.5" style={{ borderTop: `1px solid ${C.border}`, background: C.panel }}>
+    <footer className="flex items-center gap-4 px-6 py-3.5 shrink-0" style={{ borderTop: `1px solid ${C.border}`, background: C.panel }}>
       <div className="flex items-center gap-3 min-w-0 flex-1">
         <span className={`${TX.eyebrow} shrink-0`} style={{ color: C.muted }}>{position}</span>
         {hint}
       </div>
-      {children && <div className="flex items-center gap-2.5 shrink-0">{children}</div>}
+      {actions.length > 0 && (
+        <div className="flex items-center gap-2.5 shrink-0">
+          {actions.map((action, i) => <React.Fragment key={i}>{action}</React.Fragment>)}
+        </div>
+      )}
     </footer>
   );
 }

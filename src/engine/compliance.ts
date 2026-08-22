@@ -249,7 +249,7 @@ export function createCompliance(
     return graph.inScopeControls
       .filter((c) => !applicableIds.has(c.id) && !pendingIds.has(c.id))
       .map((control) => {
-        // A control an operator forced out of scope (Control Scope Wizard)
+        // A control an operator forced out of scope (Scope Review)
         // reads its own stated reason rather than the generic rule-based one
         // below, which would otherwise misreport why it's excluded here.
         const review = reviewFor(graph, systemId, control.id);

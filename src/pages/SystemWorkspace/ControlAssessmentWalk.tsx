@@ -5,7 +5,8 @@ import { COMPLIANCE_LABELS } from "../../engine";
 import { useLiveEngine } from "../../engine/useLiveEngine";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
-  Button, Callout, CompletionScreen, ProgressBar, StatTile, TX, WizardBanner, WizardChrome, WizardFooter, WZ,
+  Button, Callout, CompletionScreen, HeaderStat, ProgressBar, StatTile, TX, WizardBanner, WizardChrome,
+  WizardFooter, WizardHeader, WizardOutcomePane, WZ,
 } from "../../components/wizard/WizardUI";
 import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
 import { keyControlAssessmentQueue } from "./recordAssessment";
@@ -120,10 +121,14 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
       <Modal open onClose={onClose} width={880} height={620}>
         <WizardChrome>
           <WizardBanner icon={ClipboardCheck} title="Control Assessment Wizard" />
-          <div className="flex items-center justify-end px-6 pt-4">
-            <ModalCloseButton onClose={onClose} />
-          </div>
-          <div className="flex-1 min-h-0 overflow-y-auto px-8 flex flex-col" style={{ background: C.bg }}>
+          <WizardHeader
+            icon={ClipboardCheck}
+            title="Control Assessment"
+            description="Every applicable key control on this boundary, worked one at a time and signed by the assessor of record."
+            aside={<HeaderStat label="Assessed" value={`${decidedCount} of ${initialTotal}`} />}
+            onClose={<ModalCloseButton onClose={onClose} />}
+          />
+          <WizardOutcomePane>
             <CompletionScreen
               title="Control assessment complete"
               description={skippedCount > 0
@@ -138,20 +143,23 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
               ) : undefined}
               signature={<>Reviewed by <b style={{ color: C.ink }}>{reviewer.trim() || "unnamed reviewer"}</b> &middot; completed {today()}</>}
             />
-          </div>
-          <WizardFooter position={`${decidedCount} of ${initialTotal} assessed`}>
-            {notImplementedCount > 0 && onGoToRemediation && (
-              <Button
-                variant="primary"
-                icon={Wrench}
-                iconRight={ArrowRight}
-                onClick={() => { onClose(); onGoToRemediation(); }}
-              >
-                Go to remediation &middot; {notImplementedCount} control{notImplementedCount === 1 ? "" : "s"}
-              </Button>
-            )}
-            <Button onClick={onClose}>Close</Button>
-          </WizardFooter>
+          </WizardOutcomePane>
+          <WizardFooter
+            position={`${decidedCount} of ${initialTotal} assessed`}
+            close={<Button onClick={onClose}>Close</Button>}
+            primary={notImplementedCount > 0 && onGoToRemediation
+              ? (
+                <Button
+                  variant="primary"
+                  icon={Wrench}
+                  iconRight={ArrowRight}
+                  onClick={() => { onClose(); onGoToRemediation(); }}
+                >
+                  Continue to Remediation &middot; {notImplementedCount}
+                </Button>
+              )
+              : undefined}
+          />
         </WizardChrome>
       </Modal>
     );
@@ -168,7 +176,14 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
       <Modal open onClose={onClose} width={1180} height={840}>
         <WizardChrome>
           <WizardBanner icon={ClipboardCheck} title="Control Assessment Wizard" />
-          <div className="flex-1 min-h-0 flex items-center justify-center px-8" style={{ background: C.bg }}>
+          <WizardHeader
+            icon={ClipboardCheck}
+            title="Control Assessment"
+            description="One control recorded. Read what was written, then carry on to the next."
+            aside={<HeaderStat label="Assessed" value={`${decidedCount} of ${initialTotal}`} />}
+            onClose={<ModalCloseButton onClose={onClose} />}
+          />
+          <WizardOutcomePane center>
             <div className="w-full max-w-2xl flex flex-col gap-5">
               <Callout tone="success" title={`${advancing.controlId} recorded — Implemented ${advancing.rating} · ${COMPLIANCE_LABELS[advancing.rating]}.`}>
                 {advancing.controlName}
@@ -187,12 +202,16 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
                 {decidedCount} of {initialTotal} assessed
               </div>
             </div>
-          </div>
-          <WizardFooter position={`${activeDomain} · ${remainingByDomain[activeDomain]?.length ?? 0} left`}>
-            <Button variant="primary" iconRight={ArrowRight} onClick={() => setAdvancing(null)}>
-              {next ? "Next" : "Continue"}
-            </Button>
-          </WizardFooter>
+          </WizardOutcomePane>
+          <WizardFooter
+            position={`${activeDomain} · ${remainingByDomain[activeDomain]?.length ?? 0} left`}
+            close={<Button onClick={onClose}>Close</Button>}
+            primary={(
+              <Button variant="primary" iconRight={ArrowRight} onClick={() => setAdvancing(null)}>
+                Continue
+              </Button>
+            )}
+          />
         </WizardChrome>
       </Modal>
     );

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Info, Gauge, Layers, ClipboardCheck, Check, AlertTriangle, ChevronLeft, ChevronRight, Network, Users, Bot,
+  Info, Gauge, Layers, ClipboardCheck, Check, ChevronLeft, ChevronRight, Network, Users, Bot,
   DatabaseBackup, Boxes, Cloud, Database, History, KeyRound, ListChecks, ShieldCheck, SlidersHorizontal, UserCheck, Code2,
 } from "lucide-react";
 import { C } from "../theme";
@@ -8,9 +8,9 @@ import Modal, { ModalCloseButton } from "./Modal";
 import { ClassificationTag, AssuranceBadge } from "./SystemBadges";
 import {
   AddButton, Button, Callout, CheckRow, Checkbox, ChoiceChip, EmptyState, EntityCard, EntityList, Field, FieldGrid,
-  InlineHint, OptionCard, RailGroup, RailItem, RemoveButton, Section, Select, StatTile, StatusPill, StepBody,
-  StepHeader, TextArea, TextInput, ToggleCard, TX, Well, WizardBody, WizardChrome, WizardFooter, WizardHeader,
-  WizardRail,
+  InlineHint, OptionCard, RailGroup, RailItem, RemoveButton, SaveErrorCallout, Section, Select, StatTile, StatusPill,
+  StepBody, StepHeader, TextArea, TextInput, ToggleCard, TX, Well, WizardBanner, WizardBody, WizardChrome,
+  WizardFooter, WizardHeader, WizardPane, WizardRail,
 } from "./wizard/WizardUI";
 import {
   ORGS, VENDORS, PROVIDER_CERTIFICATIONS, HOSTING_TYPES, INHERITED_DOMAINS,
@@ -53,7 +53,7 @@ const STEPS = [
   { id: 5, title: "Architecture", detail: "Actors, flows & agents", icon: Network },
   { id: 6, title: "Resilience & SDLC", detail: "Backup, DR & secure dev", icon: DatabaseBackup },
   { id: 7, title: "Derived Scope", detail: "What applies & why", icon: ClipboardCheck },
-  { id: 8, title: "Launch", detail: "Start assessment", icon: Check },
+  { id: 8, title: "Add System", detail: "Sign & create", icon: Check },
 ] as const;
 type WizardStep = (typeof STEPS)[number]["id"];
 type AssetType = string;
@@ -256,7 +256,7 @@ interface DryRunResult {
   assurance?: number | null;
   coverage?: { applicable: number; assessed: number; assessedPct: number; inherited: number } | null;
   applicability?: ReturnType<typeof appEngine.compliance.controlApplicabilitySummary>;
-  // The scope story the way Scope Determination now tells it: policy baseline
+  // The scope story the way Scope Review now tells it: policy baseline
   // plus conditional overlays in, exclusions and open questions out, and the
   // human work remaining after create (confirm exclusions, confirm inherited
   // claims per report, grade what ACME owns).
@@ -1107,6 +1107,9 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       return "Secure development needs a not-applicable reason.";
     }
     if (step === 7 && (!dryRun || dryRun.problems.length > 0)) return "Resolve the problems listed above before continuing.";
+    // A commit rejected by the validators lands the operator back here with
+    // problems set; without this the primary just goes dead (4.7, 6.4).
+    if (step === 8 && dryRun && dryRun.problems.length > 0) return "Resolve the problems listed above before saving.";
     if (step === 8 && !canLaunch) return "Assign an assessor of record and a target completion date.";
     return null;
   }
@@ -1117,12 +1120,17 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   const rpoError = trackBackup && !(Number(backupRpoTargetMinutes) > 0) ? "Enter a positive number of minutes." : null;
   const rtoError = trackBackup && !(Number(backupRtoTargetMinutes) > 0) ? "Enter a positive number of minutes." : null;
 
+  // One name for this surface, used by the banner, the header and the rail's
+  // aria labels alike (2.2) — the flow is the same wizard in all three modes.
+  const modeName = editingSystemId ? "Edit System" : isClone ? "Duplicate System" : "Add System";
+
   return (
     <Modal open={open} onClose={close} width={1000} height={720}>
       <WizardChrome>
+        <WizardBanner icon={ClipboardCheck} title={`${modeName} Wizard`} />
         <WizardHeader
           icon={ClipboardCheck}
-          title={editingSystemId ? "Edit System" : isClone ? "Duplicate System" : "Add System"}
+          title={modeName}
           description={editingSystemId
             ? "Update declared facts; classification, scope, and assurance are recalculated before anything is saved."
             : isClone
@@ -1150,7 +1158,17 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
           </WizardRail>
 
           {/* ---- Content pane ---- */}
-          <div ref={contentPaneRef} className="p-6 overflow-y-auto" style={{ background: C.bg }}>
+          <WizardPane paneRef={contentPaneRef} flow={false}>
+            {/* The validator's own lines, above the body, on both steps that
+                can be blocked by them — the commit on step 8 sets these too,
+                and used to leave the primary silently disabled with the
+                explanation stranded on step 7. */}
+            {step >= 7 && dryRun && dryRun.problems.length > 0 && (
+              <div className="mb-5">
+                <SaveErrorCallout problems={dryRun.problems} />
+              </div>
+            )}
+
             {step === 1 && (
               <>
                 <StepHeader
@@ -2106,7 +2124,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                       <Section
                         icon={ListChecks}
                         title="What a person decides after create"
-                        description="Scope Determination asks only for decisions a human should actually make — nothing in scope needs a per-control click."
+                        description="Scope Review asks only for decisions a human should actually make — nothing in scope needs a per-control click."
                       >
                         <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
                           <StatTile
@@ -2134,24 +2152,15 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                   </StepBody>
                 )}
 
+                {/* The problem list itself is the pane-level SaveErrorCallout
+                    above — one presentation of a validator failure, shared
+                    with every other wizard (6.3). */}
                 {!checking && dryRun && dryRun.problems.length > 0 && (
                   <StepBody>
-                    <Callout tone="danger" title={`${dryRun.problems.length} problem${dryRun.problems.length === 1 ? "" : "s"} found.`}>
-                      Fix these before this system can be {editingSystemId ? "saved" : "created"}.
+                    <Callout tone="info" title="Nothing has been written.">
+                      The derived scope could not be computed from these entries. Fix the problems listed above, and this step
+                      will recheck on its own.
                     </Callout>
-                    <Section icon={AlertTriangle} title="What the graph rejected" description="Each line comes from the same validators that guard the committed graph.">
-                      <Well padded={false} className="overflow-hidden">
-                        {dryRun.problems.map((p, i) => (
-                          <div
-                            key={i}
-                            className="px-3.5 py-2.5"
-                            style={{ borderBottom: i < dryRun.problems.length - 1 ? `1px solid ${C.border}` : undefined }}
-                          >
-                            <InlineHint tone="danger">{p}</InlineHint>
-                          </div>
-                        ))}
-                      </Well>
-                    </Section>
                   </StepBody>
                 )}
               </>
@@ -2162,25 +2171,18 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                 <StepHeader
                   step={8}
                   total={total}
-                  title="Launch assessment"
-                  description={`Assign the assessment and set its target date. ${editingSystemId ? "Saving recalculates the system's scope without changing its recorded evidence." : "Creating the system opens Scope Determination: confirm what is out of scope, accept the reports inherited coverage stands on, then grade what ACME owns."}`}
+                  title={editingSystemId ? "Save changes" : "Add System"}
+                  description={editingSystemId
+                    ? "Saving recalculates the system's scope without changing its recorded evidence."
+                    : `${name.trim() || "This system"} is ready. The next step is confirming what's out of scope in Scope Review.`}
                 />
                 <StepBody>
-                  <Section icon={Gauge} title="Initial assessment plan" description="What the engine will propose the moment this system exists.">
-                    <Callout tone="info" title="In scope by policy, out of scope by review.">
-                      Everything the tier baseline, framework citations, and applicability rules bring in scope stays
-                      in scope — assessment is its confirmation. Scope Determination asks the assessor only to confirm
-                      the derived exclusions, answer any open questions, and accept the reports (like{" "}
-                      {provider || "the chosen provider"}'s certifications) that inherited coverage stands on.
-                    </Callout>
-                  </Section>
-
-                  <Section icon={UserCheck} title="Assessment assignment" description="Who is accountable for the evidence, and when the assessment period ends.">
+                  <Section icon={UserCheck} title="Choose a Control Assessor" description="Select a person to review system controls.">
                     <FieldGrid cols={2}>
                       <Field label="Assessor of record" note="The person accountable for reviewing the evidence and recording the assessment.">
                         <TextInput value={assessor} onChange={(e) => setAssessor(e.target.value)} placeholder="e.g. J. Ortiz — Security Engineering" />
                       </Field>
-                      <Field label="Target completion" note="The assessment period ends on this date.">
+                      <Field label="Target completion" note="When the control review should be complete.">
                         <TextInput type="date" value={assessmentTarget} onChange={(e) => setAssessmentTarget(e.target.value)} />
                       </Field>
                     </FieldGrid>
@@ -2188,27 +2190,31 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                 </StepBody>
               </>
             )}
-          </div>
+          </WizardPane>
         </WizardBody>
 
+        {/* Staged surface: nothing above has reached the runtime, so the one
+            committing action is the primary here and Cancel is the discard —
+            the draft is coextensive with the modal, there is no "throw the
+            edits away but stay" state to offer separately (5.6, 5.7). */}
         <WizardFooter
           position={`Step ${step} of ${total}`}
           hint={blockReason ? <InlineHint tone="warning">{blockReason}</InlineHint> : undefined}
-        >
-          <Button icon={ChevronLeft} onClick={goBack} disabled={step === 1}>Back</Button>
-          {!isLastStep ? (
-            <Button variant="primary" iconRight={ChevronRight} onClick={goNext} disabled={nextDisabled}>Next</Button>
-          ) : (
-            <Button
-              variant="primary"
-              icon={Check}
-              onClick={handleCreate}
-              disabled={!dryRun || dryRun.problems.length > 0 || !canLaunch || saving}
-            >
-              {saving ? "Saving…" : editingSystemId ? "Save changes" : "Create system"}
-            </Button>
-          )}
-        </WizardFooter>
+          close={<Button onClick={close}>Cancel</Button>}
+          back={<Button icon={ChevronLeft} onClick={goBack} disabled={step === 1}>Back</Button>}
+          primary={!isLastStep
+            ? <Button variant="primary" iconRight={ChevronRight} onClick={goNext} disabled={nextDisabled}>Continue</Button>
+            : (
+              <Button
+                variant="primary"
+                icon={Check}
+                onClick={handleCreate}
+                disabled={!dryRun || dryRun.problems.length > 0 || !canLaunch || saving}
+              >
+                {saving ? "Saving…" : editingSystemId ? "Save changes" : "Create System and Continue"}
+              </Button>
+            )}
+        />
       </WizardChrome>
     </Modal>
   );

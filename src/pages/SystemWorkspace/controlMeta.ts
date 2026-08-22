@@ -140,6 +140,31 @@ export function assetName(system: WorkspaceSystem, assetId: AssetId): string {
   return system.assets.find((a) => a.id === assetId)?.name ?? assetId;
 }
 
+// The catalog writes a control's requirement one of two ways: a single
+// sentence (the great majority — the median description is ~150 characters),
+// or a lead-in followed by numbered clauses ("Mechanisms exist to: (1)… (2)…"),
+// which is where all the long ones live. Splitting the second form out is what
+// lets a requirement be shown next to the work instead of behind a step: a
+// clause list clamps on a clause boundary and can be counted ("6
+// requirements"), where a wall of prose can only be cut mid-sentence.
+//
+// Clause text is kept verbatim, trailing "; and/or" included — that conjunction
+// says whether all the clauses are required or any one of them, so tidying it
+// away would change what the control asks.
+const CLAUSE_MARKER = /\s*\(\d+\)\s*/;
+
+export interface ControlRequirement {
+  lead: string;
+  clauses: string[];
+}
+
+export function parseControlRequirement(description: string): ControlRequirement {
+  const [lead, ...clauses] = description.split(CLAUSE_MARKER);
+  // One marker and no text after it isn't a list, it's a stray parenthetical.
+  if (clauses.length < 2) return { lead: description.trim(), clauses: [] };
+  return { lead: lead.trim(), clauses: clauses.map((c) => c.trim()).filter(Boolean) };
+}
+
 const HOSTING_TYPE_LABEL: Record<HostingType, string> = { cloud: "Cloud", saas: "SaaS", "on-prem": "On-Prem" };
 
 export function hostingTypeLabel(hostingType: HostingType): string {

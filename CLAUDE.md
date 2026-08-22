@@ -14,7 +14,8 @@ Not a compliance checklist tool. Risk supports assurance; it is not the primary 
 - Engine: `src/engine/` (assessment, levels, assurance, rollups, profile, applicability, evidence, cockpit, findings)
 - Graph: `src/graph/` — facts/edges, including `Finding`, `Org` (team/user/business unit), `Evidence Source` entities
 - UI: `src/components/`
-- Wizard kit: `src/components/wizard/WizardUI.tsx` — the only source of wizard/walk chrome (shell, steps, fields, buttons, status pills). Every wizard-like surface (Add/Edit System, Scope Determination, System Readiness, the control assessment walk) composes these primitives; extend `WizardUI.tsx` rather than styling a step in place.
+- Wizard kit: `src/components/wizard/WizardUI.tsx` — the only source of wizard/walk chrome (shell, steps, fields, buttons, status pills). Every wizard-like surface (Add/Edit System, Scope Review, System Readiness, the control assessment walk) composes these primitives; extend `WizardUI.tsx` rather than styling a step in place.
+- Wizard rules: `src/components/wizard/CONTRACT.md` — composition, naming, what to ask a human, navigation/state, and write discipline. Read before changing any wizard surface.
 - Control assessment: `src/pages/SystemWorkspace/ControlEvaluationPanel.tsx` is the single assessment UI (direct edit and the guided walk both render it). Do not add a parallel assessment modal or scoring surface.
 - Reuse these; do not create parallel scoring/applicability/evidence paths.
 

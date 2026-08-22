@@ -100,7 +100,7 @@ export function AssessmentReadiness({ statusCounts, applicabilitySummary, formal
   const checks: Record<CheckId, { icon: LucideIcon; title: string; description: string; complete: boolean; count: number; onClick: () => void }> = {
     scope: {
       icon: Target,
-      title: "Scope Determination",
+      title: "Scope Review",
       description: "All matched controls have an in-scope / out-of-scope decision on record.",
       complete: pendingCount === 0,
       count: pendingCount,
