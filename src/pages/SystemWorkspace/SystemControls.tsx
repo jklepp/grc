@@ -265,9 +265,13 @@ function barFill(status: ControlStatus): string {
 
 // One status, one bar, all of them measured against the same applicable
 // total and starting on the same baseline — so two counts are compared by
-// length rather than by eyeballing segments of a stack. The count and share
-// ride the bar tip instead of a far-right column, so the number never leaves
-// the mark it describes.
+// length rather than by eyeballing segments of a stack. The count rides the
+// bar tip instead of a far-right column, so the number never leaves the mark
+// it describes.
+//
+// The count is the only number on the row. A share alongside it restated the
+// same fact — against a ~100-control applicable total the two read as one
+// value printed twice — and the bar already carries the proportion.
 interface BarRowProps {
   label: string;
   count: number;
@@ -303,7 +307,6 @@ function BarRow({ label, count, applicable, fill, active, onClick, trailing }: B
           style={{ left: `calc(${width} + 10px)`, top: "50%", transform: "translateY(-50%)" }}
         >
           <span className="text-[13px] font-semibold tabular-nums" style={{ color: C.ink }}>{count}</span>
-          <span className="text-[11px] tabular-nums" style={{ color: C.muted }}>{Math.round(share)}%</span>
           {trailing}
         </span>
       </span>
@@ -326,6 +329,13 @@ function BarRow({ label, count, applicable, fill, active, onClick, trailing }: B
 // let the groups interleave as soon as coverage climbs past Inherited, and a
 // chart whose rows reshuffle between two visits is harder to read than one
 // that gives up a little ordering purity.
+//
+// Neither group is titled. The hatched fill already says which row is the
+// unexamined one, and a gap does the dividing — two eyebrow labels and a
+// summary sentence were three pieces of chrome to separate five bars. The
+// gap is what keeps the fixed order legible: when Not Assessed is small it
+// still sits above longer bars, and without the break that reads as a
+// sorting bug rather than as a group.
 function StatusChart({
   statusCounts, applicabilitySummary, pendingCount, resp, selection, onToggle,
   onOpenScopeReview, posture, keyControlRemaining, keyControlTotal, onStartAssessment,
@@ -345,7 +355,6 @@ function StatusChart({
   const applicable = applicabilitySummary.applicable;
   const unassessed = statusCounts.unassessed ?? 0;
   const assessed = applicable - unassessed;
-  const holding = RESOLVED_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
 
   // Every examined status, largest first. Zeros are pulled out below: an
   // empty track is a row of nothing, and four of them break the rhythm of
@@ -388,41 +397,30 @@ function StatusChart({
 
       <div className="pt-4">
         {unassessed > 0 && (
-          <>
-            <div className="text-[10px] uppercase tracking-wide font-semibold mb-1" style={{ color: C.ink, paddingLeft: 0, width: 140, textAlign: "right" }}>
-              Not examined
-            </div>
-            <BarRow
-              label={STATUS_META.unassessed.label}
-              count={unassessed}
-              applicable={applicable}
-              fill={barFill("unassessed")}
-              active={selection.kind === "assessment-group"}
-              onClick={() => onToggle(ASSESSMENT_SELECTION)}
-              trailing={walkAction}
-            />
-          </>
+          <BarRow
+            label={STATUS_META.unassessed.label}
+            count={unassessed}
+            applicable={applicable}
+            fill={barFill("unassessed")}
+            active={selection.kind === "assessment-group"}
+            onClick={() => onToggle(ASSESSMENT_SELECTION)}
+            trailing={walkAction}
+          />
         )}
 
-        <div className="grid items-baseline mt-4 mb-1" style={{ gridTemplateColumns: "140px minmax(0, 1fr)", gap: 12 }}>
-          <span className="text-[10px] uppercase tracking-wide font-semibold text-right" style={{ color: C.ink }}>Examined</span>
-          <span className="text-[11px]" style={{ color: C.muted }}>
-            <span style={{ fontWeight: 600, color: C.ink }}>{assessed} of {applicable} examined ({posture.coverage}%)</span>
-            {" — "}{holding} of them hold ({posture.compliance}%)
-          </span>
+        <div style={{ marginTop: unassessed > 0 ? 14 : 0 }}>
+          {present.map(({ status, count }) => (
+            <BarRow
+              key={status}
+              label={STATUS_META[status].label}
+              count={count}
+              applicable={applicable}
+              fill={barFill(status)}
+              active={selection?.kind === "status" && selection.key === status}
+              onClick={() => onToggle({ kind: "status", key: status, label: `${STATUS_META[status].label} controls` })}
+            />
+          ))}
         </div>
-
-        {present.map(({ status, count }) => (
-          <BarRow
-            key={status}
-            label={STATUS_META[status].label}
-            count={count}
-            applicable={applicable}
-            fill={barFill(status)}
-            active={selection?.kind === "status" && selection.key === status}
-            onClick={() => onToggle({ kind: "status", key: status, label: `${STATUS_META[status].label} controls` })}
-          />
-        ))}
 
         {zeroed.length > 0 && (
           <div className="grid items-center mt-1.5" style={{ gridTemplateColumns: "140px minmax(0, 1fr)", gap: 12 }}>
