@@ -61,6 +61,16 @@ export const LIGHT = {
 export const C = { ...DARK };
 
 export type ThemeMode = "dark" | "light";
+
+// Where the chosen theme is remembered, and how it is read back. Shared rather
+// than re-derived because the boot splash paints before App mounts, and a
+// splash that guessed a different default would flash the wrong background on
+// every load.
+export const THEME_STORAGE_KEY = "grc-theme-mode";
+
+export function storedThemeMode(): ThemeMode {
+  return localStorage.getItem(THEME_STORAGE_KEY) === "dark" ? "dark" : "light";
+}
 export type ClassificationLabel = "Public" | "Internal" | "Confidential" | "Restricted";
 
 const CLASS_META_DARK = {

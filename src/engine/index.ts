@@ -3,8 +3,9 @@
 // Pages consume a DEFAULT ENGINE built over ACME's facts. That default is the
 // only thing in the app that picks a dataset; everything below it takes its
 // graph as an argument. Keeping the page-facing names identical to what they
-// were before the seam existed is deliberate — 18 page files import from here,
-// and none of them should have to know that the engine became constructible.
+// were before the seam existed is deliberate — 22 page and component files
+// import from here, and none of them should have to know that the engine
+// became constructible, or that loading it became asynchronous.
 //
 // To work with a different dataset (a test's synthetic graph, a prior revision,
 // another tenant), don't reach for these bindings — build your own:
@@ -13,48 +14,95 @@
 //   import { createEngine } from "./create";
 //   const engine = createEngine(loadGraph(facts), { ctx: { now: new Date("2026-01-01") } });
 //
-// Importing this module runs both integrity checks: structural inside
-// loadGraph, derivational inside createEngine. Any page that touches the model
-// has therefore already proved the model is sound before it renders a number.
+// ---- WHY THE BINDINGS BELOW ARE `let` -----------------------------------------
+//
+// They used to be `const`, initialised from an engine this module built while it
+// was being imported. That made three things true that a real deployment cannot
+// satisfy:
+//
+//   1. Facts had to be available synchronously, which meant every fact file was
+//      inlined into the main bundle and parsed before first paint. A database or
+//      an API answers over a network; there is no synchronous version of that.
+//   2. Exactly one engine could exist, created at import time, so there was no
+//      point at which a tenant, a session, or a point-in-time could be chosen.
+//   3. Half the surface silently disagreed with the other half. Bindings copied
+//      straight off the first engine kept answering from it forever, while the
+//      dozen that were hand-wrapped as `(...args) => engine.x(...args)` followed
+//      each runtime commit. Adding a system refreshed some pages and not others.
+//
+// So the surface is now declared here and assigned by publish(), which runs once
+// when initEngine() resolves and again after every runtime commit. Because ES
+// module bindings are live, importers see each new value without re-importing —
+// and all of the surface moves together, which fixes (3) as a side effect.
+//
+// Nothing here is readable until initEngine() has resolved. That is enforced by
+// the boot sequence rather than by defensive checks in 22 files: src/Boot.tsx
+// awaits initEngine() before it renders anything that imports this module.
 import { loadGraph } from "../graph/load";
-import { YAML_FACTS } from "../graph/sources/yaml";
 import { createEngine } from "./create";
 import { buildLiveEngine } from "./liveGraph";
+import { setBaseFacts, baseFacts, hasBaseFacts } from "./baseFacts";
 import { loadRuntimeFacts, hasRuntimeFacts, saveRuntimeFacts } from "./runtimeFactsStore";
 import type { RuntimeFacts } from "./liveGraph";
 import type { Engine } from "./create";
+import type { GraphFacts } from "../graph/types";
 
-// The live dataset now comes from src/graph/facts/*.yaml. The TypeScript
-// modules those were generated from are still present and still exported as
-// sources/acme.ts, and scripts/check-source-parity.mjs asserts on every run
-// that the two remain indistinguishable — 98 checks across facts, assembled
-// graph, and derived numbers. Two sources of truth would normally be exactly
-// the failure this app exists to eliminate; they are tolerable here only
-// because a check makes divergence impossible to commit silently.
-//
-// Retiring the TypeScript data (keeping those modules for their types and
-// vocabularies, which the YAML source still depends on) is the last step, and
-// it waits on moving the per-record reasoning comments into `rationale:` fields
-// so that reasoning survives the move.
-// If the Add System wizard has saved anything, rebuild over YAML_FACTS plus
-// those runtime facts so a reload reconstructs the same live dataset the user
-// had. Persisted facts already passed buildLiveEngine's validation once (the
-// wizard would not have saved otherwise), but a later change to the
-// validators could in principle invalidate an old blob — fall back to the
-// plain YAML engine rather than let a stale localStorage entry break the app.
-const runtimeFacts = loadRuntimeFacts();
-export let engine = hasRuntimeFacts(runtimeFacts)
-  ? (() => {
-      const { engine: liveEngine, problems } = buildLiveEngine(YAML_FACTS, runtimeFacts);
-      if (liveEngine) return liveEngine;
-      console.warn("grc-runtime-facts: persisted systems failed validation, falling back to the YAML-only dataset:", problems);
-      return createEngine(loadGraph(YAML_FACTS));
-    })()
-  : createEngine(loadGraph(YAML_FACTS));
+// ---- Lifecycle ----------------------------------------------------------------
 
+let engine: Engine | null = null;
 const engineListeners = new Set<() => void>();
 
+// The facts are fetched with a dynamic import so the dataset lands in its own
+// chunk instead of the entry bundle. Keep it that way: a static
+// `import { YAML_FACTS } from "../graph/sources/yaml"` anywhere in the module
+// graph undoes both the code split and the asynchrony, because the YAML source
+// parses all 54 fact files at module-evaluation time. Anything that needs the
+// authored facts should call baseFacts() instead.
+let initPromise: Promise<void> | null = null;
+
+export function initEngine(): Promise<void> {
+  if (!initPromise) initPromise = boot();
+  return initPromise;
+}
+
+async function boot(): Promise<void> {
+  const { YAML_FACTS } = await import("../graph/sources/yaml");
+  setBaseFacts(YAML_FACTS);
+
+  // If the Add System wizard has saved anything, rebuild over the authored
+  // facts plus those runtime facts so a reload reconstructs the same live
+  // dataset the user had. Persisted facts already passed buildLiveEngine's
+  // validation once (the wizard would not have saved otherwise), but a later
+  // change to the validators could in principle invalidate an old blob — fall
+  // back to the authored-only engine rather than let a stale localStorage entry
+  // break the app.
+  const runtimeFacts = loadRuntimeFacts();
+  if (hasRuntimeFacts(runtimeFacts)) {
+    const { engine: liveEngine, problems } = buildLiveEngine(YAML_FACTS, runtimeFacts);
+    if (liveEngine) {
+      publish(liveEngine);
+      return;
+    }
+    console.warn(
+      "grc-runtime-facts: persisted systems failed validation, falling back to the authored dataset:",
+      problems
+    );
+  }
+
+  publish(createEngine(loadGraph(YAML_FACTS)));
+}
+
+export function isEngineReady(): boolean {
+  return engine !== null;
+}
+
+// Throws rather than returning null, for the same reason baseFacts() does: no
+// page renders before initEngine() resolves, so a null engine here is a broken
+// boot sequence, not a state worth branching on in every caller.
 export function getLiveEngine(): Engine {
+  if (!engine) {
+    throw new Error("getLiveEngine() called before initEngine() resolved — see src/Boot.tsx");
+  }
   return engine;
 }
 
@@ -64,20 +112,14 @@ export function subscribeToLiveEngine(listener: () => void): () => void {
 }
 
 export function commitRuntimeFacts(runtime: RuntimeFacts): { engine: Engine | null; problems: string[] } {
-  const result = buildLiveEngine(YAML_FACTS, runtime);
+  const result = buildLiveEngine(baseFacts(), runtime);
   if (!result.engine) return result;
   saveRuntimeFacts(runtime);
-  engine = result.engine;
-  engineListeners.forEach((listener) => listener());
+  publish(result.engine);
   return result;
 }
 
-const {
-  selectors, profile, risk, compliance, findings, rollups, graph,
-  identity, exposure, exceptions, vulnerabilities, securityTesting, resilience,
-  incidentResponse, vendors, sdlc, cockpit, review,
-} = engine;
-
+export { baseFacts } from "./baseFacts";
 export { createEngine } from "./create";
 export { loadGraph } from "../graph/load";
 export type { Engine } from "./create";
@@ -85,119 +127,208 @@ export type { EngineContext } from "./context";
 export type { Graph, GraphFacts } from "../graph/types";
 
 // ---- Page-facing surface ------------------------------------------------------
+// Declared here, assigned in publish(). The type of each is read off the Engine
+// type rather than restated, so a signature change in an engine module is a
+// compile error here instead of a silently widened page-facing contract.
+
+type Sel = Engine["selectors"];
+type Cmp = Engine["compliance"];
+type App = Engine["applicability"];
+type Prof = Engine["profile"];
+type Rsk = Engine["risk"];
+type Fnd = Engine["findings"];
+type Rol = Engine["rollups"];
+type Rev = Engine["review"];
+type Exc = Engine["exceptions"];
+type G = Engine["graph"];
+
 // Entity access
-export const getAsset: typeof selectors.getAsset = (...args) => engine.selectors.getAsset(...args);
-export const getSystem = selectors.getSystem;
-export const getRisk = selectors.getRisk;
-export const getDataType = selectors.getDataType;
-export const getControl = selectors.getControl;
-export const getEvidence: typeof selectors.getEvidence = (...args) => engine.selectors.getEvidence(...args);
-export const getEvidenceArtifacts: typeof selectors.getEvidenceArtifacts = (...args) => engine.selectors.getEvidenceArtifacts(...args);
-export const getEvidenceReviews: typeof selectors.getEvidenceReviews = (...args) => engine.selectors.getEvidenceReviews(...args);
-export const getAllAssets: typeof selectors.getAllAssets = (...args) => engine.selectors.getAllAssets(...args);
-export const getAllSystems: typeof selectors.getAllSystems = (...args) => engine.selectors.getAllSystems(...args);
-export const getAllRisks = selectors.getAllRisks;
-export const getAllDataTypes: typeof selectors.getAllDataTypes = (...args) => engine.selectors.getAllDataTypes(...args);
-export const getAllKeyControls = selectors.getAllKeyControls;
-export const getAllEvidence = selectors.getAllEvidence;
-export const getEnterprise = selectors.getEnterprise;
-export const getCategoryAverages = selectors.getCategoryAverages;
+export let getAsset: Sel["getAsset"];
+export let getSystem: Sel["getSystem"];
+export let getRisk: Sel["getRisk"];
+export let getDataType: Sel["getDataType"];
+export let getControl: Sel["getControl"];
+export let getEvidence: Sel["getEvidence"];
+export let getEvidenceArtifacts: Sel["getEvidenceArtifacts"];
+export let getEvidenceReviews: Sel["getEvidenceReviews"];
+export let getAllAssets: Sel["getAllAssets"];
+export let getAllSystems: Sel["getAllSystems"];
+export let getAllRisks: Sel["getAllRisks"];
+export let getAllDataTypes: Sel["getAllDataTypes"];
+export let getAllKeyControls: Sel["getAllKeyControls"];
+export let getAllEvidence: Sel["getAllEvidence"];
+export let getEnterprise: Sel["getEnterprise"];
+export let getCategoryAverages: Sel["getCategoryAverages"];
 
 // Traversal
-export const getInstancesForAsset = selectors.getInstancesForAsset;
-export const getInstance = selectors.getInstance;
-export const getControlAssessments = selectors.getControlAssessments;
-export const getApplicability = selectors.getApplicability;
-export const getApplicabilityProfile = selectors.getApplicabilityProfile;
-export const getDataFlows: typeof selectors.getDataFlows = (...args) => engine.selectors.getDataFlows(...args);
-export const getNeighbors = selectors.getNeighbors;
-export const flowsFrom = selectors.flowsFrom;
-export const flowsTo = selectors.flowsTo;
-export const flowsCarrying = selectors.flowsCarrying;
-export const dataForAsset: typeof selectors.dataForAsset = (...args) => engine.selectors.dataForAsset(...args);
-export const dataTypesForSystem: typeof selectors.dataTypesForSystem = (...args) => engine.selectors.dataTypesForSystem(...args);
-export const assetsHoldingDataType = selectors.assetsHoldingDataType;
-export const assetClassification = selectors.assetClassification;
-export const assetsForSystem: typeof selectors.assetsForSystem = (...args) => engine.selectors.assetsForSystem(...args);
-export const requiredControlsForAsset = selectors.requiredControlsForAsset;
-export const assetsRequiringControl = selectors.assetsRequiringControl;
-export const allExceptions = selectors.allExceptions;
-export const evidenceFor = selectors.evidenceFor;
-export const risksForAssetRollup = selectors.risksForAssetRollup;
-export const explain = selectors.explain;
-export const modelHealth = selectors.modelHealth;
+export let getInstancesForAsset: Sel["getInstancesForAsset"];
+export let getInstance: Sel["getInstance"];
+export let getControlAssessments: Sel["getControlAssessments"];
+export let getApplicability: Sel["getApplicability"];
+export let getApplicabilityProfile: Sel["getApplicabilityProfile"];
+export let getDataFlows: Sel["getDataFlows"];
+export let getNeighbors: Sel["getNeighbors"];
+export let flowsFrom: Sel["flowsFrom"];
+export let flowsTo: Sel["flowsTo"];
+export let flowsCarrying: Sel["flowsCarrying"];
+export let dataForAsset: Sel["dataForAsset"];
+export let dataTypesForSystem: Sel["dataTypesForSystem"];
+export let assetsHoldingDataType: Sel["assetsHoldingDataType"];
+export let assetClassification: Sel["assetClassification"];
+export let assetsForSystem: Sel["assetsForSystem"];
+export let requiredControlsForAsset: Sel["requiredControlsForAsset"];
+export let assetsRequiringControl: Sel["assetsRequiringControl"];
+export let allExceptions: Sel["allExceptions"];
+export let evidenceFor: Sel["evidenceFor"];
+export let risksForAssetRollup: Sel["risksForAssetRollup"];
+export let explain: Sel["explain"];
+export let modelHealth: Sel["modelHealth"];
 
 // Compliance
-export const systemControlMatrix = selectors.systemControlMatrix;
-export const systemCoverageBreakdown = selectors.systemCoverageBreakdown;
-export const systemStandardMappings = selectors.systemStandardMappings;
-export const clauseCoverage = selectors.clauseCoverage;
-export const controlCoverageForSystem = selectors.controlCoverageForSystem;
-export const frameworkPosture = selectors.frameworkPosture;
-export const FRAMEWORK_POSTURE = compliance.FRAMEWORK_POSTURE;
-export const ENTERPRISE_COVERAGE = compliance.ENTERPRISE_COVERAGE;
-export const IN_SCOPE_FRAMEWORKS = compliance.IN_SCOPE_FRAMEWORKS;
-export const SYSTEM_COVERAGE = compliance.SYSTEM_COVERAGE;
-export const programControlReach = compliance.programControlReach;
-export const responsibilityForControl = compliance.responsibilityForControl;
-export const notApplicableControlsForSystem = compliance.notApplicableControlsForSystem;
-export const controlApplicabilitySummary = compliance.controlApplicabilitySummary;
-export const pendingControlsForSystem = engine.applicability.pendingControlsForSystem;
-export const resolveProgramApplicability: typeof engine.applicability.resolveProgramApplicability = (...args) => engine.applicability.resolveProgramApplicability(...args);
+export let systemControlMatrix: Sel["systemControlMatrix"];
+export let systemCoverageBreakdown: Sel["systemCoverageBreakdown"];
+export let systemStandardMappings: Sel["systemStandardMappings"];
+export let clauseCoverage: Sel["clauseCoverage"];
+export let controlCoverageForSystem: Sel["controlCoverageForSystem"];
+export let frameworkPosture: Sel["frameworkPosture"];
+export let FRAMEWORK_POSTURE: Cmp["FRAMEWORK_POSTURE"];
+export let ENTERPRISE_COVERAGE: Cmp["ENTERPRISE_COVERAGE"];
+export let IN_SCOPE_FRAMEWORKS: Cmp["IN_SCOPE_FRAMEWORKS"];
+export let SYSTEM_COVERAGE: Cmp["SYSTEM_COVERAGE"];
+export let programControlReach: Cmp["programControlReach"];
+export let responsibilityForControl: Cmp["responsibilityForControl"];
+export let notApplicableControlsForSystem: Cmp["notApplicableControlsForSystem"];
+export let controlApplicabilitySummary: Cmp["controlApplicabilitySummary"];
+export let pendingControlsForSystem: App["pendingControlsForSystem"];
+export let resolveProgramApplicability: App["resolveProgramApplicability"];
 export { STATUS_RANK } from "./compliance";
 
 // Profile
-export const CONTROL_PROFILES = profile.CONTROL_PROFILES;
-export const tierTargetScore = profile.tierTargetScore;
-export const evaluateSystemAgainstProfile = profile.evaluateSystemAgainstProfile;
-export const profileSummary = profile.profileSummary;
+export let CONTROL_PROFILES: Prof["CONTROL_PROFILES"];
+export let tierTargetScore: Prof["tierTargetScore"];
+export let evaluateSystemAgainstProfile: Prof["evaluateSystemAgainstProfile"];
+export let profileSummary: Prof["profileSummary"];
 
 // Risk
-export const MATERIAL_RISKS = risk.MATERIAL_RISKS;
-export const MATERIAL_RISK_EXPOSURE = risk.MATERIAL_RISK_EXPOSURE;
-export const ABOVE_APPETITE_COUNT = risk.ABOVE_APPETITE_COUNT;
-export const QUANTIFIED_EXPOSURE = risk.QUANTIFIED_EXPOSURE;
-export const risksForSystem = risk.risksForSystem;
-export const topRisksForSystem = risk.topRisksForSystem;
+export let MATERIAL_RISKS: Rsk["MATERIAL_RISKS"];
+export let MATERIAL_RISK_EXPOSURE: Rsk["MATERIAL_RISK_EXPOSURE"];
+export let ABOVE_APPETITE_COUNT: Rsk["ABOVE_APPETITE_COUNT"];
+export let QUANTIFIED_EXPOSURE: Rsk["QUANTIFIED_EXPOSURE"];
+export let risksForSystem: Rsk["risksForSystem"];
+export let topRisksForSystem: Rsk["topRisksForSystem"];
 
 // Findings
-export const ALL_FINDINGS = findings.ALL_FINDINGS;
-export const findingsForSystem: typeof findings.findingsForSystem = (...args) => engine.findings.findingsForSystem(...args);
-export const findingsForAsset = findings.findingsForAsset;
-export const findingsForRisk = findings.findingsForRisk;
-export const openFindingsForSource = findings.openFindingsForSource;
+export let ALL_FINDINGS: Fnd["ALL_FINDINGS"];
+export let findingsForSystem: Fnd["findingsForSystem"];
+export let findingsForAsset: Fnd["findingsForAsset"];
+export let findingsForRisk: Fnd["findingsForRisk"];
+export let openFindingsForSource: Fnd["openFindingsForSource"];
 
 // System Register cockpit domains
-export const identityPostureForSystem = identity.identityPostureForSystem;
-export const exposureForSystem = exposure.exposureForSystem;
-export const EXCEPTION_REGISTER = exceptions.exceptionRegister;
-export const EXCEPTION_SUMMARY = exceptions.exceptionSummary;
-export const exceptionsForSystem = exceptions.exceptionsForSystem;
-export const vulnerabilitiesForSystem = vulnerabilities.vulnerabilitiesForSystem;
-export const securityTestsForSystem = securityTesting.securityTestsForSystem;
-export const resilienceForSystem: typeof resilience.resilienceForSystem = (...args) => engine.resilience.resilienceForSystem(...args);
-export const irForSystem = incidentResponse.irForSystem;
-export const vendorsForSystem = vendors.vendorsForSystem;
-export const sdlcForSystem = sdlc.sdlcForSystem;
-export const cockpitSummary = cockpit.cockpitSummary;
+export let identityPostureForSystem: Engine["identity"]["identityPostureForSystem"];
+export let exposureForSystem: Engine["exposure"]["exposureForSystem"];
+export let EXCEPTION_REGISTER: Exc["exceptionRegister"];
+export let EXCEPTION_SUMMARY: Exc["exceptionSummary"];
+export let exceptionsForSystem: Exc["exceptionsForSystem"];
+export let vulnerabilitiesForSystem: Engine["vulnerabilities"]["vulnerabilitiesForSystem"];
+export let securityTestsForSystem: Engine["securityTesting"]["securityTestsForSystem"];
+export let resilienceForSystem: Engine["resilience"]["resilienceForSystem"];
+export let irForSystem: Engine["incidentResponse"]["irForSystem"];
+export let vendorsForSystem: Engine["vendors"]["vendorsForSystem"];
+export let sdlcForSystem: Engine["sdlc"]["sdlcForSystem"];
+export let cockpitSummary: Engine["cockpit"]["cockpitSummary"];
 
-export const wavesForSystem: typeof review.wavesForSystem = (...args) => engine.review.wavesForSystem(...args);
-export const auditReadinessForSystem: typeof review.auditReadinessForSystem = (...args) => engine.review.auditReadinessForSystem(...args);
+export let wavesForSystem: Rev["wavesForSystem"];
+export let auditReadinessForSystem: Rev["auditReadinessForSystem"];
 
 // Rollup totals
-export const TOTAL_FLOW_COUNT = rollups.TOTAL_FLOW_COUNT;
-export const TOTAL_ACTOR_COUNT = rollups.TOTAL_ACTOR_COUNT;
+export let TOTAL_FLOW_COUNT: Rol["TOTAL_FLOW_COUNT"];
+export let TOTAL_ACTOR_COUNT: Rol["TOTAL_ACTOR_COUNT"];
 
 // Graph nodes pages read directly (reference data, not derivations)
-export const ACTORS = graph.actors;
-export const ACTOR_BY_ID = graph.actorById;
-export const ORGS = graph.orgs;
-export const ORG_BY_ID = graph.orgById;
-export const EVIDENCE_SOURCES = graph.evidenceSources;
-export const EVIDENCE_SOURCE_BY_ID = graph.evidenceSourceById;
-export const IN_SCOPE_CONTROLS = graph.inScopeControls;
-export const VENDORS = graph.vendors;
-export const PROVIDER_CERTIFICATIONS = graph.providerCertifications;
+export let ACTORS: G["actors"];
+export let ACTOR_BY_ID: G["actorById"];
+export let ORGS: G["orgs"];
+export let ORG_BY_ID: G["orgById"];
+export let EVIDENCE_SOURCES: G["evidenceSources"];
+export let EVIDENCE_SOURCE_BY_ID: G["evidenceSourceById"];
+export let IN_SCOPE_CONTROLS: G["inScopeControls"];
+export let VENDORS: G["vendors"];
+export let PROVIDER_CERTIFICATIONS: G["providerCertifications"];
+
+// Rebinds the whole page-facing surface to one engine and tells subscribers.
+// Grouped by engine module so a binding that drifts from its source is visible
+// as a mismatched destructure rather than a line lost among a hundred others.
+function publish(next: Engine): void {
+  engine = next;
+
+  ({
+    getAsset, getSystem, getRisk, getDataType, getControl, getEvidence,
+    getEvidenceArtifacts, getEvidenceReviews, getAllAssets, getAllSystems,
+    getAllRisks, getAllDataTypes, getAllKeyControls, getAllEvidence,
+    getEnterprise, getCategoryAverages,
+    getInstancesForAsset, getInstance, getControlAssessments, getApplicability,
+    getApplicabilityProfile, getDataFlows, getNeighbors, flowsFrom, flowsTo,
+    flowsCarrying, dataForAsset, dataTypesForSystem, assetsHoldingDataType,
+    assetClassification, assetsForSystem, requiredControlsForAsset,
+    assetsRequiringControl, allExceptions, evidenceFor, risksForAssetRollup,
+    explain, modelHealth,
+    systemControlMatrix, systemCoverageBreakdown, systemStandardMappings,
+    clauseCoverage, controlCoverageForSystem, frameworkPosture,
+  } = next.selectors);
+
+  ({
+    FRAMEWORK_POSTURE, ENTERPRISE_COVERAGE, IN_SCOPE_FRAMEWORKS, SYSTEM_COVERAGE,
+    programControlReach, responsibilityForControl, notApplicableControlsForSystem,
+    controlApplicabilitySummary,
+  } = next.compliance);
+
+  ({ pendingControlsForSystem, resolveProgramApplicability } = next.applicability);
+
+  ({ CONTROL_PROFILES, tierTargetScore, evaluateSystemAgainstProfile, profileSummary } = next.profile);
+
+  ({
+    MATERIAL_RISKS, MATERIAL_RISK_EXPOSURE, ABOVE_APPETITE_COUNT,
+    QUANTIFIED_EXPOSURE, risksForSystem, topRisksForSystem,
+  } = next.risk);
+
+  ({
+    ALL_FINDINGS, findingsForSystem, findingsForAsset, findingsForRisk,
+    openFindingsForSource,
+  } = next.findings);
+
+  ({ identityPostureForSystem } = next.identity);
+  ({ exposureForSystem } = next.exposure);
+  ({
+    exceptionRegister: EXCEPTION_REGISTER,
+    exceptionSummary: EXCEPTION_SUMMARY,
+    exceptionsForSystem,
+  } = next.exceptions);
+  ({ vulnerabilitiesForSystem } = next.vulnerabilities);
+  ({ securityTestsForSystem } = next.securityTesting);
+  ({ resilienceForSystem } = next.resilience);
+  ({ irForSystem } = next.incidentResponse);
+  ({ vendorsForSystem } = next.vendors);
+  ({ sdlcForSystem } = next.sdlc);
+  ({ cockpitSummary } = next.cockpit);
+  ({ wavesForSystem, auditReadinessForSystem } = next.review);
+
+  ({ TOTAL_FLOW_COUNT, TOTAL_ACTOR_COUNT } = next.rollups);
+
+  ({
+    actors: ACTORS,
+    actorById: ACTOR_BY_ID,
+    orgs: ORGS,
+    orgById: ORG_BY_ID,
+    evidenceSources: EVIDENCE_SOURCES,
+    evidenceSourceById: EVIDENCE_SOURCE_BY_ID,
+    inScopeControls: IN_SCOPE_CONTROLS,
+    vendors: VENDORS,
+    providerCertifications: PROVIDER_CERTIFICATIONS,
+  } = next.graph);
+
+  engineListeners.forEach((listener) => listener());
+}
 
 // ---- Pure scoring + vocabulary -------------------------------------------------
 // Neither depends on a graph, so both are plain re-exports.
@@ -266,3 +397,35 @@ export type { LevelRating } from "./levels";
 export type { ControlCoverage } from "./compliance";
 export type { EngineFinding } from "./findings";
 export type { ManagedException, ExceptionLifecycleStatus, ExceptionReviewStatus } from "./exceptions";
+
+// ---- Hot module replacement ---------------------------------------------------
+// Dev-only, and load-bearing. This module holds app-global state that exists
+// only because Boot awaited initEngine(). When Vite hot-replaces it — which
+// happens whenever anything it imports is edited — the new instance starts with
+// every binding below unassigned and initPromise back to null, and nobody calls
+// initEngine() a second time. Pages that read the surface while they evaluate
+// (ControlProfile's `getAllSystems()` at module scope, for one) then die with
+// "getAllSystems is not a function", and the app goes blank until a manual
+// refresh.
+//
+// So the built engine is handed to the next instance through hot.data and
+// republished synchronously on the way in. Self-accepting keeps the update from
+// propagating further, since by the time this runs the state is already whole.
+//
+// This block sits at the end of the file on purpose: publish() is hoisted, but
+// the `export let` bindings it assigns are not, so running any earlier would
+// hit their temporal dead zone.
+if (import.meta.hot) {
+  const carried = import.meta.hot.data.engineState as { engine: Engine; facts: GraphFacts } | undefined;
+  if (carried) {
+    setBaseFacts(carried.facts);
+    publish(carried.engine);
+    initPromise = Promise.resolve();
+  }
+
+  import.meta.hot.dispose((data) => {
+    if (engine && hasBaseFacts()) data.engineState = { engine, facts: baseFacts() };
+  });
+
+  import.meta.hot.accept();
+}

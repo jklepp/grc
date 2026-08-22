@@ -19,11 +19,11 @@ import {
   SYSTEM_REGULATORY_CONTEXTS, IDENTITY_TYPES, NETWORK_EXPOSURES,
   IMPACT_LEVELS, IMPACT_LEVEL_LABELS, SECURITY_OBJECTIVES, SECURITY_OBJECTIVE_LABELS,
   defaultSecurityCategory, overallImpactLevel,
-  engine as appEngine, commitRuntimeFacts,
+  getLiveEngine, baseFacts, commitRuntimeFacts,
 } from "../engine";
+import type { Engine } from "../engine";
 import { buildLiveEngine } from "../engine/liveGraph";
 import type { RuntimeFacts } from "../engine/liveGraph";
-import { YAML_FACTS } from "../graph/sources/yaml";
 import { loadRuntimeFacts, nextSystemId, nextAssetId, nextActorId, nextActorAccessId, nextDataFlowId, nextAgenticIdentityId, nextDrTestId } from "../engine/runtimeFactsStore";
 import type { BackupConfig, DrTest } from "../graph/nodes/resilience";
 import type { SdlcPosture } from "../graph/nodes/sdlc";
@@ -255,7 +255,7 @@ interface DryRunResult {
   classification?: ClassificationTier | null;
   assurance?: number | null;
   coverage?: { applicable: number; assessed: number; assessedPct: number; inherited: number } | null;
-  applicability?: ReturnType<typeof appEngine.compliance.controlApplicabilitySummary>;
+  applicability?: ReturnType<Engine["compliance"]["controlApplicabilitySummary"]>;
   // The scope story the way Scope Review now tells it: policy baseline
   // plus conditional overlays in, exclusions and open questions out, and the
   // human work remaining after create (confirm exclusions, confirm inherited
@@ -435,13 +435,13 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   useEffect(() => {
     const sourceSystemId = editingSystemId ?? cloneFromSystemId;
     if (!open || !sourceSystemId) return;
-    const source = appEngine.graph.systemById[sourceSystemId];
+    const source = getLiveEngine().graph.systemById[sourceSystemId];
     if (!source) return;
-    const sourceAssets = appEngine.graph.assetsBySystem[sourceSystemId] ?? [];
-    const sourceDataTypeIds = appEngine.classification.dataTypesForSystem(sourceSystemId).map((dt) => dt.id);
+    const sourceAssets = getLiveEngine().graph.assetsBySystem[sourceSystemId] ?? [];
+    const sourceDataTypeIds = getLiveEngine().classification.dataTypesForSystem(sourceSystemId).map((dt) => dt.id);
     // A clone starts a fresh assessment engagement — the source's scope,
     // assessor, and target date don't carry over the way its facts do.
-    const scope = editingSystemId ? appEngine.graph.assessmentScopeBySystem[sourceSystemId] : null;
+    const scope = editingSystemId ? getLiveEngine().graph.assessmentScopeBySystem[sourceSystemId] : null;
 
     setStep(1);
     setName(isClone ? `${source.name} (Copy)` : source.name);
@@ -493,14 +493,14 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
         provider: asset.provider,
         impactLevel: IMPACT_LEVELS.find((level) => level === asset.impactLevel) ?? "moderate",
         inherentLikelihood: asset.inherentLikelihood,
-        dataTypes: Object.fromEntries(appEngine.classification.dataForAsset(asset.id).map((holding) => [holding.dataTypeId, holding.role])),
+        dataTypes: Object.fromEntries(getLiveEngine().classification.dataForAsset(asset.id).map((holding) => [holding.dataTypeId, holding.role])),
       };
     }));
     const sourceAssetIds = new Set(sourceAssets.map((asset) => asset.id));
-    setActorDrafts(appEngine.graph.actorAccess
+    setActorDrafts(getLiveEngine().graph.actorAccess
       .filter((access) => sourceAssetIds.has(access.assetId))
       .map((access) => {
-        const actor = appEngine.graph.actorById[access.actorId];
+        const actor = getLiveEngine().graph.actorById[access.actorId];
         return {
           key: isClone ? draftKey("actor") : access.id,
           added: true, saved: true, expanded: false,
@@ -512,7 +512,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
           direction: access.direction, note: access.note ?? "",
         };
       }));
-    setFlowDrafts(appEngine.graph.dataFlows
+    setFlowDrafts(getLiveEngine().graph.dataFlows
       .filter((flow) => sourceAssetIds.has(flow.from) && sourceAssetIds.has(flow.to))
       .map((flow) => ({
         key: isClone ? draftKey("flow") : flow.id,
@@ -522,7 +522,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
         toKey: (isClone ? assetKeyByOriginalId.get(flow.to) : flow.to) ?? flow.to,
         kind: flow.kind, dataTypeIds: [...flow.dataTypeIds], note: flow.note ?? "",
       })));
-    setAgentDrafts((appEngine.graph.agenticIdentitiesBySystem[sourceSystemId] ?? []).map((agent) => ({
+    setAgentDrafts((getLiveEngine().graph.agenticIdentitiesBySystem[sourceSystemId] ?? []).map((agent) => ({
       key: isClone ? draftKey("agent") : agent.id,
       added: true, saved: true, expanded: false,
       id: isClone ? undefined : agent.id,
@@ -534,7 +534,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       revocationMechanism: agent.revocationMechanism, tools: agent.tools.join(", "),
     })));
 
-    const sourceBackup = appEngine.graph.backupConfigBySystem[sourceSystemId];
+    const sourceBackup = getLiveEngine().graph.backupConfigBySystem[sourceSystemId];
     setTrackBackup(Boolean(sourceBackup));
     setBackupEnabled(sourceBackup?.enabled ?? true);
     setBackupCoveragePct(sourceBackup?.coveragePct ?? 100);
@@ -543,7 +543,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     setBackupRpoTargetMinutes(sourceBackup?.rpoTargetMinutes ?? 60);
     setBackupRtoTargetMinutes(sourceBackup?.rtoTargetMinutes ?? 240);
 
-    setDrTestDrafts((appEngine.graph.drTestsBySystem[sourceSystemId] ?? []).map((test) => ({
+    setDrTestDrafts((getLiveEngine().graph.drTestsBySystem[sourceSystemId] ?? []).map((test) => ({
       key: isClone ? draftKey("drtest") : test.id,
       saved: true, expanded: false,
       id: isClone ? undefined : test.id,
@@ -552,7 +552,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
       actualRtoMinutes: test.actualRtoMinutes, issues: test.issues ?? "",
     })));
 
-    const sourceSdlc = appEngine.graph.sdlcPostureBySystem[sourceSystemId];
+    const sourceSdlc = getLiveEngine().graph.sdlcPostureBySystem[sourceSystemId];
     setTrackSdlc(Boolean(sourceSdlc));
     setSdlcNotApplicableReason(sourceSdlc?.notApplicableReason ?? "");
     setSdlcSafeguards(sourceSdlc ? {
@@ -727,9 +727,9 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     // would, but never its assessment scope — that's a fresh engagement on a
     // system with its own new id, not a continuation of the source's.
     const sourceSystem = (editingSystemId ?? cloneFromSystemId)
-      ? appEngine.graph.systemById[(editingSystemId ?? cloneFromSystemId)!]
+      ? getLiveEngine().graph.systemById[(editingSystemId ?? cloneFromSystemId)!]
       : null;
-    const sourceScope = editingSystemId ? appEngine.graph.assessmentScopeBySystem[editingSystemId] : null;
+    const sourceScope = editingSystemId ? getLiveEngine().graph.assessmentScopeBySystem[editingSystemId] : null;
     const today = new Date().toISOString().slice(0, 10);
     const ownerRole = ownerOrgId ? [{ role: "System Owner", ownerId: ownerOrgId }] : [];
 
@@ -903,12 +903,12 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     };
 
     const replacedAssetIds = new Set([
-      ...(appEngine.graph.assetsBySystem[systemId] ?? []).map((a) => a.id),
+      ...(getLiveEngine().graph.assetsBySystem[systemId] ?? []).map((a) => a.id),
       ...existing.assets.filter((a) => a.systemIds.includes(systemId)).map((a) => a.id),
       ...newAssets.map((a) => a.id),
     ]);
     const replacedActorIds = new Set([
-      ...appEngine.graph.actorAccess.filter((edge) => replacedAssetIds.has(edge.assetId)).map((edge) => edge.actorId),
+      ...getLiveEngine().graph.actorAccess.filter((edge) => replacedAssetIds.has(edge.assetId)).map((edge) => edge.actorId),
       ...existing.actorAccess.filter((edge) => replacedAssetIds.has(edge.assetId)).map((edge) => edge.actorId),
     ]);
     const expectedClassification = { ...existing.expectedClassification };
@@ -948,7 +948,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     // Synchronous today (buildLiveEngine has no async work), but kept as its
     // own step so the Review panel can show a spinner if that ever changes.
     const { runtime, systemId } = buildCandidateRuntimeFacts();
-    const { engine, problems } = buildLiveEngine(YAML_FACTS, runtime);
+    const { engine, problems } = buildLiveEngine(baseFacts(), runtime);
     if (!engine) {
       setDryRun({ problems, systemId: null });
       setChecking(false);
@@ -964,12 +964,12 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     // could orphan.
     let droppedAssessedControls: DryRunResult["droppedAssessedControls"];
     if (editingSystemId) {
-      const previouslyDeclared = appEngine.graph.assessmentScopeBySystem[editingSystemId]?.controlIds ?? [];
+      const previouslyDeclared = getLiveEngine().graph.assessmentScopeBySystem[editingSystemId]?.controlIds ?? [];
       const stillApplicable = new Set(engine.applicability.applicableControlsForSystem(systemId).map((c) => c.id));
       droppedAssessedControls = previouslyDeclared
         .filter((id) => !stillApplicable.has(id))
         .map((id) => {
-          const control = appEngine.graph.keyControlById[id];
+          const control = getLiveEngine().graph.keyControlById[id];
           return { id, friendlyName: control?.friendlyName ?? id, domain: control?.domain ?? "" };
         });
     }

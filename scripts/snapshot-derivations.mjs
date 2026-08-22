@@ -21,6 +21,7 @@ const server = await createServer({ server: { middlewareMode: true }, appType: "
 
 try {
   const engine = await server.ssrLoadModule("/src/engine/index.ts");
+  await engine.initEngine();
 
   // Sort keys everywhere so the output is order-independent: a refactor that
   // changes the order collections are built in shouldn't read as a diff.
@@ -34,12 +35,14 @@ try {
 
   const snapshot = {};
 
-  // The `engine` export is the instance handle, not a derivation: it carries
-  // ctx.now (a fresh timestamp every run) and the whole graph hanging off it,
-  // so including it guarantees a false diff on every comparison and drowns a
-  // real one. Everything it exposes that IS a derivation is already reached
-  // through the named exports below.
-  const NOT_A_DERIVATION = new Set(["engine"]);
+  // Lifecycle exports, not derivations. getLiveEngine() hands back the instance
+  // handle — it carries ctx.now (a fresh timestamp every run) and the whole
+  // graph hanging off it, so including it guarantees a false diff on every
+  // comparison and drowns a real one. baseFacts() is the authored input rather
+  // than anything derived from it, and initEngine/isEngineReady describe the
+  // boot sequence. Everything that IS a derivation is reached through the named
+  // exports below.
+  const NOT_A_DERIVATION = new Set(["initEngine", "getLiveEngine", "isEngineReady", "baseFacts"]);
 
   // Every non-function export the engine's public API exposes, plus the zero-arg
   // accessors selectors.ts wraps the enterprise rollups in (getEnterprise,
@@ -66,7 +69,7 @@ try {
   // types and vocabularies, and the facts live in src/graph/facts/*.yaml — so
   // asking the engine what it loaded is both the only way and the right way:
   // it snapshots what the app actually rendered from, not a parallel list.
-  const { graph } = engine.engine;
+  const { graph } = engine.getLiveEngine();
 
   const call = (fn, arg) => {
     try {

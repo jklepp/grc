@@ -14,7 +14,7 @@ import type { SystemSelectOptions } from "./pages/SelectSystem";
 import type { SystemId } from "./graph/ids";
 import { hashForRoute, parseHash } from "./router";
 import type { AppRoute } from "./router";
-import { C, applyTheme, FONT_IMPORT } from "./theme";
+import { C, applyTheme, FONT_IMPORT, THEME_STORAGE_KEY, storedThemeMode } from "./theme";
 import type { ThemeMode } from "./theme";
 
 type ControlsTab = NonNullable<ComponentProps<typeof Controls>["initialTab"]>;
@@ -82,14 +82,11 @@ function isNavigationPageId(id: string): id is NavigationPageId {
 const DEFAULT_ROUTE: AppRoute = { page: "data-estate", systemId: DEFAULT_SYSTEM_ID };
 
 const AUTH_STORAGE_KEY = "grc-authenticated";
-const THEME_STORAGE_KEY = "grc-theme-mode";
 
 export default function App() {
   const [route, setRoute] = useState<AppRoute>(() => parseHash(window.location.hash) ?? DEFAULT_ROUTE);
   const [startAssessment, setStartAssessment] = useState(false);
-  const [mode, setMode] = useState<ThemeMode>(() =>
-    localStorage.getItem(THEME_STORAGE_KEY) === "dark" ? "dark" : "light"
-  );
+  const [mode, setMode] = useState<ThemeMode>(storedThemeMode);
   // No real auth is wired up yet — this just gates the UI behind the login
   // screen. sessionStorage keeps a refresh from dumping the user back to it.
   const [authenticated, setAuthenticated] = useState(() => sessionStorage.getItem(AUTH_STORAGE_KEY) === "1");

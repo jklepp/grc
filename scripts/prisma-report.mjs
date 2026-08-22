@@ -22,7 +22,9 @@ const fixed = (n, d = 1) => (n === null ? "n/a" : n.toFixed(d));
 const server = await createServer({ server: { middlewareMode: true }, appType: "custom", logLevel: "warn" });
 
 try {
-  const { engine } = await server.ssrLoadModule("/src/engine/index.ts");
+  const mod = await server.ssrLoadModule("/src/engine/index.ts");
+  await mod.initEngine();
+  const engine = mod.getLiveEngine();
   const { graph, assessment } = engine;
 
   function printControl(a) {

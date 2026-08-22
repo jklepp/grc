@@ -19,7 +19,7 @@
 // only function meant to be called directly for that reason: it always pairs
 // the scope entry with at least one supporting fact in the same call.
 import type { RuntimeFacts } from "./liveGraph";
-import { YAML_FACTS } from "../graph/sources/yaml";
+import { baseFacts } from "./baseFacts";
 import type { AssetId, ControlId, EvidenceArtifactId, EvidenceId, SystemId } from "../graph/ids";
 import type { ImplementationMechanism, NotImplemented, Responsibility } from "../graph/edges/controlImplementations";
 import type { RawEvidence } from "../graph/nodes/evidence";
@@ -106,7 +106,7 @@ export function addControlToScope(runtime: RuntimeFacts, systemId: SystemId, con
       ),
     };
   }
-  const yamlScope = YAML_FACTS.assessmentScopes.find((s) => s.systemId === systemId);
+  const yamlScope = baseFacts().assessmentScopes.find((s) => s.systemId === systemId);
   if (!yamlScope || yamlScope.controlIds.includes(controlId)) return runtime;
   return {
     ...runtime,

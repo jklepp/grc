@@ -1,10 +1,11 @@
 // ACME's facts, read from YAML.
 //
-// The second source adapter, and the one that proves the seam is real. It
-// answers exactly the same question sources/acme.ts does — "what are the
-// facts?" — in exactly the same shape, and nothing downstream of loadGraph()
-// can tell which of the two produced a graph. scripts/check-source-parity.mjs
-// asserts that equivalence rather than assuming it.
+// A source adapter: it answers "what are the facts?" and nothing downstream of
+// loadGraph() can tell which adapter produced a graph. It is currently the only
+// one — the TypeScript source it was proved equivalent to (sources/acme.ts) and
+// the parity check that proved it (scripts/check-source-parity.mjs) were both
+// retired once this became authoritative. An API-backed adapter would sit
+// beside this file and export the same GraphFacts shape.
 //
 // WHY THE CAST IS SAFE. Parsed YAML is `unknown`: a data file can say anything,
 // and TypeScript has no way to know it didn't. Casting here would be reckless
@@ -30,10 +31,14 @@ import type { PolicyRecord, ProcedureRecord } from "../nodes/programArtifacts";
 import type { ActivityFrequency, ScheduledActivityInstance, ScheduledActivityRecord } from "../nodes/scheduledActivities";
 import type { EvidenceType } from "../nodes/taxonomy";
 
-// Eager + raw so the YAML is inlined at build time. The alternative — fetching
-// and parsing at runtime — would make loadGraph async, and an async graph would
-// force every page to handle a loading state for data that is, in this
-// deployment, a build-time constant.
+// Eager + raw so the YAML is inlined and parsed as this module evaluates, which
+// keeps loadGraph() synchronous once the facts are in hand.
+//
+// The asynchrony is one level up instead: engine/index.ts reaches this module
+// through a dynamic import, so the whole dataset lands in its own chunk and is
+// fetched rather than shipped in the entry bundle. That is the seam an
+// API-backed source would replace — awaiting a response instead of awaiting a
+// chunk — and it is why nothing may import this module statically.
 const files = import.meta.glob("../facts/*.yaml", {
   query: "?raw",
   import: "default",

@@ -1,13 +1,12 @@
 import React, { useMemo, useState } from "react";
-import { Server, Plus, AlertTriangle, Search, Pencil, Copy, Trash2 } from "lucide-react";
+import { Server, Plus, AlertTriangle, Search, Pencil, Copy, Trash2, Download } from "lucide-react";
 import { C } from "../theme";
 import { PageHeader } from "../components/Headings";
 import { ClassificationTag, AssuranceBadge } from "../components/SystemBadges";
 import AddSystemWizard from "../components/AddSystemWizard";
 import Modal, { ModalCloseButton } from "../components/Modal";
-import { commitRuntimeFacts, removeRuntimeSystem, restoreBaselineSystems } from "../engine";
-import { loadRuntimeFacts } from "../engine/runtimeFactsStore";
-import { YAML_FACTS } from "../graph/sources/yaml";
+import { baseFacts, commitRuntimeFacts, removeRuntimeSystem, restoreBaselineSystems } from "../engine";
+import { loadRuntimeFacts, hasRuntimeFacts } from "../engine/runtimeFactsStore";
 import { useLiveEngine } from "../engine/useLiveEngine";
 import type { SystemId } from "../graph/ids";
 import type { SystemRollup } from "../engine/rollups";
@@ -147,7 +146,7 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
   const liveEngine = useLiveEngine();
   const systems = liveEngine.rollups.systemRollups;
   const runtimeFacts = loadRuntimeFacts();
-  const baselineSystemIds = new Set(YAML_FACTS.systems.map((system) => system.id));
+  const baselineSystemIds = new Set(baseFacts().systems.map((system) => system.id));
   const deletableSystemIds = new Set(
     runtimeFacts.systems.filter((system) => !baselineSystemIds.has(system.id)).map((system) => system.id)
   );
@@ -189,6 +188,25 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
     setDeleteProblems([]);
   }
 
+  // The way anything built in this browser gets out of it. Everything the
+  // wizard writes lives in one localStorage blob, so a system authored here is
+  // invisible to the repo until it is exported and promoted:
+  //
+  //   node scripts/promote-runtime-facts.mjs --from <this file> --write
+  //
+  // which renames the ids into the authored namespace, appends the records to
+  // src/graph/facts/*.yaml, and proves the facts survived the trip.
+  function exportRuntimeFacts() {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const blob = new Blob([JSON.stringify(loadRuntimeFacts(), null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `grc-runtime-facts-${stamp}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   function restoreDemoSystems() {
     const candidate = restoreBaselineSystems(loadRuntimeFacts(), baselineSystemIds);
     const { engine, problems } = commitRuntimeFacts(candidate);
@@ -221,6 +239,17 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
         description="Every system inside ACME's assessment boundary. Select one to open its full security profile, or add a new system to bring it into scope."
         right={
           <div className="flex items-center gap-2">
+            {hasRuntimeFacts(runtimeFacts) && (
+              <button
+                type="button"
+                onClick={exportRuntimeFacts}
+                title="Download everything created in this browser, for promotion into the authored dataset"
+                className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3.5 py-2"
+                style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
+              >
+                <Download size={14} /> Export runtime facts
+              </button>
+            )}
             {hasDemoOverrides && (
               <button
                 type="button"

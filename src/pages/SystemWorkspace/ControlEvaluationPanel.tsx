@@ -13,12 +13,11 @@ import {
   INSTANCE_STATUS_META,
   EVIDENCE_TYPES, EVIDENCE_RESULTS, INDEPENDENCE_LEVELS,
   EVIDENCE_COLLECTOR_TYPES, ARTIFACT_SENSITIVITIES, EVIDENCE_REVIEW_DECISIONS,
-  assetsForSystem, getDataFlows, ORGS,
+  assetsForSystem, getDataFlows, ORGS, baseFacts,
   evaluateControl, addPrismaOverride, updateEvidence, removeEvidence, addFinding, updateFinding, commitRuntimeFacts,
 } from "../../engine";
 import { upsertControlReview } from "../../engine/runtimeMutations";
 import { buildLiveEngine } from "../../engine/liveGraph";
-import { YAML_FACTS } from "../../graph/sources/yaml";
 import { effectiveRating, initialLaneGraderState, laneGraderBlocker, laneGrades, PrismaLaneGrader } from "./PrismaLaneGrader";
 import type { LaneGraderState } from "./PrismaLaneGrader";
 import { implementedFactInput, previewFactInput, recordKeyControlAssessment } from "./recordAssessment";
@@ -762,7 +761,7 @@ export function ControlEvaluationPanel({
   const [draftFacts, setDraftFacts] = useState<RuntimeFacts>(() => loadRuntimeFacts());
   const [pendingChanges, setPendingChanges] = useState<string[]>([]);
   const [savedSummary, setSavedSummary] = useState<string[] | null>(null);
-  const draftEngine = useMemo(() => buildLiveEngine(YAML_FACTS, draftFacts).engine, [draftFacts]);
+  const draftEngine = useMemo(() => buildLiveEngine(baseFacts(), draftFacts).engine, [draftFacts]);
 
   // The row this panel actually renders — the committed prop patched forward
   // by whatever is staged but not yet saved, so an unsaved lane override or
@@ -826,7 +825,7 @@ export function ControlEvaluationPanel({
         recordAssetOptions,
         input: previewFactInput(laneState),
       });
-      const preview = buildLiveEngine(YAML_FACTS, candidate).engine;
+      const preview = buildLiveEngine(baseFacts(), candidate).engine;
       return preview?.assessment.assessmentFor(system.id, row.control.id)?.levels ?? committed;
     } catch {
       // A half-filled form that cannot yet make a valid fact (no asset to hang
@@ -931,7 +930,7 @@ export function ControlEvaluationPanel({
   function stageMutation(label: string, mutate: (existing: RuntimeFacts) => RuntimeFacts): boolean {
     setSaveError(null);
     const next = mutate(draftFacts);
-    const { engine: trial, problems } = buildLiveEngine(YAML_FACTS, next);
+    const { engine: trial, problems } = buildLiveEngine(baseFacts(), next);
     if (!trial) {
       setSaveError(problems);
       return false;

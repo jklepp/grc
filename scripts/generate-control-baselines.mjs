@@ -30,7 +30,9 @@ const outPath = "src/graph/facts/control-baselines.yaml";
 const server = await createServer({ server: { middlewareMode: true }, appType: "custom", logLevel: "warn" });
 
 try {
-  const { engine } = await server.ssrLoadModule("/src/engine/index.ts");
+  const mod = await server.ssrLoadModule("/src/engine/index.ts");
+  await mod.initEngine();
+  const engine = mod.getLiveEngine();
   const { CLASSIFICATION_TIERS } = await server.ssrLoadModule("/src/graph/nodes/taxonomy.ts");
 
   // YAML-authored systems only — a runtime-created system is one user's
