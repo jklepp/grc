@@ -177,6 +177,12 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
     [liveEngine, system.id]
   );
 
+  function openMissingFinding() {
+    const firstGap = formalAssessment.gapControlsMissingFinding[0];
+    if (firstGap) selectControl(firstGap.controlId, "findings");
+    else openControlsGroup(DEFAULT_SELECTION);
+  }
+
   async function generateIsoReport() {
     const { exportIso27001SystemReportPdf } = await import("../../utils/exportIso27001SystemReportPdf");
     await exportIso27001SystemReportPdf({
@@ -220,10 +226,10 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
       {subTab === "overview" && (
         <SystemOverview
           system={system} cockpit={cockpit} compliance={posture.compliance}
-          statusCounts={statusCounts}
           exposure={exposure}
           dataTypes={dataTypes} onNavigate={changeSubTab}
           onOpenScopeReview={openScopeReview} onSelectControlsGroup={openControlsGroup}
+          onOpenMissingFinding={openMissingFinding}
           onStartAssessment={assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
           onGenerateIsoReport={generateIsoReport}
           formalAssessment={formalAssessment}
@@ -294,7 +300,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         onClose={() => setAssessmentWalkOpen(false)}
         onGoToRemediation={() => {
           setAssessmentWalkOpen(false);
-          openControlsGroup(DEFAULT_SELECTION);
+          openMissingFinding();
         }}
       />
 

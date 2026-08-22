@@ -505,7 +505,7 @@ function EvidenceForm({ initial, assetOptions, isProgramScoped, prismaLevel, onC
             assetIds,
           })}
         >
-          Save evidence
+          {initial ? "Update evidence" : "Add evidence"}
         </Button>
       </div>
     </Well>
@@ -815,7 +815,7 @@ export function ControlEvaluationPanel({
   // A staged exclusion overrides all of that. Saying "this control does not
   // apply here" is the opposite of grading it, and on an unassessed control the
   // grader's own blocker would otherwise refuse the save — demanding a rating
-  // for a control the operator has just declared out of scope.
+  // for a control the operator has just declared Not Applicable.
   const savingAssessment = !excludeStaged && (!assessed || laneDirty);
   const saveBlocker = savingAssessment ? laneBlocker : null;
   const canSave = savingAssessment ? saveBlocker === null : pendingChanges.length > 0;
@@ -1056,7 +1056,7 @@ export function ControlEvaluationPanel({
   // same dry run and the same Save.
   function handleMarkOutOfScope(reason: string) {
     const staged = stageMutation(
-      `Marked out of scope — ${row.control.id}`,
+      `Marked Not Applicable — ${row.control.id}`,
       (existing) => upsertControlReview(existing, {
         systemId: system.id,
         controlId: row.control.id,
@@ -1527,7 +1527,7 @@ export function ControlEvaluationPanel({
               {/* The scope escape hatch, at the bottom of Scoring because it is
                   what you reach for when grading turns out to be the wrong
                   question. Same three labels Scope Review settled on — `Mark
-                  out of scope…` opens the reason, `Confirm out of scope`
+                  Not Applicable…` opens the reason, `Confirm Not Applicable`
                   records it — so the two surfaces read as one decision made in
                   two places, not two different ones. */}
               <Section
@@ -1536,9 +1536,9 @@ export function ControlEvaluationPanel({
                 description="This control is in scope for this boundary. Record an exclusion if its premise does not hold here."
               >
                 {excludeStaged ? (
-                  <Callout tone="warning" title="Marked out of scope — not saved yet">
+                  <Callout tone="warning" title="Marked Not Applicable — not saved yet">
                     Goes out with the rest of your changes when you save. The control then leaves this
-                    system's applicable set and appears under Out of Scope in Scope Review, which is where
+                    system's applicable set and appears under Not Applicable in Scope Review, which is where
                     it can be pulled back in.
                   </Callout>
                 ) : excluding ? (
@@ -1564,7 +1564,7 @@ export function ControlEvaluationPanel({
                         value={excludeNote}
                         onChange={(e) => setExcludeNote(e.target.value)}
                         placeholder="e.g. No physical facility inside this boundary"
-                        aria-label={`Reason ${row.control.id} is out of scope`}
+                        aria-label={`Reason ${row.control.id} is Not Applicable`}
                       />
                     </Field>
                     <div className="flex items-center justify-end gap-2.5">
@@ -1576,7 +1576,7 @@ export function ControlEvaluationPanel({
                         disabled={!excludeNote.trim()}
                         onClick={() => handleMarkOutOfScope(excludeNote.trim())}
                       >
-                        Confirm out of scope
+                        Confirm Not Applicable
                       </Button>
                     </div>
                   </Well>
@@ -1587,7 +1587,7 @@ export function ControlEvaluationPanel({
                     icon={Ban}
                     onClick={() => { setExcluding(true); setExcludeNote(""); }}
                   >
-                    Mark out of scope…
+                    Mark Not Applicable…
                   </Button>
                 )}
               </Section>

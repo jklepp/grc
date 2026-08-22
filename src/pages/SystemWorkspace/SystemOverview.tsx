@@ -9,7 +9,7 @@ import { Panel } from "./shared/Panel";
 import { ASSESSMENT_SELECTION, DEFAULT_SELECTION } from "./SystemControls";
 import type { ControlSelection } from "./SystemControls";
 import type {
-  CockpitSummary, ControlMatrixRow, ExposurePosture, WorkspaceDataType, WorkspaceSystem,
+  CockpitSummary, ExposurePosture, WorkspaceDataType, WorkspaceSystem,
 } from "./types";
 import type { SystemWorkspaceTab } from "./tabs";
 import type { FormalAssessmentStatus, ReviewWave } from "../../engine/review";
@@ -18,12 +18,12 @@ interface SystemOverviewProps {
   system: WorkspaceSystem;
   cockpit: CockpitSummary;
   compliance: number | null;
-  statusCounts: Record<ControlMatrixRow["status"], number>;
   exposure: ExposurePosture;
   dataTypes: WorkspaceDataType[];
   onNavigate: (tab: SystemWorkspaceTab) => void;
   onOpenScopeReview: (wave: ReviewWave) => void;
   onSelectControlsGroup: (selection: ControlSelection) => void;
+  onOpenMissingFinding: () => void;
   onStartAssessment?: () => void;
   onGenerateIsoReport: () => Promise<void>;
   formalAssessment: FormalAssessmentStatus;
@@ -31,8 +31,9 @@ interface SystemOverviewProps {
 
 export function SystemOverview(props: SystemOverviewProps) {
   const {
-    system, cockpit, compliance, statusCounts, exposure,
-    dataTypes, onNavigate, onOpenScopeReview, onSelectControlsGroup, onStartAssessment, onGenerateIsoReport,
+    system, cockpit, compliance, exposure,
+    dataTypes, onNavigate, onOpenScopeReview, onSelectControlsGroup, onOpenMissingFinding,
+    onStartAssessment, onGenerateIsoReport,
     formalAssessment,
   } = props;
   const [generatingReport, setGeneratingReport] = useState(false);
@@ -54,11 +55,10 @@ export function SystemOverview(props: SystemOverviewProps) {
 
       <Panel>
         <AssessmentReadiness
-          statusCounts={statusCounts}
           formalAssessment={formalAssessment}
           onScopeClick={() => onOpenScopeReview("not-applicable")}
           onAssessClick={onStartAssessment ?? (() => onSelectControlsGroup(ASSESSMENT_SELECTION))}
-          onGapsClick={() => onSelectControlsGroup(DEFAULT_SELECTION)}
+          onGapsClick={onOpenMissingFinding}
           onRemediateClick={() => onSelectControlsGroup(DEFAULT_SELECTION)}
         />
       </Panel>

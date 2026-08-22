@@ -172,6 +172,12 @@ export interface FormalAssessmentStatus {
   scopeRemainingCount: number;
   scopeTotalCount: number;
   controlsAssessed: boolean;
+  // The controls this product can assess directly: applicable key controls.
+  // The full applicable catalog remains the denominator for coverage, but
+  // non-key controls do not carry per-implementation evidence or Findings and
+  // therefore cannot be completion work in the control assessment walk.
+  assessmentRemainingCount: number;
+  assessmentTotalCount: number;
   gapsRecorded: boolean;
   gapControlsMissingFinding: Array<{ controlId: ControlId; control: Control }>;
   // Lane 3's population: every control carrying a gap, recorded or not.
@@ -552,7 +558,7 @@ export function createReview(
   // what the System Readiness card's four lanes read.
   //
   // Deliberately a LOWER bar than audit-ready: it does not require the gaps to
-  // be fixed, only that scope is decided, every applicable control is graded,
+  // be fixed, only that scope is decided, every applicable key control is graded,
   // and everything still sitting at partial/deficient/not-implemented has a
   // Finding on record. That is how an engagement actually completes.
   //
@@ -561,6 +567,7 @@ export function createReview(
   // the cockpit, or a second surface — without recomputing them.
   function formalAssessmentForSystem(systemId: SystemId): FormalAssessmentStatus {
     const matrix = compliance.systemControlMatrix(systemId);
+    const assessmentRows = matrix.filter((row) => Boolean(row.keyControl));
     const systemFindings = findings.findingsForSystem(systemId);
     const findingControlIds = new Set(systemFindings.map((f) => f.controlId));
 
@@ -578,7 +585,8 @@ export function createReview(
     const scopeRemainingCount = scopeWaves.reduce((sum, w) => sum + w.remaining.length, 0);
     const scopeTotalCount = scopeWaves.reduce((sum, w) => sum + w.total, 0);
     const scopeDecided = scopeRemainingCount === 0;
-    const controlsAssessed = matrix.every((row) => row.status !== "unassessed");
+    const assessmentRemainingCount = assessmentRows.filter((row) => row.status === "unassessed").length;
+    const controlsAssessed = assessmentRemainingCount === 0;
     const gapsRecorded = gapControlsMissingFinding.length === 0;
 
     // Lane 4: residual position — what is still to fix, from BOTH sides of the
@@ -599,6 +607,8 @@ export function createReview(
       scopeRemainingCount,
       scopeTotalCount,
       controlsAssessed,
+      assessmentRemainingCount,
+      assessmentTotalCount: assessmentRows.length,
       gapsRecorded,
       gapControlsMissingFinding,
       remediationCount: gapControls.length,

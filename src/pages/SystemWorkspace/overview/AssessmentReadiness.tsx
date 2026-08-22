@@ -1,16 +1,12 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
-import { Check, ClipboardCheck, FileWarning, ShieldCheck, Target, Wrench } from "lucide-react";
+import { ArrowRight, Check, ClipboardCheck, FileWarning, ShieldCheck, Target, Wrench } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { C } from "../../../theme";
 import { SectionHeader } from "../shared/SectionHeader";
-import { Callout, StatusPill, TX, WizardTokens, WZ } from "../../../components/wizard/WizardUI";
+import { Button, Callout, StatusPill, TX, WizardTokens, WZ } from "../../../components/wizard/WizardUI";
 import type { FormalAssessmentStatus } from "../../../engine/review";
-import type { ControlMatrixRow } from "../types";
-
-type ControlStatus = ControlMatrixRow["status"];
 
 interface AssessmentReadinessProps {
-  statusCounts: Record<ControlStatus, number>;
   formalAssessment: FormalAssessmentStatus;
   onScopeClick: () => void;
   onAssessClick: () => void;
@@ -181,9 +177,9 @@ const FORMAL_ASSESSMENT_CHECKS = ["scope", "assess", "gaps"] as const;
 // checks, not a sequential wizard. The first deficient check in
 // scope->assess->gaps->remediate order (the natural workflow sequence) is
 // marked as next; the order on screen never reshuffles.
-export function AssessmentReadiness({ statusCounts, formalAssessment, onScopeClick, onAssessClick, onGapsClick, onRemediateClick }: AssessmentReadinessProps) {
+export function AssessmentReadiness({ formalAssessment, onScopeClick, onAssessClick, onGapsClick, onRemediateClick }: AssessmentReadinessProps) {
   const pendingCount = formalAssessment.scopeRemainingCount;
-  const assessmentCount = statusCounts.unassessed ?? 0;
+  const assessmentCount = formalAssessment.assessmentRemainingCount;
   const gapsMissingCount = formalAssessment.gapControlsMissingFinding.length;
   const remediationCount = formalAssessment.remediationCount;
   // Lane 4 asks a different question than lane 3 and so counts a different
@@ -195,14 +191,15 @@ export function AssessmentReadiness({ statusCounts, formalAssessment, onScopeCli
   // over, so an arc never mixes two questions:
   //   scope     — every exclusion and inheritance claim Scope Review presents,
   //               decided or not (see formalAssessmentForSystem)
-  //   assess    — every applicable control, i.e. the whole control matrix
+  //   assess    — every applicable key control, the population the assessment
+  //               walk and evidence/Findings models can work directly
   //   gaps      — every control carrying a gap, recorded or not
   //   remediate — assessed controls, of which the ones with nothing residual
   //               open on them are the progress
   const matchedCount = formalAssessment.scopeTotalCount;
   const decidedCount = matchedCount - pendingCount;
-  const matrixCount = Object.values(statusCounts).reduce((sum, n) => sum + n, 0);
-  const assessedCount = matrixCount - assessmentCount;
+  const assessmentTotal = formalAssessment.assessmentTotalCount;
+  const assessedCount = assessmentTotal - assessmentCount;
 
   const checks: Record<CheckId, {
     icon: LucideIcon; title: string; note: string; complete: boolean; count: number;
@@ -225,7 +222,7 @@ export function AssessmentReadiness({ statusCounts, formalAssessment, onScopeCli
       complete: assessmentCount === 0,
       count: assessmentCount,
       done: assessedCount,
-      total: matrixCount,
+      total: assessmentTotal,
       onClick: onAssessClick,
     },
     gaps: {
@@ -285,7 +282,16 @@ export function AssessmentReadiness({ statusCounts, formalAssessment, onScopeCli
         icon={ShieldCheck}
         title="System Readiness"
         description="Every gap is recorded or fixed. Keep all four clear and the system stays assurance-ready."
-        aside={<StatusPill tone={allClear ? "success" : "neutral"}>{doneCount} of {CHECKS.length} complete</StatusPill>}
+        aside={(
+          <div className="flex items-center gap-2">
+            <StatusPill tone={allClear ? "success" : "neutral"}>{doneCount} of {CHECKS.length} complete</StatusPill>
+            {nextId && (
+              <Button size="sm" variant="primary" iconRight={ArrowRight} onClick={checks[nextId].onClick}>
+                Continue to {checks[nextId].title}
+              </Button>
+            )}
+          </div>
+        )}
       />
 
       <div className="flex flex-col gap-3">
@@ -295,7 +301,7 @@ export function AssessmentReadiness({ statusCounts, formalAssessment, onScopeCli
           </Callout>
         ) : formallyAssessed ? (
           <Callout tone="success" title="Formally assessed.">
-            Scope is decided, every applicable control has been evaluated, and every gap has a Finding/CAP on record.
+            Scope is decided, every applicable key control has been evaluated, and every gap has a Finding/CAP on record.
             {residualCount > 0 ? ` ${residualCount} remediation item${residualCount === 1 ? "" : "s"} still open.` : ""}
           </Callout>
         ) : null}

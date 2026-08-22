@@ -33,8 +33,8 @@ interface ControlAssessmentWalkProps {
   open: boolean;
   systemId: SystemId;
   onClose: () => void;
-  // Wired up so the completion screen can hand off straight into the
-  // Remediation queue when the walk surfaced a Not Implemented call.
+  // Wired up so the completion screen can hand off straight to the first
+  // assessed gap that still needs its Finding/CAP recorded.
   onGoToRemediation?: () => void;
 }
 
@@ -72,7 +72,6 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
   const [activeDomain, setActiveDomain] = useState("");
   const [initialTotal, setInitialTotal] = useState(0);
   const [reviewer, setReviewer] = useState("");
-  const [notImplementedCount, setNotImplementedCount] = useState(0);
   const [skippedIds, setSkippedIds] = useState<ReadonlySet<ControlId>>(new Set());
   const [advancing, setAdvancing] = useState<Advancing | null>(null);
 
@@ -92,7 +91,6 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
   useEffect(() => {
     if (!open) return;
     setReviewer(liveEngine.graph.assessmentScopeBySystem[systemId]?.assessor ?? "");
-    setNotImplementedCount(0);
     setSkippedIds(new Set());
     setAdvancing(null);
     const totals: Record<string, number> = {};
@@ -124,6 +122,8 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
   const decidedCount = Math.max(0, initialTotal - queue.length);
   const skippedCount = queue.filter((row) => skippedIds.has(row.controlId)).length;
   const complete = initialTotal > 0 && remainingTotal === 0;
+  const formalAssessment = liveEngine.review.formalAssessmentForSystem(systemId);
+  const missingFindingCount = formalAssessment.gapControlsMissingFinding.length;
 
   if (complete) {
     return (
@@ -139,9 +139,9 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
           />
           <WizardOutcomePane>
             <CompletionScreen
-              title="Control assessment complete"
+              title={skippedCount > 0 ? "Assessment walk paused" : "Control assessment complete"}
               description={skippedCount > 0
-                ? `${decidedCount} of ${initialTotal} applicable key controls on this boundary now have a recorded fact; ${skippedCount} skipped for later.`
+                ? `${decidedCount} of ${initialTotal} applicable key controls now have a recorded assessment; ${skippedCount} still need a decision.`
                 : "Every applicable key control on this boundary now has a recorded fact behind its score."}
               tiles={domainOrder.length > 0 ? (
                 <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 xl:grid-cols-4">
@@ -156,18 +156,24 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
           <WizardFooter
             position={`${decidedCount} of ${initialTotal} assessed`}
             close={<Button onClick={onClose}>Close</Button>}
-            primary={notImplementedCount > 0 && onGoToRemediation
+            primary={skippedCount > 0
               ? (
+                <Button variant="primary" iconRight={ArrowRight} onClick={() => setSkippedIds(new Set())}>
+                  Review skipped controls &middot; {skippedCount}
+                </Button>
+              )
+              : missingFindingCount > 0 && onGoToRemediation
+                ? (
                 <Button
                   variant="primary"
                   icon={Wrench}
                   iconRight={ArrowRight}
                   onClick={() => { onClose(); onGoToRemediation(); }}
                 >
-                  Continue to Remediation &middot; {notImplementedCount}
+                  Record Findings &middot; {missingFindingCount}
                 </Button>
-              )
-              : undefined}
+                )
+                : undefined}
           />
         </WizardChrome>
       </Modal>
@@ -245,7 +251,6 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
         reviewer,
         onReviewerChange: setReviewer,
         onRecorded: (rating, continueWalk) => {
-          if (rating === 0) setNotImplementedCount((n) => n + 1);
           if (!continueWalk) {
             onClose();
             return;

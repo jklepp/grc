@@ -232,9 +232,3 @@ amend here — never an undocumented local exception.
   footer's Continue appears only once the section is settled, so the two never
   compete on screen. If 4.8 is meant literally, these drop to `secondary` and
   the rule gains a sentence saying so.
-- **Scope Review says "Out of Scope" where the engine's status is
-  "Not Applicable"** (2.7). The surface is scope-shaped end to end — its name,
-  its rail, its header stat and its exclusion notes all say in/out of scope —
-  so the paraphrase is at least consistent. Resolving it means picking one word
-  for the concept across the engine and the UI, which is a wider change than a
-  chrome pass.

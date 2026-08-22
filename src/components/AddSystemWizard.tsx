@@ -1520,7 +1520,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                             saved={a.saved}
                             onExpand={() => expandAsset(a.key)}
                             onSave={() => saveAsset(a.key)}
-                            saveLabel={a.added ? "Save changes" : "Add asset"}
+                            saveLabel={a.added ? "Update asset" : "Add asset"}
                             canSave={assetDraftIsValid(a)}
                             invalidReason="Enter an asset name and map at least one data type."
                             onRemove={assets.length > 1 ? () => removeAsset(a.key) : undefined}
@@ -1666,7 +1666,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                                 saved={actor.saved}
                                 onExpand={() => expandActor(actor.key)}
                                 onSave={() => saveActor(actor.key)}
-                                saveLabel={actor.added ? "Save changes" : "Add actor"}
+                                saveLabel={actor.added ? "Update actor" : "Add actor"}
                                 canSave={actorDraftIsValid(actor)}
                                 invalidReason="Name, description, and touched asset are required."
                                 onRemove={() => removeActor(actor.key)}
@@ -1733,7 +1733,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                                   saved={flow.saved}
                                   onExpand={() => expandFlow(flow.key)}
                                   onSave={() => saveFlow(flow.key)}
-                                  saveLabel={flow.added ? "Save changes" : "Add relationship"}
+                                  saveLabel={flow.added ? "Update relationship" : "Add relationship"}
                                   canSave={flowDraftIsValid(flow)}
                                   invalidReason="Connect two different assets and carry at least one data type."
                                   onRemove={() => removeFlow(flow.key)}
@@ -1813,7 +1813,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                                   saved={agent.saved}
                                   onExpand={() => expandAgent(agent.key)}
                                   onSave={() => saveAgent(agent.key)}
-                                  saveLabel={agent.added ? "Save changes" : "Add agent"}
+                                  saveLabel={agent.added ? "Update agent" : "Add agent"}
                                   canSave={agentDraftIsValid(agent, autonomousActions)}
                                   invalidReason="Name, purpose, service principal, and tools are required."
                                   onRemove={() => removeAgent(agent.key)}
@@ -1956,7 +1956,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                               saved={t.saved}
                               onExpand={() => expandDrTest(t.key)}
                               onSave={() => saveDrTest(t.key)}
-                              saveLabel="Save test"
+                              saveLabel={t.saved ? "Update test" : "Add test"}
                               canSave={drTestDraftIsValid(t)}
                               invalidReason="Enter a scope, a valid date, and — if the restore failed — what went wrong."
                               onRemove={() => removeDrTest(t.key)}
