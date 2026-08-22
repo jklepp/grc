@@ -186,6 +186,10 @@ export function AssessmentReadiness({ statusCounts, formalAssessment, onScopeCli
   const assessmentCount = statusCounts.unassessed ?? 0;
   const gapsMissingCount = formalAssessment.gapControlsMissingFinding.length;
   const remediationCount = formalAssessment.remediationCount;
+  // Lane 4 asks a different question than lane 3 and so counts a different
+  // population — every control with a gap status OR an open Finding on it.
+  // See review.formalAssessmentForSystem.
+  const residualCount = formalAssessment.residualCount;
 
   // Denominators for the gauges. Each one is the population its own check runs
   // over, so an arc never mixes two questions:
@@ -193,7 +197,8 @@ export function AssessmentReadiness({ statusCounts, formalAssessment, onScopeCli
   //               decided or not (see formalAssessmentForSystem)
   //   assess    — every applicable control, i.e. the whole control matrix
   //   gaps      — every control carrying a gap, recorded or not
-  //   remediate — assessed controls, of which the clean ones are the progress
+  //   remediate — assessed controls, of which the ones with nothing residual
+  //               open on them are the progress
   const matchedCount = formalAssessment.scopeTotalCount;
   const decidedCount = matchedCount - pendingCount;
   const matrixCount = Object.values(statusCounts).reduce((sum, n) => sum + n, 0);
@@ -237,9 +242,9 @@ export function AssessmentReadiness({ statusCounts, formalAssessment, onScopeCli
       icon: Wrench,
       title: "Remediation",
       note: "Items still to fix",
-      complete: remediationCount === 0,
-      count: remediationCount,
-      done: assessedCount - remediationCount,
+      complete: residualCount === 0,
+      count: residualCount,
+      done: assessedCount - residualCount,
       total: assessedCount,
       onClick: onRemediateClick,
     },
@@ -291,7 +296,7 @@ export function AssessmentReadiness({ statusCounts, formalAssessment, onScopeCli
         ) : formallyAssessed ? (
           <Callout tone="success" title="Formally assessed.">
             Scope is decided, every applicable control has been evaluated, and every gap has a Finding/CAP on record.
-            {remediationCount > 0 ? ` ${remediationCount} remediation item${remediationCount === 1 ? "" : "s"} still open.` : ""}
+            {residualCount > 0 ? ` ${residualCount} remediation item${residualCount === 1 ? "" : "s"} still open.` : ""}
           </Callout>
         ) : null}
 

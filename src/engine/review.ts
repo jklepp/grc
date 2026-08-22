@@ -174,7 +174,17 @@ export interface FormalAssessmentStatus {
   controlsAssessed: boolean;
   gapsRecorded: boolean;
   gapControlsMissingFinding: Array<{ controlId: ControlId; control: Control }>;
+  // Lane 3's population: every control carrying a gap, recorded or not.
   remediationCount: number;
+  // Lane 4's population, which is a different question and so a different
+  // list: every control with something residual still open on it — a gap
+  // status, an open Finding, or both. A control at partial/deficient stays
+  // here until it is REASSESSED, so a CAP marked Complete cannot clear the
+  // lane on its own; and a Finding raised by a pen test or a DR exercise
+  // against an otherwise-clean control counts, which it did not when this
+  // read control status alone.
+  residualControls: Array<{ controlId: ControlId; control: Control }>;
+  residualCount: number;
   openFindingCount: number;
   overdueFindingCount: number;
   complete: boolean;
@@ -571,6 +581,19 @@ export function createReview(
     const controlsAssessed = matrix.every((row) => row.status !== "unassessed");
     const gapsRecorded = gapControlsMissingFinding.length === 0;
 
+    // Lane 4: residual position — what is still to fix, from BOTH sides of the
+    // record. A gap status is the assessed reading; an open Finding is the
+    // tracked one. Neither alone is the whole answer: a control can be graded
+    // clean and still carry an open pen-test finding, and a control can be
+    // graded deficient before anyone has written the finding down. Unioned by
+    // control so a gap with three findings on it is one item to fix, not four.
+    const gapControlIds = new Set(gapControls.map((row) => row.controlId));
+    const openFindingControlIds = new Set(systemFindings.filter((f) => f.open).map((f) => f.controlId));
+    const residualControls = matrix
+      .filter((row) => gapControlIds.has(row.controlId) || openFindingControlIds.has(row.controlId))
+      .map((row) => ({ controlId: row.controlId, control: row.control }))
+      .sort((a, b) => a.controlId.localeCompare(b.controlId));
+
     return {
       scopeDecided,
       scopeRemainingCount,
@@ -578,10 +601,9 @@ export function createReview(
       controlsAssessed,
       gapsRecorded,
       gapControlsMissingFinding,
-      // Lane 4: residual position. Every control still at a gap status, which
-      // is what "how much is left to fix" means — open findings are how those
-      // gaps are tracked, not a second population to add on top.
       remediationCount: gapControls.length,
+      residualControls,
+      residualCount: residualControls.length,
       openFindingCount: systemFindings.filter((f) => f.open).length,
       overdueFindingCount: systemFindings.filter((f) => f.overdue).length,
       complete: scopeDecided && controlsAssessed && gapsRecorded,

@@ -269,6 +269,16 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
   // the saved record instead of the values it was opened with.
   const editing = editingId ? findings.find((f) => f.id === editingId) ?? null : null;
 
+  // What already closed this finding, resolved here rather than in the form —
+  // the editor has no engine access, same rule that keeps systemId out of it.
+  const editingClosureEvidence = useMemo(
+    () => (editing?.closureEvidenceIds ?? [])
+      .map((id) => liveEngine.selectors.getEvidence(id))
+      .filter((ev): ev is NonNullable<typeof ev> => Boolean(ev))
+      .map((ev) => ({ id: ev.id, source: ev.source, collectedAt: ev.collectedAt, evidenceType: ev.evidenceType })),
+    [editing, liveEngine]
+  );
+
   // Dry-run, then commit (CONTRACT 5.4). Nothing here hand-assembles a fact
   // record — every mutation goes through engine/runtimeMutations.
   function commit(mutate: (runtime: RuntimeFacts) => RuntimeFacts): boolean {
@@ -417,6 +427,7 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
           open
           controlOptions={controlOptions}
           assetOptionsFor={assetOptionsFor}
+          closureEvidence={editingClosureEvidence}
           problems={saveError}
           eyebrow={editing ? `${editing.id} · ${editing.controlId}` : "New finding"}
           heading={editing ? editing.title : "New finding"}

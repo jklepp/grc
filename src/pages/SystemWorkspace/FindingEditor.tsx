@@ -22,9 +22,10 @@ import {
 } from "../../engine";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
-  Button, Callout, Field, FieldGrid, Select, TextInput, Well,
+  Button, Callout, Field, FieldGrid, Select, TextInput, TX, Well,
   WizardBanner, WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardPane,
 } from "../../components/wizard/WizardUI";
+import { C } from "../../theme";
 import { selectedValue } from "./formHelpers";
 import type { AssetOption } from "./formHelpers";
 import type { FindingDraft } from "../../engine";
@@ -57,15 +58,27 @@ export const EMPTY_FINDING_FORM: FindingFormState = {
   remediationOwnerId: "", targetDate: "", closureEvidence: "",
 };
 
+// Closure evidence already on the finding, resolved by the host from the live
+// engine. The form has no engine access — same rule as systemId — so the host
+// looks the records up and hands over what they say.
+export interface ClosureEvidenceRef {
+  id: string;
+  source: string;
+  collectedAt: string;
+  evidenceType: string;
+}
+
 interface FindingFormConfig {
   initial?: Partial<FindingFormState>;
   controlOptions?: Array<{ id: ControlId; label: string }>;
   assetOptionsFor: (controlId: ControlId) => AssetOption[];
+  // Absent on a new finding, and on any finding nothing has closed yet.
+  closureEvidence?: ClosureEvidenceRef[];
 }
 
 // The form's whole brain, so the inline editor and the modal share one set of
 // rules rather than two that drift.
-export function useFindingForm({ initial, controlOptions, assetOptionsFor }: FindingFormConfig) {
+export function useFindingForm({ initial, controlOptions, assetOptionsFor, closureEvidence = [] }: FindingFormConfig) {
   const [form, setForm] = useState<FindingFormState>(() => ({
     ...EMPTY_FINDING_FORM,
     controlId: controlOptions?.[0]?.id ?? "",
@@ -125,7 +138,7 @@ export function useFindingForm({ initial, controlOptions, assetOptionsFor }: Fin
     };
   }
 
-  return { form, setField, changeControl, assetOptions, completing, ready, buildDraft };
+  return { form, setField, changeControl, assetOptions, completing, ready, buildDraft, closureEvidence };
 }
 
 type FindingFormApi = ReturnType<typeof useFindingForm>;
@@ -135,7 +148,7 @@ export function FindingFields({ state, controlOptions }: {
   state: FindingFormApi;
   controlOptions?: Array<{ id: ControlId; label: string }>;
 }) {
-  const { form, setField, changeControl, assetOptions, completing } = state;
+  const { form, setField, changeControl, assetOptions, completing, closureEvidence: recorded } = state;
   return (
     <>
       <FieldGrid cols={2}>
@@ -205,9 +218,11 @@ export function FindingFields({ state, controlOptions }: {
             has not happened. */}
         {completing && (
           <Field
-            label="Closure evidence"
+            label={recorded.length > 0 ? "Add closure evidence" : "Closure evidence"}
             span2
-            note="Optional — what proves it's fixed. Recorded as a self-attestation evidence record against this control."
+            note={recorded.length > 0
+              ? "Optional — leave blank to keep what is already on record. Anything typed here is recorded as an ADDITIONAL self-attestation."
+              : "Optional — what proves it's fixed. Recorded as a self-attestation evidence record against this control."}
           >
             <TextInput
               value={form.closureEvidence}
@@ -218,7 +233,25 @@ export function FindingFields({ state, controlOptions }: {
         )}
       </FieldGrid>
 
-      {completing && !form.closureEvidence.trim() && (
+      {/* What already closed this finding. Without it the field above is an
+          empty box on a finding that IS closed, which reads as "nothing proves
+          this" and invites a second record saying what the first one already
+          said. */}
+      {completing && recorded.length > 0 && (
+        <Well className="flex flex-col gap-2">
+          <div className={TX.label} style={{ color: C.muted }}>On record</div>
+          {recorded.map((ev) => (
+            <div key={ev.id} className="flex flex-col gap-0.5">
+              <div className={TX.body} style={{ color: C.ink }}>{ev.source}</div>
+              <div className={TX.help} style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
+                {ev.id} · {ev.evidenceType} · collected {ev.collectedAt}
+              </div>
+            </div>
+          ))}
+        </Well>
+      )}
+
+      {completing && recorded.length === 0 && !form.closureEvidence.trim() && (
         <Callout tone="info" title="Closing without evidence.">
           The finding will be marked Complete and dated, but nothing on record will say what fixed it.
         </Callout>
@@ -236,8 +269,8 @@ export interface FindingEditorProps extends FindingFormConfig {
 // Inline form, for a host that is already a focused surface. The control panel
 // uses this: it is itself a modal, and opening a second modal on top of it to
 // type six fields would bury the control the gap is about.
-export function FindingEditor({ initial, controlOptions, assetOptionsFor, submitLabel, onCancel, onSubmit }: FindingEditorProps) {
-  const state = useFindingForm({ initial, controlOptions, assetOptionsFor });
+export function FindingEditor({ initial, controlOptions, assetOptionsFor, closureEvidence, submitLabel, onCancel, onSubmit }: FindingEditorProps) {
+  const state = useFindingForm({ initial, controlOptions, assetOptionsFor, closureEvidence });
   return (
     <Well className="flex flex-col gap-3.5">
       <FindingFields state={state} controlOptions={controlOptions} />
@@ -272,10 +305,10 @@ export interface FindingEditorModalProps extends FindingEditorProps {
 // committing action — but there are no steps to walk, so inventing a rail would
 // dress a single form up as a wizard.
 export function FindingEditorModal({
-  open, onCancel, onSubmit, initial, controlOptions, assetOptionsFor,
+  open, onCancel, onSubmit, initial, controlOptions, assetOptionsFor, closureEvidence,
   submitLabel, eyebrow, heading, problems,
 }: FindingEditorModalProps) {
-  const state = useFindingForm({ initial, controlOptions, assetOptionsFor });
+  const state = useFindingForm({ initial, controlOptions, assetOptionsFor, closureEvidence });
   if (!open) return null;
   return (
     <Modal open onClose={onCancel} width={840} height={720}>

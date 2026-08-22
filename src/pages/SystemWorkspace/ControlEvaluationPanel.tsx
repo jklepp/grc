@@ -18,7 +18,7 @@ import {
 } from "../../engine";
 import { upsertControlReview, addClosureEvidence } from "../../engine/runtimeMutations";
 import { FindingEditor } from "./FindingEditor";
-import type { FindingFormState } from "./FindingEditor";
+import type { ClosureEvidenceRef, FindingFormState } from "./FindingEditor";
 import { buildLiveEngine } from "../../engine/liveGraph";
 import { effectiveRating, initialLaneGraderState, laneGraderBlocker, laneGrades, PrismaLaneGrader } from "./PrismaLaneGrader";
 import type { LaneGraderState } from "./PrismaLaneGrader";
@@ -684,6 +684,17 @@ export function ControlEvaluationPanel({
     [liveEngine, system.id, committedRow.control.id]
   );
   const assessorOfRecord = liveEngine.graph.assessmentScopeBySystem[system.id]?.assessor ?? "";
+
+  // Closure evidence already on a finding, in the shape the editor renders.
+  // Read off the staged draft engine so a record created earlier in this same
+  // staged session is visible too.
+  const closureEvidenceFor = useCallback(
+    (f: EngineFinding): ClosureEvidenceRef[] => (draftEngine ? f.closureEvidenceIds ?? [] : [])
+      .map((id) => draftEngine!.selectors.getEvidence(id))
+      .filter((ev): ev is NonNullable<typeof ev> => Boolean(ev))
+      .map((ev) => ({ id: ev.id, source: ev.source, collectedAt: ev.collectedAt, evidenceType: ev.evidenceType })),
+    [draftEngine]
+  );
 
   // Assets a given control is actually required on — what FindingEditor offers
   // as the optional locator. Anything else would produce a draft the dry run
@@ -1681,6 +1692,11 @@ export function ControlEvaluationPanel({
                             remediationOwnerId: f.remediationOwnerId ?? "", targetDate: f.targetDate ?? "",
                           }}
                           assetOptionsFor={findingAssetOptions}
+                          // The card below carries these, and the editor replaces
+                          // the card — without them, editing a closed finding
+                          // hides what closed it and invites a second record
+                          // saying what the first already said.
+                          closureEvidence={closureEvidenceFor(f)}
                           onCancel={() => setEditingFindingId(null)}
                           onSubmit={(patch, closureEvidence) => handleUpdateFinding(f.id, patch, closureEvidence, `Updated finding — ${patch.title}`)}
                         />
