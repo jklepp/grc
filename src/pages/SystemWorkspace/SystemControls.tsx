@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import { RadioTower, Layers, AlertTriangle, ChevronUp, ChevronDown, ChevronsUpDown, ClipboardCheck, ListChecks } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { RadioTower, Layers, ChevronUp, ChevronDown, ChevronsUpDown, ClipboardCheck } from "lucide-react";
 import { C } from "../../theme";
 import { SectionHeader } from "./shared/SectionHeader";
 import {
@@ -186,81 +185,146 @@ function Chip({ label, count, color, bg, active, onClick, flat = false }: ChipPr
   );
 }
 
-// A matched posture tile for the KPI row. `primary` marks Assurance: same
-// tile shape as its neighbors, but the ring chart + accent color keep it the
-// visual anchor rather than an oversized card fighting two plain numbers.
-function ControlPostureCard({ assurance, compliance, coverage }: { assurance: number | null; compliance: number; coverage: number }) {
+// The assurance figure, with the caveat attached rather than implied. This
+// number is weighted across the controls that were actually examined, so the
+// examined count belongs next to it — see compliance.ts's note that the
+// coverage figure is "the honesty check" on any posture percentage.
+function PostureAnchor({ assurance, assessed, applicable, notApplicable, pending, onOpenScopeReview }: {
+  assurance: number | null;
+  assessed: number;
+  applicable: number;
+  notApplicable: number;
+  pending: number;
+  onOpenScopeReview?: (wave: ReviewWave) => void;
+}) {
   return (
-    <div
-      className="rounded-xl p-5 flex items-center gap-6 md:col-span-3 xl:col-span-2"
-      style={{ background: `linear-gradient(135deg, ${C.accent} 0%, ${C.accentStrong} 100%)` }}
-    >
-      <div className="flex items-center gap-3 shrink-0">
-        {assurance != null && <StatRing pct={assurance} color="#FFFFFF" trackColor="rgba(255,255,255,0.25)" size={44} />}
-        <div>
-          <div className="text-3xl font-semibold text-white" style={{ fontFamily: "'Source Serif 4', serif" }}>{assurance == null ? "—" : `${assurance}%`}</div>
-          <div className="text-[10px] font-semibold uppercase tracking-wide mt-1 text-white/85">Assurance</div>
-          <div className="text-[11px] mt-0.5 text-white/70">Operating confidence</div>
+    <div className="flex items-center justify-between gap-6 pb-4" style={{ borderBottom: `1px solid ${C.border}` }}>
+      <div className="flex items-center gap-3.5 min-w-0">
+        {assurance != null && <StatRing pct={assurance} color={C.accent} trackColor={C.panel2} size={46} stroke={5} />}
+        <div className="min-w-0">
+          <div className="flex items-baseline gap-2">
+            <span className="text-[32px] leading-none font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>
+              {assurance == null ? "—" : `${assurance}%`}
+            </span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.muted }}>Assurance</span>
+          </div>
+          <div className="text-xs mt-1" style={{ color: C.muted }}>
+            Operating confidence, weighted across the {assessed} control{assessed === 1 ? "" : "s"} examined
+          </div>
         </div>
       </div>
-      <div className="h-14 w-px shrink-0" style={{ background: "rgba(255,255,255,0.22)" }} />
-      <div className="grid grid-cols-2 gap-6 flex-1 min-w-0">
-        <div>
-          <div className="text-2xl font-semibold text-white" style={{ fontFamily: "'Source Serif 4', serif" }}>{compliance}%</div>
-          <div className="text-[10px] font-semibold uppercase tracking-wide mt-1 text-white/80">Compliance</div>
-          <div className="text-[11px] mt-0.5 text-white/65">Implemented</div>
-        </div>
-        <div>
-          <div className="text-2xl font-semibold text-white" style={{ fontFamily: "'Source Serif 4', serif" }}>{coverage}%</div>
-          <div className="text-[10px] font-semibold uppercase tracking-wide mt-1 text-white/80">Coverage</div>
-          <div className="text-[11px] mt-0.5 text-white/65">Assessed</div>
-        </div>
+      <div className="text-right shrink-0">
+        <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.muted }}>{applicable} applicable controls</div>
+        <button
+          onClick={() => onOpenScopeReview?.("not-applicable")}
+          className="text-[11px] mt-1"
+          style={{ color: C.muted }}
+        >
+          {notApplicable} {NOT_APPLICABLE_META.label} · {pending} in applicability review
+        </button>
       </div>
     </div>
   );
 }
 
-// The one tile that answers "does this system need action" on its own,
-// without reading the table below it. Same size as its neighbors so it
-// doesn't just look like the loudest thing on the page — the color does
-// that work. Clicking it (or clicking it again) toggles the same
-// queue selection the table already defaults to.
-function WorkQueueTile({ count, label, sublabel, icon: Icon, color, background, target, selection, onToggle, onClick }: {
-  count: number;
+// Bars are plotted to 86% of the track so a value label always has room to
+// sit just past the tip. Every bar uses the same scale, so the proportions
+// are untouched — this is a plot margin, not a distortion.
+const BAR_SCALE = 0.86;
+
+// Three fills for the three things a control can be here: holding, not
+// holding, or unexamined. Statuses inside a group share a fill and are told
+// apart by their row label, which is the same grouping the status chips have
+// always used (every remediation status was already one amber).
+//
+// Worth knowing why it isn't one fill per status. The severity ramp puts
+// `partial` at C.amber and `deficient` at C.red, which in this palette are
+// #23558F and #2C3B85 — 7.2 ΔE apart in normal vision, against a 15 floor.
+// As small chips carrying their own icon and label that passes unnoticed; as
+// two adjacent 14px bars it reads as one color used twice. Severity is
+// carried by the Status column in the table below, which sorts on
+// STATUS_RANK and shows a per-status icon.
+//
+// Two further departures from STATUS_META: `satisfied` is accent purple
+// there, but purple is this card's assurance and action color and a status
+// bar wearing it read as progress rather than as a status. And `unassessed`
+// is a hatch rather than a flat fill, because "nobody looked" is the absence
+// of a finding, not a finding — a solid block half the catalogue long claims
+// more than the data does.
+function barFill(status: ControlStatus): string {
+  if (status === "unassessed") {
+    return `repeating-linear-gradient(135deg, ${C.muted} 0 4px, ${C.panel2} 4px 10px)`;
+  }
+  return REMEDIATION_STATUS_SET.has(status) ? C.amber : C.green;
+}
+
+// One status, one bar, all of them measured against the same applicable
+// total and starting on the same baseline — so two counts are compared by
+// length rather than by eyeballing segments of a stack. The count and share
+// ride the bar tip instead of a far-right column, so the number never leaves
+// the mark it describes.
+interface BarRowProps {
   label: string;
-  sublabel: string;
-  icon: LucideIcon;
-  color: string;
-  background: string;
-  target?: ControlSelection;
-  selection?: ControlSelection;
-  onToggle?: (selection: ControlSelection) => void;
-  onClick?: () => void;
-}) {
-  const active = !onClick && target && selection ? selection.kind === target.kind && selection.key === target.key : false;
+  count: number;
+  applicable: number;
+  fill: string;
+  active: boolean;
+  onClick: () => void;
+  trailing?: ReactNode;
+}
+
+function BarRow({ label, count, applicable, fill, active, onClick, trailing }: BarRowProps) {
+  const share = applicable === 0 ? 0 : (count / applicable) * 100;
+  const width = `${share * BAR_SCALE}%`;
   return (
-    <button
-      onClick={onClick ?? (() => target && onToggle?.(target))}
-      className="rounded-xl p-5 flex items-center gap-4 text-left transition-colors"
-      style={{ background, border: `1px solid ${active ? color : C.border}` }}
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className="w-full grid items-center text-left rounded cursor-pointer"
+      style={{ gridTemplateColumns: "140px minmax(0, 1fr)", gap: 12, height: 28, background: active ? C.panel2 : "transparent" }}
     >
-      <Icon size={25} color={color} style={{ flexShrink: 0 }} />
-      <div className="min-w-0">
-        <div className="text-3xl font-semibold" style={{ color, fontFamily: "'Source Serif 4', serif" }}>{count}</div>
-        <div className="text-[10px] font-semibold uppercase tracking-wide mt-1" style={{ color }}>{label}</div>
-        <div className="text-xs mt-0.5 truncate" style={{ color, opacity: 0.8 }}>{sublabel}</div>
-      </div>
-    </button>
+      <span className="text-xs text-right truncate pr-1" style={{ color: C.ink, fontWeight: active ? 600 : 400 }}>{label}</span>
+      <span className="relative block" style={{ height: 14 }}>
+        <span className="absolute block" style={{ left: 0, top: 0, height: 14, width, background: fill, borderRadius: "0 4px 4px 0" }} />
+        <span
+          className="absolute flex items-center gap-1.5 whitespace-nowrap"
+          style={{ left: `calc(${width} + 10px)`, top: "50%", transform: "translateY(-50%)" }}
+        >
+          <span className="text-[13px] font-semibold tabular-nums" style={{ color: C.ink }}>{count}</span>
+          <span className="text-[11px] tabular-nums" style={{ color: C.muted }}>{Math.round(share)}%</span>
+          {trailing}
+        </span>
+      </span>
+    </div>
   );
 }
 
-// One card replacing the four stacked tally rows + equation bar: a single
-// segmented bar (Satisfied / Attention / Pending / Not Applicable, the same
-// four buckets that always summed to the full catalog), a legend of every
-// individual status as a drill-down chip, and Responsibility demoted to a
-// quieter footer line — still clickable, just not a peer of implementation
-// status.
-function StatusStrip({ statusCounts, applicabilitySummary, pendingCount, resp, selection, onToggle, onOpenScopeReview }: {
+// One card: the assurance anchor, then a bar per status ranked largest-first,
+// then Responsibility as a quiet footer.
+//
+// This replaces a single segmented bar whose segments shared no baseline —
+// only the leftmost one started at zero, so comparing the middle segments was
+// guesswork. Ranked bars make the comparison a length. Ranking also puts
+// whatever is largest at the top without anyone deciding it belongs there,
+// which on a partly-assessed system is Not Assessed, i.e. the thing most
+// worth seeing first.
+//
+// The two groups (examined / not examined) stay in a fixed order and the
+// ranking runs inside each, rather than one global sort: a global sort would
+// let the groups interleave as soon as coverage climbs past Inherited, and a
+// chart whose rows reshuffle between two visits is harder to read than one
+// that gives up a little ordering purity.
+function StatusChart({
+  statusCounts, applicabilitySummary, pendingCount, resp, selection, onToggle,
+  onOpenScopeReview, posture, keyControlRemaining, keyControlTotal, onStartAssessment,
+}: {
   statusCounts: Record<ControlStatus, number>;
   applicabilitySummary: ApplicabilitySummary;
   pendingCount: number;
@@ -268,19 +332,25 @@ function StatusStrip({ statusCounts, applicabilitySummary, pendingCount, resp, s
   selection: ControlSelection;
   onToggle: (selection: ControlSelection) => void;
   onOpenScopeReview?: (wave: ReviewWave) => void;
+  posture: { assurance: number | null; compliance: number; coverage: number };
+  keyControlRemaining: number;
+  keyControlTotal: number;
+  onStartAssessment?: () => void;
 }) {
-  const total = applicabilitySummary.total;
-  const applicableTotal = total - applicabilitySummary.notApplicable;
-  const controlStatusCount = RESOLVED_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
-  const remediationCount = REMEDIATION_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
-  const assessmentCount = statusCounts.unassessed ?? 0;
-  const segments = [
-    { count: controlStatusCount, color: C.green, label: "Controls Satisfied" },
-    { count: remediationCount, color: C.amber, label: "Remediation Required" },
-    { count: assessmentCount, color: C.accent, label: "Assessment Required" },
-    { count: pendingCount, color: C.ink, label: "Applicability Review" },
-    { count: applicabilitySummary.notApplicable, color: C.muted, label: "Not Applicable" },
-  ];
+  const applicable = applicabilitySummary.applicable;
+  const unassessed = statusCounts.unassessed ?? 0;
+  const assessed = applicable - unassessed;
+  const holding = RESOLVED_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
+
+  // Every examined status, largest first. Zeros are pulled out below: an
+  // empty track is a row of nothing, and four of them break the rhythm of
+  // the bars that do carry data. They still get said, just in one line.
+  const examined = [...RESOLVED_STATUSES, ...REMEDIATION_STATUSES]
+    .map((status) => ({ status, count: statusCounts[status] ?? 0 }))
+    .sort((a, b) => b.count - a.count);
+  const present = examined.filter((r) => r.count > 0);
+  const zeroed = examined.filter((r) => r.count === 0);
+
   const responsibilityItems: Array<{ respKey: Responsibility; count: number }> = [
     { respKey: "internal", count: resp.owned },
     { respKey: "shared", count: resp.shared },
@@ -288,83 +358,78 @@ function StatusStrip({ statusCounts, applicabilitySummary, pendingCount, resp, s
     { respKey: "vendor", count: resp.vendor },
   ];
 
+  const walkAction = onStartAssessment ? (
+    <button
+      onClick={(e) => { e.stopPropagation(); onStartAssessment(); }}
+      className="inline-flex items-center gap-1.5 text-[11px] font-semibold rounded-md ml-1.5"
+      style={{ background: C.accentBg, color: C.accent, padding: "4px 9px" }}
+    >
+      <ClipboardCheck size={12} /> Assess {keyControlRemaining} key control{keyControlRemaining === 1 ? "" : "s"}
+    </button>
+  ) : keyControlTotal > 0 ? (
+    <span className="text-[11px] font-semibold ml-1.5" style={{ color: C.green }}>Key-control walk complete</span>
+  ) : null;
+
   return (
     <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-      <div className="mb-3">
-        <span className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.muted }}>Control Status</span>
-        <span className="text-[10px] uppercase tracking-wide" style={{ color: C.muted }}> — {applicableTotal} Applicable Controls</span>
-      </div>
+      <PostureAnchor
+        assurance={posture.assurance}
+        assessed={assessed}
+        applicable={applicable}
+        notApplicable={applicabilitySummary.notApplicable}
+        pending={pendingCount}
+        onOpenScopeReview={onOpenScopeReview}
+      />
 
-      <div className="flex h-2.5 rounded-full overflow-hidden" style={{ background: C.panel2 }}>
-        {segments.map((s) => (
-          <div key={s.label} title={`${s.label}: ${s.count}`} style={{ width: `${total ? (s.count / total) * 100 : 0}%`, background: s.color }} />
+      <div className="pt-4">
+        {unassessed > 0 && (
+          <>
+            <div className="text-[10px] uppercase tracking-wide font-semibold mb-1" style={{ color: C.ink, paddingLeft: 0, width: 140, textAlign: "right" }}>
+              Not examined
+            </div>
+            <BarRow
+              label={STATUS_META.unassessed.label}
+              count={unassessed}
+              applicable={applicable}
+              fill={barFill("unassessed")}
+              active={selection.kind === "assessment-group"}
+              onClick={() => onToggle(ASSESSMENT_SELECTION)}
+              trailing={walkAction}
+            />
+          </>
+        )}
+
+        <div className="grid items-baseline mt-4 mb-1" style={{ gridTemplateColumns: "140px minmax(0, 1fr)", gap: 12 }}>
+          <span className="text-[10px] uppercase tracking-wide font-semibold text-right" style={{ color: C.ink }}>Examined</span>
+          <span className="text-[11px]" style={{ color: C.muted }}>
+            <span style={{ fontWeight: 600, color: C.ink }}>{assessed} of {applicable} examined ({posture.coverage}%)</span>
+            {" — "}{holding} of them hold ({posture.compliance}%)
+          </span>
+        </div>
+
+        {present.map(({ status, count }) => (
+          <BarRow
+            key={status}
+            label={STATUS_META[status].label}
+            count={count}
+            applicable={applicable}
+            fill={barFill(status)}
+            active={selection?.kind === "status" && selection.key === status}
+            onClick={() => onToggle({ kind: "status", key: status, label: `${STATUS_META[status].label} controls` })}
+          />
         ))}
+
+        {zeroed.length > 0 && (
+          <div className="grid items-center mt-1.5" style={{ gridTemplateColumns: "140px minmax(0, 1fr)", gap: 12 }}>
+            <span />
+            <span className="text-xs" style={{ color: C.muted, borderTop: `1px solid ${C.border}`, paddingTop: 9 }}>
+              {zeroed.map((r) => STATUS_META[r.status].label).join(", ")} — 0 {zeroed.length === 1 ? "" : "each"}
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Chips grouped and ordered to match the bar's four segments left to
-          right — green (resolved) group, then amber (attention) group, then
-          the two standalone ink/muted chips — so color, not an icon, is what
-          ties a chip back to its slice of the bar. */}
-      <div className="flex items-center flex-wrap gap-x-5 gap-y-2 mt-3">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {RESOLVED_STATUSES.map((status) => {
-            const meta = STATUS_META[status];
-            return (
-              <Chip
-                key={status}
-                label={meta.label}
-                count={statusCounts[status]}
-                color={C.green}
-                bg={C.greenBg}
-                active={selection?.kind === "status" && selection.key === status}
-                onClick={() => onToggle({ kind: "status", key: status, label: `${meta.label} controls` })}
-              />
-            );
-          })}
-        </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {REMEDIATION_STATUSES.map((status) => {
-            const meta = STATUS_META[status];
-            return (
-              <Chip
-                key={status}
-                label={meta.label}
-                count={statusCounts[status]}
-                color={C.amber}
-                bg={C.amberBg}
-                active={selection?.kind === "status" && selection.key === status}
-                onClick={() => onToggle({ kind: "status", key: status, label: `${meta.label} controls` })}
-              />
-            );
-          })}
-        </div>
-        <Chip
-          label={STATUS_META.unassessed.label}
-          count={assessmentCount}
-          color={C.accent}
-          bg={C.accentBg}
-          active={selection.kind === "assessment-group"}
-          onClick={() => onToggle(ASSESSMENT_SELECTION)}
-        />
-        <Chip
-          label={APPLICABILITY_META.pending.label}
-          count={pendingCount}
-          color={C.ink}
-          bg={C.panel2}
-          active={false}
-          onClick={() => onOpenScopeReview?.("not-applicable")}
-        />
-        <Chip
-          label={NOT_APPLICABLE_META.label}
-          count={applicabilitySummary.notApplicable}
-          color={C.muted}
-          bg={C.panel2}
-          active={false}
-          onClick={() => onOpenScopeReview?.("not-applicable")}
-        />
-      </div>
-
-      <div className="flex items-center gap-3 flex-wrap" style={{ marginTop: 10, borderTop: `1px solid ${C.border}`, paddingTop: 9 }}>
+      <div className="flex items-center gap-3 flex-wrap" style={{ marginTop: 14, borderTop: `1px solid ${C.border}`, paddingTop: 9 }}>
         <span className="text-[10px] uppercase tracking-wide font-semibold shrink-0" style={{ color: C.muted }}>Responsibility</span>
         {responsibilityItems.map(({ respKey, count }) => (
           <Chip
@@ -591,8 +656,6 @@ export function SystemControls({
   keyControlRemaining = 0, onStartAssessment, walkActive = false, onOpenScopeReview, initialSelection,
 }: SystemControlsProps) {
   const resp = applicabilitySummary?.byResponsibility;
-  const remediationCount = REMEDIATION_STATUSES.reduce((sum, s) => sum + (statusCounts[s] ?? 0), 0);
-  const assessmentCount = statusCounts.unassessed ?? 0;
   const pendingCount = applicabilitySummary?.pending ?? 0;
   const [selection, setSelection] = useState<ControlSelection>(initialSelection ?? DEFAULT_SELECTION);
   const [filters, setFilters] = useState<ControlFilters>({ domain: null, framework: null, status: null, responsibility: null, evidenceHealth: null });
@@ -621,37 +684,17 @@ export function SystemControls({
 
   return (
     <div className="px-8 pb-10 space-y-6">
+      {/* No action in the header: the walk button lives on the Not Assessed
+          row, next to the count it acts on. Two buttons to one destination is
+          the duplication this card was rebuilt to drop. */}
       <SectionHeader
         icon={Layers}
         title="Control Posture"
-        description="Assurance, compliance, assessment coverage, applicability, and the work required to close control gaps."
-        aside={
-          onStartAssessment ? (
-            <button
-              type="button"
-              onClick={onStartAssessment}
-              className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3.5 py-2"
-              style={{ background: C.accent, color: "#fff" }}
-            >
-              <ClipboardCheck size={14} /> Assess {keyControlRemaining} key control{keyControlRemaining === 1 ? "" : "s"}
-            </button>
-          ) : keyControlTotal > 0 && keyControlRemaining === 0 ? (
-            <span className="text-xs font-semibold" style={{ color: C.green }}>Key-control walk complete</span>
-          ) : null
-        }
+        description="What holds, what is still unexamined, and the work between the two."
       />
 
       {applicabilitySummary && posture && (
-        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
-          <ControlPostureCard assurance={posture.assurance} compliance={posture.compliance} coverage={posture.coverage} />
-          <WorkQueueTile count={remediationCount} label="Remediate" sublabel={`${statusCounts.deficient} deficient · ${statusCounts.partial} partial`} icon={AlertTriangle} color={C.amber} background={C.amberBg} target={DEFAULT_SELECTION} selection={selection} onToggle={toggleSelection} />
-          <WorkQueueTile count={assessmentCount} label="Assess" sublabel={keyControlRemaining > 0 ? `${keyControlRemaining} key control${keyControlRemaining === 1 ? "" : "s"} remaining` : "Awaiting assessment"} icon={ClipboardCheck} color={C.accent} background={C.accentBg} target={ASSESSMENT_SELECTION} selection={selection} onToggle={toggleSelection} />
-          <WorkQueueTile count={pendingCount} label="Scope" sublabel="Applicability pending" icon={ListChecks} color={C.ink} background={C.panel2} onClick={() => onOpenScopeReview?.("not-applicable")} />
-        </div>
-      )}
-
-      {applicabilitySummary && (
-        <StatusStrip
+        <StatusChart
           statusCounts={statusCounts}
           applicabilitySummary={applicabilitySummary}
           pendingCount={pendingCount}
@@ -659,6 +702,10 @@ export function SystemControls({
           selection={selection}
           onToggle={toggleSelection}
           onOpenScopeReview={onOpenScopeReview}
+          posture={posture}
+          keyControlRemaining={keyControlRemaining}
+          keyControlTotal={keyControlTotal}
+          onStartAssessment={onStartAssessment}
         />
       )}
 
