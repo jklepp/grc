@@ -79,6 +79,17 @@ export const ASSET_KINDS = [
   "iac-pipeline",
   "identity-provider",
   "secure-web-gateway",
+  // The agent platform's own moving parts, as distinct from the gateways that
+  // front them: the browser app customers actually use, the inference endpoint
+  // behind the model gateway, the queue and the job that fill the vector index,
+  // and the staff console that edits prompts in production. Each is a different
+  // control story from `compute-service`, which is why they are kinds rather
+  // than a display label over one.
+  "web-app",
+  "model-endpoint",
+  "message-queue",
+  "batch-job",
+  "admin-console",
 ] as const;
 export type AssetKind = (typeof ASSET_KINDS)[number];
 
@@ -87,8 +98,8 @@ export type AssetKind = (typeof ASSET_KINDS)[number];
 // applicability-rule-bearing value from ASSET_KINDS above. Display-only — it
 // has no bearing on applicability itself, which keys on `kind` alone.
 export const ASSET_TYPE_CATEGORIES: Record<string, AssetKind[]> = {
-  "Network": ["api-gateway", "waf", "egress-gateway", "secure-web-gateway", "tool-gateway", "model-gateway"],
-  "Compute": ["compute-service", "cache"],
+  "Network": ["api-gateway", "waf", "egress-gateway", "secure-web-gateway", "tool-gateway", "model-gateway", "model-endpoint"],
+  "Compute": ["compute-service", "cache", "web-app", "admin-console", "batch-job", "message-queue"],
   "Database & Storage": ["relational-db", "vector-db", "object-storage", "backup-vault"],
   "Identity & Access": ["iam", "identity-provider", "secrets-store", "key-management", "service-account"],
   "SaaS": ["saas-tenant", "saas-api"],
@@ -110,7 +121,15 @@ export const ASSET_TYPES = Object.keys(ASSET_TYPE_CATEGORIES);
 // breadth-first traversal at depth 0 simultaneously, so an edge between two
 // of them (WAF -> API Gateway) just never fires, since both ends are already
 // visited before it's followed.
-export const BOUNDARY_INGRESS_KINDS: AssetKind[] = ["waf", "api-gateway", "saas-api"];
+// `web-app` belongs here for exactly the reason the paragraph above gives. The
+// browser app is the first ACME-controlled component a customer's request
+// touches, and it has no inbound data edge of its own — so without naming it as
+// an entry it is unreachable by the walk, gets parked at reachedMax + 1, and
+// draws at the FAR END of the request path with its edge running backwards into
+// the WAF. Seeded here it sits at depth 0 alongside the WAF and gateway, and
+// the web-app -> WAF edge simply never fires, the same way WAF -> API Gateway
+// already doesn't.
+export const BOUNDARY_INGRESS_KINDS: AssetKind[] = ["waf", "api-gateway", "saas-api", "web-app"];
 
 // The kinds that sit where data crosses OUT of the boundary to an external
 // destination: a secure egress proxy, an integration endpoint calling an

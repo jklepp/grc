@@ -297,3 +297,114 @@
   code: "LOG"
   impactLevel: "high"
   inherentLikelihood: 3
+
+# ---- SYS-003: the agent platform's own moving parts -----------------------------------
+# The gateways above describe how traffic is mediated; these are what it is mediated to.
+# The boundary previously jumped straight from the API Gateway to the orchestrator, which
+# left the browser app customers actually use, the inference endpoint behind the model
+# gateway, and the staff console that edits production prompts outside the register
+# entirely — each of them a real control surface with a real blast radius.
+#
+# AST-003-29's provider is "External Model Provider" rather than a brand: it has to match
+# VEND-MODEL-PROVIDER.name so the vendor dependency derives from a stored fact instead of
+# a name guess. See src/graph/nodes/vendors.ts.
+
+- id: "AST-003-26"
+  systemIds: ["SYS-003"]
+  name: "Customer Web App"
+  type: "React SPA (CloudFront / S3)"
+  kind: "web-app"
+  provider: "AWS"
+  code: "WEB"
+  impactLevel: "high"
+  inherentLikelihood: 4
+- id: "AST-003-27"
+  systemIds: ["SYS-003"]
+  name: "Auth & Session Service"
+  type: "AWS ECS Service (Fargate)"
+  kind: "compute-service"
+  provider: "AWS"
+  code: "AUTH"
+  impactLevel: "high"
+  inherentLikelihood: 4
+- id: "AST-003-28"
+  systemIds: ["SYS-003"]
+  name: "Guardrail & Eval Service"
+  type: "Prompt & Output Screening Service"
+  kind: "policy-service"
+  provider: "AWS"
+  code: "GRD"
+  impactLevel: "high"
+  inherentLikelihood: 4
+- id: "AST-003-29"
+  systemIds: ["SYS-003"]
+  name: "Model Inference Endpoint"
+  type: "Hosted LLM Inference Endpoint"
+  kind: "model-endpoint"
+  provider: "External Model Provider"
+  code: "LLM"
+  impactLevel: "high"
+  inherentLikelihood: 4
+- id: "AST-003-30"
+  systemIds: ["SYS-003"]
+  name: "Tool Execution Sandbox"
+  type: "Isolated Tool-Call Runtime (Fargate)"
+  kind: "compute-service"
+  provider: "AWS"
+  code: "SBX"
+  impactLevel: "high"
+  inherentLikelihood: 4
+- id: "AST-003-31"
+  systemIds: ["SYS-003"]
+  name: "Conversation Store"
+  type: "AWS RDS (PostgreSQL)"
+  kind: "relational-db"
+  provider: "AWS"
+  code: "CNV"
+  impactLevel: "high"
+  inherentLikelihood: 4
+- id: "AST-003-32"
+  systemIds: ["SYS-003"]
+  name: "Prompt & Policy Config"
+  type: "AWS S3 Bucket (versioned)"
+  kind: "object-storage"
+  provider: "AWS"
+  code: "PCF"
+  impactLevel: "high"
+  inherentLikelihood: 3
+- id: "AST-003-33"
+  systemIds: ["SYS-003"]
+  name: "Task Queue"
+  type: "Amazon SQS"
+  kind: "message-queue"
+  provider: "AWS"
+  code: "QUE"
+  impactLevel: "high"
+  inherentLikelihood: 3
+- id: "AST-003-34"
+  systemIds: ["SYS-003"]
+  name: "Document Ingestion Job"
+  type: "Scheduled Embedding Job (ECS Task)"
+  kind: "batch-job"
+  provider: "AWS"
+  code: "ING"
+  impactLevel: "high"
+  inherentLikelihood: 3
+- id: "AST-003-35"
+  systemIds: ["SYS-003"]
+  name: "Audit Log Store"
+  type: "AWS S3 Bucket (Object Lock, append-only)"
+  kind: "log-feed"
+  provider: "AWS"
+  code: "AUD"
+  impactLevel: "high"
+  inherentLikelihood: 2
+- id: "AST-003-36"
+  systemIds: ["SYS-003"]
+  name: "Internal Admin Console"
+  type: "Staff Admin Web Console"
+  kind: "admin-console"
+  provider: "AWS"
+  code: "ADM"
+  impactLevel: "high"
+  inherentLikelihood: 4

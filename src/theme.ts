@@ -73,7 +73,11 @@ export function storedThemeMode(): ThemeMode {
 }
 export type ClassificationLabel = "Public" | "Internal" | "Confidential" | "Restricted";
 
-const CLASS_META_DARK = {
+// Exported alongside the mutable CLASS_META because the system canvas is
+// deliberately dark in both app themes (see SystemCanvas.tsx) and so needs the
+// dark classification colours directly rather than whatever applyTheme last
+// wrote. Everything else should keep reading CLASS_META.
+export const CLASS_META_DARK = {
   Public: { bg: "rgba(140,148,158,0.15)", color: "#AEB6C2" },
   Internal: { bg: "rgba(108,134,209,0.15)", color: "#93A8E6" },
   Confidential: { bg: "rgba(150,110,190,0.18)", color: "#C9A6E8" },

@@ -32,3 +32,47 @@
   cursor: not-allowed;
   filter: none;
 }
+
+/* --- System canvas (React Flow) ------------------------------------------
+   React Flow ships a light-theme stylesheet, which would leave the zoom
+   controls and attribution as white boxes on the canvas. These rules read the
+   --rf-* custom properties SystemCanvas publishes — the same arrangement as
+   the --wz-* block above — so the library's own chrome matches the canvas
+   surface. That surface is deliberately dark in both app themes, so unlike
+   --wz-* these values do not move with applyTheme(). Scoping to .rf-canvas
+   also wins on specificity, so it does not matter where the bundler places
+   the library's stylesheet. */
+.rf-canvas .react-flow__controls-button {
+  background: var(--rf-panel);
+  border-bottom: 1px solid var(--rf-border);
+  color: var(--rf-ink);
+}
+.rf-canvas .react-flow__controls-button:hover {
+  background: var(--rf-panel2);
+}
+.rf-canvas .react-flow__controls-button svg {
+  fill: currentColor;
+}
+.rf-canvas .react-flow__attribution,
+.rf-canvas .react-flow__attribution a {
+  background: transparent;
+  color: var(--rf-muted);
+}
+/* Handles exist on all four sides of every card so an edge can leave the side
+   it is actually heading towards. They are geometry, not affordances — nothing
+   is connectable — so they must not render or take pointer events. */
+.rf-canvas .react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+  min-width: 0;
+  min-height: 0;
+  width: 1px;
+  height: 1px;
+  border: 0;
+}
+.rf-canvas .react-flow__node {
+  font-family: 'Inter', sans-serif;
+}
+.rf-canvas .react-flow__node.selected {
+  outline: none;
+}

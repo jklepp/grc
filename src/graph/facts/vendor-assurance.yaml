@@ -27,3 +27,18 @@
   reassessedAt: "2026-01-20"
   cadenceDays: 365
   sharedResponsibilityReviewed: true
+
+- id: "VENDASSR-VEND-APM-2026"
+  vendorId: "VEND-APM"
+  reassessedAt: "2026-04-08"
+  cadenceDays: 365
+  sharedResponsibilityReviewed: true
+
+# No reassessment on record and no shared-responsibility review. Registered as a
+# dependency the platform genuinely has rather than left off because its posture
+# is inconvenient.
+- id: "VENDASSR-VEND-ANALYTICS-2024"
+  vendorId: "VEND-ANALYTICS"
+  reassessedAt: "2024-11-15"
+  cadenceDays: 365
+  sharedResponsibilityReviewed: false
