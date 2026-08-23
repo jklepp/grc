@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Info, Gauge, Layers, ClipboardCheck, Check, ChevronLeft, ChevronRight, Network, Users, Bot,
-  DatabaseBackup, Boxes, Cloud, Database, History, KeyRound, ListChecks, ShieldCheck, SlidersHorizontal, UserCheck, Code2,
+  DatabaseBackup, Boxes, Cloud, Database, ExternalLink, History, ListChecks, ShieldCheck, SlidersHorizontal, UserCheck, Code2,
 } from "lucide-react";
 import { C } from "../theme";
 import Modal, { ModalCloseButton } from "./Modal";
 import { ClassificationTag, AssuranceBadge } from "./SystemBadges";
 import {
   AddButton, Button, Callout, CheckRow, Checkbox, ChoiceChip, EmptyState, EntityCard, EntityList, Field, FieldGrid,
+  FieldMatrix, FieldMatrixRow,
   InlineHint, OptionCard, RailGroup, RailItem, RemoveButton, SaveErrorCallout, Section, Select, StatTile, StatusPill,
   StepBody, TextArea, TextInput, ToggleCard, TX, Well, WizardBody, WizardChrome,
   WizardFooter, WizardHeader, WizardPane, WizardRail, WizardRailSummary,
@@ -1183,7 +1184,10 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     : { title: stepDef.heading, description: stepDef.lead };
 
   return (
-    <Modal open={open} onClose={close} width={1000} height={720}>
+    // 980 is a ceiling, not a fixed size: Modal clamps it with `min(h, 100%)`,
+    // so the wizard takes the whole viewport on a laptop instead of stopping at
+    // 720px and leaving screen unused, and stops growing on a tall monitor.
+    <Modal open={open} onClose={close} width={1120} height={980}>
       <WizardChrome>
         {/* One block: the left cell names the flow over the rail it heads,
             the eyebrow places you in the run, the step names itself below it,
@@ -1235,11 +1239,15 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
             {step === 1 && (
               <>
                 <StepBody>
-                  <Section icon={Info} title="Identity & ownership" description="What this boundary is, what it does, and who is accountable for it.">
+                  <Section icon={Info} title="Identity & ownership">
                     <FieldGrid cols={1}>
                       <Field label="System name">
                         <TextInput value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Analytics Data Lake" />
                       </Field>
+                    </FieldGrid>
+                    {/* Mission and Boundary are short prompts of the same shape, so they
+                        sit beside each other rather than stacking two full-width boxes. */}
+                    <FieldGrid cols={2}>
                       <Field label="Mission">
                         <TextArea value={mission} onChange={(e) => setMission(e.target.value)} placeholder="What does this system do, and for whom?" />
                       </Field>
@@ -1264,8 +1272,28 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                           {AVAILABILITY_TIERS.map((t) => <option key={t} value={t}>{t.replace(/-/g, " ")}</option>)}
                         </Select>
                       </Field>
-                      <Field label="Users" note="Approximate active population for this boundary.">
+                      <Field label="Users">
                         <TextInput type="number" min={0} value={userCount} onChange={(e) => setUserCount(e.target.value)} />
+                      </Field>
+                    </FieldGrid>
+                    {/* Frameworks live here, not on Technology: what this system
+                        certifies against is a governance fact about the system, not
+                        a property of how it is hosted. It also has to be answered
+                        before step 7 — `controlsForStandards` feeds applicability,
+                        so the derived scope on that step already depends on it. */}
+                    <FieldGrid cols={1}>
+                      <Field label="Applicable frameworks" note="Drives framework readiness and report generation.">
+                        <div className="flex flex-wrap gap-2">
+                          {FRAMEWORKS.map((f) => (
+                            <ChoiceChip
+                              key={f}
+                              selected={standards.includes(f)}
+                              onClick={() => setStandards((prev) => (prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]))}
+                            >
+                              {f}
+                            </ChoiceChip>
+                          ))}
+                        </div>
                       </Field>
                     </FieldGrid>
                   </Section>
@@ -1273,14 +1301,15 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                   <Section
                     icon={ShieldCheck}
                     title="FIPS 199 security category"
-                    description="Rate confidentiality, integrity, and availability for this information system. The overall category is the high-water mark of the three."
                     aside={<StatusPill tone="info">Overall · {IMPACT_LEVEL_LABELS[overallImpactLevel(securityCategory)]}</StatusPill>}
                   >
-                    {SECURITY_OBJECTIVES.map((objective) => (
-                      <Well key={objective} className="flex flex-col gap-3.5">
-                        <div className={TX.itemTitle} style={{ color: C.ink }}>{SECURITY_OBJECTIVE_LABELS[objective]}</div>
-                        <FieldGrid cols={2}>
-                          <Field label="Potential impact">
+                    <Well>
+                      <FieldMatrix
+                        columns={["Objective", "Potential impact", "Rationale"]}
+                        template="minmax(0,7rem) minmax(0,9rem) minmax(0,1fr)"
+                      >
+                        {SECURITY_OBJECTIVES.map((objective) => (
+                          <FieldMatrixRow key={objective} label={SECURITY_OBJECTIVE_LABELS[objective]}>
                             <Select
                               value={securityCategory[objective].impact}
                               aria-label={`${SECURITY_OBJECTIVE_LABELS[objective]} impact`}
@@ -1291,18 +1320,16 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                             >
                               {IMPACT_LEVELS.map((level) => <option key={level} value={level}>{IMPACT_LEVEL_LABELS[level]}</option>)}
                             </Select>
-                          </Field>
-                          <Field label="Rationale">
                             <TextInput
                               value={securityCategory[objective].reason}
                               aria-label={`${SECURITY_OBJECTIVE_LABELS[objective]} rationale`}
                               onChange={(e) => updateSecurityCategory(objective, { reason: e.target.value })}
                               placeholder="Why this level?"
                             />
-                          </Field>
-                        </FieldGrid>
-                      </Well>
-                    ))}
+                          </FieldMatrixRow>
+                        ))}
+                      </FieldMatrix>
+                    </Well>
                   </Section>
                 </StepBody>
               </>
@@ -1311,7 +1338,10 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
             {step === 2 && (
               <>
                 <StepBody>
-                  <Section icon={Cloud} title="Hosting environment" description="Where the system runs, who provides it, and in which regions.">
+                  {/* One section, because the step is named for the pair: where it
+                      runs and who can reach it are read together, and two headers
+                      cost 65px of chrome to say so twice. */}
+                  <Section icon={Cloud} title="Hosting & exposure" description="Where the system runs, and every identity and network path that can reach it.">
                     <div role="radiogroup" aria-label="Hosting type" className="grid gap-3 grid-cols-1 sm:grid-cols-3">
                       {HOSTING_TYPES.map((h) => {
                         const count = eligibleProviders(h).length;
@@ -1350,9 +1380,6 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                         </div>
                       </Field>
                     </FieldGrid>
-                  </Section>
-
-                  <Section icon={KeyRound} title="Access & exposure" description="Every identity and network path that can reach the system.">
                     <ToggleCard
                       checked={internetFacing}
                       onChange={setInternetFacing}
@@ -1360,7 +1387,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                       description="The system, an endpoint, or a login surface is reachable from the open internet."
                     />
                     <FieldGrid cols={2}>
-                      <Field label="Identity types" note="Who or what can authenticate to this boundary.">
+                      <Field label="Identity types">
                         <div className="flex flex-wrap gap-2">
                           {IDENTITY_TYPES.map((t) => (
                             <ChoiceChip
@@ -1373,7 +1400,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                           ))}
                         </div>
                       </Field>
-                      <Field label="Network paths" note="How traffic reaches or leaves the system.">
+                      <Field label="Network paths">
                         <div className="flex flex-wrap gap-2">
                           {NETWORK_EXPOSURES.map((n) => (
                             <ChoiceChip
@@ -1395,38 +1422,22 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                         checked={hasThirdPartyIntegration}
                         onChange={setHasThirdPartyIntegration}
                         title="Third-party integration"
-                        description="Exchanges data with or depends on another organization."
                       />
                       <ToggleCard
                         checked={sdlcApplicable}
                         onChange={setSdlcApplicable}
                         title="Custom software"
-                        description="ACME develops or maintains code within this boundary."
                       />
                       <ToggleCard
                         checked={usesAI}
                         onChange={(checked) => { setUsesAI(checked); if (!checked) setAutonomousActions(false); }}
                         title="AI usage"
-                        description="Contains or calls a model, agent, or RAG pipeline."
                       >
                         {usesAI && (
                           <CheckRow checked={autonomousActions} onChange={setAutonomousActions} label="Can act without human approval" />
                         )}
                       </ToggleCard>
                     </div>
-                    <Field label="Applicable frameworks" note="Which frameworks this system is assessed against. Drives framework readiness and report generation on the system screen.">
-                      <div className="flex flex-wrap gap-2">
-                        {FRAMEWORKS.map((f) => (
-                          <ChoiceChip
-                            key={f}
-                            selected={standards.includes(f)}
-                            onClick={() => setStandards((prev) => (prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]))}
-                          >
-                            {f}
-                          </ChoiceChip>
-                        ))}
-                      </div>
-                    </Field>
                   </Section>
                 </StepBody>
               </>
@@ -1434,7 +1445,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
             {step === 3 && (
               <>
-                <StepBody>
+                <StepBody fill>
                   <Section icon={Layers} title="Boundary data profile" description="Who the data is about, roughly how much of it there is, and where it is kept.">
                     <Field label="Data subjects">
                       <div className="flex flex-wrap gap-2">
@@ -1467,25 +1478,47 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                   </Section>
 
                   <Section
+                    grow
                     icon={Database}
                     title="Data types processed"
                     description="Choose everything that applies to the system boundary."
                     aside={<StatusPill tone={systemDataTypeIds.length > 0 ? "success" : "neutral"}>{systemDataTypeIds.length} selected</StatusPill>}
                   >
-                    <TextInput
-                      value={dataSearch}
-                      onChange={(e) => setDataSearch(e.target.value)}
-                      placeholder="Search data types…"
-                      aria-label="Search data types"
-                      className="md:max-w-[300px]"
-                    />
-                    <Well padded={false} className="overflow-hidden">
+                    {/* Search and the policy link share one row: what each data type
+                        means is a policy question, and POL-04 answers it better than
+                        ten paragraphs printed into the picker. Opens in its own tab —
+                        this draft is staged local state and navigating away loses it. */}
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <TextInput
+                        value={dataSearch}
+                        onChange={(e) => setDataSearch(e.target.value)}
+                        placeholder="Search data types…"
+                        aria-label="Search data types"
+                        className="md:max-w-[300px]"
+                      />
+                      <a
+                        href="#/governance/policy"
+                        target="_blank"
+                        rel="noreferrer"
+                        className={`${TX.help} inline-flex items-center gap-1 shrink-0`}
+                        style={{ color: C.accent }}
+                      >
+                        Data Classification &amp; Handling Policy
+                        <ExternalLink size={11} />
+                      </a>
+                    </div>
+                    {/* The catalog scrolls inside its own card (CONTRACT 4.13's
+                        sibling concern: the step frame should not move because a
+                        list is long). minHeight keeps it a list rather than a
+                        sliver when the profile section above is tall. */}
+                    <Well padded={false} className="flex-1 min-h-0 overflow-y-auto" style={{ minHeight: 140 }}>
                       {filteredDataTypes.map((dt, index) => {
                         const selected = systemDataTypeIds.includes(dt.id);
                         return (
                           <label
                             key={dt.id}
-                            className={`${selected ? "wz-lift" : "wz-hover"} flex items-start gap-3 px-3.5 py-2.5 cursor-pointer transition-colors`}
+                            title={dt.description}
+                            className={`${selected ? "wz-lift" : "wz-hover"} flex items-center gap-3 px-3.5 py-2 cursor-pointer transition-colors`}
                             style={{
                               background: selected ? C.accentBg : undefined,
                               borderBottom: index < filteredDataTypes.length - 1 ? `1px solid ${C.border}` : undefined,
@@ -1495,14 +1528,12 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                               checked={selected}
                               ariaLabel={dt.name}
                               onChange={() => toggleSystemDataType(dt.id)}
-                              className="mt-0.5"
                             />
-                            <span className="flex-1 min-w-0">
-                              <span className="flex items-center gap-2">
-                                <span className={TX.body} style={{ color: C.ink, fontWeight: 600 }}>{dt.name}</span>
-                                <span className={`${TX.tag} capitalize`} style={{ color: C.muted }}>{dt.kind.replace(/-/g, " ")}</span>
-                              </span>
-                              <span className={`block ${TX.help} mt-1`} style={{ color: C.muted }}>{dt.description}</span>
+                            {/* One line per type. The full description is the row's
+                                title attribute rather than 45px of printed prose. */}
+                            <span className="flex-1 min-w-0 flex items-center gap-2">
+                              <span className={`${TX.body} truncate`} style={{ color: C.ink, fontWeight: 600 }}>{dt.name}</span>
+                              <span className={`${TX.tag} capitalize shrink-0`} style={{ color: C.muted }}>{dt.kind.replace(/-/g, " ")}</span>
                             </span>
                             <span className="flex items-center gap-2 shrink-0">
                               {dt.regulatoryFlags.slice(0, 2).map((flag) => (

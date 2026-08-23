@@ -82,8 +82,14 @@ const TONE_ICON: Record<Tone, LucideIcon> = {
 /* ---------------------------------------------------------------- layout -- */
 
 // Vertical stack of Sections — the only spacing a step body needs.
-export function StepBody({ children }: { children: ReactNode }) {
-  return <div className="flex flex-col gap-4">{children}</div>;
+// `fill` makes the step body take the pane's full height instead of its
+// content's, which is the precondition for a `grow` Section inside it: a step
+// holding an open-ended list (the data-type catalog, which grows every time
+// someone authors a data type) scrolls that list inside its own card while the
+// step frame itself stays put. Without `fill` the body is auto-height and
+// `grow` has no height to claim a share of.
+export function StepBody({ children, fill = false }: { children: ReactNode; fill?: boolean }) {
+  return <div className={`flex flex-col gap-4 ${fill ? "h-full" : ""}`}>{children}</div>;
 }
 
 // `grow` lets a Section fill a flex column and hand its own body the height,
@@ -181,6 +187,49 @@ export function FieldGrid({ cols = 2, children }: { cols?: 1 | 2 | 3; children: 
     : cols === 2 ? "grid-cols-1 md:grid-cols-2"
       : "grid-cols-1 md:grid-cols-2 xl:grid-cols-3";
   return <div className={`grid gap-4 ${template}`}>{children}</div>;
+}
+
+// A grid of repeated, like-shaped fields: the column labels print once at the
+// top, then one row per subject with the subject named in the first cell.
+//
+// `FieldGrid` lays out unrelated fields, each carrying its own label. This lays
+// out fields that SHARE labels, and exists because the alternative prints them
+// once per row: the FIPS 199 block rendered three identical cards and so said
+// "Potential impact" and "Rationale" three times each, spending 500px on three
+// selects and three inputs.
+//
+// `template` is the caller's grid-template-columns — the one thing a matrix
+// cannot infer, since the subject column's width depends on what the subjects
+// are called. Below `md` it collapses to a single column and the header row
+// drops out; every control inside a matrix carries its own aria-label, so the
+// column header is never the only thing naming it.
+export function FieldMatrix({ columns, template, children }: {
+  columns: string[]; template: string; children: ReactNode;
+}) {
+  return (
+    <div
+      className="grid gap-x-3 gap-y-2 grid-cols-1 md:grid-cols-[var(--wz-matrix)] md:items-center"
+      style={{ "--wz-matrix": template } as CSSProperties}
+    >
+      <div className="hidden md:contents" aria-hidden="true">
+        {columns.map((column) => (
+          <div key={column} className={TX.label} style={{ color: C.muted }}>{column}</div>
+        ))}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// One row of a `FieldMatrix`. `display: contents` puts its cells directly into
+// the matrix's grid, so every row lands on the same column lines.
+export function FieldMatrixRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="contents">
+      <div className={TX.itemTitle} style={{ color: C.ink }}>{label}</div>
+      {children}
+    </div>
+  );
 }
 
 export function Field({ label, note, error, span2 = false, children }: {
@@ -306,8 +355,14 @@ export function CheckRow({ checked, onChange, label, ariaLabel, className = "" }
 
 // A checkbox that owns its own surface — used where turning it on reveals more
 // fields. Selected uses exactly the same accent treatment as ChoiceChip.
+//
+// `description` is optional, and omitting it is the common case rather than a
+// degraded one: a toggle whose title already says what it does ("Custom
+// software") spends 45px per card restating itself, and three of those turned
+// one row of switches into a third of the pane. Write a description only where
+// it says something the title cannot — when to turn it on, or what counts.
 export function ToggleCard({ checked, onChange, title, description, children }: {
-  checked: boolean; onChange: (checked: boolean) => void; title: string; description: string; children?: ReactNode;
+  checked: boolean; onChange: (checked: boolean) => void; title: string; description?: string; children?: ReactNode;
 }) {
   return (
     <div
@@ -328,7 +383,7 @@ export function ToggleCard({ checked, onChange, title, description, children }: 
       >
         <span className="min-w-0 flex-1">
           <span className={`${TX.itemTitle} block`} style={{ color: checked ? C.accent : C.ink }}>{title}</span>
-          <span className={`${TX.help} block mt-1`} style={{ color: C.muted }}>{description}</span>
+          {description && <span className={`${TX.help} block mt-1`} style={{ color: C.muted }}>{description}</span>}
         </span>
         <span
           className="relative w-9 h-5 shrink-0 mt-0.5 transition-colors"

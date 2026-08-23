@@ -1,8 +1,9 @@
 # Wizard UI contract
 
-Applies to every wizard-like surface: Add/Edit System, Scope Review, the control
-assessment walk, and anything built on `WizardUI.tsx` later. Each rule below was
-paid for by a real defect in this app; the parenthetical names it.
+Applies to every wizard-like surface: Add/Edit/Duplicate System, Scope Review,
+the control assessment walk, the evaluation panel, the Finding Editor, and
+anything built on `WizardUI.tsx` later. Each rule below was paid for by a real
+defect in this app; the parenthetical names it where useful.
 
 ## 1. Composition
 
@@ -19,7 +20,11 @@ check — fixed by adding `complete`, not by hand-rolling a rail row.)
 `ControlEvaluationPanel` only, whether reached by row click or by the walk. Never
 add a parallel scoring or applicability UI.
 
-**1.4 Consistency is a cross-surface invariant.** A change to shared chrome,
+**1.4 One findings editor.** Creating or editing a Finding/CAP uses the shared
+Finding editor only, whether opened from SystemFindings or from the evaluation
+panel. Never add a parallel findings form.
+
+**1.5 Consistency is a cross-surface invariant.** A change to shared chrome,
 action vocabulary, or save behaviour lands on every wizard surface in the same
 change — a rule half-applied is worse than the inconsistency it replaced. A new
 surface adopts the existing patterns; it does not add a variant.
@@ -27,9 +32,12 @@ surface adopts the existing patterns; it does not add a variant.
 The one exception is a *recorded migration*: a change too large to land
 everywhere at once may ship on one surface first if it is written up under
 "Migrations in progress" below, naming the pattern, the surface that has it, and
-the surfaces still to adopt it. An unrecorded half-rollout is the drift 1.4
+the surfaces still to adopt it. An unrecorded half-rollout is the drift 1.5
 exists to prevent; a recorded one is a queue. Nothing new may be built on the
 old pattern while a migration is open.
+
+Deleted primitives must stay deleted. `StepHeader` and `WizardBanner` are gone;
+do not reintroduce them.
 
 ## 2. Naming and language
 
@@ -38,9 +46,9 @@ final Add System step is "Add System", not "Launch assessment" — nothing is
 being launched and no plan exists at that moment.
 
 **2.2 One name per surface, end to end.** The step that promises a destination,
-the modal's banner and header, the readiness card, and any other page that links
-there all use the same words. A step promising "Control Review" that opens
-something titled "Scope Determination" is a defect.
+the modal header, the readiness card, and any other page that links there all
+use the same words. A step promising "Control Review" that opens something
+titled "Scope Determination" is a defect.
 
 **2.3 The primary button states the outcome.** "Create System and Continue",
 not "Submit" or "Finish".
@@ -64,16 +72,16 @@ on a page where someone is deciding something.
 | Skip a skippable step | `Skip`, `Skip for now` |
 | Abandon | `Cancel`, `Close`, `Discard` (discard only where edits were staged) |
 | Confirm a group | `Confirm {thing}` — one label for the act, whatever its basis |
-| Final commit | Names the outcome (`Create System and Continue`, `Save changes`); one such label per wizard, used consistently |
+| Final commit | Names the outcome (`Create System and Continue`, `Save changes`, `Create finding`, `Save finding`); one such label per surface, used consistently |
 
 Varying a label to describe the *basis* of a decision splinters one action into
 several ("Accept report" vs "Confirm program coverage" on the same button); the
 basis belongs in the row's supporting line and the recorded note.
 
-**2.7 Status text uses one vocabulary, defined once.** In Scope / Not In Scope
-/ Inherited / Assessed / Unassessed and the PRISMA level names appear in the UI
-exactly as `controlMeta.ts` spells them. A surface that paraphrases a status invents
-a second vocabulary for the same fact.
+**2.7 Status text uses one vocabulary, defined once.** In Scope / Not In Scope /
+Inherited / Assessed / Unassessed and the PRISMA level names appear in the UI
+exactly as `controlMeta.ts` (or the single shared constant) spells them. A
+surface that paraphrases a status invents a second vocabulary for the same fact.
 
 The label and the engine's key are allowed to differ, and one of them does: the
 bucket is `not-applicable` in facts, validators and review records, while the UI
@@ -86,6 +94,11 @@ agrees.
 The same words in a standard's own voice are not this vocabulary: an ISO 27001
 Statement of Applicability says "applicable / not applicable" because ISO does,
 and the exported report keeps saying so.
+
+**2.8 Findings vocabulary is fixed.** Finding = the gap record. CAP = the
+remediation plan + owner + due + status on that finding. Remediation = residual
+open posture. Do not invent parallel terms ("issue", "ticket", "deficiency
+record") in chrome unless they map 1:1 to these and are used everywhere.
 
 ## 3. What to ask a human
 
@@ -144,18 +157,24 @@ disagreeing, not a population and a progress reading sitting in one rail.
 
 **4.7 One footer pattern.** Every surface closes with the pinned `WizardFooter`:
 status on the left — what is unsaved on a staged surface, where you are on one
-whose header does not already say (4.11) — actions on the right,
-exactly one primary action and it is last. The action cluster is `WizardFooter`'s
-own named slots, rendered in one fixed order — `close`, `back`, `skip`,
-`discard`, `primary` — so abandoning sits furthest from the action that commits
-and Discard sits beside it (5.7). The slots are not children: passing free
-children is a type error, because when it was allowed two surfaces drifted to a
-trailing `Close` after the primary. A blocked primary states its reason in the
-footer's hint; never a silently disabled button.
+whose header does not already say (4.11) — actions on the right, exactly one
+primary action and it is last. The action cluster is `WizardFooter`'s own named
+slots, rendered in one fixed order — `close`, `back`, `skip`, `discard`,
+`primary` — so abandoning sits furthest from the action that commits and Discard
+sits beside it (5.7). The slots are not children: passing free children is a
+type error, because when it was allowed two surfaces drifted to a trailing
+`Close` after the primary. A blocked primary states its reason in the footer's
+hint; never a silently disabled button.
 
 **4.8 The primary action lives in the footer, nowhere else.** Not in the header,
 not mid-page. Row-level buttons act on their row; they never double as the
 step's primary action. Offer Skip only on a step that is genuinely skippable.
+
+Exception for *immediate* surfaces (5.6): when the work *is* the row/group
+confirmations, those controls may use the primary visual weight because they are
+the act, and the footer's Continue appears only once the step is settled so the
+two never compete on screen. They must all share one visual treatment; none are
+`danger` for routine scope decisions backed by reason and reviewer.
 
 **4.9 One progress indicator, always visible.** A surface shows its position
 through the shared rail or `ProgressBar` — always present, never swapped for a
@@ -164,16 +183,15 @@ screen is the one exception: the run is over, so the footer's position slot
 carries the final count and the rail stands down.
 
 A rail may be *summarised* by a flush `ProgressBar` on the masthead's bottom
-edge (4.11). That is the one permitted pairing, and it holds only because the
-bar reads as the block's underline rather than as a control of its own: both
-read the same declared step order (4.1), so they cannot disagree. Anything that
-would need its own row is a second indicator and is not allowed.
+edge. That is the one permitted pairing, and it holds only because the bar reads
+as the block's underline rather than as a control of its own: both read the same
+declared step order (4.1), so they cannot disagree. Anything that would need its
+own row is a second indicator and is not allowed.
 
 A walk that works one item at a time has two things it could count — the steps
 inside the item in hand, and the items across the whole run. It counts the one
-its header is titled after (4.11), once. When the masthead took over the outer
-run, the `WizardStrip` that had been reporting it stopped: two readings of the
-same run, one band apart, is exactly what this rule exists to prevent.
+its header is titled after (4.11), once. Two readings of the same run, one band
+apart, is forbidden.
 
 **4.10 One chrome stack, in one order.** Every wizard screen — including
 completion screens and the holds between items — is a masthead, optionally one
@@ -182,23 +200,25 @@ masthead for a floating close button, or centres its content in a div of its
 own, is not a different kind of screen; it is the same wizard mid-flow and
 reads as one.
 
-The masthead comes in two forms, and a surface picks one:
+There is one masthead form only: the **unified masthead**.
 
-- *Unified* — one `WizardHeader`, split on the body's own column line
-  (`WIZARD_COLS`, declared once beside `WizardBody`, never restated in a
-  caller). The left cell is a `WizardRailSummary` over the rail: the flow's
-  mark and name. The right cell is the step in hand, flush with the pane. The
-  run rides the bottom edge as a flush `ProgressBar`. One block, one
-  background, no banner above it.
-- *Stacked* — `WizardBanner` above a `WizardHeader`. The older form; see the
-  open migration below.
+- One `WizardHeader`, split on the body's own column line (`WIZARD_COLS`,
+  declared once beside `WizardBody`, never restated in a caller).
+- Left cell: `WizardRailSummary` over the rail — the flow's mark and name.
+- Right cell: the step (or subject) in hand, flush with the pane.
+- Run position rides the bottom edge as a flush `ProgressBar` when the surface
+  has a multi-step run.
+- One block, one background, no banner above it.
+
+Rail-less surfaces (single form, no steps) omit the left cell. The flow name
+rides the header eyebrow instead. Do not invent a rail or a fake "1 of 1" count
+to force symmetry.
 
 **4.11 The left cell names the flow; the right cell owns whatever changes.**
 The rail summary answers "which wizard is this" over the column that lists the
-run, and stops there. The header beside it, over the column that holds the
-work, carries the position (`Step 3 of 8 · 38%`) in its eyebrow and then the
-thing the reader has to keep track of. Which thing that is depends on the
-wizard:
+run, and stops there. The header beside it, over the column that holds the work,
+carries the position (`Step 3 of 8 · 38%`) in its eyebrow and then the thing the
+reader has to keep track of. Which thing that is depends on the wizard:
 
 - **The subject is constant** — one system, one scope. The header titles the
   *step*, and its supporting line is the one instruction for the work in that
@@ -206,35 +226,30 @@ wizard:
 - **The subject changes mid-run** — one control, then the next. The header
   titles the *subject*, its supporting line places that subject
   (`CFG-02 · Configuration Management`), and the step name folds into the
-  eyebrow beside the position: `Control 12 of 42 · 29% · Control Scoring`. The
-  control assessment walk and the evaluation panel.
+  eyebrow beside the position: `Control 12 of 42 · 29% · Control Scoring`.
+  The control assessment walk and the evaluation panel.
+- **Single-record editor, no run** — Finding Editor, or evaluation panel opened
+  on one control from a row click. Eyebrow states the flow name (and optional
+  record id); title states the act or record (`New finding`, control name). No
+  invented "1 of 1".
 
 The test is which fact goes stale while the reader looks away. Pinned chrome is
 the only place that can promise never to scroll, and it must spend that promise
-on the thing that changes — not on a constant, with the changing thing left to
-a card in the pane at whatever size or colour. That card was tried at four
-weights and none of them fixed it, because the problem was placement.
+on the thing that changes.
 
 Position reads with the step it counts, not across a column boundary from it —
 and the title stays the only title-scale thing on a wizard screen.
 
 The position word names what is being counted, and the counter counts whatever
 the header is titled after. Where the header titles a step that word is
-**Step** — "Step 2 of 3 · 67%" — on every such wizard, even where the surface's
-internals call the unit something else: a reader walking two of them should not
-have to learn that this one counts sections and that one counts steps. Where
-the header titles a subject, it is the subject's own word: "Control 12 of 42".
-A counter that counts one thing while the title names another leaves the reader
-deciding which of the two the percentage belongs to.
-
-A surface with no run to be nth of — the evaluation panel opened on one control
-from a row click — states the step name alone and lets the rail carry position
-(4.9). It does not invent "Control 1 of 1".
+**Step** — "Step 2 of 3 · 67%" — on every such wizard. Where the header titles a
+subject, it is the subject's own word: "Control 12 of 42". A counter that counts
+one thing while the title names another leaves the reader deciding which of the
+two the percentage belongs to.
 
 A step is titled with the same words its rail entry uses and the engine defines
 (2.2, 2.7), and its supporting line is the one imperative instruction for the
-work in that pane (2.5). That instruction is chrome: as a `Callout` at the top
-of the pane it scrolled away with the first row, which is what put it here.
+work in that pane (2.5). That instruction is chrome.
 
 A terminal completion screen is not a step (4.9): the summary, the eyebrow and
 the bar all read complete, rather than reporting whichever rail entry the
@@ -242,30 +257,26 @@ screen happens to render on.
 
 A step's header takes no icon square. The square anchors a header whose subject
 is a specific record — a control, a finding — and a step is already named by
-the eyebrow directly above it. Dropping it also puts the title on the same left
-edge as the body's first card; with it, the title sat 44px inboard of
-everything it headed, which is what made the band read as a foreign object
-sitting on top of the form.
+the eyebrow directly above it.
 
-**4.12 Reference prose is a Section like any other.** What a control asks,
-what a finding claims — the text a step keeps in view because every step is
-answering it — is an ordinary `Section` with a `clamp`, not a card of its own
-design. The control it belongs to is named in the header above (4.11), so the
-block has no identity to carry and no reason to look different from the work
-beside it. `clamp` measures rather than assumes: a body that fits renders in
-full with no disclosure at all, and only one that overruns clamps, fades and
-gains a toggle.
+**4.12 Reference prose is a Section like any other.** What a control asks, what
+a finding claims — the text a step keeps in view because every step is answering
+it — is an ordinary `Section` with a `clamp`, not a card of its own design. The
+control it belongs to is named in the header above (4.11), so the block has no
+identity to carry and no reason to look different from the work beside it.
+`clamp` measures rather than assumes: a body that fits renders in full with no
+disclosure at all, and only one that overruns clamps, fades and gains a toggle.
 
 Status is not identity either. The pills saying how a control is graded, who
 runs it and what it scores belong to the step that is about those facts, not
 beside its name.
 
-**4.13 Step identity is chrome, not body.** The step title and its position
-stay pinned in the header; they do not scroll. A heading rendered as the first
-thing inside the scrolling pane leaves the reader, two fields down, with no
-answer to "which step is this" — and it pushes the fields themselves below the
-fold on arrival. The kit offers no in-pane step heading; a step body starts with
-its first `Section`.
+**4.13 Step identity is chrome, not body.** The step title and its position stay
+pinned in the header; they do not scroll. A heading rendered as the first thing
+inside the scrolling pane leaves the reader, two fields down, with no answer to
+"which step is this" — and it pushes the fields themselves below the fold on
+arrival. The kit offers no in-pane step heading; a step body starts with its
+first `Section`.
 
 ## 5. Writes and saving
 
@@ -283,10 +294,8 @@ second is not.
 
 One rationale may sign every record a single act writes. Grading a control
 writes the assessment and one override per lane moved off its derived rating —
-that is one decision, not several, and asking for a reason per record put two
-free-text boxes on screen asking near-identical questions. Ask once, write it
-to all of them. A second box is only earned when it asks a genuinely different
-question, not a narrower version of the same one.
+that is one decision, not several. Ask once, write it to all of them. A second
+box is only earned when it asks a genuinely different question.
 
 **5.4 Dry-run, then commit.** Mutate a `RuntimeFacts` copy through the helpers
 in `engine/runtimeMutations.ts` — never hand-assemble fact records in a
@@ -305,8 +314,8 @@ override.
   button, no Discard, and no unsaved state. (Scope Review's confirmations.)
 - *Staged* — the act is assembled from several fields, or spans several steps,
   so it is incomplete until the user says it is done. Edits accumulate in a
-  `RuntimeFacts` draft and commit on one explicit action. (Add System's eight
-  steps; the evaluation panel's evidence, grade, and findings.)
+  `RuntimeFacts` draft and commit on one explicit action. (Add System; the
+  evaluation panel's evidence, grade, and findings; Finding Editor.)
 
 Pick by asking whether a half-finished version of the act is meaningful. Never
 mix the models inside one surface. In a staged surface, intermediate steps hold
@@ -338,17 +347,23 @@ gate the committing action, with the reason in the footer hint (4.7).
 
 ## Auditing a surface
 
-Walk these six and each must match every other wizard: **footer pattern**
-(4.7–4.9), **action labels** (2.3, 2.6), **save model and its signalling** (5.6,
-5.7), **step order and hand-offs** (4.1–4.2), **terminology** (2.2, 2.4, 2.7),
-**error handling** (6.3–6.4). A deviation is either a defect to fix or a rule to
-amend here — never an undocumented local exception.
+Walk these and each must match every other wizard:
+
+1. Footer pattern (4.7–4.9)
+2. Action labels (2.3, 2.6)
+3. Save model and its signalling (5.6, 5.7)
+4. Step order and hand-offs (4.1–4.2)
+5. Terminology (2.2, 2.4, 2.7, 2.8)
+6. Error handling (6.3–6.4)
+7. Masthead form (4.10–4.13) — unified only; no banner
+
+A deviation is either a defect to fix or a rule to amend here — never an
+undocumented local exception.
 
 ### Migrations in progress
 
-None open. The unified masthead (4.10–4.13) has landed on every wizard surface,
-and the primitives the old pattern needed — `StepHeader`, `WizardBanner` — are
-deleted, so nothing can be built on it by accident.
+None open. The unified masthead (4.10–4.13) has landed on every wizard surface.
+`StepHeader` and `WizardBanner` are deleted and must not return.
 
 ### Known open deviations
 
@@ -358,16 +373,10 @@ deleted, so nothing can be built on it by accident.
   wizard ever gains a resumable draft, it gains a real Discard.
 - **"System Control Editor" is not named "… Wizard".** It is the direct-edit
   mode of the evaluation panel — one control, reached by a row click, with no
-  run to walk. The same component in walk mode banners as "Control Assessment
-  Wizard".
-- **Scope Review paints its decisions `variant="primary"`** while 4.8 says the
-  primary lives in the footer and nowhere else. Left as-is because Scope Review
-  is an *immediate* surface (5.6): those buttons are the work, and the footer's
-  Continue appears only once the step is settled, so the two never compete on
-  screen. Every one of them is painted the same way — row confirmations, the
-  disclosure that opens an exclusion, and the batch "Confirm all N" in a card's
-  aside — because they are one act at different fan-outs (5.2), and paint that
-  varied with the fan-out made them read as different kinds of decision. None
-  of them is painted `danger`: taking a control out of scope is a routine
-  review call backed by a reason and a named reviewer. If 4.8 is meant
-  literally, these drop to `secondary` and the rule gains a sentence saying so.
+  run to walk. The same component in walk mode is the Control Assessment
+  Wizard.
+- **Scope Review paints its decision controls with primary visual weight** while
+  4.8 places the primary in the footer. Accepted under the immediate-surface
+  exception in 4.8: those buttons *are* the work; footer's Continue appears only
+  once the step is settled. All decision controls share one treatment; none use
+  `danger` for routine out-of-scope calls backed by reason and reviewer.
