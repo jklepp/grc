@@ -180,7 +180,12 @@ const FORMAL_ASSESSMENT_CHECKS = ["scope", "assess", "gaps"] as const;
 export function AssessmentReadiness({ formalAssessment, onScopeClick, onAssessClick, onGapsClick, onRemediateClick }: AssessmentReadinessProps) {
   const pendingCount = formalAssessment.scopeRemainingCount;
   const assessmentCount = formalAssessment.assessmentRemainingCount;
-  const gapsMissingCount = formalAssessment.gapControlsMissingFinding.length;
+  // Lane 3 counts both halves of "recorded": gaps with no Finding at all, and
+  // gaps whose open Finding still has no CAP. Disjoint sets (see
+  // formalAssessmentForSystem), so the sum never double-counts a control.
+  const gapsMissingCount = formalAssessment.gapControlsMissingFinding.length
+    + formalAssessment.gapControlsMissingCap.length;
+  const reassessCount = formalAssessment.controlsAwaitingReassessment.length;
   const remediationCount = formalAssessment.remediationCount;
   // Lane 4 asks a different question than lane 3 and so counts a different
   // population — every control with a gap status OR an open Finding on it.
@@ -228,7 +233,7 @@ export function AssessmentReadiness({ formalAssessment, onScopeClick, onAssessCl
     gaps: {
       icon: FileWarning,
       title: "Gaps & CAPs Recorded",
-      note: "Gaps without a Finding",
+      note: "Gaps without a Finding or CAP",
       complete: gapsMissingCount === 0,
       count: gapsMissingCount,
       done: remediationCount - gapsMissingCount,
@@ -303,6 +308,7 @@ export function AssessmentReadiness({ formalAssessment, onScopeClick, onAssessCl
           <Callout tone="success" title="Formally assessed.">
             Scope is decided, every applicable key control has been evaluated, and every gap has a Finding/CAP on record.
             {residualCount > 0 ? ` ${residualCount} remediation item${residualCount === 1 ? "" : "s"} still open.` : ""}
+            {reassessCount > 0 ? ` ${reassessCount} of them ${reassessCount === 1 ? "has" : "have"} completed remediation and await${reassessCount === 1 ? "s" : ""} reassessment.` : ""}
           </Callout>
         ) : null}
 

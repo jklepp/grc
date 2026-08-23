@@ -12,6 +12,7 @@
   remediationStatus: "In Progress"
   ownerId: "ml-platform-team"
   due: "2026-08-25"
+  severity: "high"
   remediationPlan: "Rewrite the RAG service's IAM policy to grant only the specific data-store actions
     it needs, replacing the broad read grant, then re-run the least-privilege scan to confirm."
   remediationOwnerId: "cloud-security"
@@ -57,6 +58,7 @@
   remediationStatus: "In Progress"
   ownerId: "r-chen"
   due: "2026-07-25"
+  severity: "medium"
   remediationPlan: "Complete the outstanding manager-role slice of the quarterly access recertification
     campaign and record sign-off."
   remediationOwnerId: "it-security"

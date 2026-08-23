@@ -224,6 +224,7 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
   const openCount = findings.filter((f) => f.open).length;
   const overdueCount = findings.filter((f) => f.overdue).length;
   const seriousCount = findings.filter((f) => f.open && (f.severity === "critical" || f.severity === "high")).length;
+  const needsCapCount = findings.filter((f) => f.open && !f.capRecorded).length;
   const completeCount = findings.filter((f) => !f.open).length;
 
   const matrix = useMemo(() => liveEngine.compliance.systemControlMatrix(systemId), [liveEngine, systemId]);
@@ -323,6 +324,7 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
               <StatusPill tone="neutral">{openCount} open</StatusPill>
               {overdueCount > 0 && <StatusPill tone="danger">{overdueCount} overdue</StatusPill>}
               {seriousCount > 0 && <StatusPill tone="warning">{seriousCount} critical/high</StatusPill>}
+              {needsCapCount > 0 && <StatusPill tone="warning">{needsCapCount} need{needsCapCount === 1 ? "s" : ""} a CAP</StatusPill>}
               <StatusPill tone="success">{completeCount} complete</StatusPill>
               {mayRaise && (
                 <Button

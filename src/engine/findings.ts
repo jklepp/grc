@@ -83,6 +83,11 @@ export function createFindings(graph: Graph, ctx: EngineContext) {
     // read instead of re-deriving its own status check.
     const open = f.remediationStatus !== "Complete";
     const overdue = open && new Date(f.due) < ctx.now;
+    // A CAP is the plan on the finding. Owner and target date both carry
+    // honest fallbacks (ownerId, due), so the plan text is what separates a
+    // recorded gap from a planned one — the single predicate lane 3 and the
+    // remediation pipeline both read.
+    const capRecorded = Boolean(f.remediationPlan?.trim());
 
     return {
       ...f,
@@ -101,6 +106,7 @@ export function createFindings(graph: Graph, ctx: EngineContext) {
       riskIds,
       open,
       overdue,
+      capRecorded,
       ticket: f.id,
       jira: f.id,
       // Display strings alongside the resolved `owner`/`control` objects above —

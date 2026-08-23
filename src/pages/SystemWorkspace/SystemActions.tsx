@@ -142,56 +142,78 @@ function ControlsToAssessList({ rows, onSelectControl }: {
   );
 }
 
-// ---- Group 3: Gaps Needing a Finding -----------------------------------------
+// ---- Group 3: Gaps Needing a Finding or CAP ----------------------------------
 
-function GapsList({ matrix, gapControlsMissingFinding, onSelectControl }: {
+// One row shape for every control-level entry in this group: id chip, name,
+// and the control's own gap status on the right.
+function GapControlRow({ controlId, control, status, onClick }: {
+  controlId: ControlId;
+  control: ControlMatrixRow["control"];
+  status: ControlMatrixRow["status"] | undefined;
+  onClick: () => void;
+}) {
+  const meta = status ? STATUS_META[status] : null;
+  return (
+    <ActionRow
+      onClick={onClick}
+      left={(
+        <div className="text-sm truncate" style={{ color: C.ink }}>
+          <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded mr-1.5" style={{ background: C.accentBg, color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
+            {control.id}
+          </span>
+          {control.name}
+        </div>
+      )}
+      right={meta ? (
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded" style={{ background: meta.bg, color: meta.color }}>
+          <meta.Icon size={11} /> {meta.label}
+        </span>
+      ) : null}
+    />
+  );
+}
+
+// Lane 3's two halves, in workflow order: record the gap first, then plan it.
+// A gap is not "recorded" until its Finding carries a CAP — a Finding without
+// a plan documents the weakness without deciding what happens to it.
+function GapsList({ matrix, gapControlsMissingFinding, gapControlsMissingCap, onSelectControl }: {
   matrix: ControlMatrixRow[];
   gapControlsMissingFinding: FormalAssessmentStatus["gapControlsMissingFinding"];
+  gapControlsMissingCap: FormalAssessmentStatus["gapControlsMissingCap"];
   onSelectControl: (controlId: ControlId, step?: EvaluationStep) => void;
 }) {
   const statusByControl = new Map(matrix.map((r) => [r.controlId, r.status]));
 
-  if (gapControlsMissingFinding.length === 0) return <EmptyNote>Every gap on this system has a Finding on record.</EmptyNote>;
+  if (gapControlsMissingFinding.length === 0 && gapControlsMissingCap.length === 0) {
+    return <EmptyNote>Every gap on this system has a Finding with a CAP on record.</EmptyNote>;
+  }
 
   return (
     <RowList>
-      {gapControlsMissingFinding.map(({ controlId, control }) => {
-        const status = statusByControl.get(controlId);
-        const meta = status ? STATUS_META[status] : null;
-        return (
-          <ActionRow
-            key={controlId}
-            // Lands straight on Findings & Remediation — this row exists
-            // because there's nothing filed yet, so that's the step that
-            // matters, not Control Scoring.
-            onClick={() => onSelectControl(controlId, "findings")}
-            left={(
-              <div className="text-sm truncate" style={{ color: C.ink }}>
-                <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded mr-1.5" style={{ background: C.accentBg, color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-                  {control.id}
-                </span>
-                {control.name}
-              </div>
-            )}
-            right={meta ? (
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded" style={{ background: meta.bg, color: meta.color }}>
-                <meta.Icon size={11} /> {meta.label}
-              </span>
-            ) : null}
-          />
-        );
-      })}
+      {gapControlsMissingFinding.length > 0 && <SubLabel>No Finding filed</SubLabel>}
+      {gapControlsMissingFinding.map(({ controlId, control }) => (
+        // Lands straight on Findings & Remediation — this row exists because
+        // there's nothing filed yet, so that's the step that matters, not
+        // Control Scoring.
+        <GapControlRow key={controlId} controlId={controlId} control={control} status={statusByControl.get(controlId)} onClick={() => onSelectControl(controlId, "findings")} />
+      ))}
+      {gapControlsMissingCap.length > 0 && <SubLabel>Finding needs a CAP</SubLabel>}
+      {gapControlsMissingCap.map(({ controlId, control }) => (
+        <GapControlRow key={controlId} controlId={controlId} control={control} status={statusByControl.get(controlId)} onClick={() => onSelectControl(controlId, "findings")} />
+      ))}
     </RowList>
   );
 }
 
 // ---- Group 4: Remediation Pipeline -------------------------------------------
 
-// Three real buckets, not four — "ready to remediate" would need something
-// on record that says the fix is actually done, and nothing does. Overdue
-// (open, has a plan, past its own due date) is the honest stand-in: it's the
-// same `overdue` the rest of the app already computes off Finding.due, not a
-// second date invented for this page.
+// Four buckets now that something on record CAN say the fix is done: a
+// control whose findings are all Complete but whose grade is still weak is
+// "ready to reassess" — closing a CAP never moves a score, only a
+// reassessment does, and this is where that last leg of the loop is offered.
+// Overdue (open, has a plan, past its own due date) is the same `overdue`
+// the rest of the app already computes off Finding.due, not a second date
+// invented for this page.
 function FindingRow({ f, onSelectControl }: { f: EngineFinding; onSelectControl: (controlId: ControlId, step?: EvaluationStep) => void }) {
   const sevMeta = f.severity ? FINDING_SEVERITY_META[f.severity] : null;
   const statusMeta = FINDING_REMEDIATION_STATUS_META[f.remediationStatus];
@@ -230,15 +252,18 @@ function SubLabel({ tone, children }: { tone?: "danger"; children: React.ReactNo
   );
 }
 
-function RemediationPipelineList({ open, onSelectControl }: {
+function RemediationPipelineList({ open, awaitingReassessment, matrix, onSelectControl }: {
   open: EngineFinding[];
+  awaitingReassessment: FormalAssessmentStatus["controlsAwaitingReassessment"];
+  matrix: ControlMatrixRow[];
   onSelectControl: (controlId: ControlId, step?: EvaluationStep) => void;
 }) {
-  const needsCap = open.filter((f) => !f.remediationPlan);
-  const overdue = open.filter((f) => f.remediationPlan && f.overdue);
-  const inRemediation = open.filter((f) => f.remediationPlan && !f.overdue);
+  const needsCap = open.filter((f) => !f.capRecorded);
+  const overdue = open.filter((f) => f.capRecorded && f.overdue);
+  const inRemediation = open.filter((f) => f.capRecorded && !f.overdue);
+  const statusByControl = new Map(matrix.map((r) => [r.controlId, r.status]));
 
-  if (open.length === 0) return <EmptyNote>No open findings on this system.</EmptyNote>;
+  if (open.length === 0 && awaitingReassessment.length === 0) return <EmptyNote>No open findings on this system.</EmptyNote>;
 
   return (
     <RowList>
@@ -248,6 +273,13 @@ function RemediationPipelineList({ open, onSelectControl }: {
       {overdue.map((f) => <FindingRow key={f.id} f={f} onSelectControl={onSelectControl} />)}
       {inRemediation.length > 0 && <SubLabel>In Remediation</SubLabel>}
       {inRemediation.map((f) => <FindingRow key={f.id} f={f} onSelectControl={onSelectControl} />)}
+      {awaitingReassessment.length > 0 && <SubLabel>Ready to reassess</SubLabel>}
+      {awaitingReassessment.map(({ controlId, control }) => (
+        // Every finding on this control is Complete but the grade still says
+        // gap — the row opens Control Scoring, because reassessing is the one
+        // move left, not the Findings step.
+        <GapControlRow key={controlId} controlId={controlId} control={control} status={statusByControl.get(controlId)} onClick={() => onSelectControl(controlId)} />
+      ))}
     </RowList>
   );
 }
@@ -350,8 +382,8 @@ export function SystemActions({
   const counts: Record<GroupId, number> = {
     due: dueRecurring.length,
     assess: assessRows.length,
-    gaps: formalAssessment.gapControlsMissingFinding.length,
-    remediate: openFindings.length,
+    gaps: formalAssessment.gapControlsMissingFinding.length + formalAssessment.gapControlsMissingCap.length,
+    remediate: openFindings.length + formalAssessment.controlsAwaitingReassessment.length,
   };
 
   const [expandedId, setExpandedId] = useState<GroupId | null>(null);
@@ -367,12 +399,12 @@ export function SystemActions({
         <SectionHeader
           icon={ListChecks}
           title="Actions"
-          description="Every outstanding action for this system, grouped by what it needs: scheduled work coming due, controls still unassessed, gaps with no Finding filed, and open Findings in remediation."
+          description="Every outstanding action for this system, grouped by what it needs: scheduled work coming due, controls still unassessed, gaps with no Finding or CAP filed, and open Findings in remediation through to reassessment."
           aside={<StatusPill tone={allClear ? "success" : "neutral"}>{doneCount} of {GROUPS.length} clear</StatusPill>}
         />
         {allClear ? (
           <Callout tone="success" title="Nothing outstanding.">
-            No scheduled work is due, every applicable control is assessed, and every gap has a Finding on record.
+            No scheduled work is due, every applicable control is assessed, and every gap has a Finding with a CAP on record.
           </Callout>
         ) : (
           <div className="flex flex-col gap-2.5">
@@ -405,8 +437,8 @@ export function SystemActions({
 
             <GroupRow
               icon={FileWarning}
-              title="Gaps Needing a Finding"
-              description="Controls scored partial, deficient, or not implemented with nothing filed against them yet."
+              title="Gaps Needing a Finding or CAP"
+              description="Controls scored partial, deficient, or not implemented with nothing filed against them yet, or whose open Finding still has no corrective action plan."
               count={counts.gaps}
               expanded={expandedId === "gaps"}
               onToggle={() => toggle("gaps")}
@@ -414,19 +446,29 @@ export function SystemActions({
                 <Button size="sm" onClick={() => onSelectControlsGroup(DEFAULT_SELECTION)}>Open in Controls</Button>
               ) : undefined}
             >
-              <GapsList matrix={matrix} gapControlsMissingFinding={formalAssessment.gapControlsMissingFinding} onSelectControl={onSelectControl} />
+              <GapsList
+                matrix={matrix}
+                gapControlsMissingFinding={formalAssessment.gapControlsMissingFinding}
+                gapControlsMissingCap={formalAssessment.gapControlsMissingCap}
+                onSelectControl={onSelectControl}
+              />
             </GroupRow>
 
             <GroupRow
               icon={Wrench}
               title="Remediation Pipeline"
-              description="Every open Finding for this system, staged by what it needs next."
+              description="Every open Finding for this system, staged by what it needs next — and, once every finding on a control is Complete, the reassessment that clears the gap."
               count={counts.remediate}
               expanded={expandedId === "remediate"}
               onToggle={() => toggle("remediate")}
               actions={<Button size="sm" onClick={() => onNavigate("findings")}>Open Findings &amp; CAPs</Button>}
             >
-              <RemediationPipelineList open={openFindings} onSelectControl={onSelectControl} />
+              <RemediationPipelineList
+                open={openFindings}
+                awaitingReassessment={formalAssessment.controlsAwaitingReassessment}
+                matrix={matrix}
+                onSelectControl={onSelectControl}
+              />
             </GroupRow>
           </div>
         )}

@@ -180,6 +180,16 @@ export interface FormalAssessmentStatus {
   assessmentTotalCount: number;
   gapsRecorded: boolean;
   gapControlsMissingFinding: Array<{ controlId: ControlId; control: Control }>;
+  // Lane 3's other half: gap controls that DO have a Finding, but where an
+  // open Finding still carries no CAP. Lane 3 asks "have weak controls been
+  // turned into Findings with plans?" — a Finding without a plan records the
+  // gap without planning it, so it satisfies neither the lane nor an auditor.
+  // Disjoint from gapControlsMissingFinding by construction.
+  gapControlsMissingCap: Array<{ controlId: ControlId; control: Control }>;
+  // The loop's last arc: controls still graded at a gap status whose findings
+  // are ALL Complete. The fix is claimed done, but a CAP cannot improve a
+  // score — only reassessment can, so these are the controls waiting for one.
+  controlsAwaitingReassessment: Array<{ controlId: ControlId; control: Control }>;
   // Lane 3's population: every control carrying a gap, recorded or not.
   remediationCount: number;
   // Lane 4's population, which is a different question and so a different
@@ -574,6 +584,18 @@ export function createReview(
     // Controls carrying a gap, whether or not anybody has written it down.
     const gapControls = matrix.filter((row) => (GAP_CONTROL_STATUSES as readonly string[]).includes(row.status));
     const gapControlsMissingFinding = gapControls.filter((row) => !findingControlIds.has(row.controlId));
+    const findingsByControl = new Map<ControlId, typeof systemFindings>();
+    systemFindings.forEach((f) => {
+      const list = findingsByControl.get(f.controlId) ?? [];
+      list.push(f);
+      findingsByControl.set(f.controlId, list);
+    });
+    // Recorded but not planned: the gap has a Finding, and an open one still
+    // lacks a CAP. Per-finding, not per-control — one planned Finding does not
+    // excuse an unplanned one sitting next to it in the same tracker.
+    const gapControlsMissingCap = gapControls
+      .filter((row) => findingControlIds.has(row.controlId))
+      .filter((row) => (findingsByControl.get(row.controlId) ?? []).some((f) => f.open && !f.capRecorded));
 
     // Scope is decided once a human has confirmed or rejected every
     // out-of-scope exclusion and inheritance claim Scope Review presents —
@@ -588,7 +610,18 @@ export function createReview(
     const scopeDecided = scopeRemainingCount === 0;
     const assessmentRemainingCount = assessmentRows.filter((row) => row.status === "unassessed").length;
     const controlsAssessed = assessmentRemainingCount === 0;
-    const gapsRecorded = gapControlsMissingFinding.length === 0;
+    const gapsRecorded = gapControlsMissingFinding.length === 0 && gapControlsMissingCap.length === 0;
+
+    // Still graded weak, but every finding on it is Complete — remediation
+    // claims done, and only a reassessment can move the grade. Requires at
+    // least one finding so a bare gap does not read as "awaiting reassessment"
+    // before anything was ever filed or fixed.
+    const controlsAwaitingReassessment = gapControls
+      .filter((row) => {
+        const controlFindings = findingsByControl.get(row.controlId) ?? [];
+        return controlFindings.length > 0 && controlFindings.every((f) => !f.open);
+      })
+      .map((row) => ({ controlId: row.controlId, control: row.control }));
 
     // Lane 4: residual position — what is still to fix, from BOTH sides of the
     // record. A gap status is the assessed reading; an open Finding is the
@@ -612,6 +645,8 @@ export function createReview(
       assessmentTotalCount: assessmentRows.length,
       gapsRecorded,
       gapControlsMissingFinding,
+      gapControlsMissingCap,
+      controlsAwaitingReassessment,
       remediationCount: gapControls.length,
       residualControls,
       residualCount: residualControls.length,

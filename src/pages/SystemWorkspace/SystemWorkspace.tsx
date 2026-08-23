@@ -191,11 +191,15 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
     // new system finding on that out-of-scope program, so do not route the
     // operator into an editor that can only reject the finding. Scope Review
     // remains the place to resolve that stale applicability decision.
-    const firstGap = formalAssessment.gapControlsMissingFinding.find(({ controlId }) => {
+    const routable = (list: typeof formalAssessment.gapControlsMissingFinding) => list.find(({ controlId }) => {
       const gapRow = matrix.find((candidate) => candidate.controlId === controlId);
       return gapRow?.keyControl?.scope !== "program"
         || liveEngine.applicability.resolveProgramApplicability(activeSystemId, controlId).required;
     });
+    // Recording comes before planning: unrecorded gaps first, then Findings
+    // that exist but still carry no CAP — the same order lane 3 counts them.
+    const firstGap = routable(formalAssessment.gapControlsMissingFinding)
+      ?? routable(formalAssessment.gapControlsMissingCap);
     if (firstGap) selectControl(firstGap.controlId, "findings");
     else openControlsGroup(DEFAULT_SELECTION);
   }
@@ -323,7 +327,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         onClose={() => setAssessmentWalkOpen(false)}
         onGoToRemediation={() => {
           setAssessmentWalkOpen(false);
-          if (formalAssessment.gapControlsMissingFinding.length > 0) openMissingFinding();
+          if (!formalAssessment.gapsRecorded) openMissingFinding();
           else changeSubTab("findings");
         }}
       />

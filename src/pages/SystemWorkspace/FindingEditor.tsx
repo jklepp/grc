@@ -210,7 +210,7 @@ export function FindingFields({ state, controlOptions }: {
         <Field label="Target date" note="Optional.">
           <TextInput type="date" value={form.targetDate} aria-label="Target date" onChange={(e) => setField("targetDate", e.target.value)} />
         </Field>
-        <Field label="Remediation plan (CAP)" span2 note="Optional — what will fix this.">
+        <Field label="Remediation plan (CAP)" span2 note="What will fix this. A gap's Finding counts as recorded once it carries a plan; without one it stays open in Gaps & CAPs.">
           <TextInput value={form.remediationPlan} onChange={(e) => setField("remediationPlan", e.target.value)} placeholder="What will fix this" />
         </Field>
 
