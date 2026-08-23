@@ -430,7 +430,7 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
           assetOptionsFor={assetOptionsFor}
           closureEvidence={editingClosureEvidence}
           problems={saveError}
-          eyebrow={editing ? `${editing.id} · ${editing.controlId}` : "New finding"}
+          eyebrow={editing ? `${editing.id} · ${editing.controlId}` : undefined}
           heading={editing ? editing.title : "New finding"}
           submitLabel={editing ? "Save finding" : "Create finding"}
           initial={editing ? {

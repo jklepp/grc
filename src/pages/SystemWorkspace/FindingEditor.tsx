@@ -23,7 +23,7 @@ import {
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
   Button, Callout, Field, FieldGrid, Select, TextInput, TX, Well,
-  WizardBanner, WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardPane,
+  WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardPane,
 } from "../../components/wizard/WizardUI";
 import { C } from "../../theme";
 import { selectedValue } from "./formHelpers";
@@ -302,10 +302,13 @@ export interface FindingEditorModalProps extends FindingEditorProps {
 
 // The same form as its own popup, for a host that is a page.
 //
-// Deliberately rail-less (WizardBody `single`): the banner and header say which
-// surface you are in and what it is about, and the footer carries the one
-// committing action — but there are no steps to walk, so inventing a rail would
-// dress a single form up as a wizard.
+// Deliberately rail-less (WizardBody `single`): there are no steps to walk, so
+// inventing a rail would dress a single form up as a wizard — and with no rail
+// there is no column for a `WizardRailSummary` to head, so this surface wears
+// the unified masthead without its left cell (CONTRACT 4.10). The flow's name
+// rides the eyebrow instead, where the other wizards put their position; this
+// one has no run to be nth of, so it states the name alone rather than
+// inventing a count (4.11).
 export function FindingEditorModal({
   open, onCancel, onSubmit, initial, controlOptions, assetOptionsFor, closureEvidence,
   submitLabel, eyebrow, heading, problems,
@@ -315,10 +318,9 @@ export function FindingEditorModal({
   return (
     <Modal open onClose={onCancel} width={840} height={720}>
       <WizardChrome>
-        <WizardBanner icon={ListTodo} title="Finding Editor" />
         <WizardHeader
           icon={ListTodo}
-          eyebrow={eyebrow ?? "Findings & CAPs"}
+          eyebrow={["Finding Editor", eyebrow].filter(Boolean).join(" · ")}
           title={heading ?? (initial ? "Edit finding" : "New finding")}
           onClose={<ModalCloseButton onClose={onCancel} />}
         />

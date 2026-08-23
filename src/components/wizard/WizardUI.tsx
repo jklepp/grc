@@ -627,29 +627,6 @@ export function WizardChrome({ children }: { children: ReactNode }) {
 // rail reads the template instead of restating it.
 const WIZARD_COLS = "grid-cols-[172px_minmax(0,1fr)] lg:grid-cols-[208px_minmax(0,1fr)]";
 
-// Names the surface the operator is inside — the one solid-accent strip at
-// the very top of a wizard-like modal ("Scope Review Wizard", "System Control
-// Editor"), so which flow you are in is answered before the header. Title
-// only; context, actions and close stay in WizardHeader.
-//
-// A surface on the unified masthead has no banner: its header carries the
-// flow's name in the eyebrow instead (CONTRACT 4.10).
-export function WizardBanner({ icon: Icon, title }: { icon?: LucideIcon; title: string }) {
-  return (
-    <div
-      className="flex items-center gap-2.5 px-6 py-3 shrink-0"
-      style={{ background: C.accent, color: WZ.onAccent }}
-    >
-      {Icon && <Icon size={15} className="shrink-0" />}
-      <span className="text-[13px] font-mono font-semibold uppercase tracking-[0.16em]">{title}</span>
-    </div>
-  );
-}
-
-// The one header every wizard-like surface wears, directly under the banner:
-// icon square, optional eyebrow naming the subject, title, supporting line,
-// then chrome-level asides and the close control.
-//
 // The masthead's left cell: which flow you are in. It sits directly over the
 // rail it heads, so the mark and the name read as that column's title rather
 // than as a badge floating beside the step. Name only — position belongs to

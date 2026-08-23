@@ -346,15 +346,9 @@ amend here — never an undocumented local exception.
 
 ### Migrations in progress
 
-- **Unified masthead (4.10–4.13).** One block split on the body's column line:
-  flow and position over the rail, the step's own title and lead over the pane,
-  the run on the bottom edge.
-  **Has it:** Add / Edit / Duplicate System, Scope Review, the control
-  assessment walk and the evaluation panel. **Still to adopt:** the finding
-  editor, which still wears the stacked masthead and headers the surface rather
-  than the step in hand. The kit primitive for the old in-pane step heading
-  (`StepHeader`) is already deleted, so nothing can be built on that part of
-  the old pattern in the meantime.
+None open. The unified masthead (4.10–4.13) has landed on every wizard surface,
+and the primitives the old pattern needed — `StepHeader`, `WizardBanner` — are
+deleted, so nothing can be built on it by accident.
 
 ### Known open deviations
 
