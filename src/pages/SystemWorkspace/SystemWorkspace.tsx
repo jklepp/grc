@@ -10,7 +10,7 @@ import { SystemData } from "./SystemData";
 import { SystemIdentity } from "./SystemIdentity";
 import { SystemSecurity } from "./SystemSecurity";
 import { SystemTesting } from "./SystemTesting";
-import { SystemControls, DEFAULT_SELECTION } from "./SystemControls";
+import { SystemControls } from "./SystemControls";
 import type { ControlSelection } from "./SystemControls";
 import { ScopeReviewModal } from "./ScopeReviewModal";
 import { SystemRisk } from "./SystemRisk";
@@ -184,20 +184,6 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
     [liveEngine, system.id]
   );
 
-  function openGapsToRecord() {
-    // Readiness lane 3 is a queue, not a single-control decision. Preserve the
-    // engine's two disjoint populations and union them only for presentation.
-    const controlIds = [
-      ...formalAssessment.gapControlsMissingFinding,
-      ...formalAssessment.gapControlsMissingCap,
-    ].map(({ controlId }) => controlId);
-    openControlsGroup(controlIds.length > 0 ? {
-      kind: "gap-recording-group",
-      label: "Gaps & CAPs to Record",
-      controlIds,
-    } : DEFAULT_SELECTION);
-  }
-
   async function generateIsoReport() {
     const { exportIso27001SystemReportPdf } = await import("../../utils/exportIso27001SystemReportPdf");
     await exportIso27001SystemReportPdf({
@@ -244,7 +230,6 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           exposure={exposure}
           dataTypes={dataTypes} onNavigate={changeSubTab}
           onOpenScopeReview={openScopeReview} onSelectControlsGroup={openControlsGroup}
-          onOpenGapsToRecord={openGapsToRecord}
           onStartAssessment={mayAssess && assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
           onGenerateIsoReport={generateIsoReport}
           formalAssessment={formalAssessment}
@@ -321,8 +306,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         onClose={() => setAssessmentWalkOpen(false)}
         onGoToRemediation={() => {
           setAssessmentWalkOpen(false);
-          if (!formalAssessment.gapsRecorded) openGapsToRecord();
-          else changeSubTab("findings");
+          changeSubTab("findings");
         }}
       />
 

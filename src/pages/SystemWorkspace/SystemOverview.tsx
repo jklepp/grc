@@ -23,7 +23,6 @@ interface SystemOverviewProps {
   onNavigate: (tab: SystemWorkspaceTab) => void;
   onOpenScopeReview: (wave: ReviewWave) => void;
   onSelectControlsGroup: (selection: ControlSelection) => void;
-  onOpenGapsToRecord: () => void;
   onStartAssessment?: () => void;
   onGenerateIsoReport: () => Promise<void>;
   formalAssessment: FormalAssessmentStatus;
@@ -32,7 +31,7 @@ interface SystemOverviewProps {
 export function SystemOverview(props: SystemOverviewProps) {
   const {
     system, cockpit, compliance, exposure,
-    dataTypes, onNavigate, onOpenScopeReview, onSelectControlsGroup, onOpenGapsToRecord,
+    dataTypes, onNavigate, onOpenScopeReview, onSelectControlsGroup,
     onStartAssessment, onGenerateIsoReport,
     formalAssessment,
   } = props;
@@ -58,7 +57,7 @@ export function SystemOverview(props: SystemOverviewProps) {
           formalAssessment={formalAssessment}
           onScopeClick={() => onOpenScopeReview("not-applicable")}
           onAssessClick={onStartAssessment ?? (() => onSelectControlsGroup(ASSESSMENT_SELECTION))}
-          onGapsClick={onOpenGapsToRecord}
+          onGapsClick={() => onNavigate("findings")}
           onRemediateClick={() => onSelectControlsGroup(DEFAULT_SELECTION)}
         />
       </Panel>
