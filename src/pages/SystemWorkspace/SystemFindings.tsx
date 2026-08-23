@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { AlertCircle, Circle, ListTodo, Plus } from "lucide-react";
+import { AlertCircle, Circle, FileWarning, ListTodo, Plus } from "lucide-react";
 import { C } from "../../theme";
 import { SectionHeader } from "./shared/SectionHeader";
 import { TableHeaderCell } from "./shared/TableHeaderCell";
@@ -17,6 +17,7 @@ import { loadRuntimeFacts } from "../../engine/runtimeFactsStore";
 import { useLiveEngine } from "../../engine/useLiveEngine";
 import type { RuntimeFacts } from "../../engine/liveGraph";
 import type { EngineFinding } from "../../engine/findings";
+import type { FormalAssessmentStatus } from "../../engine/review";
 import type { AssetOption } from "./formHelpers";
 import type { ControlId, FindingId, SystemId } from "../../graph/ids";
 import type { RemediationStatus } from "../../graph/nodes/findings";
@@ -192,7 +193,13 @@ function FindingRow({ item, selected, onOpen, action }: {
 // two inside one surface is what 5.6 forbids; hosting one component under both
 // models is not, because the editor never writes — it hands back a draft and
 // the host commits it.
-export function SystemFindings({ systemId, findings }: { systemId: SystemId; findings: EngineFinding[] }) {
+interface SystemFindingsProps {
+  systemId: SystemId;
+  findings: EngineFinding[];
+  formalAssessment: FormalAssessmentStatus;
+}
+
+export function SystemFindings({ systemId, findings, formalAssessment }: SystemFindingsProps) {
   const liveEngine = useLiveEngine();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("open");
@@ -201,6 +208,7 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
   const [domain, setDomain] = useState<string | null>(null);
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [creatingForControlId, setCreatingForControlId] = useState<ControlId | null>(null);
   const [editingId, setEditingId] = useState<FindingId | null>(null);
   const [completingId, setCompletingId] = useState<FindingId | null>(null);
   const [saveError, setSaveError] = useState<string[] | null>(null);
@@ -226,6 +234,10 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
   const seriousCount = findings.filter((f) => f.open && (f.severity === "critical" || f.severity === "high")).length;
   const needsCapCount = findings.filter((f) => f.open && !f.capRecorded).length;
   const completeCount = findings.filter((f) => !f.open).length;
+  const needsFindingControls = formalAssessment.gapControlsMissingFinding;
+  const needsCapControlIds = new Set(formalAssessment.gapControlsMissingCap.map(({ controlId }) => controlId));
+  const needsCapFindings = findings.filter((f) => f.open && !f.capRecorded && needsCapControlIds.has(f.controlId));
+  const filingWorkCount = needsFindingControls.length + needsCapFindings.length;
 
   const matrix = useMemo(() => liveEngine.compliance.systemControlMatrix(systemId), [liveEngine, systemId]);
 
@@ -278,6 +290,9 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
   // than held in state, so a commit that changes it re-seeds the header from
   // the saved record instead of the values it was opened with.
   const editing = editingId ? findings.find((f) => f.id === editingId) ?? null : null;
+  const creatingControl = creatingForControlId
+    ? matrix.find((row) => row.controlId === creatingForControlId)?.control ?? null
+    : null;
 
   // What already closed this finding, resolved here rather than in the form —
   // the editor has no engine access, same rule that keeps systemId out of it.
@@ -312,6 +327,22 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
     commit((runtime) => updateFinding(runtime, finding.id, { remediationStatus: to }));
   }
 
+  function beginFinding(controlId: ControlId | null = null) {
+    setCreatingForControlId(controlId);
+    setCreating(true);
+    setEditingId(null);
+    setCompletingId(null);
+    setSaveError(null);
+  }
+
+  function beginFindingEdit(findingId: FindingId) {
+    setEditingId(findingId);
+    setCreating(false);
+    setCreatingForControlId(null);
+    setCompletingId(null);
+    setSaveError(null);
+  }
+
   return (
     <div className="px-8 pb-10 space-y-8">
       <div>
@@ -324,6 +355,7 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
               <StatusPill tone="neutral">{openCount} open</StatusPill>
               {overdueCount > 0 && <StatusPill tone="danger">{overdueCount} overdue</StatusPill>}
               {seriousCount > 0 && <StatusPill tone="warning">{seriousCount} critical/high</StatusPill>}
+              {needsFindingControls.length > 0 && <StatusPill tone="warning">{needsFindingControls.length} need a Finding</StatusPill>}
               {needsCapCount > 0 && <StatusPill tone="warning">{needsCapCount} need{needsCapCount === 1 ? "s" : ""} a CAP</StatusPill>}
               <StatusPill tone="success">{completeCount} complete</StatusPill>
               {mayRaise && (
@@ -332,7 +364,7 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
                   variant="primary"
                   icon={Plus}
                   disabled={controlOptions.length === 0}
-                  onClick={() => { setCreating(true); setEditingId(null); setCompletingId(null); }}
+                  onClick={() => beginFinding()}
                 >
                   New finding
                 </Button>
@@ -342,6 +374,57 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
         />
 
         {saveError && <SaveErrorCallout problems={saveError} />}
+
+        {filingWorkCount > 0 && (
+          <div className="rounded-xl overflow-hidden mb-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+            <div className="flex items-center gap-3 p-4" style={{ background: C.panel2, borderBottom: `1px solid ${C.border}` }}>
+              <FileWarning size={16} color={C.amber} />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold" style={{ color: C.ink }}>Needs Filing</div>
+                <div className="text-xs mt-0.5" style={{ color: C.muted }}>Control gaps awaiting a Finding or CAP</div>
+              </div>
+              <StatusPill tone="warning">{filingWorkCount} item{filingWorkCount === 1 ? "" : "s"}</StatusPill>
+            </div>
+
+            {needsFindingControls.map(({ controlId, control }) => (
+              <button
+                key={`finding-${controlId}`}
+                type="button"
+                onClick={() => beginFinding(controlId)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left wz-hover transition-colors"
+                style={{ borderBottom: `1px solid ${C.border}` }}
+              >
+                <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded shrink-0" style={{ background: C.accentBg, color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
+                  {controlId}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm truncate" style={{ color: C.ink }}>{control.name}</span>
+                  <span className="block text-[10px] mt-0.5 truncate" style={{ color: C.muted }}>{control.domain}</span>
+                </span>
+                <span className="text-xs font-semibold shrink-0" style={{ color: C.accent }}>File finding</span>
+              </button>
+            ))}
+
+            {needsCapFindings.map((finding) => (
+              <button
+                key={`cap-${finding.id}`}
+                type="button"
+                onClick={() => beginFindingEdit(finding.id)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left wz-hover transition-colors"
+                style={{ borderBottom: `1px solid ${C.border}` }}
+              >
+                <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded shrink-0" style={{ background: C.amberBg, color: C.amber, fontFamily: "'IBM Plex Mono', monospace" }}>
+                  {finding.controlId}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm truncate" style={{ color: C.ink }}>{finding.title}</span>
+                  <span className="block text-[10px] mt-0.5 truncate" style={{ color: C.muted }}>{finding.id} · Finding needs a corrective action plan</span>
+                </span>
+                <span className="text-xs font-semibold shrink-0" style={{ color: C.amber }}>Add CAP</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
           <div className="flex items-center gap-4 flex-wrap px-4 py-2.5" style={{ borderBottom: `1px solid ${C.border}` }}>
@@ -400,7 +483,7 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
           {visible.length === 0 ? (
             <div className="p-6 text-xs text-center" style={{ color: C.muted }}>
               {findings.length === 0
-                ? "No findings recorded on this system yet. Assess a control and log what you find, or create one directly."
+                ? "No findings filed yet. Use the Needs Filing queue above or create one directly."
                 : filtersActive || statusFilter !== "all"
                   ? "No findings match these filters."
                   : "No findings to show."}
@@ -413,7 +496,7 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
                   key={f.id}
                   item={f}
                   selected={editingId === f.id}
-                  onOpen={() => { setEditingId(f.id); setCompletingId(null); setCreating(false); }}
+                  onOpen={() => beginFindingEdit(f.id)}
                   // One move per row. Everything else a finding needs — the CAP,
                   // blocking with a reason, completing with closure evidence —
                   // is the editor the row itself opens, so the table does not
@@ -436,14 +519,14 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
           finding's values into the next one. */}
       {(creating || editing) && (
         <FindingEditorModal
-          key={editing?.id ?? "new"}
+          key={editing?.id ?? creatingForControlId ?? "new"}
           open
           controlOptions={controlOptions}
           assetOptionsFor={assetOptionsFor}
           closureEvidence={editingClosureEvidence}
           problems={saveError}
           eyebrow={editing ? `${editing.id} · ${editing.controlId}` : undefined}
-          heading={editing ? editing.title : "New finding"}
+          heading={editing ? editing.title : creatingControl ? `File finding for ${creatingControl.name}` : "New finding"}
           submitLabel={editing ? "Save finding" : "Create finding"}
           blocker={
             editing
@@ -457,8 +540,12 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
             remediationStatus: completingId === editing.id ? "Complete" : editing.remediationStatus, due: editing.due,
             remediationPlan: editing.remediationPlan ?? "",
             remediationOwnerId: editing.remediationOwnerId ?? "", targetDate: editing.targetDate ?? "",
+          } : creatingControl ? {
+            controlId: creatingControl.id,
+            title: `${creatingControl.name} gap`,
+            source: "control-gap",
           } : undefined}
-          onCancel={() => { setCreating(false); setEditingId(null); setCompletingId(null); setSaveError(null); }}
+          onCancel={() => { setCreating(false); setCreatingForControlId(null); setEditingId(null); setCompletingId(null); setSaveError(null); }}
           onSubmit={(draft, closureEvidence) => {
             const ok = commit((runtime) => {
               const fallbackAssetIds = assetOptionsFor(draft.controlId).map((o) => o.assetId);
@@ -472,7 +559,7 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
               const created = withFinding.findings[withFinding.findings.length - 1];
               return addClosureEvidence(withFinding, { findingId: created.id, text: closureEvidence, fallbackAssetIds });
             });
-            if (ok) { setCreating(false); setEditingId(null); setCompletingId(null); }
+            if (ok) { setCreating(false); setCreatingForControlId(null); setEditingId(null); setCompletingId(null); }
           }}
         />
       )}

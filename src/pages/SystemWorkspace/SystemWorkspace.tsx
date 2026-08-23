@@ -268,7 +268,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
 
       {subTab === "risk" && <SystemRisk topRisks={topRisks} />}
 
-      {subTab === "findings" && <SystemFindings systemId={system.id} findings={findings} />}
+      {subTab === "findings" && <SystemFindings systemId={system.id} findings={findings} formalAssessment={formalAssessment} />}
 
       {subTab === "actions" && (
         <SystemActions

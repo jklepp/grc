@@ -20,24 +20,19 @@ interface AssessmentReadinessProps {
 // the panel has, so every coordinate below is in board space, never CSS px.
 // Scaling the whole board uniformly is what keeps the connectors meeting the
 // nodes: a fluid layout would have to redraw the elbows at every width.
-const BOARD = { w: 910, h: 312 };
+const BOARD = { w: 910, h: 190 };
 // Below this the board stops shrinking and the container scrolls instead —
 // past roughly three-quarters, the 11px note line stops being readable.
 const MIN_SCALE = 0.72;
 
-const SPINE_Y = 129;
-const UPPER_Y = 48;
-const LOWER_Y = 210;
-const X = { scope: 96, assess: 300, split: 428, branch: 600, end: 806 };
+const SPINE_Y = 90;
 
 // Every node stacks the same way around its glyph — title above, figure and
-// its one line below — so the three rows read as one rhythm. Offsets are from
+// its one line below — so the row reads as one rhythm. Offsets are from
 // the glyph centre.
 const TITLE_DY = -45;
-const NOTE_DY = 63;
 const NODE_W = 176;
 const NODE_H = 140;
-const END_R = 26;
 
 // The gauge is deliberately smaller than a comfortable standalone dial. This
 // panel is one block on a busy overview, not the page — at 60px the ring of
@@ -45,7 +40,6 @@ const END_R = 26;
 const GAUGE = 48;
 const RING_R = 21.5;
 const RING_C = 2 * Math.PI * RING_R;
-const HALF_DIAMOND = 24;
 
 /* ---------------------------------------------------------------- pieces -- */
 
@@ -164,30 +158,29 @@ function ScaleToFit({ children }: { children: React.ReactNode }) {
 
 /* ----------------------------------------------------------------- flow -- */
 
-const CHECKS = ["scope", "assess", "gaps", "remediate"] as const;
+const CHECKS = ["scope", "assess", "record", "remediate"] as const;
 type CheckId = (typeof CHECKS)[number];
-// "Formally assessed" needs only these three — a gap is allowed to still be
-// open, as long as it's on record with a Finding/CAP. Remediation is a further
-// bar tracked alongside it, which is why the two sit on separate branches.
-const FORMAL_ASSESSMENT_CHECKS = ["scope", "assess", "gaps"] as const;
+const X: Record<CheckId, number> = { scope: 120, assess: 340, record: 570, remediate: 790 };
+// "Formally assessed" needs the first three stages — a gap may remain open as
+// long as its Finding and CAP are on record. Remediation remains the ongoing
+// stage after the assessment engagement closes.
+const FORMAL_ASSESSMENT_CHECKS = ["scope", "assess", "record"] as const;
 
 // Every count is READ, never derived here: Scope from the applicability
-// summary, Assessment from statusCounts.unassessed, and Gaps + Remediation
-// from review.formalAssessmentForSystem — four independent Complete/Deficient
-// checks, not a sequential wizard. The first deficient check in
-// scope->assess->gaps->remediate order (the natural workflow sequence) is
-// marked as next; the order on screen never reshuffles.
+// summary, Assessment from statusCounts.unassessed, and filing + remediation
+// from review.formalAssessmentForSystem. The first incomplete stage in the
+// natural workflow sequence is marked as next; the row never reshuffles.
 export function AssessmentReadiness({ formalAssessment, onScopeClick, onAssessClick, onGapsClick, onRemediateClick }: AssessmentReadinessProps) {
   const pendingCount = formalAssessment.scopeRemainingCount;
   const assessmentCount = formalAssessment.assessmentRemainingCount;
-  // Lane 3 counts both halves of "recorded": gaps with no Finding at all, and
+  // Filing counts both halves of "recorded": gaps with no Finding at all, and
   // gaps whose open Finding still has no CAP. Disjoint sets (see
   // formalAssessmentForSystem), so the sum never double-counts a control.
   const gapsMissingCount = formalAssessment.gapControlsMissingFinding.length
     + formalAssessment.gapControlsMissingCap.length;
   const reassessCount = formalAssessment.controlsAwaitingReassessment.length;
   const remediationCount = formalAssessment.remediationCount;
-  // Lane 4 asks a different question than lane 3 and so counts a different
+  // Remediation asks a different question than filing and counts a different
   // population — every control with a gap status OR an open Finding on it.
   // See review.formalAssessmentForSystem.
   const residualCount = formalAssessment.residualCount;
@@ -198,7 +191,7 @@ export function AssessmentReadiness({ formalAssessment, onScopeClick, onAssessCl
   //               decided or not (see formalAssessmentForSystem)
   //   assess    — every applicable key control, the population the assessment
   //               walk and evidence/Findings models can work directly
-  //   gaps      — every control carrying a gap, recorded or not
+  //   record    — every control carrying a gap, recorded or not
   //   remediate — assessed controls, of which the ones with nothing residual
   //               open on them are the progress
   const matchedCount = formalAssessment.scopeTotalCount;
@@ -212,8 +205,8 @@ export function AssessmentReadiness({ formalAssessment, onScopeClick, onAssessCl
   }> = {
     scope: {
       icon: Target,
-      title: "Scope Review",
-      note: "Controls awaiting a decision",
+      title: "Confirm Scope",
+      note: "Controls awaiting confirmation",
       complete: pendingCount === 0,
       count: pendingCount,
       done: decidedCount,
@@ -222,18 +215,18 @@ export function AssessmentReadiness({ formalAssessment, onScopeClick, onAssessCl
     },
     assess: {
       icon: ClipboardCheck,
-      title: "Control Assessment",
-      note: "Controls not yet assessed",
+      title: "Assess Controls",
+      note: "Controls awaiting assessment",
       complete: assessmentCount === 0,
       count: assessmentCount,
       done: assessedCount,
       total: assessmentTotal,
       onClick: onAssessClick,
     },
-    gaps: {
+    record: {
       icon: FileWarning,
-      title: "Gaps & CAPs Recorded",
-      note: "Gaps without a Finding or CAP",
+      title: "File Findings & CAPs",
+      note: "Controls missing records",
       complete: gapsMissingCount === 0,
       count: gapsMissingCount,
       done: remediationCount - gapsMissingCount,
@@ -242,8 +235,8 @@ export function AssessmentReadiness({ formalAssessment, onScopeClick, onAssessCl
     },
     remediate: {
       icon: Wrench,
-      title: "Remediation",
-      note: "Items still to fix",
+      title: "Remediate",
+      note: "Controls requiring action",
       complete: residualCount === 0,
       count: residualCount,
       done: assessedCount - residualCount,
@@ -262,8 +255,6 @@ export function AssessmentReadiness({ formalAssessment, onScopeClick, onAssessCl
     stroke: complete ? C.green : C.border,
     strokeDasharray: complete ? undefined : "4 5",
   });
-  const splitOpen = checks.assess.complete;
-
   const node = (id: CheckId, cx: number, cy: number) => (
     <FlowNode
       key={id}
@@ -325,88 +316,25 @@ export function AssessmentReadiness({ formalAssessment, onScopeClick, onAssessCl
             aria-hidden="true"
           >
             <g {...flow(checks.scope.complete)}>
-              <path d={`M124 ${SPINE_Y}H272`} />
+              <path d={`M${X.scope + 28} ${SPINE_Y}H${X.assess - 28}`} />
             </g>
-            <path d={`m268 ${SPINE_Y - 4} 4 4-4 4`} stroke={flow(checks.scope.complete).stroke} />
+            <path d={`m${X.assess - 32} ${SPINE_Y - 4} 4 4-4 4`} stroke={flow(checks.scope.complete).stroke} />
 
             <g {...flow(checks.assess.complete)}>
-              <path d={`M328 ${SPINE_Y}H400`} />
+              <path d={`M${X.assess + 28} ${SPINE_Y}H${X.record - 28}`} />
             </g>
-            <path d={`m396 ${SPINE_Y - 4} 4 4-4 4`} stroke={flow(checks.assess.complete).stroke} />
+            <path d={`m${X.record - 32} ${SPINE_Y - 4} 4 4-4 4`} stroke={flow(checks.assess.complete).stroke} />
 
-            <g {...flow(splitOpen)}>
-              <path d={`M456 ${SPINE_Y}H496V${UPPER_Y}H572`} />
-              <path d={`M456 ${SPINE_Y}H496V${LOWER_Y}H572`} />
+            <g {...flow(checks.record.complete)}>
+              <path d={`M${X.record + 28} ${SPINE_Y}H${X.remediate - 28}`} />
             </g>
-            <path d={`m568 ${UPPER_Y - 4} 4 4-4 4`} stroke={flow(splitOpen).stroke} />
-            <path d={`m568 ${LOWER_Y - 4} 4 4-4 4`} stroke={flow(splitOpen).stroke} />
-
-            <g {...flow(checks.gaps.complete)}>
-              <path d={`M624 ${UPPER_Y}H706V${SPINE_Y}`} />
-            </g>
-            <g {...flow(checks.remediate.complete)}>
-              <path d={`M624 ${LOWER_Y}H706V${SPINE_Y}`} />
-            </g>
-
-            <g {...flow(allClear)}>
-              <path d={`M706 ${SPINE_Y}H776`} />
-            </g>
-            <path d={`m772 ${SPINE_Y - 4} 4 4-4 4`} stroke={flow(allClear).stroke} />
-
-            {/* Parallel split: both tracks run, and both have to come back in. */}
-            <path
-              d={`M${X.split} ${SPINE_Y - HALF_DIAMOND} ${X.split + HALF_DIAMOND} ${SPINE_Y} ${X.split} ${SPINE_Y + HALF_DIAMOND} ${X.split - HALF_DIAMOND} ${SPINE_Y}Z`}
-              fill={splitOpen ? C.greenBg : C.panel}
-              stroke={splitOpen ? C.green : C.border}
-            />
-            <path
-              d={`M${X.split} ${SPINE_Y - 8}v16M${X.split - 8} ${SPINE_Y}h16`}
-              stroke={splitOpen ? C.green : C.muted}
-              strokeWidth={2}
-            />
+            <path d={`m${X.remediate - 32} ${SPINE_Y - 4} 4 4-4 4`} stroke={flow(checks.record.complete).stroke} />
           </svg>
 
           {node("scope", X.scope, SPINE_Y)}
           {node("assess", X.assess, SPINE_Y)}
-          {node("gaps", X.branch, UPPER_Y)}
-          {node("remediate", X.branch, LOWER_Y)}
-
-          <div
-            className="absolute truncate text-center"
-            style={{
-              left: X.end - NODE_W / 2,
-              top: SPINE_Y + TITLE_DY,
-              width: NODE_W,
-              fontFamily: WZ.serif,
-              fontSize: 13.5,
-              fontWeight: 600,
-              lineHeight: "17px",
-              color: allClear ? C.ink : C.muted,
-            }}
-          >
-            Assurance Ready
-          </div>
-          <div
-            className="absolute flex items-center justify-center"
-            style={{
-              left: X.end - END_R,
-              top: SPINE_Y - END_R,
-              width: END_R * 2,
-              height: END_R * 2,
-              borderRadius: WZ.radius.pill,
-              border: `2.5px ${allClear ? "solid" : "dashed"} ${allClear ? C.green : C.border}`,
-              background: allClear ? C.greenBg : C.panel,
-              color: allClear ? C.green : C.muted,
-            }}
-          >
-            <ShieldCheck size={20} />
-          </div>
-          <div
-            className={`${TX.help} absolute text-center`}
-            style={{ left: X.end - NODE_W / 2, top: SPINE_Y + NOTE_DY, width: NODE_W, color: C.muted }}
-          >
-            All four checks clear
-          </div>
+          {node("record", X.record, SPINE_Y)}
+          {node("remediate", X.remediate, SPINE_Y)}
         </ScaleToFit>
       </div>
     </WizardTokens>
