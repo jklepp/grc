@@ -19,12 +19,13 @@ import type { Control } from "../../graph/nodes/controls";
 import type { ReviewWave } from "../../engine/review";
 
 type ControlStatus = ControlMatrixRow["status"];
-type SelectionKind = "status" | "responsibility" | "remediation-group" | "assessment-group" | "all";
+type SelectionKind = "status" | "responsibility" | "remediation-group" | "assessment-group" | "gap-recording-group" | "all";
 
 export interface ControlSelection {
   kind: SelectionKind;
   key?: string;
   label: string;
+  controlIds?: ControlId[];
 }
 
 interface ControlFilters {
@@ -120,7 +121,7 @@ const ALL_SELECTION: ControlSelection = { kind: "all", label: "All Applicable Co
 
 // Every chip on the summary card is a drill-down trigger. `selection` is
 // { kind: "status" | "responsibility" | "remediation-group" |
-// "assessment-group" | "all", key, label } or null; clicking the active chip
+// "assessment-group" | "gap-recording-group" | "all", key, label } or null; clicking the active chip
 // again falls back to the default view rather than clearing to empty — this
 // table is never supposed to show nothing. Applicability (Not In Scope /
 // Applicability Review) isn't part of this local selection at all — those
@@ -541,6 +542,7 @@ function SelectedControlsTable({
     : selection.kind === "responsibility" ? matrix.filter((r) => r.responsibility === selection.key)
     : selection.kind === "remediation-group" ? matrix.filter((r) => REMEDIATION_STATUS_SET.has(r.status))
     : selection.kind === "assessment-group" ? matrix.filter((r) => r.status === "unassessed")
+    : selection.kind === "gap-recording-group" ? matrix.filter((r) => selection.controlIds?.includes(r.controlId))
     : selection.kind === "all" ? matrix
     : [];
 

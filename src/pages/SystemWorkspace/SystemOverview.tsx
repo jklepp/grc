@@ -6,7 +6,7 @@ import { AssessmentReadiness } from "./overview/AssessmentReadiness";
 import { AttentionRequired } from "./overview/AttentionRequired";
 import { SystemSnapshot } from "./overview/SystemSnapshot";
 import { Panel } from "./shared/Panel";
-import { ASSESSMENT_SELECTION } from "./SystemControls";
+import { ASSESSMENT_SELECTION, DEFAULT_SELECTION } from "./SystemControls";
 import type { ControlSelection } from "./SystemControls";
 import type {
   CockpitSummary, ExposurePosture, WorkspaceDataType, WorkspaceSystem,
@@ -23,7 +23,7 @@ interface SystemOverviewProps {
   onNavigate: (tab: SystemWorkspaceTab) => void;
   onOpenScopeReview: (wave: ReviewWave) => void;
   onSelectControlsGroup: (selection: ControlSelection) => void;
-  onOpenMissingFinding: () => void;
+  onOpenGapsToRecord: () => void;
   onStartAssessment?: () => void;
   onGenerateIsoReport: () => Promise<void>;
   formalAssessment: FormalAssessmentStatus;
@@ -32,7 +32,7 @@ interface SystemOverviewProps {
 export function SystemOverview(props: SystemOverviewProps) {
   const {
     system, cockpit, compliance, exposure,
-    dataTypes, onNavigate, onOpenScopeReview, onSelectControlsGroup, onOpenMissingFinding,
+    dataTypes, onNavigate, onOpenScopeReview, onSelectControlsGroup, onOpenGapsToRecord,
     onStartAssessment, onGenerateIsoReport,
     formalAssessment,
   } = props;
@@ -58,8 +58,8 @@ export function SystemOverview(props: SystemOverviewProps) {
           formalAssessment={formalAssessment}
           onScopeClick={() => onOpenScopeReview("not-applicable")}
           onAssessClick={onStartAssessment ?? (() => onSelectControlsGroup(ASSESSMENT_SELECTION))}
-          onGapsClick={onOpenMissingFinding}
-          onRemediateClick={() => onNavigate("findings")}
+          onGapsClick={onOpenGapsToRecord}
+          onRemediateClick={() => onSelectControlsGroup(DEFAULT_SELECTION)}
         />
       </Panel>
 

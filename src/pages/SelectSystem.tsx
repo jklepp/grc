@@ -244,7 +244,14 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
   function handleWizardSaved(systemId: SystemId) {
     const created = editingSystemId === null;
     closeWizard();
-    if (created) onSelectSystem(systemId, { startAssessment: true });
+    if (created) {
+      // commitRuntimeFacts publishes the new engine in the same event as this
+      // callback. Let that external-store update render before asking Systems
+      // to validate and open the new id; otherwise the picker can evaluate the
+      // route against its previous engine snapshot and remain on screen until
+      // a reload even though the hash already names the workspace.
+      requestAnimationFrame(() => onSelectSystem(systemId, { startAssessment: true }));
+    }
   }
 
   return (

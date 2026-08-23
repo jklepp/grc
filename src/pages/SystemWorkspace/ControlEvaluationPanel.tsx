@@ -819,6 +819,7 @@ export function ControlEvaluationPanel({
   const respMeta = RESPONSIBILITY_META[row.responsibility];
   const implMeta = IMPLEMENTATION_META.find((m) => m.type === row.control.implementationType);
   const controlFindings = draftEngine.findings.findingsForSystem(system.id).filter((f) => f.controlId === row.control.id);
+  const openControlFindings = controlFindings.filter((finding) => finding.open);
   const urgentRemediation = mostUrgentRemediation(controlFindings);
   const isProgramScoped = row.keyControl?.scope === "program";
   const programApplicability = isProgramScoped ? draftEngine.applicability.resolveProgramApplicability(system.id, row.control.id) : null;
@@ -1188,7 +1189,7 @@ export function ControlEvaluationPanel({
           )}
           <RailGroup label={walk ? "This control" : undefined}>
             {STEPS.map((s) => {
-              const badge = s.id === "findings" ? controlFindings.length : null;
+              const badge = s.id === "findings" ? openControlFindings.length : null;
               return (
                 <RailItem
                   key={s.id}
@@ -1791,7 +1792,7 @@ export function ControlEvaluationPanel({
                   })}
                 </div>
               ) : (
-                <EmptyState>No open findings for this control.</EmptyState>
+                <EmptyState>No findings recorded for this control.</EmptyState>
               )}
             </Section>
           )}

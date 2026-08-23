@@ -83,7 +83,6 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   // control at the end of it. The panel still says why on the one case that is
   // a refusal rather than an absence — an assessor who owns this system.
   const mayAssess = allows(canAssess(user, system));
-  const activeSystemId = system.id;
   const reportSystem = system;
   const matrix = useMemo(
     () => liveEngine.compliance.systemControlMatrix(system.id).map((row) => ({
@@ -185,23 +184,18 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
     [liveEngine, system.id]
   );
 
-  function openMissingFinding() {
-    // A program control can retain a historical partial assessment after its
-    // applicability premise is removed. The graph correctly refuses to hang a
-    // new system finding on that out-of-scope program, so do not route the
-    // operator into an editor that can only reject the finding. Scope Review
-    // remains the place to resolve that stale applicability decision.
-    const routable = (list: typeof formalAssessment.gapControlsMissingFinding) => list.find(({ controlId }) => {
-      const gapRow = matrix.find((candidate) => candidate.controlId === controlId);
-      return gapRow?.keyControl?.scope !== "program"
-        || liveEngine.applicability.resolveProgramApplicability(activeSystemId, controlId).required;
-    });
-    // Recording comes before planning: unrecorded gaps first, then Findings
-    // that exist but still carry no CAP — the same order lane 3 counts them.
-    const firstGap = routable(formalAssessment.gapControlsMissingFinding)
-      ?? routable(formalAssessment.gapControlsMissingCap);
-    if (firstGap) selectControl(firstGap.controlId, "findings");
-    else openControlsGroup(DEFAULT_SELECTION);
+  function openGapsToRecord() {
+    // Readiness lane 3 is a queue, not a single-control decision. Preserve the
+    // engine's two disjoint populations and union them only for presentation.
+    const controlIds = [
+      ...formalAssessment.gapControlsMissingFinding,
+      ...formalAssessment.gapControlsMissingCap,
+    ].map(({ controlId }) => controlId);
+    openControlsGroup(controlIds.length > 0 ? {
+      kind: "gap-recording-group",
+      label: "Gaps & CAPs to Record",
+      controlIds,
+    } : DEFAULT_SELECTION);
   }
 
   async function generateIsoReport() {
@@ -250,8 +244,8 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           exposure={exposure}
           dataTypes={dataTypes} onNavigate={changeSubTab}
           onOpenScopeReview={openScopeReview} onSelectControlsGroup={openControlsGroup}
-          onOpenMissingFinding={openMissingFinding}
-          onStartAssessment={mayAssess && formalAssessment.scopeDecided && assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
+          onOpenGapsToRecord={openGapsToRecord}
+          onStartAssessment={mayAssess && assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
           onGenerateIsoReport={generateIsoReport}
           formalAssessment={formalAssessment}
         />
@@ -327,7 +321,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         onClose={() => setAssessmentWalkOpen(false)}
         onGoToRemediation={() => {
           setAssessmentWalkOpen(false);
-          if (!formalAssessment.gapsRecorded) openMissingFinding();
+          if (!formalAssessment.gapsRecorded) openGapsToRecord();
           else changeSubTab("findings");
         }}
       />

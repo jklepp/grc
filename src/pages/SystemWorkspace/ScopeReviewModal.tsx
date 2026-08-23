@@ -257,6 +257,11 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
     setPendingNote("");
   }
 
+  function confirmAllNoAssetOut() {
+    const note = "No registered asset in this system matches the control's required asset population.";
+    commitReviews(noAssetControls.map((control) => review(control.id, "not-applicable", "confirm", note)));
+  }
+
   function noteForGroup(group: InheritanceGroup): string {
     const evidence = programEvidence[group.id];
     return group.bucket === "vendor-inherited"
@@ -679,7 +684,16 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
                     icon={Target}
                     title="Asset coverage decisions"
                     description="Resolve these before grading so the assessment never stops on a control with no valid asset population."
-                    aside={<StatusPill tone="warning">{noAssetControls.length} to decide</StatusPill>}
+                    aside={(
+                      <div className="flex items-center gap-2">
+                        {noAssetControls.length > 1 && (
+                          <Button size="sm" variant="primary" icon={Check} disabled={!canWrite} onClick={confirmAllNoAssetOut}>
+                            Confirm all {noAssetControls.length} Not In Scope
+                          </Button>
+                        )}
+                        <StatusPill tone="warning">{noAssetControls.length} to decide</StatusPill>
+                      </div>
+                    )}
                   >
                     <Well padded={false}>
                       {noAssetControls.map((control, index) => noAssetRow(control, index === noAssetControls.length - 1))}
