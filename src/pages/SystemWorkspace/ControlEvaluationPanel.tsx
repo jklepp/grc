@@ -34,7 +34,7 @@ import {
   Button, Callout, CheckRow, ChoiceChip, DisclosureButton, EmptyState, Field, FieldGrid, InlineField, InlineHint,
   ProgressBar, RailGroup, RailItem, SaveErrorCallout, Section, Select, StatusPill, TextInput, toneColor, TX, Well,
   GUIDED_WORKFLOW_HEADER_MIN_HEIGHT, WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardPane, WizardRail, WizardRailSummary,
-  WizardStageStrip, WizardStrip, WZ,
+  WizardMiniFlow, WizardStrip, WZ,
 } from "../../components/wizard/WizardUI";
 import type { Tone, WizardStageNavigation } from "../../components/wizard/WizardUI";
 import { selectedValue } from "./formHelpers";
@@ -1135,9 +1135,9 @@ export function ControlEvaluationPanel({
            what every step on screen is about — and a card in the pane could
            not promise that at any size or colour.
 
-           The only aside is the unsaved count, which is save state and so
-           belongs to the chrome; the pills that describe the CONTROL travel
-           with the control. */}
+           The aside carries save state and, in a host workflow, the mini-flow
+           through its phases — both are chrome, not the control, so the pills
+           that describe the CONTROL travel with the control instead. */}
       <WizardHeader
         minHeight={workflowNavigation ? GUIDED_WORKFLOW_HEADER_MIN_HEIGHT : undefined}
         railSummary={(
@@ -1154,20 +1154,23 @@ export function ControlEvaluationPanel({
         progress={walk && runPosition
           ? { value: runPosition, total: walk.initialTotal, label: `${walk.title ?? "Control assessment"} progress` }
           : undefined}
-        aside={unsavedCount > 0 ? <StatusPill tone="warning">{unsavedCount} unsaved</StatusPill> : undefined}
+        aside={(
+          <>
+            {unsavedCount > 0 && <StatusPill tone="warning">{unsavedCount} unsaved</StatusPill>}
+            {workflowNavigation && (
+              <WizardMiniFlow
+                {...workflowNavigation}
+                onSelect={(id) => {
+                  if (id === workflowNavigation.activeId) return;
+                  if (unsavedCount > 0 && !window.confirm(`Discard ${unsavedCount} unsaved change${unsavedCount === 1 ? "" : "s"} and switch phases?`)) return;
+                  workflowNavigation.onSelect(id);
+                }}
+              />
+            )}
+          </>
+        )}
         onClose={<ModalCloseButton onClose={requestClose} />}
       />
-
-      {workflowNavigation && (
-        <WizardStageStrip
-          {...workflowNavigation}
-          onSelect={(id) => {
-            if (id === workflowNavigation.activeId) return;
-            if (unsavedCount > 0 && !window.confirm(`Discard ${unsavedCount} unsaved change${unsavedCount === 1 ? "" : "s"} and switch phases?`)) return;
-            workflowNavigation.onSelect(id);
-          }}
-        />
-      )}
 
       {/* ---- Walk strip: who is signing ----
            The assessor used to be typed here, in the chrome, where it read as

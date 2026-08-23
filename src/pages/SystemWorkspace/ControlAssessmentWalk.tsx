@@ -5,7 +5,7 @@ import { useLiveEngine } from "../../engine/useLiveEngine";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
   Button, CompletionScreen, StatTile, WizardChrome,
-  GUIDED_WORKFLOW_HEADER_MIN_HEIGHT, GUIDED_WORKFLOW_MODAL, WizardFooter, WizardHeader, WizardOutcomePane, WizardStageStrip,
+  GUIDED_WORKFLOW_HEADER_MIN_HEIGHT, GUIDED_WORKFLOW_MODAL, WizardFooter, WizardHeader, WizardMiniFlow, WizardOutcomePane,
 } from "../../components/wizard/WizardUI";
 import type { WizardStageNavigation } from "../../components/wizard/WizardUI";
 import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
@@ -150,9 +150,9 @@ export function ControlAssessmentWalk({
             eyebrow={`Control Assessment · ${decidedCount} of ${initialTotal} assessed`}
             title={skippedCount > 0 ? "Assessment walk paused" : "Control assessment complete"}
             progress={{ value: initialTotal, total: initialTotal, label: "Control assessment progress" }}
+            aside={workflowNavigation ? <WizardMiniFlow {...workflowNavigation} /> : undefined}
             onClose={<ModalCloseButton onClose={onClose} />}
           />
-          {workflowNavigation && <WizardStageStrip {...workflowNavigation} />}
           <WizardOutcomePane>
             <CompletionScreen
               title={skippedCount > 0 ? "Some controls still need a decision" : "Every key control is assessed"}

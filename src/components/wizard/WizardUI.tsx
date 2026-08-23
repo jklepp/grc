@@ -746,7 +746,7 @@ export function WizardHeader({ icon: Icon, eyebrow, title, description, aside, o
   minHeight?: number;
 }) {
   const subject = (
-    <div className={`flex items-start justify-between gap-4 px-6 py-4 min-w-0 ${minHeight ? "flex-1" : ""}`}>
+    <div className={`flex items-center justify-between gap-4 px-6 py-4 min-w-0 ${minHeight ? "flex-1" : ""}`}>
       <div className="flex items-start gap-3 min-w-0">
         {Icon && (
           <span
@@ -808,6 +808,11 @@ export interface WizardStageStripItem {
   detail: string;
   icon: LucideIcon;
   complete: boolean;
+  // A short name for the compact mini-flow (one word where possible — it sits
+  // under a 34px node, not a card). Falls back to `title`, which is fine for a
+  // title that is already one word but will crowd its neighbors otherwise, so
+  // any multi-word stage should supply one.
+  shortTitle?: string;
 }
 
 export interface WizardStageNavigation {
@@ -817,55 +822,63 @@ export interface WizardStageNavigation {
   label?: string;
 }
 
-// A compact phase navigator for a larger workflow whose current surface may
-// contain its own sections or item queue. The host owns the navigation callback
-// so a staged child can guard unsaved work before changing phases. The numbered
-// icon treatment mirrors System Readiness so the handoff into a guided run
-// keeps the same visual landmarks.
-export function WizardStageStrip({ stages, activeId, onSelect, label = "Workflow stages" }: WizardStageNavigation) {
+// A compact phase indicator for a larger workflow whose current surface may
+// contain its own sections or item queue. It lives in the header's `aside`
+// slot (4.11) rather than a row of its own — the host's phases are drawn as a
+// small connected stepper, so the surface underneath keeps the vertical space
+// a full-width strip would have spent. The host owns the navigation callback
+// so a staged child can guard unsaved work before changing phases.
+export function WizardMiniFlow({ stages, activeId, onSelect, label = "Workflow stages" }: WizardStageNavigation) {
+  const cols = stages.flatMap((_, index) => (index < stages.length - 1 ? ["40px", "30px"] : ["40px"])).join(" ");
   return (
-    <WizardStrip>
-      <ol aria-label={label} className="grid grid-cols-2 lg:grid-cols-4 gap-2 w-full">
-        {stages.map((stage, index) => {
-          const active = stage.id === activeId;
-          const Icon = stage.icon;
-          return (
-            <li key={stage.id} className="min-w-0">
-              <button
-                type="button"
-                onClick={() => onSelect(stage.id)}
-                aria-current={active ? "step" : undefined}
-                aria-label={`${stage.title} — ${stage.detail}`}
-                className={`wz-focusable ${active ? "" : "wz-hover"} w-full min-w-0 flex items-center gap-2.5 px-2.5 py-2 text-left transition-colors`}
-                style={{
-                  background: active ? C.accentBg : undefined,
-                  border: `1px solid ${active ? C.accent : "transparent"}`,
-                  borderRadius: WZ.radius.control,
-                }}
-              >
-                <span className="relative w-8 h-8 shrink-0 flex items-center justify-center rounded-full" style={{
-                  background: stage.complete ? C.greenBg : active ? C.accent : C.panel2,
-                  color: stage.complete ? C.green : active ? WZ.onAccent : C.muted,
-                  border: `1.5px solid ${stage.complete ? C.green : active ? C.accent : C.border}`,
-                }} aria-hidden="true">
-                  {stage.complete ? <Check size={14} /> : <Icon size={15} />}
-                  <span
-                    className="absolute -right-1 -bottom-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-mono"
-                    style={{ background: C.ink, color: C.panel, border: `1px solid ${C.panel}` }}
-                  >
-                    {index + 1}
-                  </span>
-                </span>
-                <span className="min-w-0">
-                  <span className={`${TX.railTitle} block truncate`} style={{ color: C.ink }}>{stage.title}</span>
-                  <span className={`${TX.help} block mt-0.5 truncate`} style={{ color: C.muted }}>{stage.detail}</span>
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-    </WizardStrip>
+    <ol
+      aria-label={label}
+      className="grid"
+      style={{ gridTemplateColumns: cols, rowGap: 8, alignItems: "center" }}
+    >
+      {stages.map((stage, index) => {
+        const active = stage.id === activeId;
+        const Icon = stage.icon;
+        return (
+          <li key={stage.id} style={{ gridColumn: index * 2 + 1, gridRow: 1, listStyle: "none" }} className="flex items-center justify-center">
+            <button
+              type="button"
+              onClick={() => onSelect(stage.id)}
+              aria-current={active ? "step" : undefined}
+              aria-label={`${stage.title} — ${stage.detail}`}
+              title={`${stage.title} — ${stage.detail}`}
+              className={`wz-focusable ${active ? "" : "wz-hover"} shrink-0 flex items-center justify-center transition-colors`}
+              style={{
+                width: 40, height: 40, borderRadius: WZ.radius.pill,
+                background: stage.complete ? C.greenBg : active ? C.accent : C.panel2,
+                color: stage.complete ? C.green : active ? WZ.onAccent : C.muted,
+                border: `2px solid ${stage.complete ? C.green : active ? C.accent : C.border}`,
+                boxShadow: active ? `0 0 0 5px ${C.accentBg}` : undefined,
+              }}
+            >
+              {stage.complete ? <Check size={18} /> : <Icon size={18} />}
+            </button>
+          </li>
+        );
+      })}
+      {stages.slice(0, -1).map((stage, index) => (
+        <li
+          key={`${stage.id}-connector`}
+          aria-hidden="true"
+          style={{ gridColumn: index * 2 + 2, gridRow: 1, listStyle: "none", height: 2, background: C.border }}
+        />
+      ))}
+      {stages.map((stage, index) => (
+        <li
+          key={`${stage.id}-label`}
+          aria-hidden="true"
+          className={`${TX.code} text-center`}
+          style={{ gridColumn: index * 2 + 1, gridRow: 2, listStyle: "none", whiteSpace: "nowrap", justifySelf: "center", color: stage.id === activeId ? C.ink : C.muted }}
+        >
+          {stage.shortTitle ?? stage.title}
+        </li>
+      ))}
+    </ol>
   );
 }
 

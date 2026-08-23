@@ -4,7 +4,7 @@ import { useLiveEngine } from "../../engine/useLiveEngine";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
   Button, CompletionScreen, WizardChrome, WizardFooter, WizardHeader,
-  GUIDED_WORKFLOW_HEADER_MIN_HEIGHT, GUIDED_WORKFLOW_MODAL, WizardOutcomePane, WizardStageStrip,
+  GUIDED_WORKFLOW_HEADER_MIN_HEIGHT, GUIDED_WORKFLOW_MODAL, WizardMiniFlow, WizardOutcomePane,
 } from "../../components/wizard/WizardUI";
 import type { WizardStageNavigation, WizardStageStripItem } from "../../components/wizard/WizardUI";
 import { ScopeReviewModal } from "./ScopeReviewModal";
@@ -168,9 +168,9 @@ function ActionWalk({
             icon={StageIcon}
             eyebrow={`System Assurance · ${handledCount} worked`}
             title={paused ? `${stageTitle} paused` : `${stageTitle} complete`}
+            aside={<WizardMiniFlow {...workflowNavigation} />}
             onClose={<ModalCloseButton onClose={onClose} />}
           />
-          <WizardStageStrip {...workflowNavigation} />
           <WizardOutcomePane>
             <CompletionScreen
               title={paused ? `${liveOutstanding} item${liveOutstanding === 1 ? "" : "s"} still require attention` : `No ${stageTitle.toLowerCase()} work remains`}
@@ -247,22 +247,22 @@ export function AssuranceWorkflow({
     + formalAssessment.gapControlsMissingCap.length;
   const stages: WizardStageStripItem[] = [
     {
-      id: "scope", title: "Confirm Scope", icon: Target,
+      id: "scope", title: "Confirm Scope", shortTitle: "Scope", icon: Target,
       detail: `${formalAssessment.scopeRemainingCount} remaining`,
       complete: formalAssessment.scopeDecided,
     },
     {
-      id: "assess", title: "Assess Controls", icon: ClipboardCheck,
+      id: "assess", title: "Assess Controls", shortTitle: "Assess", icon: ClipboardCheck,
       detail: `${formalAssessment.assessmentRemainingCount} remaining`,
       complete: formalAssessment.controlsAssessed,
     },
     {
-      id: "findings", title: "File Findings & CAPs", icon: FileWarning,
+      id: "findings", title: "File Findings & CAPs", shortTitle: "Findings", icon: FileWarning,
       detail: `${findingsRemaining} remaining`,
       complete: formalAssessment.gapsRecorded,
     },
     {
-      id: "remediate", title: "Remediate", icon: Wrench,
+      id: "remediate", title: "Remediate", shortTitle: "Remediate", icon: Wrench,
       detail: `${formalAssessment.residualCount} remaining`,
       complete: formalAssessment.residualCount === 0,
     },

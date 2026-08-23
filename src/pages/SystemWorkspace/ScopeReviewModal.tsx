@@ -12,7 +12,7 @@ import {
   Button, Callout, CompletionScreen, Field, InlineHint,
   RailGroup, RailItem, SaveErrorCallout, Section, StatTile, StatusPill, TextInput, TX, Well,
   GUIDED_WORKFLOW_HEADER_MIN_HEIGHT, GUIDED_WORKFLOW_MODAL, WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardPane, WizardRail,
-  WizardRailSummary, WizardStageStrip,
+  WizardRailSummary, WizardMiniFlow,
 } from "../../components/wizard/WizardUI";
 import type { WizardStageNavigation } from "../../components/wizard/WizardUI";
 import type { ControlReview } from "../../graph/edges/controlReviews";
@@ -593,10 +593,9 @@ export function ScopeReviewModal({
           title={sectionHeading.title}
           description={sectionHeading.description}
           progress={{ value: progressValue, total: SECTION_ORDER.length, label: "Scope review progress" }}
+          aside={workflowNavigation ? <WizardMiniFlow {...workflowNavigation} /> : undefined}
           onClose={<ModalCloseButton onClose={onClose} />}
         />
-
-        {workflowNavigation && <WizardStageStrip {...workflowNavigation} />}
 
         <WizardBody>
           <WizardRail label="Scope review">
