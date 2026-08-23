@@ -77,8 +77,8 @@ const STEPS = [
   },
   {
     id: 6, title: "Resilience & SDLC", detail: "Backup, DR & secure dev", icon: DatabaseBackup,
-    heading: "Resilience & secure development",
-    lead: "Optional operational posture: backup configuration, proven disaster-recovery tests, and secure-development safeguards. Leave a section off if it hasn't actually been set up yet — an absent record reads honestly as “not yet on record”, not a fabricated zero.",
+    heading: "Resilience & SDLC",
+    lead: "Record backup coverage, recovery tests, and secure-development safeguards. Leave optional sections off when they are not part of this system.",
   },
   {
     id: 7, title: "Derived Scope", detail: "What applies & why", icon: ClipboardCheck,
@@ -88,7 +88,7 @@ const STEPS = [
   {
     // The last step's wording is the only one that depends on the mode and on
     // what has been typed, so it is overridden in `stepHeading` below.
-    id: 8, title: "Add System", detail: "Sign & create", icon: Check,
+    id: 8, title: "Review & create", detail: "Sign & create", icon: Check,
     heading: "Add System",
     lead: "This system is ready. The next step is confirming what's out of scope in Scope Review.",
   },
@@ -1172,6 +1172,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   // What the header says about the step in hand. Every step reads from STEPS;
   // only the last one varies with the mode and with what has been typed.
   const stepDef = STEPS.find((candidate) => candidate.id === step) ?? STEPS[0];
+  const nextStepDef = STEPS.find((candidate) => candidate.id === step + 1);
   const stepHeading: { title: string; description: string } = step === 8
     ? {
         title: editingSystemId ? "Save changes" : "Add System",
@@ -1189,7 +1190,24 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
             edge. Step identity is chrome, so it stays pinned while the body
             scrolls instead of scrolling away with the first field. */}
         <WizardHeader
-          eyebrow={`${modeName} · Step ${step} of ${total}`}
+          railSummary={(
+            <div className="flex items-center gap-3 min-w-0">
+              <span
+                className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg"
+                style={{ background: C.accent, color: "white", boxShadow: "0 2px 6px rgba(79, 57, 170, .22)" }}
+                aria-hidden="true"
+              >
+                <ClipboardCheck size={18} strokeWidth={2.25} />
+              </span>
+              <div className="min-w-0">
+                <div className="text-base leading-5 font-semibold truncate" style={{ color: C.ink }}>{modeName}</div>
+                <div className={`${TX.eyebrow} mt-1.5`} style={{ color: C.accent }}>
+                  Step {step} of {total} · {Math.round((step / total) * 100)}%
+                </div>
+              </div>
+            </div>
+          )}
+          eyebrow={`Step ${step}`}
           title={stepHeading.title}
           description={stepHeading.description}
           progress={{ value: step, total, label: `${modeName} progress` }}
@@ -1197,14 +1215,15 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
         />
 
         <WizardBody>
-          <WizardRail>
-            <RailGroup connected>
+          <WizardRail compact>
+            <RailGroup connected compact>
               {STEPS.map((s) => (
                 <RailItem
                   key={s.id}
                   marker={s.id}
                   title={s.title}
                   detail={s.detail}
+                  compact
                   state={s.id === step ? "active" : s.id < step ? "done" : "pending"}
                   disabled={!stepReachable(s.id)}
                   ariaLabel={`Step ${s.id}: ${s.title} — ${s.detail}`}
@@ -1922,7 +1941,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
             {step === 6 && (
               <>
                 <StepBody>
-                  <Section icon={DatabaseBackup} title="Backup & recovery" description="How durable this system's data is, and how quickly it can be restored.">
+                  <Section alignBody icon={DatabaseBackup} title="Backup & recovery" description="How durable this system's data is, and how quickly it can be restored.">
                     <ToggleCard
                       checked={trackBackup}
                       onChange={setTrackBackup}
@@ -1953,14 +1972,20 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                   </Section>
 
                   <Section
+                    alignBody
                     icon={History}
                     title="Disaster recovery tests"
                     description="Proven restores, not just a green backup job — add one row per test conducted."
                     aside={<StatusPill tone={drTestDrafts.length > 0 && drTestsValid ? "success" : "neutral"}>{drTestDrafts.length} test{drTestDrafts.length === 1 ? "" : "s"}</StatusPill>}
                   >
-                    {drTestDrafts.length === 0
-                      ? <EmptyState>No disaster-recovery test on record yet.</EmptyState>
-                      : (
+                    {drTestDrafts.length === 0 ? (
+                      <AddButton onClick={addDrTest}>
+                        <span className="py-2 text-center">
+                          <span className="block font-normal" style={{ color: C.muted }}>No disaster-recovery tests recorded</span>
+                          <span className="block mt-1">Add DR test</span>
+                        </span>
+                      </AddButton>
+                    ) : (
                         <EntityList>
                           {drTestDrafts.map((t, i) => (
                             <EntityCard
@@ -2016,12 +2041,14 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                           ))}
                         </EntityList>
                       )}
-                    <AddButton onClick={addDrTest} disabled={drTestDrafts.some((t) => !t.saved)}>
-                      {drTestDrafts.length === 0 ? "Add DR test" : "Add another DR test"}
-                    </AddButton>
+                    {drTestDrafts.length > 0 && (
+                      <AddButton onClick={addDrTest} disabled={drTestDrafts.some((t) => !t.saved)}>
+                        Add another DR test
+                      </AddButton>
+                    )}
                   </Section>
 
-                  <Section icon={Code2} title="Secure development posture" description={`Only meaningful if ACME writes code for this system — see “Custom software” on the Technology step.`}>
+                  <Section alignBody icon={Code2} title="Secure development posture" description={`Only meaningful if ACME writes code for this system — see “Custom software” on the Technology step.`}>
                     <ToggleCard
                       checked={trackSdlc}
                       onChange={setTrackSdlc}
@@ -2204,12 +2231,14 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
             the draft is coextensive with the modal, there is no "throw the
             edits away but stay" state to offer separately (5.6, 5.7). */}
         <WizardFooter
-          position={editingSystemId ? "Draft — changes not saved yet" : "Draft — nothing created yet"}
-          hint={blockReason ? <InlineHint tone="warning">{blockReason}</InlineHint> : undefined}
+          position="Draft"
+          hint={blockReason
+            ? <InlineHint tone="warning">{blockReason}</InlineHint>
+            : <InlineHint tone="neutral">Changes are committed when you {editingSystemId ? "save" : "create the system"}.</InlineHint>}
           close={<Button onClick={close}>Cancel</Button>}
-          back={<Button icon={ChevronLeft} onClick={goBack} disabled={step === 1}>Back</Button>}
+          back={step > 1 ? <Button icon={ChevronLeft} onClick={goBack}>Back</Button> : undefined}
           primary={!isLastStep
-            ? <Button variant="primary" iconRight={ChevronRight} onClick={goNext} disabled={nextDisabled}>Continue</Button>
+            ? <Button variant="primary" iconRight={ChevronRight} onClick={goNext} disabled={nextDisabled}>Continue to {nextStepDef?.title}</Button>
             : (
               <Button
                 variant="primary"

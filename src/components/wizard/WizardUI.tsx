@@ -78,8 +78,8 @@ export function StepBody({ children }: { children: ReactNode }) {
 
 // `grow` lets a Section fill a flex column and hand its own body the height,
 // so a long list can scroll inside the card instead of the whole step.
-export function Section({ icon: Icon, title, description, aside, grow = false, children }: {
-  icon: LucideIcon; title: string; description?: string; aside?: ReactNode; grow?: boolean; children: ReactNode;
+export function Section({ icon: Icon, title, description, aside, grow = false, alignBody = false, children }: {
+  icon: LucideIcon; title: string; description?: string; aside?: ReactNode; grow?: boolean; alignBody?: boolean; children: ReactNode;
 }) {
   return (
     <section
@@ -99,7 +99,7 @@ export function Section({ icon: Icon, title, description, aside, grow = false, c
         </div>
         {aside && <div className="shrink-0">{aside}</div>}
       </header>
-      <div className={`p-4 flex flex-col gap-4 ${grow ? "flex-1 min-h-0" : ""}`}>{children}</div>
+      <div className={`${alignBody ? "pt-4 pr-4 pb-4 pl-[60px]" : "p-4"} flex flex-col gap-4 ${grow ? "flex-1 min-h-0" : ""}`}>{children}</div>
     </section>
   );
 }
@@ -332,17 +332,35 @@ export function ToggleCard({ checked, onChange, title, description, children }: 
         borderRadius: WZ.radius.control,
       }}
     >
-      <CheckRow
-        checked={checked}
-        onChange={onChange}
-        ariaLabel={title}
-        label={
-          <>
-            <span className={`${TX.itemTitle} block`} style={{ color: checked ? C.accent : C.ink }}>{title}</span>
-            <span className={`${TX.help} block mt-1`} style={{ color: C.muted }}>{description}</span>
-          </>
-        }
-      />
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={title}
+        onClick={() => onChange(!checked)}
+        className="wz-focusable w-full flex items-start gap-4 text-left"
+      >
+        <span className="min-w-0 flex-1">
+          <span className={`${TX.itemTitle} block`} style={{ color: checked ? C.accent : C.ink }}>{title}</span>
+          <span className={`${TX.help} block mt-1`} style={{ color: C.muted }}>{description}</span>
+        </span>
+        <span
+          className="relative w-9 h-5 shrink-0 mt-0.5 transition-colors"
+          style={{ background: checked ? C.accent : C.border, borderRadius: WZ.radius.pill }}
+          aria-hidden="true"
+        >
+          <span
+            className="absolute top-[2px] w-4 h-4 transition-transform"
+            style={{
+              left: 2,
+              background: WZ.onAccent,
+              borderRadius: WZ.radius.pill,
+              transform: checked ? "translateX(16px)" : "translateX(0)",
+              boxShadow: "0 1px 2px rgba(0,0,0,.18)",
+            }}
+          />
+        </span>
+      </button>
       {children && <div className="mt-3.5 pl-6">{children}</div>}
     </div>
   );
@@ -662,33 +680,43 @@ export function WizardBanner({ icon: Icon, title }: { icon?: LucideIcon; title: 
 // thing (a control, a finding). A wizard step is named by the eyebrow above it
 // and does not need one — and dropping it lets the title sit at the same left
 // edge as the body's first card instead of 44px inboard of it.
-export function WizardHeader({ icon: Icon, eyebrow, title, description, aside, onClose, progress }: {
+export function WizardHeader({ icon: Icon, eyebrow, title, description, aside, onClose, progress, railSummary }: {
   icon?: LucideIcon; eyebrow?: ReactNode; title: ReactNode; description?: ReactNode;
-  aside?: ReactNode; onClose?: ReactNode; progress?: { value: number; total: number; label?: string };
+  aside?: ReactNode; onClose?: ReactNode; progress?: { value: number; total: number; label?: string }; railSummary?: ReactNode;
 }) {
-  return (
-    <header className="shrink-0" style={{ borderBottom: `1px solid ${C.border}`, background: C.panel }}>
-      <div className="flex items-start justify-between gap-4 px-6 py-4">
-        <div className="flex items-start gap-3 min-w-0">
-          {Icon && (
-            <span
-              className="w-8 h-8 flex items-center justify-center shrink-0"
-              style={{ background: C.accentBg, color: C.accent, borderRadius: WZ.radius.control }}
-            >
-              <Icon size={16} />
-            </span>
-          )}
-          <div className="min-w-0">
-            {eyebrow && <div className={`${TX.eyebrow} mb-1.5`} style={{ color: C.accent }}>{eyebrow}</div>}
-            <h1 className={TX.stepTitle} style={{ color: C.ink, fontFamily: WZ.serif }}>{title}</h1>
-            {description && <p className={`${TX.help} mt-1.5 max-w-[90ch]`} style={{ color: C.muted }}>{description}</p>}
-          </div>
-        </div>
-        <div className="flex items-center gap-4 shrink-0">
-          {aside}
-          {onClose}
+  const subject = (
+    <div className="flex items-start justify-between gap-4 px-6 py-4 min-w-0">
+      <div className="flex items-start gap-3 min-w-0">
+        {Icon && (
+          <span
+            className="w-8 h-8 flex items-center justify-center shrink-0"
+            style={{ background: C.accentBg, color: C.accent, borderRadius: WZ.radius.control }}
+          >
+            <Icon size={16} />
+          </span>
+        )}
+        <div className="min-w-0">
+          {eyebrow && <div className={`${TX.eyebrow} mb-1.5`} style={{ color: C.accent }}>{eyebrow}</div>}
+          <h1 className={TX.stepTitle} style={{ color: C.ink, fontFamily: WZ.serif }}>{title}</h1>
+          {description && <p className={`${TX.help} mt-1.5 max-w-[82ch]`} style={{ color: C.muted }}>{description}</p>}
         </div>
       </div>
+      <div className="flex items-center gap-4 shrink-0">
+        {aside}
+        {onClose}
+      </div>
+    </div>
+  );
+  return (
+    <header className="shrink-0" style={{ borderBottom: `1px solid ${C.border}`, background: C.panel }}>
+      {railSummary ? (
+        <div className={`grid ${WIZARD_COLS}`}>
+          <div className="px-5 py-4 flex items-center" style={{ borderRight: `1px solid ${C.border}` }}>
+            {railSummary}
+          </div>
+          {subject}
+        </div>
+      ) : subject}
       {progress && <ProgressBar flush value={progress.value} total={progress.total} label={progress.label} />}
     </header>
   );
@@ -798,9 +826,9 @@ export function WizardOutcomePane({ children, center = false }: { children: Reac
   );
 }
 
-export function WizardRail({ label = "Wizard steps", children }: { label?: string; children: ReactNode }) {
+export function WizardRail({ label = "Wizard steps", children, compact = false }: { label?: string; children: ReactNode; compact?: boolean }) {
   return (
-    <nav aria-label={label} className="p-3 overflow-y-auto" style={{ borderRight: `1px solid ${C.border}`, background: C.panel }}>
+    <nav aria-label={label} className={`p-3 ${compact ? "overflow-hidden" : "overflow-y-auto"}`} style={{ borderRight: `1px solid ${C.border}`, background: C.panel }}>
       {children}
     </nav>
   );
@@ -808,18 +836,18 @@ export function WizardRail({ label = "Wizard steps", children }: { label?: strin
 
 // `connected` draws the vertical run between items — reserved for a real
 // sequence. An unordered set of destinations gets a `label` instead.
-export function RailGroup({ label, connected = false, children }: {
-  label?: string; connected?: boolean; children: ReactNode;
+export function RailGroup({ label, connected = false, compact = false, children }: {
+  label?: string; connected?: boolean; compact?: boolean; children: ReactNode;
 }) {
   const items = React.Children.toArray(children).filter(Boolean);
   return (
     <div className="mb-2 last:mb-0">
-      {label && <div className={`${TX.label} px-2.5 pb-2`} style={{ color: C.muted }}>{label}</div>}
+      {label && <div className={`${TX.label} px-2.5 ${compact ? "pb-1" : "pb-2"}`} style={{ color: C.muted }}>{label}</div>}
       {items.map((child, i) => (
         <React.Fragment key={i}>
           {child}
           {connected && i < items.length - 1 && (
-            <div style={{ width: 1.5, height: 10, marginLeft: 21, background: C.border }} />
+            <div style={{ width: 1.5, height: compact ? 5 : 10, marginLeft: 21, background: C.border }} />
           )}
         </React.Fragment>
       ))}
@@ -831,7 +859,7 @@ export type RailState = "active" | "done" | "pending";
 
 // The one rail row. `marker` is a step number, `icon` a glyph — done always
 // wins and shows a check, so "finished" reads the same in every wizard.
-export function RailItem({ icon: Icon, marker, title, detail, state, complete = false, onClick, disabled, ariaLabel }: {
+export function RailItem({ icon: Icon, marker, title, detail, state, complete = false, onClick, disabled, ariaLabel, compact = false }: {
   icon?: LucideIcon;
   marker?: ReactNode;
   title: string;
@@ -845,6 +873,7 @@ export function RailItem({ icon: Icon, marker, title, detail, state, complete = 
   onClick?: () => void;
   disabled?: boolean;
   ariaLabel?: string;
+  compact?: boolean;
 }) {
   const isActive = state === "active";
   const isDone = state === "done" || complete;
@@ -856,7 +885,7 @@ export function RailItem({ icon: Icon, marker, title, detail, state, complete = 
       aria-label={ariaLabel ?? title}
       title={title}
       aria-current={isActive ? "step" : undefined}
-      className={`wz-focusable ${isActive ? "" : "wz-hover"} w-full text-left flex items-start gap-2.5 px-2.5 py-2 mb-1 transition-colors`}
+      className={`wz-focusable ${isActive ? "" : "wz-hover"} w-full text-left flex items-start gap-2.5 px-2.5 ${compact ? "py-1.5 mb-0.5" : "py-2 mb-1"} transition-colors`}
       style={{
         background: isActive ? C.accentBg : undefined,
         border: `1px solid ${isActive ? C.accent : "transparent"}`,
@@ -875,7 +904,7 @@ export function RailItem({ icon: Icon, marker, title, detail, state, complete = 
       </span>
       <span className="min-w-0 pt-0.5 flex-1">
         <span className={`block ${TX.railTitle} truncate`} style={{ color: C.ink }}>{title}</span>
-        {detail && <span className={`block ${TX.help} mt-1`} style={{ color: C.muted }}>{detail}</span>}
+        {detail && <span className={`block ${TX.help} ${compact ? "mt-0.5 leading-4 line-clamp-2" : "mt-1"}`} style={{ color: C.muted }}>{detail}</span>}
       </span>
     </button>
   );
