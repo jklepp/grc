@@ -108,7 +108,8 @@ export function useFindingForm({ initial, controlOptions, assetOptionsFor, closu
   }
 
   const completing = form.remediationStatus === "Complete";
-  const ready = Boolean(form.title.trim() && form.controlId && form.ownerId && form.due);
+  const closureReady = !completing || closureEvidence.length > 0 || Boolean(form.closureEvidence.trim());
+  const ready = Boolean(form.title.trim() && form.controlId && form.ownerId && form.due && closureReady);
 
   // systemId is the host's to supply: it owns the boundary, and a form has no
   // business naming one.
@@ -222,7 +223,8 @@ export function FindingFields({ state, controlOptions }: {
             span2
             note={recorded.length > 0
               ? "Optional — leave blank to keep what is already on record. Anything typed here is recorded as an ADDITIONAL self-attestation."
-              : "Optional — what proves it's fixed. Recorded as a self-attestation evidence record against this control."}
+              : "Required — what proves it's fixed. Recorded as a self-attestation evidence record against this control."}
+            error={recorded.length > 0 || form.closureEvidence.trim() ? null : "Add closure evidence before completing this finding."}
           >
             <TextInput
               value={form.closureEvidence}
@@ -252,8 +254,8 @@ export function FindingFields({ state, controlOptions }: {
       )}
 
       {completing && recorded.length === 0 && !form.closureEvidence.trim() && (
-        <Callout tone="info" title="Closing without evidence.">
-          The finding will be marked Complete and dated, but nothing on record will say what fixed it.
+        <Callout tone="warning" title="Closure evidence required.">
+          Record what was validated before marking this finding Complete.
         </Callout>
       )}
     </>
@@ -331,7 +333,7 @@ export function FindingEditorModal({
           </WizardPane>
         </WizardBody>
         <WizardFooter
-          position={state.completing ? "Completing — closure evidence optional" : "A finding is a gap in a control"}
+          position={state.completing ? "Completing — closure evidence required" : "A finding is a gap in a control"}
           close={<Button onClick={onCancel}>Cancel</Button>}
           primary={(
             <Button

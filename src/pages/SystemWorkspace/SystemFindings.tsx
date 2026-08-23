@@ -200,6 +200,7 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<FindingId | null>(null);
+  const [completingId, setCompletingId] = useState<FindingId | null>(null);
   const [saveError, setSaveError] = useState<string[] | null>(null);
   const [sort, setSort] = useState<FindingSort | null>(null);
 
@@ -320,7 +321,7 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
                 variant="primary"
                 icon={Plus}
                 disabled={controlOptions.length === 0}
-                onClick={() => { setCreating(true); setEditingId(null); }}
+                onClick={() => { setCreating(true); setEditingId(null); setCompletingId(null); }}
               >
                 New finding
               </Button>
@@ -400,7 +401,7 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
                   key={f.id}
                   item={f}
                   selected={editingId === f.id}
-                  onOpen={() => { setEditingId(f.id); setCreating(false); }}
+                  onOpen={() => { setEditingId(f.id); setCompletingId(null); setCreating(false); }}
                   // One move per row. Everything else a finding needs — the CAP,
                   // blocking with a reason, completing with closure evidence —
                   // is the editor the row itself opens, so the table does not
@@ -409,7 +410,7 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
                     !f.open ? null
                       : next
                         ? <Button size="sm" onClick={() => advanceStatus(f, next)}>Mark {next}</Button>
-                        : <Button size="sm" variant="primary" onClick={() => setEditingId(f.id)}>Complete…</Button>
+                        : <Button size="sm" variant="primary" onClick={() => { setEditingId(f.id); setCompletingId(f.id); }}>Complete…</Button>
                   }
                 />
               );
@@ -436,11 +437,11 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
             title: editing.title, detail: editing.detail, controlId: editing.controlId,
             assetId: editing.assetId ?? "", severity: editing.severity ?? "medium",
             source: editing.source ?? "", ownerId: editing.ownerId,
-            remediationStatus: editing.remediationStatus, due: editing.due,
+            remediationStatus: completingId === editing.id ? "Complete" : editing.remediationStatus, due: editing.due,
             remediationPlan: editing.remediationPlan ?? "",
             remediationOwnerId: editing.remediationOwnerId ?? "", targetDate: editing.targetDate ?? "",
           } : undefined}
-          onCancel={() => { setCreating(false); setEditingId(null); setSaveError(null); }}
+          onCancel={() => { setCreating(false); setEditingId(null); setCompletingId(null); setSaveError(null); }}
           onSubmit={(draft, closureEvidence) => {
             const ok = commit((runtime) => {
               const fallbackAssetIds = assetOptionsFor(draft.controlId).map((o) => o.assetId);
@@ -454,7 +455,7 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
               const created = withFinding.findings[withFinding.findings.length - 1];
               return addClosureEvidence(withFinding, { findingId: created.id, text: closureEvidence, fallbackAssetIds });
             });
-            if (ok) { setCreating(false); setEditingId(null); }
+            if (ok) { setCreating(false); setEditingId(null); setCompletingId(null); }
           }}
         />
       )}

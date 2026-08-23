@@ -281,7 +281,7 @@ export function AssessmentReadiness({ formalAssessment, onScopeClick, onAssessCl
       <SectionHeader
         icon={ShieldCheck}
         title="System Readiness"
-        description="Every gap is recorded or fixed. Keep all four clear and the system stays assurance-ready."
+        description="Readiness tracks whether the assurance workflow is complete; the Assurance score separately measures how strong the resulting posture is."
         aside={(
           <div className="flex items-center gap-2">
             <StatusPill tone={allClear ? "success" : "neutral"}>{doneCount} of {CHECKS.length} complete</StatusPill>
@@ -297,7 +297,7 @@ export function AssessmentReadiness({ formalAssessment, onScopeClick, onAssessCl
       <div className="flex flex-col gap-3">
         {allClear ? (
           <Callout tone="success" title="Scoped, assessed, recorded, and remediated.">
-            This system is assurance-ready.
+            This system is assurance-ready. Its Assurance percentage may still be below target because readiness measures workflow completion, not control strength.
           </Callout>
         ) : formallyAssessed ? (
           <Callout tone="success" title="Formally assessed.">

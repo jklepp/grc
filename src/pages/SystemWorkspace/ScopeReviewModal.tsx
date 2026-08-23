@@ -54,10 +54,11 @@ interface ScopeReviewModalProps {
   assessor: string;
   onClose: () => void;
   onStartTechnicalReview: () => void;
+  onEditAssets?: () => void;
   initialWave?: ReviewWave | null;
 }
 
-export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTechnicalReview, initialWave = null }: ScopeReviewModalProps) {
+export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTechnicalReview, onEditAssets, initialWave = null }: ScopeReviewModalProps) {
   const liveEngine = useLiveEngine();
   const system = liveEngine.graph.systemById[systemId];
   const walk = liveEngine.review.wavesForSystem(systemId);
@@ -83,9 +84,6 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
   const derivedExclusions = naItems.filter((item) => !item.forceReview);
   const pendingRemaining = pendingItems.filter((item) => !item.review);
   const exclusionsRemaining = naWave.remaining.filter((item) => !item.forceReview);
-  const outOfScopeRemaining = naWave.remaining.length;
-  const outOfScopeDone = outOfScopeRemaining === 0;
-
   const externalGroups = groups.filter((g) => g.bucket === "vendor-inherited");
   const internalGroups = groups.filter((g) => g.bucket === "enterprise");
   const externalRemaining = externalGroups.reduce((sum, g) => sum + g.remaining.length, 0);
@@ -115,13 +113,20 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
     ...groups.filter((g) => g.bucket === "vendor-inherited").flatMap((g) => g.remaining.map((item) => item.control.id)),
     ...groups.filter((g) => g.bucket === "enterprise").flatMap((g) => g.remaining.map((item) => item.control.id)),
   ]), [groups]);
+  const controlMatrix = useMemo(() => liveEngine.compliance.systemControlMatrix(systemId).map((row) => ({
+    ...row,
+    responsibility: liveEngine.compliance.responsibilityForControl(systemId, row.controlId),
+  })), [liveEngine, systemId]);
+  // Asset-scoped controls that currently sample no asset cannot produce a
+  // valid Implemented record. Ask that scope question here, before the grading
+  // walk, instead of letting Save be the first place the operator discovers it.
+  const noAssetControls = liveEngine.review.assetCoverageQuestionsForSystem(systemId);
+  const outOfScopeRemaining = naWave.remaining.length + noAssetControls.length;
+  const outOfScopeDone = outOfScopeRemaining === 0;
   const assessmentQueue = useMemo(() => keyControlAssessmentQueue(
-    liveEngine.compliance.systemControlMatrix(systemId).map((row) => ({
-      ...row,
-      responsibility: liveEngine.compliance.responsibilityForControl(systemId, row.controlId),
-    })),
+    controlMatrix,
     pendingScopeIds,
-  ), [liveEngine, systemId, pendingScopeIds]);
+  ), [controlMatrix, pendingScopeIds]);
   const technicalRemaining = assessmentQueue.length;
   const everythingDone = outOfScopeDone && inheritedDone;
   // Control Assessment is the next phase, so every Scope Review prerequisite
@@ -234,6 +239,12 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
 
   function confirmPendingOut(item: ReviewWaveControl, note: string) {
     if (!commitReviews([review(item.control.id, "not-applicable", "confirm", note)])) return;
+    setExcludingPendingId(null);
+    setPendingNote("");
+  }
+
+  function confirmNoAssetOut(control: Control, note: string) {
+    if (!commitReviews([review(control.id, "not-applicable", "confirm", note)])) return;
     setExcludingPendingId(null);
     setPendingNote("");
   }
@@ -430,6 +441,58 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
     );
   };
 
+  const noAssetRow = (control: Control, isLast: boolean) => (
+    <div key={control.id} style={{ borderBottom: isLast ? undefined : `1px solid ${C.border}` }}>
+      <div className="flex items-start gap-3 px-3.5 py-3">
+        <div className="min-w-0 flex-1">
+          <div className={TX.itemTitle} style={{ color: C.ink }}>{control.name}</div>
+          <div className={`${TX.help} mt-1`} style={{ color: C.muted }}>
+            <span className="font-mono">{control.id}</span> · {control.domain}
+          </div>
+          <div className={`${TX.help} mt-1.5`} style={{ color: C.ink }}>
+            No registered asset currently matches this asset-scoped control. Update the asset attributes if it belongs here, or record why its premise does not hold.
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {onEditAssets && <Button size="sm" onClick={onEditAssets}>Update assets</Button>}
+          <Button
+            size="sm"
+            variant="danger"
+            icon={Ban}
+            disabled={!canWrite}
+            onClick={() => { setExcludingPendingId(control.id); setPendingNote(""); }}
+          >
+            Mark Not Applicable…
+          </Button>
+        </div>
+      </div>
+      {excludingPendingId === control.id && (
+        <div className="px-3.5 pb-3.5">
+          <Well hollow className="flex flex-col gap-3.5">
+            <Field
+              label="Reason"
+              note="Required — explain why this asset-scoped control does not apply to this boundary."
+              error={pendingNote.trim() ? null : "Enter why this control is Not Applicable to this boundary."}
+            >
+              <TextInput
+                value={pendingNote}
+                onChange={(e) => setPendingNote(e.target.value)}
+                placeholder="Why doesn't this control's premise hold here?"
+                aria-label={`Reason ${control.id} is Not Applicable`}
+              />
+            </Field>
+            <div className="flex items-center justify-end gap-2.5">
+              <Button size="sm" onClick={() => { setExcludingPendingId(null); setPendingNote(""); }}>Cancel</Button>
+              <Button size="sm" variant="primary" icon={Check} disabled={!pendingNote.trim()} onClick={() => confirmNoAssetOut(control, pendingNote.trim())}>
+                Confirm Not Applicable
+              </Button>
+            </div>
+          </Well>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <Modal open={open} onClose={onClose} width={1040} height={720}>
       <WizardChrome>
@@ -467,7 +530,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
                 title="Not Applicable"
                 detail={outOfScopeDone
                   ? `${naItems.length} decided`
-                  : `${outOfScopeRemaining} of ${naItems.length} to decide`}
+                  : `${outOfScopeRemaining} to decide`}
                 state={outOfScopeState}
                 complete={outOfScopeDone}
                 onClick={() => setView("out-of-scope")}
@@ -545,6 +608,19 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
                   >
                     <Well padded={false}>
                       {pendingItems.map((item, index) => pendingRow(item, index === pendingItems.length - 1))}
+                    </Well>
+                  </Section>
+                )}
+
+                {noAssetControls.length > 0 && (
+                  <Section
+                    icon={Target}
+                    title="Asset coverage decisions"
+                    description="Resolve these before grading so the assessment never stops on a control with no valid asset population."
+                    aside={<StatusPill tone="warning">{noAssetControls.length} to decide</StatusPill>}
+                  >
+                    <Well padded={false}>
+                      {noAssetControls.map((control, index) => noAssetRow(control, index === noAssetControls.length - 1))}
                     </Well>
                   </Section>
                 )}

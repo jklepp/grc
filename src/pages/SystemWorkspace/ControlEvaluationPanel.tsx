@@ -31,9 +31,9 @@ import { POLICY_BY_CONTROL, PROCEDURE_BY_CONTROL } from "./policyLookup";
 import { BasisTag } from "../../components/BasisTag";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
-  Brief, Button, Callout, CheckRow, ChoiceChip, CompletionScreen, DisclosureButton, EmptyState, Field, FieldGrid, InlineField, InlineHint,
+  Brief, Button, Callout, CheckRow, ChoiceChip, DisclosureButton, EmptyState, Field, FieldGrid, InlineField, InlineHint,
   ProgressBar, RailGroup, RailItem, SaveErrorCallout, Section, Select, StatusPill, TextInput, toneColor, TX, Well,
-  WizardBanner, WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardOutcomePane, WizardPane, WizardRail, WizardStrip, WZ,
+  WizardBanner, WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardPane, WizardRail, WizardStrip, WZ,
 } from "../../components/wizard/WizardUI";
 import type { Tone } from "../../components/wizard/WizardUI";
 import { selectedValue } from "./formHelpers";
@@ -640,6 +640,7 @@ export function ControlEvaluationPanel({
   const [creatingFinding, setCreatingFinding] = useState(false);
   const [creatingFindingInitial, setCreatingFindingInitial] = useState<Partial<FindingFormState> | null>(null);
   const [editingFindingId, setEditingFindingId] = useState<FindingId | null>(null);
+  const [completingFindingId, setCompletingFindingId] = useState<FindingId | null>(null);
   const [saveError, setSaveError] = useState<string[] | null>(null);
   const [gapNudge, setGapNudge] = useState<{ level: PrismaLevel; rating: ComplianceRating } | null>(null);
   // Scope-exclusion state: the reason disclosure is open, and whether an
@@ -658,7 +659,7 @@ export function ControlEvaluationPanel({
   // assessment and everything staged around it go out as one write.
   const [draftFacts, setDraftFacts] = useState<RuntimeFacts>(() => loadRuntimeFacts());
   const [pendingChanges, setPendingChanges] = useState<string[]>([]);
-  const [savedSummary, setSavedSummary] = useState<string[] | null>(null);
+  const [saving, setSaving] = useState(false);
   const draftEngine = useMemo(() => buildLiveEngine(baseFacts(), draftFacts).engine, [draftFacts]);
 
   // The row this panel actually renders — the committed prop patched forward
@@ -866,6 +867,7 @@ export function ControlEvaluationPanel({
     setCreatingFinding(false);
     setCreatingFindingInitial(null);
     setEditingFindingId(null);
+    setCompletingFindingId(null);
     return true;
   }
 
@@ -875,8 +877,8 @@ export function ControlEvaluationPanel({
       setSaveError(problems);
       return;
     }
-    setSavedSummary(pendingChanges);
     setPendingChanges([]);
+    onClose();
   }
 
   function discardDraft() {
@@ -895,6 +897,7 @@ export function ControlEvaluationPanel({
     setCreatingFinding(false);
     setCreatingFindingInitial(null);
     setEditingFindingId(null);
+    setCompletingFindingId(null);
     setExcluding(false);
     setExcludeNote("");
     setExcludeStaged(false);
@@ -903,6 +906,18 @@ export function ControlEvaluationPanel({
   function requestClose() {
     if (unsavedCount > 0 && !window.confirm(`Discard ${unsavedCount} unsaved change${unsavedCount === 1 ? "" : "s"}?`)) return;
     onClose();
+  }
+
+  function executeSave() {
+    if (saving) return;
+    setSaving(true);
+    // Yield one frame so the stable footer can acknowledge the click before
+    // the graph dry-run/commit performs its synchronous validation work.
+    window.setTimeout(() => {
+      if (savingAssessment) commitAssessment(Boolean(walk));
+      else saveDraft();
+      setSaving(false);
+    }, 0);
   }
 
   function handleAttachEvidence(draft: ControlEvidenceDraft) {
@@ -993,16 +1008,6 @@ export function ControlEvaluationPanel({
       return;
     }
 
-    const overridden = grades.filter((g) => g.rating !== g.derived);
-    const summary = [
-      ...pendingChanges,
-      assessed
-        ? overridden.length > 0
-          ? `Updated PRISMA lanes — ${overridden.map((g) => g.level).join(", ")}`
-          : "Confirmed PRISMA lane grading"
-        : `Recorded assessment — Implemented ${implemented.rating} (${COMPLIANCE_LABELS[implemented.rating]})`,
-    ];
-
     setDraftFacts(loadRuntimeFacts());
     setPendingChanges([]);
     setLaneDirty(false);
@@ -1015,7 +1020,7 @@ export function ControlEvaluationPanel({
     setGapNudge(worst && isGapRating(worst.rating) && !alreadyTracked ? { level: worst.level, rating: worst.rating } : null);
 
     if (walk) walk.onRecorded(implemented.rating, continueWalk);
-    else setSavedSummary(summary);
+    else onClose();
   }
 
   // The panel supplies both anchor fields: the control it is open on, and the
@@ -1117,24 +1122,6 @@ export function ControlEvaluationPanel({
         </WizardStrip>
       )}
 
-      {savedSummary ? (
-        <WizardOutcomePane>
-          <CompletionScreen
-            title="Changes saved"
-            description={`${savedSummary.length} change${savedSummary.length === 1 ? "" : "s"} recorded on ${row.control.id} · ${row.control.name}.`}
-            tiles={
-              <Well className="flex flex-col gap-2 text-left">
-                {savedSummary.map((change, i) => (
-                  <div key={i} className="flex items-center gap-2.5">
-                    <Check size={13} color={C.green} className="shrink-0" />
-                    <span className={TX.body} style={{ color: C.ink }}>{change}</span>
-                  </div>
-                ))}
-              </Well>
-            }
-          />
-        </WizardOutcomePane>
-      ) : (
       <WizardBody enter={Boolean(walk)}>
         {/* ---- Rail: walk domains (walk mode only), then this control's steps ---- */}
         <WizardRail label="Assessment steps">
@@ -1654,7 +1641,7 @@ export function ControlEvaluationPanel({
             <Section
               icon={Wrench}
               title="Findings & Remediation"
-              description="Open gaps recorded against this control, who owns them, and when they are due."
+              description="Gaps recorded against this control, their corrective action plans, owners, and target dates."
               aside={
                 <span className="flex items-center gap-2">
                   {urgentRemediation && (
@@ -1687,7 +1674,8 @@ export function ControlEvaluationPanel({
                           initial={{
                             title: f.title, detail: f.detail, controlId: f.controlId, assetId: f.assetId ?? "",
                             severity: f.severity ?? "medium",
-                            source: f.source ?? "", ownerId: f.ownerId, remediationStatus: f.remediationStatus,
+                            source: f.source ?? "", ownerId: f.ownerId,
+                            remediationStatus: completingFindingId === f.id ? "Complete" : f.remediationStatus,
                             due: f.due, remediationPlan: f.remediationPlan ?? "",
                             remediationOwnerId: f.remediationOwnerId ?? "", targetDate: f.targetDate ?? "",
                           }}
@@ -1697,7 +1685,7 @@ export function ControlEvaluationPanel({
                           // hides what closed it and invites a second record
                           // saying what the first already said.
                           closureEvidence={closureEvidenceFor(f)}
-                          onCancel={() => setEditingFindingId(null)}
+                          onCancel={() => { setEditingFindingId(null); setCompletingFindingId(null); }}
                           onSubmit={(patch, closureEvidence) => handleUpdateFinding(f.id, patch, closureEvidence, `Updated finding — ${patch.title}`)}
                         />
                       );
@@ -1731,7 +1719,7 @@ export function ControlEvaluationPanel({
                               <Button size="sm" variant="danger" onClick={() => stageMutation(`Blocked remediation — ${f.title}`, (existing) => updateFinding(existing, f.id, { remediationStatus: "Blocked" }))}>Block</Button>
                             )}
                             {f.remediationStatus !== "Complete" && (
-                              <Button size="sm" variant="primary" icon={Check} onClick={() => stageMutation(`Marked complete — ${f.title}`, (existing) => updateFinding(existing, f.id, { remediationStatus: "Complete", closedDate: new Date().toISOString().slice(0, 10) }))}>Mark complete</Button>
+                              <Button size="sm" variant="primary" icon={Check} onClick={() => { setCompletingFindingId(f.id); setEditingFindingId(f.id); setCreatingFinding(false); }}>Complete…</Button>
                             )}
                           </div>
                         )}
@@ -1767,7 +1755,6 @@ export function ControlEvaluationPanel({
           )}
         </WizardPane>
       </WizardBody>
-      )}
 
       {/* Save/Discard always live at the bottom — every edit above stages
           into the draft rather than committing, so this is the one place
@@ -1775,14 +1762,7 @@ export function ControlEvaluationPanel({
           keeps its domain position and Skip alongside them, and gets the same
           Discard: it stages the identical draft, so withholding it there left
           a staged surface with no way back (5.7). */}
-      {savedSummary ? (
-        <WizardFooter
-          position={`${savedSummary.length} change${savedSummary.length === 1 ? "" : "s"} recorded`}
-          close={<Button onClick={onClose}>Close</Button>}
-          primary={<Button variant="primary" onClick={() => setSavedSummary(null)}>Continue</Button>}
-        />
-      ) : (
-        <WizardFooter
+      <WizardFooter
           position={walk
             ? `${walk.activeDomain} · ${walk.domains.find((d) => d.domain === walk.activeDomain)?.remaining ?? 0} left`
             : unsavedCount > 0
@@ -1799,14 +1779,13 @@ export function ControlEvaluationPanel({
               variant="primary"
               icon={walk ? undefined : Check}
               iconRight={walk ? ChevronRight : undefined}
-              disabled={!canSave}
-              onClick={() => (savingAssessment ? commitAssessment(Boolean(walk)) : saveDraft())}
+              disabled={!canSave || saving}
+              onClick={executeSave}
             >
-              {saveLabel}
+              {saving ? "Saving…" : saveLabel}
             </Button>
           )}
-        />
-      )}
+      />
       </WizardChrome>
     </Modal>
   );

@@ -582,8 +582,9 @@ export function createReview(
     // that a fresh runtime system can already read as zero).
     const walk = wavesForSystem(systemId);
     const scopeWaves = [walk.waves["not-applicable"], walk.waves["vendor-inherited"], walk.waves.enterprise];
-    const scopeRemainingCount = scopeWaves.reduce((sum, w) => sum + w.remaining.length, 0);
-    const scopeTotalCount = scopeWaves.reduce((sum, w) => sum + w.total, 0);
+    const assetCoverageQuestions = assetCoverageQuestionsForSystem(systemId);
+    const scopeRemainingCount = scopeWaves.reduce((sum, w) => sum + w.remaining.length, 0) + assetCoverageQuestions.length;
+    const scopeTotalCount = scopeWaves.reduce((sum, w) => sum + w.total, 0) + assetCoverageQuestions.length;
     const scopeDecided = scopeRemainingCount === 0;
     const assessmentRemainingCount = assessmentRows.filter((row) => row.status === "unassessed").length;
     const controlsAssessed = assessmentRemainingCount === 0;
@@ -620,10 +621,27 @@ export function createReview(
     };
   }
 
+  // Asset-scoped key controls with no matching asset cannot accept a valid
+  // Implemented record. This is a review question, not a new applicability
+  // rule: the existing resolver still decides which assets require the
+  // control. Scope Review asks the operator to correct the asset attributes or
+  // explicitly record why the control is Not Applicable before grading starts.
+  function assetCoverageQuestionsForSystem(systemId: SystemId): Control[] {
+    const assets = graph.assetsBySystem[systemId] ?? [];
+    const scopeWalk = wavesForSystem(systemId).waves["not-applicable"];
+    const represented = new Set([...scopeWalk.remaining, ...scopeWalk.decidedItems].map((item) => item.control.id));
+    return compliance.systemControlMatrix(systemId)
+      .filter((row) => row.keyControl?.scope === "asset" && row.status === "unassessed")
+      .filter((row) => !represented.has(row.controlId))
+      .filter((row) => !assets.some((asset) => applicability.resolveApplicability(asset.id, row.controlId).required))
+      .map((row) => row.control);
+  }
+
   return {
     wavesForSystem,
     inheritanceGroupsForSystem,
     dormantAssessmentsForSystem,
+    assetCoverageQuestionsForSystem,
     formalAssessmentForSystem,
     frameworkReadiness,
     auditReadinessForSystem,

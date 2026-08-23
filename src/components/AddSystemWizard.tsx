@@ -341,6 +341,9 @@ interface AddSystemWizardProps {
   onClose: () => void;
   onCreated?: (systemId: SystemId) => void;
   editingSystemId?: SystemId | null;
+  // Lets a workflow handoff open the existing editor at the step that needs
+  // attention (Scope Review uses Assets). Ordinary Add/Edit still starts at 1.
+  initialStep?: WizardStep;
   // Pre-fills every field from this system (basics, technology, data, assets,
   // architecture) exactly like editingSystemId does, but always mints a brand
   // new SystemId and fresh asset/actor/flow/agent ids rather than reusing the
@@ -349,7 +352,7 @@ interface AddSystemWizardProps {
   cloneFromSystemId?: SystemId | null;
 }
 
-export default function AddSystemWizard({ open, onClose, onCreated, editingSystemId = null, cloneFromSystemId = null }: AddSystemWizardProps) {
+export default function AddSystemWizard({ open, onClose, onCreated, editingSystemId = null, cloneFromSystemId = null, initialStep = 1 }: AddSystemWizardProps) {
   const [step, setStep] = useState<WizardStep>(1);
   const contentPaneRef = useRef<HTMLDivElement>(null);
 
@@ -444,7 +447,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     // assessor, and target date don't carry over the way its facts do.
     const scope = editingSystemId ? getLiveEngine().graph.assessmentScopeBySystem[sourceSystemId] : null;
 
-    setStep(1);
+    setStep(editingSystemId ? initialStep : 1);
     setName(isClone ? `${source.name} (Copy)` : source.name);
     setMission(source.mission);
     setBoundary(source.boundary);
@@ -567,7 +570,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
     setDryRun(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editingSystemId, cloneFromSystemId, open]);
+  }, [editingSystemId, cloneFromSystemId, initialStep, open]);
 
   function reset() {
     setStep(1); setHostingType("cloud"); setProvider(""); setName(""); setMission(""); setBoundary("");

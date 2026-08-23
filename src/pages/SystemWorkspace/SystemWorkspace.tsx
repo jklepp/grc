@@ -68,6 +68,8 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   const [assessmentWalkOpen, setAssessmentWalkOpen] = useState(false);
   const [controlsSelection, setControlsSelection] = useState<ControlSelection | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [editorInitialStep, setEditorInitialStep] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7>(1);
+  const [resumeScopeAfterEdit, setResumeScopeAfterEdit] = useState(false);
   const assessmentStarted = useRef(false);
   const liveEngine = useLiveEngine();
   const systems = liveEngine.rollups.systemRollups;
@@ -223,7 +225,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         systems={systems}
         systemId={systemId}
         onSelectSystem={selectSystem}
-        onEdit={() => setEditorOpen(true)}
+        onEdit={() => { setEditorInitialStep(1); setResumeScopeAfterEdit(false); setEditorOpen(true); }}
         formallyAssessed={formalAssessment.complete}
       />
 
@@ -300,6 +302,12 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         initialWave={requestedWave}
         onClose={() => setScopeReviewOpen(false)}
         onStartTechnicalReview={openAssessmentWalk}
+        onEditAssets={() => {
+          setScopeReviewOpen(false);
+          setEditorInitialStep(4);
+          setResumeScopeAfterEdit(true);
+          setEditorOpen(true);
+        }}
       />
 
       <ControlAssessmentWalk
@@ -323,7 +331,23 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         />
       )}
 
-      <AddSystemWizard open={editorOpen} onClose={() => setEditorOpen(false)} onCreated={() => setEditorOpen(false)} editingSystemId={systemId} />
+      <AddSystemWizard
+        open={editorOpen}
+        onClose={() => {
+          setEditorOpen(false);
+          setEditorInitialStep(1);
+          if (resumeScopeAfterEdit) setScopeReviewOpen(true);
+          setResumeScopeAfterEdit(false);
+        }}
+        onCreated={() => {
+          setEditorOpen(false);
+          setEditorInitialStep(1);
+          if (resumeScopeAfterEdit) setScopeReviewOpen(true);
+          setResumeScopeAfterEdit(false);
+        }}
+        editingSystemId={systemId}
+        initialStep={editorInitialStep}
+      />
     </div>
   );
 }
