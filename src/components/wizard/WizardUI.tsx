@@ -71,18 +71,6 @@ const TONE_ICON: Record<Tone, LucideIcon> = {
 
 /* ---------------------------------------------------------------- layout -- */
 
-export function StepHeader({ step, total, title, description }: {
-  step: number; total: number; title: string; description: string;
-}) {
-  return (
-    <header className="mb-5">
-      <div className={`${TX.eyebrow} mb-1.5`} style={{ color: C.accent }}>Step {step} of {total}</div>
-      <h2 className={TX.stepTitle} style={{ color: C.ink, fontFamily: WZ.serif }}>{title}</h2>
-      <p className={`${TX.lead} mt-2 max-w-[68ch]`} style={{ color: C.muted }}>{description}</p>
-    </header>
-  );
-}
-
 // Vertical stack of Sections — the only spacing a step body needs.
 export function StepBody({ children }: { children: ReactNode }) {
   return <div className="flex flex-col gap-4">{children}</div>;
@@ -630,10 +618,18 @@ export function WizardChrome({ children }: { children: ReactNode }) {
   return <WizardTokens className="flex flex-col flex-1 min-h-0">{children}</WizardTokens>;
 }
 
+// The two-column line every wizard body runs on: the rail's width, then the
+// pane. Named rather than inlined so anything that ever has to align to the
+// rail reads the template instead of restating it.
+const WIZARD_COLS = "grid-cols-[172px_minmax(0,1fr)] lg:grid-cols-[208px_minmax(0,1fr)]";
+
 // Names the surface the operator is inside — the one solid-accent strip at
-// the very top of every wizard-like modal ("Scope Review Wizard",
-// "System Control Editor"), so which flow you are in is answered before the
-// header. Title only; context, actions and close stay in WizardHeader.
+// the very top of a wizard-like modal ("Scope Review Wizard", "System Control
+// Editor"), so which flow you are in is answered before the header. Title
+// only; context, actions and close stay in WizardHeader.
+//
+// A surface on the unified masthead has no banner: its header carries the
+// flow's name in the eyebrow instead (CONTRACT 4.10).
 export function WizardBanner({ icon: Icon, title }: { icon?: LucideIcon; title: string }) {
   return (
     <div
@@ -651,31 +647,49 @@ export function WizardBanner({ icon: Icon, title }: { icon?: LucideIcon; title: 
 // then chrome-level asides and the close control.
 //
 // `eyebrow` exists because the assessment panel's subject is a specific
-// control — its id and domain belong above the name, not folded into it. A
-// surface with no second line omits `description` rather than inventing a
-// header of its own.
-export function WizardHeader({ icon: Icon, eyebrow, title, description, aside, onClose }: {
-  icon: LucideIcon; eyebrow?: ReactNode; title: ReactNode; description?: ReactNode; aside?: ReactNode; onClose?: ReactNode;
+// control — its id and domain belong above the name, not folded into it. On a
+// wizard it names the flow and the position in one line ("Add System · Step 1
+// of 8"), which is the whole reason this header can be the entire masthead
+// (CONTRACT 4.11). A surface with no second line omits `description` rather
+// than inventing a header of its own.
+//
+// `progress` puts the run on the header's bottom edge as a flush `ProgressBar`
+// — full width, no radius, sitting on the border it shares with the body. It
+// costs no vertical space of its own and reads as the block's underline, which
+// is why it can stand beside the rail without competing with it (4.9).
+//
+// `icon` is optional: the square anchors a header whose subject is a specific
+// thing (a control, a finding). A wizard step is named by the eyebrow above it
+// and does not need one — and dropping it lets the title sit at the same left
+// edge as the body's first card instead of 44px inboard of it.
+export function WizardHeader({ icon: Icon, eyebrow, title, description, aside, onClose, progress }: {
+  icon?: LucideIcon; eyebrow?: ReactNode; title: ReactNode; description?: ReactNode;
+  aside?: ReactNode; onClose?: ReactNode; progress?: { value: number; total: number; label?: string };
 }) {
   return (
-    <header className="flex items-start justify-between gap-4 px-6 py-4 shrink-0" style={{ borderBottom: `1px solid ${C.border}`, background: C.panel }}>
-      <div className="flex items-start gap-3 min-w-0">
-        <span
-          className="w-8 h-8 flex items-center justify-center shrink-0"
-          style={{ background: C.accentBg, color: C.accent, borderRadius: WZ.radius.control }}
-        >
-          <Icon size={16} />
-        </span>
-        <div className="min-w-0">
-          {eyebrow && <div className={`${TX.eyebrow} mb-1.5`} style={{ color: C.accent }}>{eyebrow}</div>}
-          <h1 className={TX.modalTitle} style={{ color: C.ink, fontFamily: WZ.serif }}>{title}</h1>
-          {description && <p className={`${TX.help} mt-1.5 max-w-[90ch]`} style={{ color: C.muted }}>{description}</p>}
+    <header className="shrink-0" style={{ borderBottom: `1px solid ${C.border}`, background: C.panel }}>
+      <div className="flex items-start justify-between gap-4 px-6 py-4">
+        <div className="flex items-start gap-3 min-w-0">
+          {Icon && (
+            <span
+              className="w-8 h-8 flex items-center justify-center shrink-0"
+              style={{ background: C.accentBg, color: C.accent, borderRadius: WZ.radius.control }}
+            >
+              <Icon size={16} />
+            </span>
+          )}
+          <div className="min-w-0">
+            {eyebrow && <div className={`${TX.eyebrow} mb-1.5`} style={{ color: C.accent }}>{eyebrow}</div>}
+            <h1 className={TX.stepTitle} style={{ color: C.ink, fontFamily: WZ.serif }}>{title}</h1>
+            {description && <p className={`${TX.help} mt-1.5 max-w-[90ch]`} style={{ color: C.muted }}>{description}</p>}
+          </div>
+        </div>
+        <div className="flex items-center gap-4 shrink-0">
+          {aside}
+          {onClose}
         </div>
       </div>
-      <div className="flex items-center gap-4 shrink-0">
-        {aside}
-        {onClose}
-      </div>
+      {progress && <ProgressBar flush value={progress.value} total={progress.total} label={progress.label} />}
     </header>
   );
 }
@@ -735,7 +749,7 @@ export function WizardBody({ children, enter = false, single = false }: { childr
   }, [settled]);
   return (
     <div
-      className={`flex-1 min-h-0 grid ${single ? "grid-cols-[minmax(0,1fr)]" : "grid-cols-[172px_minmax(0,1fr)] lg:grid-cols-[208px_minmax(0,1fr)]"}`}
+      className={`flex-1 min-h-0 grid ${single ? "grid-cols-[minmax(0,1fr)]" : WIZARD_COLS}`}
       style={{
         gridTemplateRows: "minmax(0, 1fr)",
         opacity: settled ? 1 : 0,
@@ -752,9 +766,9 @@ export function WizardBody({ children, enter = false, single = false }: { childr
 // one scroll container in every wizard, instead of the three slightly
 // different class strings the surfaces had each grown.
 //
-// `flow` stacks the pane's own children on the standard gap. A step that
-// composes `StepHeader` + `StepBody` already carries that rhythm internally
-// and passes `flow={false}` so it is not spaced twice.
+// `flow` stacks the pane's own children on the standard gap. A step whose body
+// is a `StepBody` already carries that rhythm internally and passes
+// `flow={false}` so it is not spaced twice.
 export function WizardPane({ children, flow = true, paneRef }: {
   children: ReactNode; flow?: boolean; paneRef?: Ref<HTMLDivElement>;
 }) {
@@ -903,23 +917,31 @@ export function WizardFooter({ position, hint, close, back, skip, discard, prima
   );
 }
 
-export function ProgressBar({ value, total, label, color, className = "" }: {
-  value: number; total: number; label?: string; color?: string; className?: string;
+// `flush` is the masthead variant: full width, 3px, square, on a tinted track
+// — it rides the header's bottom edge rather than sitting inline among
+// content, so it needs neither the pill radius nor a flex share.
+export function ProgressBar({ value, total, label, color, flush = false, className = "" }: {
+  value: number; total: number; label?: string; color?: string; flush?: boolean; className?: string;
 }) {
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   return (
     <div
-      className={`flex-1 h-1 overflow-hidden ${className}`}
+      className={`${flush ? "w-full h-[3px]" : "flex-1 h-1"} overflow-hidden ${className}`}
       role="progressbar"
       aria-valuenow={value}
       aria-valuemin={0}
       aria-valuemax={total}
       aria-label={label}
-      style={{ background: C.border, borderRadius: WZ.radius.pill }}
+      style={{ background: flush ? C.accentBg : C.border, borderRadius: flush ? undefined : WZ.radius.pill }}
     >
       <div
         className="h-full"
-        style={{ background: color ?? C.accent, width: `${pct}%`, borderRadius: WZ.radius.pill, transition: "width 320ms ease" }}
+        style={{
+          background: color ?? C.accent,
+          width: `${pct}%`,
+          borderRadius: flush ? undefined : WZ.radius.pill,
+          transition: "width 320ms ease",
+        }}
       />
     </div>
   );

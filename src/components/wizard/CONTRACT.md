@@ -24,6 +24,13 @@ action vocabulary, or save behaviour lands on every wizard surface in the same
 change — a rule half-applied is worse than the inconsistency it replaced. A new
 surface adopts the existing patterns; it does not add a variant.
 
+The one exception is a *recorded migration*: a change too large to land
+everywhere at once may ship on one surface first if it is written up under
+"Migrations in progress" below, naming the pattern, the surface that has it, and
+the surfaces still to adopt it. An unrecorded half-rollout is the drift 1.4
+exists to prevent; a recorded one is a queue. Nothing new may be built on the
+old pattern while a migration is open.
+
 ## 2. Naming and language
 
 **2.1 Name a step for what the user is doing, not what the system does.** The
@@ -117,7 +124,8 @@ still holding work, never back at step one.
 counting the same thing counts claims — never controls.
 
 **4.7 One footer pattern.** Every surface closes with the pinned `WizardFooter`:
-status on the left (where you are, or what is unsaved), actions on the right,
+status on the left — what is unsaved on a staged surface, where you are on one
+whose header does not already say (4.11) — actions on the right,
 exactly one primary action and it is last. The action cluster is `WizardFooter`'s
 own named slots, rendered in one fixed order — `close`, `back`, `skip`,
 `discard`, `primary` — so abandoning sits furthest from the action that commits
@@ -136,12 +144,47 @@ bespoke indicator on one step or hidden once work begins. A terminal completion
 screen is the one exception: the run is over, so the footer's position slot
 carries the final count and the rail stands down.
 
+A rail may be *summarised* by a flush `ProgressBar` on the masthead's bottom
+edge (4.11). That is the one permitted pairing, and it holds only because the
+bar reads as the block's underline rather than as a control of its own: both
+read the same declared step order (4.1), so they cannot disagree. Anything that
+would need its own row is a second indicator and is not allowed.
+
 **4.10 One chrome stack, in one order.** Every wizard screen — including
-completion screens and the holds between items — is `WizardBanner`,
-`WizardHeader`, optionally one `WizardStrip`, then the body, then
-`WizardFooter`. A screen that drops the header for a floating close button, or
-centres its content in a div of its own, is not a different kind of screen; it
-is the same wizard mid-flow and reads as one.
+completion screens and the holds between items — is a masthead, optionally one
+`WizardStrip`, then the body, then `WizardFooter`. A screen that drops the
+masthead for a floating close button, or centres its content in a div of its
+own, is not a different kind of screen; it is the same wizard mid-flow and
+reads as one.
+
+The masthead comes in two forms, and a surface picks one:
+
+- *Unified* — one `WizardHeader` carrying the whole thing: the flow and the
+  position in its eyebrow, the step's title and lead, and the run as a flush
+  `ProgressBar` on its bottom edge. One block, one background.
+- *Stacked* — `WizardBanner` above a `WizardHeader`. The older form; see the
+  open migration below.
+
+**4.11 The eyebrow names the flow and the position; the title names the step.**
+One line — "Add System · Step 3 of 8" — answers both of the questions a wizard
+owes its reader on arrival, in the order they are asked, and leaves the title
+free to be the step and nothing else. So there is exactly one title-scale thing
+on a wizard screen, and the accent survives as the eyebrow and the bar rather
+than as a block of colour competing with it.
+
+A step's header takes no icon square. The square anchors a header whose subject
+is a specific record — a control, a finding — and a step is already named by
+the eyebrow directly above it. Dropping it also puts the title on the same left
+edge as the body's first card; with it, the title sat 44px inboard of
+everything it headed, which is what made the band read as a foreign object
+sitting on top of the form.
+
+**4.12 Step identity is chrome, not body.** The step title and its position
+stay pinned in the header; they do not scroll. A heading rendered as the first
+thing inside the scrolling pane leaves the reader, two fields down, with no
+answer to "which step is this" — and it pushes the fields themselves below the
+fold on arrival. The kit offers no in-pane step heading; a step body starts with
+its first `Section`.
 
 ## 5. Writes and saving
 
@@ -213,15 +256,23 @@ Walk these six and each must match every other wizard: **footer pattern**
 **error handling** (6.3–6.4). A deviation is either a defect to fix or a rule to
 amend here — never an undocumented local exception.
 
+### Migrations in progress
+
+- **Unified masthead (4.10–4.12).** One block: flow and position in the
+  eyebrow, the step's own title and lead below it, the run on the bottom edge.
+  **Has it:** Add / Edit / Duplicate System. **Still to adopt:** Scope Review,
+  the control assessment walk and the evaluation panel, the finding editor —
+  each still wears the stacked masthead and headers the surface rather than the
+  step in hand. The kit primitive for the old in-pane step heading
+  (`StepHeader`) is already deleted, so nothing can be built on that part of
+  the old pattern in the meantime.
+
 ### Known open deviations
 
 - **Add System has no `discard` slot; `Cancel` serves both roles.** Its staged
   draft is coextensive with the modal — there is no "throw the edits away but
   stay here" state to offer, the way the evaluation panel has one. If the
   wizard ever gains a resumable draft, it gains a real Discard.
-- **Add System's footer status is the step position, not a pending count.**
-  Permitted by 4.7, and on a surface where *everything* is pending until the
-  last click, "Step 3 of 8" is the more useful of the two readings.
 - **"System Control Editor" is not named "… Wizard".** It is the direct-edit
   mode of the evaluation panel — one control, reached by a row click, with no
   run to walk. The same component in walk mode banners as "Control Assessment

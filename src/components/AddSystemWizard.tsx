@@ -9,7 +9,7 @@ import { ClassificationTag, AssuranceBadge } from "./SystemBadges";
 import {
   AddButton, Button, Callout, CheckRow, Checkbox, ChoiceChip, EmptyState, EntityCard, EntityList, Field, FieldGrid,
   InlineHint, OptionCard, RailGroup, RailItem, RemoveButton, SaveErrorCallout, Section, Select, StatTile, StatusPill,
-  StepBody, StepHeader, TextArea, TextInput, ToggleCard, TX, Well, WizardBanner, WizardBody, WizardChrome,
+  StepBody, TextArea, TextInput, ToggleCard, TX, Well, WizardBody, WizardChrome,
   WizardFooter, WizardHeader, WizardPane, WizardRail,
 } from "./wizard/WizardUI";
 import {
@@ -46,15 +46,52 @@ import {
   type AgentAutonomyLevel, type AgentCredentialType, type AgenticIdentity, type AgentPrivilegeLevel, type AgentRevocationMechanism,
 } from "../graph/nodes/agenticIdentities";
 
+// The one declaration of the run (CONTRACT 4.1). `title`/`detail` are the
+// rail's short forms; `heading`/`lead` are the same step spelled out for the
+// wizard header, which now carries the step in hand rather than the flow.
 const STEPS = [
-  { id: 1, title: "Basics", detail: "Purpose & ownership", icon: Info },
-  { id: 2, title: "Technology", detail: "Hosting & exposure", icon: Gauge },
-  { id: 3, title: "Data", detail: "What it processes", icon: Layers },
-  { id: 4, title: "Assets", detail: "Where data lives", icon: Layers },
-  { id: 5, title: "Architecture", detail: "Actors, flows & agents", icon: Network },
-  { id: 6, title: "Resilience & SDLC", detail: "Backup, DR & secure dev", icon: DatabaseBackup },
-  { id: 7, title: "Derived Scope", detail: "What applies & why", icon: ClipboardCheck },
-  { id: 8, title: "Add System", detail: "Sign & create", icon: Check },
+  {
+    id: 1, title: "Basics", detail: "Purpose & ownership", icon: Info,
+    heading: "System basics",
+    lead: "Core facts about the system. Its classification, assurance and PRISMA level are never entered here — they are computed from the technology, data and assets you add later.",
+  },
+  {
+    id: 2, title: "Technology", detail: "Hosting & exposure", icon: Gauge,
+    heading: "Technology & exposure",
+    lead: "Capture the system's operating environment. Your choices determine which controls apply and which ones may be inherited from a provider.",
+  },
+  {
+    id: 3, title: "Data", detail: "What it processes", icon: Layers,
+    heading: "System data inventory",
+    lead: "Identify every type of data this system stores, transmits, or processes. You will map these data types to individual assets next.",
+  },
+  {
+    id: 4, title: "Assets", detail: "Where data lives", icon: Layers,
+    heading: "Assets & data mapping",
+    lead: "Add the assets inside this boundary and map only the system data types each asset stores, transmits, or processes.",
+  },
+  {
+    id: 5, title: "Architecture", detail: "Actors, flows & agents", icon: Network,
+    heading: "System architecture",
+    lead: "Connect the boundary you just described: who reaches it, how data and control relationships move between assets, and which authenticated agents operate inside it.",
+  },
+  {
+    id: 6, title: "Resilience & SDLC", detail: "Backup, DR & secure dev", icon: DatabaseBackup,
+    heading: "Resilience & secure development",
+    lead: "Optional operational posture: backup configuration, proven disaster-recovery tests, and secure-development safeguards. Leave a section off if it hasn't actually been set up yet — an absent record reads honestly as “not yet on record”, not a fabricated zero.",
+  },
+  {
+    id: 7, title: "Derived Scope", detail: "What applies & why", icon: ClipboardCheck,
+    heading: "Derived scope",
+    lead: "Classification selects the tier's published control baseline; the rules add what this system's contents require on top. Nothing here is a claimed assessment — an assessor reviews the exclusions and grades the controls on the system screen after create.",
+  },
+  {
+    // The last step's wording is the only one that depends on the mode and on
+    // what has been typed, so it is overridden in `stepHeading` below.
+    id: 8, title: "Add System", detail: "Sign & create", icon: Check,
+    heading: "Add System",
+    lead: "This system is ready. The next step is confirming what's out of scope in Scope Review.",
+  },
 ] as const;
 type WizardStep = (typeof STEPS)[number]["id"];
 type AssetType = string;
@@ -1132,18 +1169,30 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   // aria labels alike (2.2) — the flow is the same wizard in all three modes.
   const modeName = editingSystemId ? "Edit System" : isClone ? "Duplicate System" : "Add System";
 
+  // What the header says about the step in hand. Every step reads from STEPS;
+  // only the last one varies with the mode and with what has been typed.
+  const stepDef = STEPS.find((candidate) => candidate.id === step) ?? STEPS[0];
+  const stepHeading: { title: string; description: string } = step === 8
+    ? {
+        title: editingSystemId ? "Save changes" : "Add System",
+        description: editingSystemId
+          ? "Saving recalculates the system's scope without changing its recorded evidence."
+          : `${name.trim() || "This system"} is ready. The next step is confirming what's out of scope in Scope Review.`,
+      }
+    : { title: stepDef.heading, description: stepDef.lead };
+
   return (
     <Modal open={open} onClose={close} width={1000} height={720}>
       <WizardChrome>
-        <WizardBanner icon={ClipboardCheck} title={`${modeName} Wizard`} />
+        {/* One block: the eyebrow names the flow and the position in a single
+            line, the step names itself below it, and the run rides the bottom
+            edge. Step identity is chrome, so it stays pinned while the body
+            scrolls instead of scrolling away with the first field. */}
         <WizardHeader
-          icon={ClipboardCheck}
-          title={modeName}
-          description={editingSystemId
-            ? "Update declared facts; classification, scope, and assurance are recalculated before anything is saved."
-            : isClone
-              ? "Every asset, actor, data flow, and agent is prefilled from the source system with new ids of its own — review and adjust, then launch a fresh assessment for it."
-              : "The engine proposes what applies and what can be inherited. You confirm and grade those controls on the system screen after create."}
+          eyebrow={`${modeName} · Step ${step} of ${total}`}
+          title={stepHeading.title}
+          description={stepHeading.description}
+          progress={{ value: step, total, label: `${modeName} progress` }}
           onClose={<ModalCloseButton onClose={close} />}
         />
 
@@ -1179,12 +1228,6 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
             {step === 1 && (
               <>
-                <StepHeader
-                  step={1}
-                  total={total}
-                  title="System basics"
-                  description="Core facts about the system. Its classification, assurance and PRISMA level are never entered here — they are computed from the technology, data and assets you add later."
-                />
                 <StepBody>
                   <Section icon={Info} title="Identity & ownership" description="What this boundary is, what it does, and who is accountable for it.">
                     <FieldGrid cols={1}>
@@ -1261,12 +1304,6 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
             {step === 2 && (
               <>
-                <StepHeader
-                  step={2}
-                  total={total}
-                  title="Technology & exposure"
-                  description="Capture the system's operating environment. Your choices determine which controls apply and which ones may be inherited from a provider."
-                />
                 <StepBody>
                   <Section icon={Cloud} title="Hosting environment" description="Where the system runs, who provides it, and in which regions.">
                     <div role="radiogroup" aria-label="Hosting type" className="grid gap-3 grid-cols-1 sm:grid-cols-3">
@@ -1391,12 +1428,6 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
             {step === 3 && (
               <>
-                <StepHeader
-                  step={3}
-                  total={total}
-                  title="System data inventory"
-                  description="Identify every type of data this system stores, transmits, or processes. You will map these data types to individual assets next."
-                />
                 <StepBody>
                   <Section icon={Layers} title="Boundary data profile" description="Who the data is about, roughly how much of it there is, and where it is kept.">
                     <Field label="Data subjects">
@@ -1487,12 +1518,6 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
             {step === 4 && (
               <>
-                <StepHeader
-                  step={4}
-                  total={total}
-                  title="Assets & data mapping"
-                  description="Add the assets inside this boundary and map only the system data types each asset stores, transmits, or processes."
-                />
                 <StepBody>
                   <Section
                     icon={Boxes}
@@ -1640,12 +1665,6 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
             {step === 5 && (
               <>
-                <StepHeader
-                  step={5}
-                  total={total}
-                  title="System architecture"
-                  description="Connect the boundary you just described: who reaches it, how data and control relationships move between assets, and which authenticated agents operate inside it."
-                />
                 <StepBody>
                   <Section
                     icon={Users}
@@ -1902,12 +1921,6 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
             {step === 6 && (
               <>
-                <StepHeader
-                  step={6}
-                  total={total}
-                  title="Resilience & secure development"
-                  description="Optional operational posture: backup configuration, proven disaster-recovery tests, and secure-development safeguards. Leave a section off if it hasn't actually been set up yet — an absent record reads honestly as “not yet on record”, not a fabricated zero."
-                />
                 <StepBody>
                   <Section icon={DatabaseBackup} title="Backup & recovery" description="How durable this system's data is, and how quickly it can be restored.">
                     <ToggleCard
@@ -2057,13 +2070,6 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
             {step === 7 && (
               <>
-                <StepHeader
-                  step={7}
-                  total={total}
-                  title="Derived scope"
-                  description="Classification selects the tier's published control baseline; the rules add what this system's contents require on top. Nothing here is a claimed assessment — an assessor reviews the exclusions and grades the controls on the system screen after create."
-                />
-
                 {checking && <Callout tone="info" title="Checking…">Recomputing the derived scope from your entries.</Callout>}
 
                 {!checking && dryRun && dryRun.problems.length === 0 && (
@@ -2176,14 +2182,6 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
 
             {step === 8 && (
               <>
-                <StepHeader
-                  step={8}
-                  total={total}
-                  title={editingSystemId ? "Save changes" : "Add System"}
-                  description={editingSystemId
-                    ? "Saving recalculates the system's scope without changing its recorded evidence."
-                    : `${name.trim() || "This system"} is ready. The next step is confirming what's out of scope in Scope Review.`}
-                />
                 <StepBody>
                   <Section icon={UserCheck} title="Choose a Control Assessor" description="Select a person to review system controls.">
                     <FieldGrid cols={2}>
@@ -2206,7 +2204,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
             the draft is coextensive with the modal, there is no "throw the
             edits away but stay" state to offer separately (5.6, 5.7). */}
         <WizardFooter
-          position={`Step ${step} of ${total}`}
+          position={editingSystemId ? "Draft — changes not saved yet" : "Draft — nothing created yet"}
           hint={blockReason ? <InlineHint tone="warning">{blockReason}</InlineHint> : undefined}
           close={<Button onClick={close}>Cancel</Button>}
           back={<Button icon={ChevronLeft} onClick={goBack} disabled={step === 1}>Back</Button>}
