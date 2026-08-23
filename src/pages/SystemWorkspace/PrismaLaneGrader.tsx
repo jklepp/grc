@@ -123,14 +123,11 @@ export function laneGraderBlocker(args: {
   if (!assessed && !isProgramScoped && assetOptions.length === 0) {
     return "No registered asset requires this asset-scoped control. Update asset attributes or mark it Not In Scope.";
   }
-  // Not typed here any more: the assessment is signed with the system's
-  // assessor of record (and, once there is a login, with the operator's own
-  // identity). The gate remains because an unsigned assessment is not a record
-  // (5.1) — it just names where the missing signature comes from, because
-  // there is no longer a box on this form to fix it in.
-  if (!value.assessedBy.trim()) {
-    return "This system has no assessor of record — set one in Edit System before grading.";
-  }
+  // No gate on the signature any more. It used to name where a missing one
+  // would have to come from, because the operator had no box to fix it in; the
+  // assessment is signed with whoever is signed in now, so there is no state in
+  // which it can be absent. 5.1 is satisfied by construction rather than by a
+  // check that could never pass its own failure.
   if (!assessed) {
     if (implemented == null) return "Pick where the Implemented lane stands.";
     if (implemented === 0) {

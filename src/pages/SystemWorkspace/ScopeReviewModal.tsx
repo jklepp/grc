@@ -17,6 +17,8 @@ import type { ControlReview } from "../../graph/edges/controlReviews";
 import type { InheritanceGroup, ReviewWave, ReviewWaveControl } from "../../engine/review";
 import type { ControlId, SystemId } from "../../graph/ids";
 import type { Control } from "../../graph/nodes/controls";
+import { useSignedInUser } from "../../auth/useUser";
+import { canReviewScope, allows } from "../../auth/gates";
 
 // The three decision surfaces. Scope is exclusion-shaped: being in scope needs
 // no ceremony (the assessment walk is its human touch), so the review asks only
@@ -67,8 +69,12 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
   const summary = liveEngine.compliance.controlApplicabilitySummary(systemId);
 
   const [view, setView] = useState<ScopeView>("out-of-scope");
-  const [reviewer, setReviewer] = useState(assessor);
   const [saveError, setSaveError] = useState<string[] | null>(null);
+
+  // The reviewer of record is no longer typed — it is whoever is signed in.
+  // A signature a person can edit is not a signature.
+  const user = useSignedInUser();
+  const scopePermission = canReviewScope(user);
 
   // Out-of-scope review state: at most one pending question is being answered
   // "out" at a time, with its typed reason.
@@ -152,7 +158,9 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groups, liveEngine, systemId]);
 
-  const canWrite = reviewer.trim().length > 0;
+  // Same name, different question. This used to mean "has a reviewer name been
+  // typed"; it now means "may this person record a scope decision at all".
+  const canWrite = allows(scopePermission);
 
   // Where to land when the modal OPENS: the earliest section still holding
   // work, so re-opening resumes rather than restarting. Navigation once
@@ -222,7 +230,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
   }
 
   function review(controlId: ControlId, bucket: ControlReview["bucket"], stance: ControlReview["stance"], note: string): ControlReview {
-    return { systemId, controlId, bucket, stance, note, reviewedBy: reviewer.trim() || assessor, reviewedAt: today() };
+    return { systemId, controlId, bucket, stance, note, reviewedBy: user.name, reviewedAt: today() };
   }
 
   function confirmExclusion(item: ReviewWaveControl) {
@@ -356,7 +364,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
           : `${outOfScopeRemaining} to decide`;
 
   const footerHint = !canWrite
-    ? <InlineHint tone="warning">Name a reviewer of record before any scope decision can be saved.</InlineHint>
+    ? <InlineHint tone="warning">Scope decisions are recorded by an assessor. You can read this review but not change it.</InlineHint>
     : undefined;
 
   // "Continue" means the next section along the rail — never whichever
@@ -618,26 +626,18 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
           <WizardPane>
             {saveError && <SaveErrorCallout problems={saveError} />}
 
-            {/* The reviewer of record used to sit permanently in the header,
-                where it was chrome on every view for a value that is already
-                known on most systems. It appears here only when it is missing
-                — which is exactly when it blocks the work (6.3, 6.4) — and the
-                surface signs decisions with the system's assessor otherwise. */}
+            {/* The reviewer of record was a text field here until sign-in
+                arrived: it appeared when it was missing, because that was
+                exactly when it blocked the work. There is nothing left to fill
+                in — every decision is signed by whoever is signed in — so the
+                only thing that can block the work now is not being allowed to
+                do it, and that is what this says (6.3, 6.4). */}
             {!canWrite && (
-              <Callout tone="warning" title="Name a reviewer of record.">
-                <p className="mb-2.5">
-                  Every scope decision is recorded against the person who made it, so nothing here can be
-                  confirmed until this is filled in.
+              <Callout tone="warning" title="You can read this review, but not change it.">
+                <p>
+                  Scope decisions are recorded against the assessor who made them. Nothing on this
+                  screen will save while you are signed in as {user.name}.
                 </p>
-                <Field label="Reviewer of record">
-                  <TextInput
-                    value={reviewer}
-                    onChange={(e) => setReviewer(e.target.value)}
-                    placeholder="e.g. J. Ortiz — Security Engineering"
-                    aria-label="Reviewer of record"
-                    style={{ maxWidth: 320 }}
-                  />
-                </Field>
               </Callout>
             )}
 
@@ -653,7 +653,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
                     <StatTile label="To grade" value={technicalRemaining} hint="Key controls the assessment walk will ask about" />
                   </div>
                 }
-                signature={<>Reviewed by <b style={{ color: C.ink }}>{reviewer.trim() || assessor}</b> · completed {today()}</>}
+                signature={<>Reviewed by <b style={{ color: C.ink }}>{canWrite ? user.name : assessor}</b> · completed {today()}</>}
               />
             )}
 

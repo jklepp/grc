@@ -47,6 +47,8 @@ import type { ArtifactSensitivity, EvidenceReviewDecision } from "../../graph/no
 import type { RemediationStatus } from "../../graph/nodes/findings";
 import type { SecurityPrinciple } from "../../data/securityPrinciples";
 import type { ControlMatrixRow, WorkspaceSystem } from "./types";
+import { useSignedInUser } from "../../auth/useUser";
+import { canAssess, allows, reasonFor, isIndependentOf } from "../../auth/gates";
 
 // Which architecture layer each asset sits in, reusing the exact same
 // request-path classification the Architecture tab's data-flow diagram
@@ -287,11 +289,14 @@ interface EvidenceFormState {
   artifactStorageRef: string;
   artifactSha256: string;
   artifactSensitivity: ArtifactSensitivity;
-  reviewer: string;
+  // Whether to record a review at all. The reviewer used to be a name typed
+  // into a box, and its presence was what decided whether a review record got
+  // written; the reviewer is now whoever is signed in, so the decision to
+  // review has to be said out loud instead of inferred from a filled field.
+  reviewRecorded: boolean;
   reviewDecision: EvidenceReviewDecision;
   reviewComments: string;
   reviewValidThrough: string;
-  reviewIndependenceDeclared: boolean;
 }
 
 const EMPTY_EVIDENCE_FORM: EvidenceFormState = {
@@ -300,7 +305,7 @@ const EMPTY_EVIDENCE_FORM: EvidenceFormState = {
   collectedAt: new Date().toISOString().slice(0, 10), periodStart: "", periodEnd: "",
   collectorType: "manual", collectorIdentity: "", collectionRunId: "", methodVersion: "", sourceConfigurationVersion: "",
   artifactName: "", artifactMediaType: "application/pdf", artifactStorageRef: "", artifactSha256: "", artifactSensitivity: "Confidential",
-  reviewer: "", reviewDecision: "accepted", reviewComments: "", reviewValidThrough: "", reviewIndependenceDeclared: false,
+  reviewRecorded: false, reviewDecision: "accepted", reviewComments: "", reviewValidThrough: "",
 };
 
 interface EvidenceFormProps {
@@ -311,11 +316,14 @@ interface EvidenceFormProps {
   // the per-lane attach/edit flow; absent from the flat Evidence step, where
   // records keep whatever lane they already carry (Implemented by default).
   prismaLevel?: PrismaLevel;
+  /** Whether the signed-in reviewer is independent of this system's owner. */
+  independent: boolean;
   onCancel: () => void;
   onSubmit: (draft: ControlEvidenceDraft) => void;
 }
 
-function EvidenceForm({ initial, assetOptions, isProgramScoped, prismaLevel, onCancel, onSubmit }: EvidenceFormProps) {
+function EvidenceForm({ initial, assetOptions, isProgramScoped, prismaLevel, independent, onCancel, onSubmit }: EvidenceFormProps) {
+  const user = useSignedInUser();
   const [form, setForm] = useState<EvidenceFormState>({ ...EMPTY_EVIDENCE_FORM, ...initial });
   const [showProvenance, setShowProvenance] = useState(false);
   const [assetIds, setAssetIds] = useState<AssetId[]>(
@@ -327,7 +335,6 @@ function EvidenceForm({ initial, assetOptions, isProgramScoped, prismaLevel, onC
   const artifactReady = !form.artifactName.trim() || (
     Boolean(form.artifactStorageRef.trim()) && /^[a-f0-9]{64}$/i.test(form.artifactSha256.trim())
   );
-  const reviewReady = !form.reviewer.trim() || form.reviewIndependenceDeclared;
 
   return (
     <Well className="flex flex-col gap-3.5">
@@ -416,22 +423,36 @@ function EvidenceForm({ initial, assetOptions, isProgramScoped, prismaLevel, onC
           <div>
             <GroupLabel>Review decision (optional)</GroupLabel>
             <FieldGrid cols={2}>
-              <Field label="Reviewer"><TextInput value={form.reviewer} onChange={(e) => setField("reviewer", e.target.value)} placeholder="Name or accountable team" /></Field>
-              <Field label="Decision">
-                <Select value={form.reviewDecision} aria-label="Review decision" onChange={(e) => setField("reviewDecision", selectedValue(EVIDENCE_REVIEW_DECISIONS, e.target.value, form.reviewDecision))}>
-                  {EVIDENCE_REVIEW_DECISIONS.map((value) => <option key={value} value={value}>{value}</option>)}
-                </Select>
-              </Field>
-              <Field label="Valid through"><TextInput type="date" value={form.reviewValidThrough} aria-label="Valid through" onChange={(e) => setField("reviewValidThrough", e.target.value)} /></Field>
-              <Field label="Review comments"><TextInput value={form.reviewComments} aria-label="Review comments" onChange={(e) => setField("reviewComments", e.target.value)} /></Field>
-              <Field label="Independence declaration" span2 error={reviewReady ? null : "A named reviewer must complete this declaration."}>
+              <Field label="Reviewer" span2>
                 <CheckRow
-                  checked={form.reviewIndependenceDeclared}
-                  onChange={(checked) => setField("reviewIndependenceDeclared", checked)}
-                  ariaLabel="Reviewer independence declaration"
-                  label="Reviewer declares any independence conflict has been considered and recorded."
+                  checked={form.reviewRecorded}
+                  onChange={(checked) => setField("reviewRecorded", checked)}
+                  ariaLabel="Record my review of this evidence"
+                  label={"Record my review of this evidence, signed as " + user.name + "."}
                 />
               </Field>
+              {form.reviewRecorded && (
+                <>
+                  <Field label="Decision">
+                    <Select value={form.reviewDecision} aria-label="Review decision" onChange={(e) => setField("reviewDecision", selectedValue(EVIDENCE_REVIEW_DECISIONS, e.target.value, form.reviewDecision))}>
+                      {EVIDENCE_REVIEW_DECISIONS.map((value) => <option key={value} value={value}>{value}</option>)}
+                    </Select>
+                  </Field>
+                  <Field label="Valid through"><TextInput type="date" value={form.reviewValidThrough} aria-label="Valid through" onChange={(e) => setField("reviewValidThrough", e.target.value)} /></Field>
+                  <Field label="Review comments" span2><TextInput value={form.reviewComments} aria-label="Review comments" onChange={(e) => setField("reviewComments", e.target.value)} /></Field>
+                  {/* This was a checkbox asking the reviewer to declare their
+                      own independence — a question the app can answer from who
+                      is signed in and who owns the system, which is exactly
+                      what CONTRACT.md 3.1 says never to put to a person. */}
+                  <Field label="Independence" span2>
+                    <InlineHint tone={independent ? "info" : "warning"}>
+                      {independent
+                        ? "You are not accountable for this system, so this review is recorded as independent."
+                        : "You are accountable for this system, so this review is recorded as not independent."}
+                    </InlineHint>
+                  </Field>
+                </>
+              )}
             </FieldGrid>
           </div>
         </Well>
@@ -460,7 +481,7 @@ function EvidenceForm({ initial, assetOptions, isProgramScoped, prismaLevel, onC
         <Button
           variant="primary"
           icon={Check}
-          disabled={!form.source.trim() || !artifactReady || !reviewReady}
+          disabled={!form.source.trim() || !artifactReady}
           onClick={() => onSubmit({
             source: form.source.trim(),
             ...(prismaLevel ? { prismaLevel } : {}),
@@ -483,13 +504,13 @@ function EvidenceForm({ initial, assetOptions, isProgramScoped, prismaLevel, onC
             artifacts: form.artifactName.trim() ? [{
               name: form.artifactName.trim(), mediaType: form.artifactMediaType.trim() || "application/octet-stream",
               storageRef: form.artifactStorageRef.trim(), sha256: form.artifactSha256.trim().toLowerCase(),
-              createdAt: new Date().toISOString(), ingestedAt: new Date().toISOString(), createdBy: form.collectorIdentity.trim() || "Manual upload",
+              createdAt: new Date().toISOString(), ingestedAt: new Date().toISOString(), createdBy: user.name,
               sensitivity: form.artifactSensitivity, version: "1",
             }] : undefined,
-            review: form.reviewer.trim() ? {
-              reviewer: form.reviewer.trim(), reviewedAt: new Date().toISOString(), decision: form.reviewDecision,
+            review: form.reviewRecorded ? {
+              reviewer: user.name, reviewedAt: new Date().toISOString(), decision: form.reviewDecision,
               comments: form.reviewComments.trim() || undefined, validThrough: form.reviewValidThrough || undefined,
-              independenceDeclared: form.reviewIndependenceDeclared,
+              independenceDeclared: independent,
             } : undefined,
             assetIds,
           })}
@@ -585,7 +606,8 @@ export interface WalkDomainProgress {
 
 // Everything the key-control walk (ControlAssessmentWalk) layers onto this
 // panel: the domain rail with per-domain progress, the assessed-so-far strip,
-// the reviewer of record, and the save/skip advance hooks. Absent for the
+// and the save/skip advance hooks. Not the reviewer of record — that is the
+// signed-in user, which the panel reads for itself. Absent for the
 // standalone row-click open — the panel itself is identical either way, so
 // the walk and the deep-dive can never drift into two different assessment
 // UIs again.
@@ -595,7 +617,6 @@ export interface PanelWalkState {
   onSelectDomain: (domain: string) => void;
   decidedCount: number;
   initialTotal: number;
-  reviewer: string;
   onRecorded: (rating: ComplianceRating, continueWalk: boolean) => void;
   onSkip: (() => void) | null;
 }
@@ -681,7 +702,16 @@ export function ControlEvaluationPanel({
       .map((asset) => ({ assetId: asset.id, label: asset.name })),
     [liveEngine, system.id, committedRow.control.id]
   );
-  const assessorOfRecord = liveEngine.graph.assessmentScopeBySystem[system.id]?.assessor ?? "";
+  // Every record this panel writes is signed with the signed-in user, and
+  // whether it may write at all is a role question, not a "did you fill the box
+  // in" question. `assessBlocked` is non-null only for separation of duties —
+  // an assessor looking at a system they are accountable for — which is the one
+  // refusal worth showing rather than hiding (gates.ts).
+  const user = useSignedInUser();
+  const assessPermission = canAssess(user, system);
+  const mayAssess = allows(assessPermission);
+  const assessBlocked = reasonFor(assessPermission);
+  const independent = isIndependentOf(user, system);
 
   // Closure evidence already on a finding, in the shape the editor renders.
   // Read off the staged draft engine so a record created earlier in this same
@@ -715,7 +745,7 @@ export function ControlEvaluationPanel({
   const [laneState, setLaneState] = useState<LaneGraderState>(() => initialLaneGraderState({
     levels: committedRow.assessment?.levels,
     assessed: Boolean(committedRow.assessment?.assessed),
-    assessedBy: (walk?.reviewer ?? "").trim() || assessorOfRecord,
+    assessedBy: user.name,
     assetOptions: recordAssetOptions,
   }));
 
@@ -812,8 +842,17 @@ export function ControlEvaluationPanel({
   // grader's own blocker would otherwise refuse the save — demanding a rating
   // for a control the operator has just declared Not In Scope.
   const savingAssessment = !excludeStaged && (!assessed || laneDirty);
-  const saveBlocker = savingAssessment ? laneBlocker : null;
-  const canSave = savingAssessment ? saveBlocker === null : pendingChanges.length > 0;
+  // The role gate outranks every readiness rule, because there is no state of
+  // this form that would make a refused write allowed. It lands on the footer
+  // rather than on each of the twenty staging controls above: this is a staged
+  // surface (5.6), so the primary is the one thing that persists anything, and
+  // the pinned footer is where a blocked primary says why (4.7).
+  const permissionBlocker = mayAssess
+    ? null
+    : assessBlocked
+      ?? `Assessments are recorded by an assessor. You are signed in as ${user.name}.`;
+  const saveBlocker = permissionBlocker ?? (savingAssessment ? laneBlocker : null);
+  const canSave = mayAssess && (savingAssessment ? laneBlocker === null : pendingChanges.length > 0);
   const unsavedCount = pendingChanges.length + (laneDirty ? 1 : 0);
   // Two acts, two labels, and no more: in the walk the primary commits *and*
   // advances, so it names both; in the editor it is the one final commit, so
@@ -882,7 +921,7 @@ export function ControlEvaluationPanel({
     setLaneState(initialLaneGraderState({
       levels: committedRow.assessment?.levels,
       assessed: Boolean(committedRow.assessment?.assessed),
-      assessedBy: (walk?.reviewer ?? "").trim() || assessorOfRecord,
+      assessedBy: user.name,
       assetOptions: recordAssetOptions,
     }));
     setLaneDirty(false);
@@ -1061,7 +1100,7 @@ export function ControlEvaluationPanel({
         bucket: "not-applicable",
         stance: "confirm",
         note: reason,
-        reviewedBy: laneState.assessedBy.trim() || assessorOfRecord,
+        reviewedBy: user.name,
         reviewedAt: new Date().toISOString().slice(0, 10),
       }),
     );
@@ -1112,8 +1151,8 @@ export function ControlEvaluationPanel({
 
       {/* ---- Walk strip: who is signing ----
            The assessor used to be typed here, in the chrome, where it read as
-           decoration while silently disabling Save. It is a labelled, required
-           field in the grader now; this only reports it.
+           decoration while silently disabling Save. It is whoever is signed in
+           now, so it can never be missing and this only reports it.
 
            It used to carry the walk's progress too. The masthead counts the
            same run now, so repeating it here was two readings of one thing
@@ -1121,9 +1160,7 @@ export function ControlEvaluationPanel({
       {walk && (
         <WizardStrip icon={ClipboardCheck}>
           <InlineField label="Assessor">
-            <span className={TX.body} style={{ color: laneState.assessedBy.trim() ? C.ink : C.amber }}>
-              {laneState.assessedBy.trim() || "not named yet"}
-            </span>
+            <span className={TX.body} style={{ color: C.ink }}>{laneState.assessedBy}</span>
           </InlineField>
         </WizardStrip>
       )}
@@ -1195,6 +1232,16 @@ export function ControlEvaluationPanel({
           </Section>
 
           {saveError && <SaveErrorCallout problems={saveError} />}
+
+          {/* Said on arrival, not at the moment someone presses Save. The
+              footer repeats it as the blocked primary's reason (4.7, 6.3), but
+              filling a form in and only then being refused is the failure this
+              avoids. */}
+          {permissionBlocker && (
+            <Callout tone="warning" title="You can read this control, but not assess it.">
+              <p>{permissionBlocker} Nothing on this screen will save.</p>
+            </Callout>
+          )}
 
           {/* ===== Authority & Mapping ===== */}
           {activeStep === "authority" && (
@@ -1434,6 +1481,7 @@ export function ControlEvaluationPanel({
                         <div className="flex flex-col gap-2">
                           {records.map((e) => editingLaneEvidenceId === e.id ? (
                             <EvidenceForm
+                              independent={independent}
                               key={e.id}
                               initial={{ ...e, exceptions: e.exceptions ?? "", population: e.population ?? "" }}
                               assetOptions={assetOptions}
@@ -1461,6 +1509,7 @@ export function ControlEvaluationPanel({
                       )}
                       {attachingLane === level && (
                         <EvidenceForm
+                          independent={independent}
                           assetOptions={assetOptions}
                           isProgramScoped={isProgramScoped}
                           prismaLevel={level}
@@ -1648,6 +1697,7 @@ export function ControlEvaluationPanel({
             >
               {creatingFinding && (
                 <FindingEditor
+                  blocker={permissionBlocker}
                   initial={{ ...creatingFindingInitial, controlId: row.control.id }}
                   assetOptionsFor={findingAssetOptions}
                   onCancel={() => { setCreatingFinding(false); setCreatingFindingInitial(null); }}
@@ -1662,6 +1712,7 @@ export function ControlEvaluationPanel({
                       return (
                         <FindingEditor
                           key={f.id}
+                          blocker={permissionBlocker}
                           initial={{
                             title: f.title, detail: f.detail, controlId: f.controlId, assetId: f.assetId ?? "",
                             severity: f.severity ?? "medium",

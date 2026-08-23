@@ -7,7 +7,7 @@ import Systems from "./pages/Systems";
 import Governance from "./pages/Governance";
 import Overview from "./pages/Overview";
 import GraphExplorer from "./pages/GraphExplorer";
-import Login from "./pages/Login";
+import Settings from "./pages/Settings/Settings";
 import { DEFAULT_SYSTEM_ID } from "./pages/SystemWorkspace/SystemWorkspace";
 import type { SystemWorkspaceTab } from "./pages/SystemWorkspace/tabs";
 import type { SystemSelectOptions } from "./pages/SelectSystem";
@@ -16,6 +16,9 @@ import { hashForRoute, parseHash } from "./router";
 import type { AppRoute } from "./router";
 import { C, applyTheme, FONT_IMPORT, THEME_STORAGE_KEY, storedThemeMode } from "./theme";
 import type { ThemeMode } from "./theme";
+import { useSignedInUser } from "./auth/useUser";
+import { signOut } from "./auth/session";
+import { allows, canManageUsers } from "./auth/gates";
 
 type ControlsTab = NonNullable<ComponentProps<typeof Controls>["initialTab"]>;
 type GovernanceTab = NonNullable<ComponentProps<typeof Governance>["initialTab"]>;
@@ -72,7 +75,7 @@ function legacyRouteFor(id: string): LegacyRoute | undefined {
   return Object.entries(LEGACY_ROUTES).find(([routeId]) => routeId === id)?.[1];
 }
 
-const PAGE_IDS: NavigationPageId[] = ["overview", "data-estate", "assurance", "governance", "graph-explorer"];
+const PAGE_IDS: NavigationPageId[] = ["overview", "data-estate", "assurance", "governance", "graph-explorer", "settings"];
 
 function isNavigationPageId(id: string): id is NavigationPageId {
   return (PAGE_IDS as string[]).includes(id);
@@ -81,15 +84,13 @@ function isNavigationPageId(id: string): id is NavigationPageId {
 // Post-login landing: Production AI Platform's workspace, same as before.
 const DEFAULT_ROUTE: AppRoute = { page: "data-estate", systemId: DEFAULT_SYSTEM_ID };
 
-const AUTH_STORAGE_KEY = "grc-authenticated";
-
 export default function App() {
   const [route, setRoute] = useState<AppRoute>(() => parseHash(window.location.hash) ?? DEFAULT_ROUTE);
   const [startAssessment, setStartAssessment] = useState(false);
   const [mode, setMode] = useState<ThemeMode>(storedThemeMode);
-  // No real auth is wired up yet — this just gates the UI behind the login
-  // screen. sessionStorage keeps a refresh from dumping the user back to it.
-  const [authenticated, setAuthenticated] = useState(() => sessionStorage.getItem(AUTH_STORAGE_KEY) === "1");
+  // Boot renders the login screen instead of App when nobody is signed in, so
+  // by here there is always a user.
+  const user = useSignedInUser();
 
   // Mutates the shared C / CLASS_META objects in theme.ts in place, before this
   // render reads any of their properties. Every page imports those same objects,
@@ -142,26 +143,12 @@ export default function App() {
     applyRoute({ page: "data-estate", systemId: id, systemTab: options?.startAssessment ? "controls" : "overview" });
   }
 
-  function login() {
-    sessionStorage.setItem(AUTH_STORAGE_KEY, "1");
-    setAuthenticated(true);
-  }
-
   function toggleTheme() {
     setMode((m) => {
       const next = m === "dark" ? "light" : "dark";
       localStorage.setItem(THEME_STORAGE_KEY, next);
       return next;
     });
-  }
-
-  if (!authenticated) {
-    return (
-      <>
-        <style>{FONT_IMPORT}</style>
-        <Login onLogin={login} />
-      </>
-    );
   }
 
   // Controls/Governance/Overview each seed their in-page area/tab from
@@ -188,6 +175,9 @@ export default function App() {
     }
     case "graph-explorer":
       activePage = <GraphExplorer />;
+      break;
+    case "settings":
+      activePage = <Settings key={route.tab ?? "users"} initialTab={route.tab} />;
       break;
     default:
       activePage = (
@@ -220,6 +210,9 @@ export default function App() {
         onSelect={navigate}
         mode={mode}
         onToggleTheme={toggleTheme}
+        user={user}
+        onSignOut={signOut}
+        onOpenSettings={allows(canManageUsers(user)) ? () => navigate("settings") : undefined}
       />
       <div className="flex-1" style={{ overflowY: "auto" }}>
         {activePage}

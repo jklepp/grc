@@ -327,6 +327,32 @@ save.** Staged surfaces report pending changes in the footer's status slot and
 provide Discard beside the primary. Immediate surfaces must not display a Save
 control, which would imply work is being held that isn't.
 
+**5.8 A signature is taken, never typed.** Every record names the signed-in user
+(`src/auth`) — assessor, reviewer, creator, whoever completed the step. A surface
+must not offer a box to type it in: a name a person can edit is not a signature,
+and every such box was also a fake gate, disabling Save until *something* was
+entered rather than until the right person was there. Facts *about* a person that
+are not the signature — who collected evidence at source, who is assigned as
+assessor of record — stay fields, and pick from a known list rather than free
+text.
+
+**5.9 A refused write is hidden or explained, never merely greyed.** Permission
+comes from `src/auth/gates.ts` and nowhere else; a surface never decides policy
+locally. How the refusal reads depends on which kind it is:
+
+- **The role can never do this** — hide the control. An auditor facing forty
+  greyed-out Assess buttons learns nothing from thirty-nine of them.
+- **The role could, but this record stops you** — render it, disable it, and
+  state the reason. Separation of duties is the case this exists for: an
+  assessor who owns the system expects to grade it, so the refusal is the
+  informative part. The reason belongs in the footer's hint (4.7), and on a
+  surface with a form to fill in, also at the top of the pane — being refused
+  *after* filling one in is the failure this prevents.
+
+On a staged surface (5.6) the gate belongs on the one committing action, since
+that is the only thing that persists; it does not need repeating on each of the
+twenty controls that stage into the draft.
+
 ## 6. Motion and validation
 
 **6.1 One motion vocabulary, or none.** Enter/exit transitions are shared across
@@ -375,6 +401,10 @@ None open. The unified masthead (4.10–4.13) has landed on every wizard surface
   mode of the evaluation panel — one control, reached by a row click, with no
   run to walk. The same component in walk mode is the Control Assessment
   Wizard.
+- **The evaluation panel's inline Finding editors repeat the panel's own
+  blocker.** 5.9 says a staged surface gates its one committing action, and the
+  panel does; the editors also carry it so a form nested inside a blocked panel
+  never looks savable. Belt and braces, not a second policy.
 - **Scope Review paints its decision controls with primary visual weight** while
   4.8 places the primary in the footer. Accepted under the immediate-surface
   exception in 4.8: those buttons *are* the work; footer's Continue appears only

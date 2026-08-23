@@ -26,6 +26,8 @@ import type { ControlId, SystemId } from "../../graph/ids";
 import type { SystemWorkspaceTab } from "./tabs";
 import type { ReviewWave } from "../../engine/review";
 import { useLiveEngine } from "../../engine/useLiveEngine";
+import { useSignedInUser } from "../../auth/useUser";
+import { canAssess, canEditSystem, allows } from "../../auth/gates";
 
 const SYSTEMS = getAllSystems();
 
@@ -72,10 +74,15 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   const [resumeScopeAfterEdit, setResumeScopeAfterEdit] = useState(false);
   const assessmentStarted = useRef(false);
   const liveEngine = useLiveEngine();
+  const user = useSignedInUser();
   const systems = liveEngine.rollups.systemRollups;
 
   const system = systems.find((s) => s.id === systemId);
   if (!system) throw new Error(`Unknown system: ${systemId}`);
+  // The assessment walk is not offered to someone who could not record a single
+  // control at the end of it. The panel still says why on the one case that is
+  // a refusal rather than an absence — an assessor who owns this system.
+  const mayAssess = allows(canAssess(user, system));
   const activeSystemId = system.id;
   const reportSystem = system;
   const matrix = useMemo(
@@ -225,7 +232,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         systems={systems}
         systemId={systemId}
         onSelectSystem={selectSystem}
-        onEdit={() => { setEditorInitialStep(1); setResumeScopeAfterEdit(false); setEditorOpen(true); }}
+        onEdit={allows(canEditSystem(user, system)) ? () => { setEditorInitialStep(1); setResumeScopeAfterEdit(false); setEditorOpen(true); } : undefined}
         formallyAssessed={formalAssessment.complete}
       />
 
@@ -240,7 +247,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           dataTypes={dataTypes} onNavigate={changeSubTab}
           onOpenScopeReview={openScopeReview} onSelectControlsGroup={openControlsGroup}
           onOpenMissingFinding={openMissingFinding}
-          onStartAssessment={formalAssessment.scopeDecided && assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
+          onStartAssessment={mayAssess && formalAssessment.scopeDecided && assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
           onGenerateIsoReport={generateIsoReport}
           formalAssessment={formalAssessment}
         />
@@ -268,7 +275,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           applicabilitySummary={applicabilitySummary} posture={posture}
           findingsByControl={findingsByControl}
           keyControlRemaining={assessmentQueue.length}
-          onStartAssessment={formalAssessment.scopeDecided && assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
+          onStartAssessment={mayAssess && formalAssessment.scopeDecided && assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
           walkActive={assessmentWalkOpen}
           onSelectRow={(row) => selectControl(row.controlId)}
           onOpenScopeReview={openScopeReview}
@@ -289,7 +296,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           onNavigate={changeSubTab}
           onSelectControl={selectControl}
           onSelectControlsGroup={openControlsGroup}
-          onStartAssessment={assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
+          onStartAssessment={mayAssess && assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
         />
       )}
 

@@ -18,14 +18,21 @@
 // happen during module evaluation and showed up as a blank page with a console
 // trace. It now lands in the failed state below, which says what broke.
 //
-// NEXT STEP, when there is a backend: move initEngine() to after authentication
-// rather than before it. A real API cannot answer for a tenant it has not
-// authenticated, so the order becomes login -> load facts -> app. That needs
-// App.tsx split so the login screen renders without pulling the page bundle,
-// which is a separate change from this one.
+// The order is sign in -> load facts -> app. Authentication comes first because
+// a real API cannot answer for a tenant it has not authenticated, and that is
+// the shape this needs to keep once the facts come from one. It is also why
+// Login is imported statically while App is not: the login screen has to render
+// without pulling the page bundle, and App still drags in every page.
+//
+// The cost is that the dataset does not start loading until someone signs in,
+// so the splash below is what they see for a beat afterwards rather than before.
+// That is the right trade — nothing should be fetched on behalf of a visitor who
+// has not said who they are.
 import { lazy, Suspense, useEffect, useState } from "react";
 import { initEngine } from "./engine";
 import { applyTheme, storedThemeMode, C, FONT_IMPORT } from "./theme";
+import { useUser } from "./auth/useUser";
+import Login from "./pages/Login";
 
 const App = lazy(() => import("./App"));
 
@@ -112,12 +119,14 @@ function Failed({ message }: { message: string }) {
 
 export default function Boot() {
   const [state, setState] = useState<BootState>({ phase: "loading" });
+  const user = useUser();
 
   // Painted before the engine resolves, so the splash matches the theme the
   // user last chose instead of the module default. App re-applies it on mount.
   applyTheme(storedThemeMode());
 
   useEffect(() => {
+    if (!user) return;
     let cancelled = false;
     initEngine().then(
       () => {
@@ -132,7 +141,16 @@ export default function Boot() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user]);
+
+  if (!user) {
+    return (
+      <>
+        <style>{FONT_IMPORT}</style>
+        <Login />
+      </>
+    );
+  }
 
   if (state.phase === "failed") return <Failed message={state.message} />;
   if (state.phase === "loading") return <Loading />;

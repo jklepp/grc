@@ -13,20 +13,22 @@ import { POLICIES, getFrameworkClauses, MAPPED_STANDARDS, STANDARD_ABBR } from "
 import { getAllSystems, EVIDENCE_CONFIDENCE } from "../engine";
 import type { AuthoredProcedure, AuthoredProcedureStep, ProcedureStepEvidence } from "../data/procedures";
 import { EXEC_STORAGE_KEY, loadExecutions, computeReliability } from "../data/procedureExecutions";
+import { useSignedInUser } from "../auth/useUser";
+import { initialsOf } from "../auth/roster";
+import { canRunProcedure, allows } from "../auth/gates";
 import type { ExecutionStepRecord, ExecutionsMap, ProcedureExecution, ProcedureReliability, StepEvidencePayload } from "../data/procedureExecutions";
 
 const SYSTEMS = getAllSystems();
 
-// There's no real auth/user system yet, so the execution workflow below
-// simulates a single signed-in operator running their own SOP — same "JK"
-// identity the app used to show in the old Executive Dashboard header. State
-// persists in localStorage only (no backend). Each "Start SOP" click creates
-// a real execution record (not just a flat completed/not-completed map) with
-// per-step evidence, so a run of SOP-04 looks like an actual access-review
-// cycle rather than five blank checkmarks — but it's still the same simulated
-// user typing the numbers in, so the confidence tier stays Self-attestation
-// (see the info callout below) until this is backed by a real system.
-const SIMULATED_USER = { initials: "JK", name: "You" };
+// A run is owned by whoever started it — the signed-in user, recorded as
+// initials on the execution and on every step they complete. State persists in
+// localStorage only (no backend). Each "Start SOP" click creates a real
+// execution record (not just a flat completed/not-completed map) with per-step
+// evidence, so a run of SOP-04 looks like an actual access-review cycle rather
+// than five blank checkmarks — but it is still a person typing the numbers in,
+// so the confidence tier stays Self-attestation (see the info callout below)
+// until this is backed by a real system. Knowing WHICH person does not change
+// that; it only makes the record answerable.
 const SLIDE_MS = 320;
 
 function formatTimestamp(iso: string): string {
@@ -43,13 +45,13 @@ function quarterLabel(d: Date): string {
 
 // Execution IDs look like "SOP-04-2026-Q3-002" — the run number disambiguates
 // a second execution started in the same quarter (e.g. a redo after a bad run).
-function newExecution(procedure: AuthoredProcedure, existingList: ProcedureExecution[]): ProcedureExecution {
+function newExecution(procedure: AuthoredProcedure, existingList: ProcedureExecution[], owner: string): ProcedureExecution {
   const period = quarterLabel(new Date());
   const runNumber = existingList.filter((e) => e.period === period).length + 1;
   return {
     id: `${procedure.code}-${period}-${String(runNumber).padStart(3, "0")}`,
     period,
-    owner: SIMULATED_USER.initials,
+    owner,
     startedAt: new Date().toISOString(),
     completedAt: null,
     status: "in_progress",
@@ -488,7 +490,7 @@ function SopWizardModal({ procedure, execution, onCompleteStep, onStartNew, onCl
                 <PartyPopper size={40} color={C.green} className="mb-3" />
                 <div className="text-xl font-semibold" style={{ color: C.ink }}>{execution.id} complete</div>
                 <div className="text-xs mt-1" style={{ color: C.muted }}>
-                  {steps.length} of {steps.length} steps completed by {SIMULATED_USER.initials}
+                  {steps.length} of {steps.length} steps completed by {execution.owner}
                 </div>
                 {exceptionCount > 0 && (
                   <div className="text-xs mt-1 flex items-center gap-1.5" style={{ color: C.amber }}>
@@ -641,6 +643,9 @@ function ExecutionsPanel({ procedure, executions, reliability, expandedRunId, on
 }
 
 export default function ProcedureLibrary({ onNavigate }: { onNavigate?: (pageId: string) => void }) {
+  const user = useSignedInUser();
+  const mayRun = allows(canRunProcedure(user));
+  const initials = initialsOf(user);
   const [selectedId, setSelectedId] = useState(PROCEDURES[0].id);
   const [tab, setTab] = useState<"procedure" | "executions">("procedure");
   const [executionsMap, setExecutionsMap] = useState<ExecutionsMap>(loadExecutions);
@@ -691,7 +696,7 @@ export default function ProcedureLibrary({ onNavigate }: { onNavigate?: (pageId:
     if (!procedure) return;
     const list = executionsMap[procedureId] || [];
     const existing = list.find((e) => e.status === "in_progress");
-    const exec = existing || newExecution(procedure, list);
+    const exec = existing || newExecution(procedure, list, initials);
     if (!existing) {
       setExecutionsMap((prev) => ({ ...prev, [procedureId]: [exec, ...(prev[procedureId] || [])] }));
     }
@@ -705,7 +710,7 @@ export default function ProcedureLibrary({ onNavigate }: { onNavigate?: (pageId:
       [procedureId]: (prev[procedureId] || []).map((e) => {
         if (e.id !== executionId) return e;
         const steps: ExecutionStepRecord[] = e.steps.map((s, i) =>
-          i === stepIndex ? { status: "complete", completedAt: new Date().toISOString(), completedBy: SIMULATED_USER.initials, evidence: payload } : s
+          i === stepIndex ? { status: "complete", completedAt: new Date().toISOString(), completedBy: initials, evidence: payload } : s
         );
         const allDone = steps.every((s) => s.status === "complete");
         return { ...e, steps, status: allDone ? "complete" : "in_progress", completedAt: allDone ? new Date().toISOString() : null };
@@ -717,7 +722,7 @@ export default function ProcedureLibrary({ onNavigate }: { onNavigate?: (pageId:
     const procedure = PROCEDURES.find((p) => p.id === procedureId);
     if (!procedure) return;
     const list = executionsMap[procedureId] || [];
-    const exec = newExecution(procedure, list);
+    const exec = newExecution(procedure, list, initials);
     setExecutionsMap((prev) => ({ ...prev, [procedureId]: [exec, ...(prev[procedureId] || [])] }));
     setWizardExecutionId(exec.id);
   }
@@ -797,7 +802,7 @@ export default function ProcedureLibrary({ onNavigate }: { onNavigate?: (pageId:
               </button>
             </div>
             <div className="flex items-center gap-2">
-              {activeExecution && (
+              {mayRun && activeExecution && (
                 <button
                   onClick={() => discardActiveRun(selected.id)}
                   className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-md"
@@ -807,13 +812,15 @@ export default function ProcedureLibrary({ onNavigate }: { onNavigate?: (pageId:
                   <RotateCcw size={11} /> Discard draft
                 </button>
               )}
-              <button
-                onClick={() => startOrResume(selected.id)}
-                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg"
-                style={{ background: C.accent, color: "#fff" }}
-              >
-                <Play size={13} /> {activeExecution ? "Continue SOP" : "Start SOP"}
-              </button>
+              {mayRun && (
+                <button
+                  onClick={() => startOrResume(selected.id)}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg"
+                  style={{ background: C.accent, color: "#fff" }}
+                >
+                  <Play size={13} /> {activeExecution ? "Continue SOP" : "Start SOP"}
+                </button>
+              )}
             </div>
           </div>
 

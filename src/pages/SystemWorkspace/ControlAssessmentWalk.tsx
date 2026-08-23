@@ -11,6 +11,7 @@ import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
 import { keyControlAssessmentQueue } from "./recordAssessment";
 import type { ControlId, SystemId } from "../../graph/ids";
 import type { ControlMatrixRow } from "./types";
+import { useSignedInUser } from "../../auth/useUser";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -31,12 +32,13 @@ interface ControlAssessmentWalkProps {
 
 // The key-control walk: applicable key controls grouped by domain, worked one
 // at a time with auto-advance to the next domain with work left. This is only
-// the orchestration — queue snapshot, active domain, reviewer, skip list,
+// the orchestration — queue snapshot, active domain, skip list,
 // completion screen. The control itself renders in ControlEvaluationPanel
 // (the same full panel a Controls-tab row click opens), passed the walk
 // chrome via its `walk` prop, so there is exactly one assessment UI.
 export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediation }: ControlAssessmentWalkProps) {
   const liveEngine = useLiveEngine();
+  const user = useSignedInUser();
   const system = liveEngine.rollups.systemRollups.find((s) => s.id === systemId);
   const matrix = liveEngine.compliance.systemControlMatrix(systemId).map((row) => ({
     ...row,
@@ -59,7 +61,6 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
   const [domainTotals, setDomainTotals] = useState<Record<string, number>>({});
   const [activeDomain, setActiveDomain] = useState("");
   const [initialTotal, setInitialTotal] = useState(0);
-  const [reviewer, setReviewer] = useState("");
   const [skippedIds, setSkippedIds] = useState<ReadonlySet<ControlId>>(new Set());
   const [recordedIds, setRecordedIds] = useState<ReadonlySet<ControlId>>(new Set());
 
@@ -80,7 +81,6 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
   // stay fixed for the session even as items leave "remaining" one by one.
   useEffect(() => {
     if (!open) return;
-    setReviewer(liveEngine.graph.assessmentScopeBySystem[systemId]?.assessor ?? "");
     setSkippedIds(new Set());
     setRecordedIds(new Set());
     const totals: Record<string, number> = {};
@@ -143,7 +143,7 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
                   ))}
                 </div>
               ) : undefined}
-              signature={<>Reviewed by <b style={{ color: C.ink }}>{reviewer.trim() || "unnamed reviewer"}</b> &middot; completed {today()}</>}
+              signature={<>Reviewed by <b style={{ color: C.ink }}>{user.name}</b> &middot; completed {today()}</>}
             />
           </WizardOutcomePane>
           <WizardFooter
@@ -194,7 +194,6 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
         onSelectDomain: setActiveDomain,
         decidedCount,
         initialTotal,
-        reviewer,
         onRecorded: (_rating, continueWalk) => {
           setRecordedIds((previous) => new Set(previous).add(current.controlId));
           if (!continueWalk) {

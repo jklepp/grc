@@ -20,6 +20,8 @@ import type { EngineFinding } from "../../engine/findings";
 import type { AssetOption } from "./formHelpers";
 import type { ControlId, FindingId, SystemId } from "../../graph/ids";
 import type { RemediationStatus } from "../../graph/nodes/findings";
+import { useSignedInUser } from "../../auth/useUser";
+import { canEditFinding, canRaiseFinding, allows } from "../../auth/gates";
 
 const SEVERITY_RANK: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
 
@@ -204,6 +206,12 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
   const [saveError, setSaveError] = useState<string[] | null>(null);
   const [sort, setSort] = useState<FindingSort | null>(null);
 
+  // Raising a finding is open to anyone who works the system; changing one is
+  // the owner's or an assessor's call. The row action and the editor's primary
+  // both ask per-finding, because "your own" is the whole distinction.
+  const user = useSignedInUser();
+  const mayRaise = allows(canRaiseFinding(user));
+
   // Third click on a column clears back to the default order rather than
   // cycling asc/desc forever — same gesture as the Controls table.
   function onSort(key: FindingSortKey) {
@@ -316,15 +324,17 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
               {overdueCount > 0 && <StatusPill tone="danger">{overdueCount} overdue</StatusPill>}
               {seriousCount > 0 && <StatusPill tone="warning">{seriousCount} critical/high</StatusPill>}
               <StatusPill tone="success">{completeCount} complete</StatusPill>
-              <Button
-                size="sm"
-                variant="primary"
-                icon={Plus}
-                disabled={controlOptions.length === 0}
-                onClick={() => { setCreating(true); setEditingId(null); setCompletingId(null); }}
-              >
-                New finding
-              </Button>
+              {mayRaise && (
+                <Button
+                  size="sm"
+                  variant="primary"
+                  icon={Plus}
+                  disabled={controlOptions.length === 0}
+                  onClick={() => { setCreating(true); setEditingId(null); setCompletingId(null); }}
+                >
+                  New finding
+                </Button>
+              )}
             </div>
           )}
         />
@@ -407,7 +417,7 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
                   // is the editor the row itself opens, so the table does not
                   // carry a strip of buttons that all lead to the same place.
                   action={
-                    !f.open ? null
+                    !f.open || !allows(canEditFinding(user, f)) ? null
                       : next
                         ? <Button size="sm" onClick={() => advanceStatus(f, next)}>Mark {next}</Button>
                         : <Button size="sm" variant="primary" onClick={() => { setEditingId(f.id); setCompletingId(f.id); }}>Complete…</Button>
@@ -433,6 +443,11 @@ export function SystemFindings({ systemId, findings }: { systemId: SystemId; fin
           eyebrow={editing ? `${editing.id} · ${editing.controlId}` : undefined}
           heading={editing ? editing.title : "New finding"}
           submitLabel={editing ? "Save finding" : "Create finding"}
+          blocker={
+            editing
+              ? (allows(canEditFinding(user, editing)) ? null : `This finding is ${editing.ownerId}'s to change. You are signed in as ${user.name}.`)
+              : (mayRaise ? null : `Findings are raised by an assessor or the system's owner. You are signed in as ${user.name}.`)
+          }
           initial={editing ? {
             title: editing.title, detail: editing.detail, controlId: editing.controlId,
             assetId: editing.assetId ?? "", severity: editing.severity ?? "medium",

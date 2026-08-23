@@ -10,6 +10,7 @@ import type { SystemId } from "./graph/ids";
 //   #/controls[/ccf|control-profile]
 //   #/governance[/policy|procedures|principles|schedule|exceptions]
 //   #/graph
+//   #/settings[/users]            → admin only, reached from the user menu
 // App owns parsing/serializing; pages keep navigating through onNavigate ids.
 export interface AppRoute {
   page: NavigationPageId;
@@ -27,6 +28,7 @@ const PAGE_BY_SLUG: Record<string, NavigationPageId> = {
   controls: "assurance",
   governance: "governance",
   graph: "graph-explorer",
+  settings: "settings",
 };
 
 const SLUG_BY_PAGE = Object.fromEntries(

@@ -31,14 +31,25 @@
 // pretending the functions are interchangeable — "every control IT Security
 // or one of its functions owns" is still answerable by walking parents.
 //
-// Two individuals (systems.ts remediation, now findings.ts) are User nodes
+// Two individuals (systems.ts remediation, now findings.ts) are Person nodes
 // rather than Team, because that's what they are — a person, not a function.
+// The kind was called "user" until sign-in arrived and needed that word for
+// someone who logs into ACME ASSURE. An Org person is who is ACCOUNTABLE for a
+// control, risk or finding; that is not the same question as who is signed in,
+// and src/auth keeps the two in separate registers (a signed-in user may claim
+// an Org person by id, and most Org people never sign in at all).
+// `parentId` on a person is that person's team. It is the same edge the team
+// hierarchy uses and answers the same question — walk parents and you have
+// everything an org or anyone inside it is accountable for — which is what lets
+// a named person inherit what their team owns without a second membership
+// relation.
+//
 // "Product Leadership" is a Business Unit rather than a Team, because
 // systems.ts uses it as a Data Owner assignment at the leadership/business
 // level, not an operating team.
 import type { OrgId } from "../ids";
 
-export const ORG_KINDS = { TEAM: "team", USER: "user", BUSINESS_UNIT: "business-unit" } as const;
+export const ORG_KINDS = { TEAM: "team", PERSON: "person", BUSINESS_UNIT: "business-unit" } as const;
 export type OrgKind = (typeof ORG_KINDS)[keyof typeof ORG_KINDS];
 
 export interface Org {

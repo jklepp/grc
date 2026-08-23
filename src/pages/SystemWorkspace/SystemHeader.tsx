@@ -11,7 +11,8 @@ interface SystemHeaderProps {
   systems: readonly WorkspaceSystem[];
   systemId: SystemId;
   onSelectSystem: (id: SystemId) => void;
-  onEdit: () => void;
+  /** Absent when the signed-in user may not edit this system; the button is then not drawn. */
+  onEdit?: () => void;
   formallyAssessed?: boolean;
 }
 
@@ -29,14 +30,16 @@ export function SystemHeader({ system, systems, systemId, onSelectSystem, onEdit
       }
       right={(
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-2"
-            style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
-          >
-            <Pencil size={13} /> Edit System
-          </button>
+          {onEdit && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-2"
+              style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
+            >
+              <Pencil size={13} /> Edit System
+            </button>
+          )}
           <SystemPicker systems={systems} systemId={systemId} onSelect={onSelectSystem} width={260} />
         </div>
       )}

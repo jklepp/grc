@@ -22,7 +22,7 @@ import {
 } from "../../engine";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
-  Button, Callout, Field, FieldGrid, Select, TextInput, TX, Well,
+  Button, Callout, Field, FieldGrid, InlineHint, Select, TextInput, TX, Well,
   WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardPane,
 } from "../../components/wizard/WizardUI";
 import { C } from "../../theme";
@@ -264,6 +264,10 @@ export function FindingFields({ state, controlOptions }: {
 
 export interface FindingEditorProps extends FindingFormConfig {
   submitLabel?: string;
+  // Why this person may not save this finding, when they may not. Blocks the
+  // primary and states the reason there (CONTRACT 4.7), rather than leaving the
+  // form fillable and refusing at the end.
+  blocker?: string | null;
   onCancel: () => void;
   onSubmit: (draft: Omit<FindingDraft, "systemId">, closureEvidence: string) => void;
 }
@@ -271,17 +275,18 @@ export interface FindingEditorProps extends FindingFormConfig {
 // Inline form, for a host that is already a focused surface. The control panel
 // uses this: it is itself a modal, and opening a second modal on top of it to
 // type six fields would bury the control the gap is about.
-export function FindingEditor({ initial, controlOptions, assetOptionsFor, closureEvidence, submitLabel, onCancel, onSubmit }: FindingEditorProps) {
+export function FindingEditor({ initial, controlOptions, assetOptionsFor, closureEvidence, submitLabel, blocker, onCancel, onSubmit }: FindingEditorProps) {
   const state = useFindingForm({ initial, controlOptions, assetOptionsFor, closureEvidence });
   return (
     <Well className="flex flex-col gap-3.5">
       <FindingFields state={state} controlOptions={controlOptions} />
+      {blocker && <InlineHint tone="warning">{blocker}</InlineHint>}
       <div className="flex items-center justify-end gap-2.5">
         <Button onClick={onCancel}>Cancel</Button>
         <Button
           variant="primary"
           icon={Check}
-          disabled={!state.ready}
+          disabled={!state.ready || Boolean(blocker)}
           onClick={() => { const r = state.buildDraft(); if (r) onSubmit(r.draft, r.closureEvidence); }}
         >
           {submitLabel ?? (initial ? "Save finding" : "Create finding")}
@@ -311,7 +316,7 @@ export interface FindingEditorModalProps extends FindingEditorProps {
 // inventing a count (4.11).
 export function FindingEditorModal({
   open, onCancel, onSubmit, initial, controlOptions, assetOptionsFor, closureEvidence,
-  submitLabel, eyebrow, heading, problems,
+  submitLabel, blocker, eyebrow, heading, problems,
 }: FindingEditorModalProps) {
   const state = useFindingForm({ initial, controlOptions, assetOptionsFor, closureEvidence });
   if (!open) return null;
@@ -336,12 +341,13 @@ export function FindingEditorModal({
         </WizardBody>
         <WizardFooter
           position={state.completing ? "Completing — closure evidence required" : "A finding is a gap in a control"}
+          hint={blocker ? <InlineHint tone="warning">{blocker}</InlineHint> : undefined}
           close={<Button onClick={onCancel}>Cancel</Button>}
           primary={(
             <Button
               variant="primary"
               icon={Check}
-              disabled={!state.ready}
+              disabled={!state.ready || Boolean(blocker)}
               onClick={() => { const r = state.buildDraft(); if (r) onSubmit(r.draft, r.closureEvidence); }}
             >
               {submitLabel ?? (initial ? "Save finding" : "Create finding")}

@@ -46,6 +46,8 @@ import {
   AGENT_AUTONOMY_LEVELS, AGENT_CREDENTIAL_TYPES, AGENT_PRIVILEGE_LEVELS, AGENT_REVOCATION_MECHANISMS,
   type AgentAutonomyLevel, type AgentCredentialType, type AgenticIdentity, type AgentPrivilegeLevel, type AgentRevocationMechanism,
 } from "../graph/nodes/agenticIdentities";
+import { useRoster } from "../auth/useRoster";
+import { isActive, ROLES } from "../auth/roster";
 
 // The one declaration of the run (CONTRACT 4.1). `title`/`detail` are the
 // rail's short forms; `heading`/`lead` are the same step spelled out for the
@@ -422,6 +424,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   const [hasThirdPartyIntegration, setHasThirdPartyIntegration] = useState(false);
   const [sdlcApplicable, setSdlcApplicable] = useState(false);
   const [ownerOrgId, setOwnerOrgId] = useState<OrgId | "">(ORGS[0]?.id ?? "");
+  const roster = useRoster();
   const [assessor, setAssessor] = useState("");
   const [assessmentTarget, setAssessmentTarget] = useState(defaultAssessmentTarget);
 
@@ -1084,6 +1087,14 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     onCreated?.(systemId);
     close();
   }
+
+  // Everyone who holds the assessor role, plus whatever this system already
+  // names if that predates the roster — otherwise editing an authored system
+  // would silently blank its assessor of record.
+  const assessorOptions = useMemo(() => {
+    const names = roster.filter((u) => isActive(u) && u.roles.includes(ROLES.ASSESSOR)).map((u) => u.name);
+    return assessor && !names.includes(assessor) ? [assessor, ...names] : names;
+  }, [assessor, roster]);
 
   const canAdvanceFrom1 = Boolean(name.trim() && boundary.trim() && mission.trim() && ownerOrgId);
   const canAdvanceFrom2 = Boolean(provider && regions.length > 0);
@@ -2231,7 +2242,18 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
                   <Section icon={UserCheck} title="Choose a Control Assessor" description="Select a person to review system controls.">
                     <FieldGrid cols={2}>
                       <Field label="Assessor of record" note="The person accountable for reviewing the evidence and recording the assessment.">
-                        <TextInput value={assessor} onChange={(e) => setAssessor(e.target.value)} placeholder="e.g. J. Ortiz — Security Engineering" />
+                        {/* Was free text, which is how the same person ended up
+                            spelled three ways across three systems. The options
+                            are the people who actually hold the assessor role
+                            (src/auth/roster.yaml), so the name here matches the
+                            one that will sign the assessments. Still stored as a
+                            string: retyping the field to an id is a graph change,
+                            not this one — hence the escape hatch for a system
+                            whose existing assessor predates the roster. */}
+                        <Select value={assessor} aria-label="Assessor of record" onChange={(e) => setAssessor(e.target.value)}>
+                          <option value="">Select an assessor…</option>
+                          {assessorOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+                        </Select>
                       </Field>
                       <Field label="Target completion" note="When the control review should be complete.">
                         <TextInput type="date" value={assessmentTarget} onChange={(e) => setAssessmentTarget(e.target.value)} />

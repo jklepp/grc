@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Sun, Moon, LayoutDashboard, Circle, Database, Landmark, Share2, ChevronDown, ShieldCheck } from "lucide-react";
+import { Sun, Moon, LayoutDashboard, Circle, Database, Landmark, Share2, ChevronDown, ShieldCheck, LogOut, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ThemeMode } from "../theme";
 import { CONTROL_AREAS } from "../pages/controlAreas";
@@ -7,6 +7,8 @@ import { GOVERNANCE_AREAS } from "../pages/governanceAreas";
 import type { GovernanceAreaId } from "../pages/governanceAreas";
 import { OVERVIEW_AREAS } from "../pages/overviewAreas";
 import type { OverviewAreaId } from "../pages/overviewAreas";
+import { ROLE_LABELS, initialsOf } from "../auth/roster";
+import type { User } from "../auth/roster";
 
 // Topbar chrome is intentionally fixed dark regardless of the app-wide light/dark
 // toggle — it's the "always-on" brand shell, same idea the old Sidebar used.
@@ -21,7 +23,11 @@ const TB = {
   green: "#5FB98A",
 };
 
-export type NavigationPageId = "overview" | "data-estate" | "assurance" | "governance" | "graph-explorer";
+// Settings is a page but never a nav button: it is admin-only, and a top-level
+// item that is missing for four users out of five reads as a broken bar. It is
+// reached from the user menu instead, which is where the person it belongs to
+// already is.
+export type NavigationPageId = "overview" | "data-estate" | "assurance" | "governance" | "graph-explorer" | "settings";
 
 // Governance's sub-areas route through the same legacy ids App.jsx's
 // LEGACY_ROUTES already maps to (page: "governance", tab: <area>) — this just
@@ -57,6 +63,10 @@ const GRAPH_EXPLORER_ITEM: NavItem = { id: "graph-explorer", label: "Graph Explo
 interface TopNavProps {
   active: NavigationPageId;
   onSelect: (id: string) => void;
+  user: User;
+  onSignOut: () => void;
+  /** Absent when the signed-in user is not an admin; the menu entry is then not drawn. */
+  onOpenSettings?: () => void;
   mode: ThemeMode;
   onToggleTheme: () => void;
 }
@@ -149,7 +159,7 @@ function GroupedNavButton({
   );
 }
 
-export default function TopNav({ active, onSelect, mode, onToggleTheme }: TopNavProps) {
+export default function TopNav({ active, onSelect, user, onSignOut, onOpenSettings, mode, onToggleTheme }: TopNavProps) {
   return (
     <div
       className="w-full h-16 shrink-0 grid items-center gap-4 px-6"
@@ -202,7 +212,82 @@ export default function TopNav({ active, onSelect, mode, onToggleTheme }: TopNav
         <button onClick={onToggleTheme} title={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"} style={{ color: TB.muted }}>
           {mode === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         </button>
+        <UserMenu user={user} onSignOut={onSignOut} onOpenSettings={onOpenSettings} />
       </div>
+    </div>
+  );
+}
+
+// Who is signed in, and — the part that has to be on screen — what they may do.
+// Half of this change is invisible without it: an auditor with no write actions
+// anywhere looks like a broken app unless the bar says "Auditor".
+//
+// Same hover-with-delayed-close mechanics as GroupedNavButton, for the same
+// reason documented there.
+function UserMenu({ user, onSignOut, onOpenSettings }: { user: User; onSignOut: () => void; onOpenSettings?: () => void }) {
+  const [open, setOpen] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function cancelClose() {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  }
+  function scheduleClose() {
+    cancelClose();
+    closeTimer.current = setTimeout(() => setOpen(false), 200);
+  }
+
+  // Someone holding two roles is shown both: R. Chen assesses and owns, and
+  // which one applies depends on the system in front of them.
+  const roleText = user.roles.map((role) => ROLE_LABELS[role]).join(" · ");
+
+  return (
+    <div className="relative h-16 flex items-center" onMouseEnter={() => { cancelClose(); setOpen(true); }} onMouseLeave={scheduleClose}>
+      <button className="flex items-center gap-2.5" style={{ background: "transparent" }}>
+        <div
+          className="w-[30px] h-[30px] rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0"
+          style={{ background: TB.accentBg, color: TB.ink, border: `1px solid ${TB.border}` }}
+        >
+          {initialsOf(user)}
+        </div>
+        <div className="flex flex-col items-start leading-tight">
+          <span className="text-[12.5px] font-medium whitespace-nowrap" style={{ color: TB.ink }}>{user.name}</span>
+          <span className="text-[10.5px] whitespace-nowrap" style={{ color: TB.accent }}>{roleText}</span>
+        </div>
+        <ChevronDown size={12} color={TB.muted} style={{ transform: open ? "rotate(180deg)" : undefined, transition: "transform 0.15s" }} />
+      </button>
+      {open && (
+        <div
+          className="absolute top-16 right-0 w-64 p-2 rounded-xl z-20"
+          style={{ background: TB.panel, border: `1px solid ${TB.border}`, boxShadow: "0 16px 32px rgba(0,0,0,0.4)" }}
+        >
+          <div className="px-2.5 pt-1.5 pb-2.5">
+            <div className="text-[13px]" style={{ color: TB.ink }}>{user.name}</div>
+            <div className="text-[11.5px]" style={{ color: TB.muted }}>{user.email}</div>
+            <div className="text-[11.5px] mt-1.5" style={{ color: TB.accent }}>{roleText}</div>
+          </div>
+          <div className="h-px mx-1 mb-1" style={{ background: TB.border }} />
+          {onOpenSettings && (
+            <button
+              onClick={() => { cancelClose(); setOpen(false); onOpenSettings(); }}
+              className="w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg text-left transition-colors hover:brightness-125"
+              style={{ background: "transparent" }}
+            >
+              <Settings size={16} color={TB.accent} />
+              <span className="text-[13px]" style={{ color: TB.ink }}>Settings</span>
+            </button>
+          )}
+          <button
+            onClick={() => { cancelClose(); setOpen(false); onSignOut(); }}
+            className="w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg text-left transition-colors hover:brightness-125"
+            style={{ background: "transparent" }}
+          >
+            <LogOut size={16} color={TB.accent} />
+            <span className="text-[13px]" style={{ color: TB.ink }}>Sign out</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

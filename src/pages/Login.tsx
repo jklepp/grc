@@ -2,29 +2,67 @@ import React, { useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import { Mail, Lock, Eye, EyeOff, ArrowRight, KeyRound } from "lucide-react";
 import { C } from "../theme";
+import { currentRoster, findUserByEmail } from "../auth/rosterStore";
+import { isActive, ROLES } from "../auth/roster";
+import { signIn } from "../auth/session";
 
-// No real authentication is wired up yet — this is a UI gate only.
-// Either submitting the form or clicking SSO just calls onLogin().
+// The email decides who you are; the password is not checked. That is a
+// deliberate half-measure, not an oversight: the roster (src/auth/roster.ts)
+// stands in for an identity provider until one is connected, and it holds no
+// credentials to verify. The footer says so.
+//
+// Single sign-on is the seam where that changes. It is rendered disabled rather
+// than removed, because it names what this screen is waiting for.
 type LoginField = "email" | "password";
 
-export default function Login({ onLogin }: { onLogin: () => void }) {
-  const [email, setEmail] = useState("");
+// ---- TEMPORARY: prefilled address -------------------------------------------
+// Convenience for demoing, nothing more. A login screen that fills its own
+// username in is a prototype affordance; this whole block goes when there is a
+// real identity provider, and nothing else depends on it.
+//
+// Derived rather than hardcoded so it follows the roster instead of going stale
+// the first time someone is renamed. Whoever holds Admin is who is doing the
+// demoing; validateRoster guarantees there is one, so the fallback never runs.
+function prefilledEmail(): string {
+  return currentRoster().find((u) => isActive(u) && u.roles.includes(ROLES.ADMIN))?.email ?? "";
+}
+// ---- end TEMPORARY ----------------------------------------------------------
+
+export default function Login() {
+  const [email, setEmail] = useState(prefilledEmail);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [focused, setFocused] = useState<LoginField | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    onLogin();
+    const user = findUserByEmail(email);
+    if (!user) {
+      setError(email.trim() ? "No account for that address." : "Enter the address you sign in with.");
+      return;
+    }
+    // A deactivated account gets its own message rather than "no account":
+    // the difference between "you are not here" and "you are here and switched
+    // off" is the one the person needs in order to know who to ask.
+    if (!isActive(user)) {
+      setError("That account has been deactivated.");
+      return;
+    }
+    signIn(user);
   }
 
-  const fieldStyle = (name: LoginField): CSSProperties => ({
-    background: C.panel2,
-    border: `1px solid ${focused === name ? C.accent : C.border}`,
-    color: C.ink,
-    boxShadow: focused === name ? `0 0 0 3px ${C.accentBg}` : "none",
-    transition: "border-color 120ms ease, box-shadow 120ms ease",
-  });
+  const fieldStyle = (name: LoginField): CSSProperties => {
+    const invalid = name === "email" && error !== null;
+    const edge = invalid ? C.red : focused === name ? C.accent : C.border;
+    return {
+      background: C.panel2,
+      border: `1px solid ${edge}`,
+      color: C.ink,
+      boxShadow: focused === name ? `0 0 0 3px ${invalid ? "transparent" : C.accentBg}` : "none",
+      transition: "border-color 120ms ease, box-shadow 120ms ease",
+    };
+  };
 
   return (
     <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden" style={{ background: C.bg }}>
@@ -84,13 +122,19 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
                 type="email"
                 placeholder="name@company.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); setError(null); }}
                 onFocus={() => setFocused("email")}
                 onBlur={() => setFocused(null)}
                 className="w-full rounded-[10px] pl-10 pr-3.5 py-2.5 text-sm outline-none"
                 style={fieldStyle("email")}
+                aria-invalid={error !== null}
               />
             </div>
+            {error && (
+              <div className="text-[11.5px] -mt-3 mb-4" style={{ color: C.red }} role="alert">
+                {error}
+              </div>
+            )}
 
             <div className="flex items-center justify-between mb-1.5">
               <label
@@ -149,13 +193,23 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
 
             <button
               type="button"
-              onClick={onLogin}
+              disabled
+              title="Available once the identity provider is connected"
               className="w-full flex items-center justify-center gap-2 rounded-[10px] py-2.5 text-sm font-semibold"
-              style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.ink }}
+              style={{
+                background: "transparent",
+                border: `1px solid ${C.border}`,
+                color: C.muted,
+                cursor: "not-allowed",
+                opacity: 0.6,
+              }}
             >
-              <KeyRound size={14} color={C.accent} />
+              <KeyRound size={14} color={C.muted} />
               Single sign-on
             </button>
+            <div className="mt-2 text-center text-[11px]" style={{ color: C.muted }}>
+              Available once the identity provider is connected.
+            </div>
           </form>
         </div>
 

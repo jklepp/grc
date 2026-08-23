@@ -10,6 +10,8 @@ import { loadRuntimeFacts, hasRuntimeFacts } from "../engine/runtimeFactsStore";
 import { useLiveEngine } from "../engine/useLiveEngine";
 import type { SystemId } from "../graph/ids";
 import type { SystemRollup } from "../engine/rollups";
+import { useSignedInUser } from "../auth/useUser";
+import { canCreateSystem, canDeleteSystem, canEditSystem, allows } from "../auth/gates";
 
 function coverageColor(pct: number): string {
   if (pct >= 90) return C.green;
@@ -36,8 +38,10 @@ function SystemAvatar({ name }: { name: string }) {
 interface SystemRowProps {
   system: SystemRollup;
   onSelect: (id: SystemId) => void;
-  onEdit: (id: SystemId) => void;
-  onDuplicate: (id: SystemId) => void;
+  // Each of the three is absent when the signed-in user may not perform it,
+  // and the control it draws is simply not rendered.
+  onEdit?: (id: SystemId) => void;
+  onDuplicate?: (id: SystemId) => void;
   onDelete?: (system: SystemRollup) => void;
 }
 
@@ -103,25 +107,29 @@ function SystemRow({ system, onSelect, onEdit, onDuplicate, onDelete }: SystemRo
             <Trash2 size={11} /> Delete
           </button>
         )}
-        <button
-          type="button"
-          onClick={() => onDuplicate(system.id)}
-          className="flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold"
-          style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
-          aria-label={`Duplicate ${system.name}`}
-          title="Create a new system as an exact copy of this one"
-        >
-          <Copy size={11} /> Duplicate
-        </button>
-        <button
-          type="button"
-          onClick={() => onEdit(system.id)}
-          className="flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold"
-          style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
-          aria-label={`Edit ${system.name}`}
-        >
-          <Pencil size={11} /> Edit
-        </button>
+        {onDuplicate && (
+          <button
+            type="button"
+            onClick={() => onDuplicate(system.id)}
+            className="flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold"
+            style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
+            aria-label={`Duplicate ${system.name}`}
+            title="Create a new system as an exact copy of this one"
+          >
+            <Copy size={11} /> Duplicate
+          </button>
+        )}
+        {onEdit && (
+          <button
+            type="button"
+            onClick={() => onEdit(system.id)}
+            className="flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold"
+            style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
+            aria-label={`Edit ${system.name}`}
+          >
+            <Pencil size={11} /> Edit
+          </button>
+        )}
       </div>
     </div>
   );
@@ -144,13 +152,21 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
   const [restoreProblems, setRestoreProblems] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const liveEngine = useLiveEngine();
+  const user = useSignedInUser();
+  // Hidden rather than disabled: no system a reader could click on would make
+  // any of these allowed, so rendering them greyed out would only be furniture
+  // (gates.ts). Editing is per-system and lives on the row itself.
+  const mayCreate = allows(canCreateSystem(user));
+  const mayDelete = allows(canDeleteSystem(user));
   const systems = liveEngine.rollups.systemRollups;
   const runtimeFacts = loadRuntimeFacts();
   const baselineSystemIds = new Set(baseFacts().systems.map((system) => system.id));
   const deletableSystemIds = new Set(
-    runtimeFacts.systems.filter((system) => !baselineSystemIds.has(system.id)).map((system) => system.id)
+    mayDelete
+      ? runtimeFacts.systems.filter((system) => !baselineSystemIds.has(system.id)).map((system) => system.id)
+      : []
   );
-  const hasDemoOverrides = runtimeFacts.systems.some((system) => baselineSystemIds.has(system.id));
+  const hasDemoOverrides = mayDelete && runtimeFacts.systems.some((system) => baselineSystemIds.has(system.id));
 
   function openAddSystem() {
     setEditingSystemId(null);
@@ -260,13 +276,15 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
                 Restore demo systems
               </button>
             )}
-            <button
-              onClick={openAddSystem}
-              className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3.5 py-2"
-              style={{ background: C.accent, color: "#fff" }}
-            >
-              <Plus size={14} /> Add System
-            </button>
+            {mayCreate && (
+              <button
+                onClick={openAddSystem}
+                className="flex items-center gap-1.5 text-sm font-semibold rounded-lg px-3.5 py-2"
+                style={{ background: C.accent, color: "#fff" }}
+              >
+                <Plus size={14} /> Add System
+              </button>
+            )}
           </div>
         }
       />
@@ -316,8 +334,8 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
                   key={system.id}
                   system={system}
                   onSelect={onSelectSystem}
-                  onEdit={openEditSystem}
-                  onDuplicate={openDuplicateSystem}
+                  onEdit={allows(canEditSystem(user, system)) ? openEditSystem : undefined}
+                  onDuplicate={mayCreate ? openDuplicateSystem : undefined}
                   onDelete={deletableSystemIds.has(system.id) ? setPendingDelete : undefined}
                 />
               ))}
