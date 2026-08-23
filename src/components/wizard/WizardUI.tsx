@@ -29,6 +29,12 @@ export const WZ = {
   onAccent: "#fff",
 } as const;
 
+// System-level guided runs keep one frame while their inner task changes.
+// Exported with the kit so every phase reads the same dimensions instead of
+// repeating modal numbers in its own file.
+export const GUIDED_WORKFLOW_MODAL = { width: 1180, height: 840 } as const;
+export const GUIDED_WORKFLOW_HEADER_MIN_HEIGHT = 120;
+
 // The one typography scale. Sizes: 10 (label), 11 (help/meta), 11.5 (eyebrow),
 // 12.5 (body), 13.5 (section title), 16 (card title), 19 (step title / figure).
 //
@@ -689,7 +695,7 @@ const WIZARD_COLS = "grid-cols-[172px_minmax(0,1fr)] lg:grid-cols-[208px_minmax(
 // instead of being read across a column boundary. Composed here rather than in
 // each surface (1.1).
 export function WizardRailSummary({ icon: Icon, title }: {
-  icon: LucideIcon; title: string;
+  icon: LucideIcon; title: ReactNode;
 }) {
   return (
     <div className="flex items-center gap-3 min-w-0">
@@ -734,12 +740,13 @@ export function WizardRailSummary({ icon: Icon, title }: {
 // thing (a control, a finding). A wizard step is named by the eyebrow above it
 // and does not need one — and dropping it lets the title sit at the same left
 // edge as the body's first card instead of 44px inboard of it.
-export function WizardHeader({ icon: Icon, eyebrow, title, description, aside, onClose, progress, railSummary }: {
+export function WizardHeader({ icon: Icon, eyebrow, title, description, aside, onClose, progress, railSummary, minHeight }: {
   icon?: LucideIcon; eyebrow?: ReactNode; title: ReactNode; description?: ReactNode;
   aside?: ReactNode; onClose?: ReactNode; progress?: { value: number; total: number; label?: string }; railSummary?: ReactNode;
+  minHeight?: number;
 }) {
   const subject = (
-    <div className="flex items-start justify-between gap-4 px-6 py-4 min-w-0">
+    <div className={`flex items-start justify-between gap-4 px-6 py-4 min-w-0 ${minHeight ? "flex-1" : ""}`}>
       <div className="flex items-start gap-3 min-w-0">
         {Icon && (
           <span
@@ -762,9 +769,12 @@ export function WizardHeader({ icon: Icon, eyebrow, title, description, aside, o
     </div>
   );
   return (
-    <header className="shrink-0" style={{ borderBottom: `1px solid ${C.border}`, background: C.panel }}>
+    <header
+      className={`shrink-0 ${minHeight ? "flex flex-col" : ""}`}
+      style={{ borderBottom: `1px solid ${C.border}`, background: C.panel, minHeight }}
+    >
       {railSummary ? (
-        <div className={`grid ${WIZARD_COLS}`}>
+        <div className={`grid ${WIZARD_COLS} ${minHeight ? "flex-1 min-h-0" : ""}`}>
           <div className="px-5 py-4 flex items-center" style={{ borderRight: `1px solid ${C.border}` }}>
             {railSummary}
           </div>
@@ -789,6 +799,73 @@ export function WizardStrip({ icon: Icon, children }: { icon?: LucideIcon; child
       {Icon && <Icon size={13} color={C.accent} className="shrink-0" />}
       {children}
     </div>
+  );
+}
+
+export interface WizardStageStripItem {
+  id: string;
+  title: string;
+  detail: string;
+  icon: LucideIcon;
+  complete: boolean;
+}
+
+export interface WizardStageNavigation {
+  stages: readonly WizardStageStripItem[];
+  activeId: string;
+  onSelect: (id: string) => void;
+  label?: string;
+}
+
+// A compact phase navigator for a larger workflow whose current surface may
+// contain its own sections or item queue. The host owns the navigation callback
+// so a staged child can guard unsaved work before changing phases. The numbered
+// icon treatment mirrors System Readiness so the handoff into a guided run
+// keeps the same visual landmarks.
+export function WizardStageStrip({ stages, activeId, onSelect, label = "Workflow stages" }: WizardStageNavigation) {
+  return (
+    <WizardStrip>
+      <ol aria-label={label} className="grid grid-cols-2 lg:grid-cols-4 gap-2 w-full">
+        {stages.map((stage, index) => {
+          const active = stage.id === activeId;
+          const Icon = stage.icon;
+          return (
+            <li key={stage.id} className="min-w-0">
+              <button
+                type="button"
+                onClick={() => onSelect(stage.id)}
+                aria-current={active ? "step" : undefined}
+                aria-label={`${stage.title} — ${stage.detail}`}
+                className={`wz-focusable ${active ? "" : "wz-hover"} w-full min-w-0 flex items-center gap-2.5 px-2.5 py-2 text-left transition-colors`}
+                style={{
+                  background: active ? C.accentBg : undefined,
+                  border: `1px solid ${active ? C.accent : "transparent"}`,
+                  borderRadius: WZ.radius.control,
+                }}
+              >
+                <span className="relative w-8 h-8 shrink-0 flex items-center justify-center rounded-full" style={{
+                  background: stage.complete ? C.greenBg : active ? C.accent : C.panel2,
+                  color: stage.complete ? C.green : active ? WZ.onAccent : C.muted,
+                  border: `1.5px solid ${stage.complete ? C.green : active ? C.accent : C.border}`,
+                }} aria-hidden="true">
+                  {stage.complete ? <Check size={14} /> : <Icon size={15} />}
+                  <span
+                    className="absolute -right-1 -bottom-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-mono"
+                    style={{ background: C.ink, color: C.panel, border: `1px solid ${C.panel}` }}
+                  >
+                    {index + 1}
+                  </span>
+                </span>
+                <span className="min-w-0">
+                  <span className={`${TX.railTitle} block truncate`} style={{ color: C.ink }}>{stage.title}</span>
+                  <span className={`${TX.help} block mt-0.5 truncate`} style={{ color: C.muted }}>{stage.detail}</span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </WizardStrip>
   );
 }
 

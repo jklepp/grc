@@ -5,8 +5,9 @@ import { useLiveEngine } from "../../engine/useLiveEngine";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
   Button, CompletionScreen, StatTile, WizardChrome,
-  WizardFooter, WizardHeader, WizardOutcomePane,
+  GUIDED_WORKFLOW_HEADER_MIN_HEIGHT, GUIDED_WORKFLOW_MODAL, WizardFooter, WizardHeader, WizardOutcomePane, WizardStageStrip,
 } from "../../components/wizard/WizardUI";
+import type { WizardStageNavigation } from "../../components/wizard/WizardUI";
 import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
 import { keyControlAssessmentQueue } from "./recordAssessment";
 import type { ControlId, SystemId } from "../../graph/ids";
@@ -27,7 +28,9 @@ interface ControlAssessmentWalkProps {
   onClose: () => void;
   // Wired up so the completion screen can hand off straight to the first
   // assessed gap that still needs its Finding/CAP recorded.
-  onGoToRemediation?: () => void;
+  onContinueToFindings?: () => void;
+  workflowNavigation?: WizardStageNavigation;
+  allowEmptyCompletion?: boolean;
 }
 
 // The key-control walk: applicable key controls grouped by domain, worked one
@@ -36,7 +39,9 @@ interface ControlAssessmentWalkProps {
 // completion screen. The control itself renders in ControlEvaluationPanel
 // (the same full panel a Controls-tab row click opens), passed the walk
 // chrome via its `walk` prop, so there is exactly one assessment UI.
-export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediation }: ControlAssessmentWalkProps) {
+export function ControlAssessmentWalk({
+  open, systemId, onClose, onContinueToFindings, workflowNavigation, allowEmptyCompletion = false,
+}: ControlAssessmentWalkProps) {
   const liveEngine = useLiveEngine();
   const user = useSignedInUser();
   const system = liveEngine.rollups.systemRollups.find((s) => s.id === systemId);
@@ -57,12 +62,22 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
     pendingScopeIds,
   );
 
-  const [domainOrder, setDomainOrder] = useState<string[]>([]);
-  const [domainTotals, setDomainTotals] = useState<Record<string, number>>({});
-  const [activeDomain, setActiveDomain] = useState("");
-  const [initialTotal, setInitialTotal] = useState(0);
+  // Build the first queue frame synchronously. The workflow swaps phases by
+  // mounting this walk, so empty initial state made the modal disappear for
+  // one paint before the open effect populated the queue.
+  const startingTotals: Record<string, number> = {};
+  queue.forEach((row) => {
+    startingTotals[row.control.domain] = (startingTotals[row.control.domain] ?? 0) + 1;
+  });
+  const startingOrder = Object.keys(startingTotals).sort();
+
+  const [domainOrder, setDomainOrder] = useState<string[]>(startingOrder);
+  const [domainTotals, setDomainTotals] = useState<Record<string, number>>(startingTotals);
+  const [activeDomain, setActiveDomain] = useState(startingOrder[0] ?? "");
+  const [initialTotal, setInitialTotal] = useState(queue.length);
   const [skippedIds, setSkippedIds] = useState<ReadonlySet<ControlId>>(new Set());
   const [recordedIds, setRecordedIds] = useState<ReadonlySet<ControlId>>(new Set());
+  const [initialized, setInitialized] = useState(open);
 
   // Skipped controls stay unassessed (and in the live queue) but leave the
   // walk's "remaining" view, so the walk can finish around them.
@@ -90,6 +105,7 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
     setDomainOrder(order);
     setInitialTotal(queue.length);
     setActiveDomain(order[0] ?? "");
+    setInitialized(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -111,25 +127,32 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
   const remainingTotal = Object.values(remainingByDomain).reduce((sum, rows) => sum + rows.length, 0);
   const skippedCount = queue.filter((row) => skippedIds.has(row.controlId)).length;
   const decidedCount = Math.max(0, initialTotal - remainingTotal - skippedCount);
-  const complete = initialTotal > 0 && remainingTotal === 0;
+  const complete = initialized && remainingTotal === 0 && (initialTotal > 0 || allowEmptyCompletion);
   const formalAssessment = liveEngine.review.formalAssessmentForSystem(systemId);
-  const remediationCount = formalAssessment.residualCount;
+  const filingCount = formalAssessment.gapControlsMissingFinding.length + formalAssessment.gapControlsMissingCap.length;
 
   if (complete) {
     return (
-      <Modal open onClose={onClose} width={880} height={620}>
+      <Modal
+        open
+        onClose={onClose}
+        width={workflowNavigation ? GUIDED_WORKFLOW_MODAL.width : 880}
+        height={workflowNavigation ? GUIDED_WORKFLOW_MODAL.height : 620}
+      >
         <WizardChrome>
           {/* The run is over, so this screen has no rail to head and takes
               the masthead without its rail-summary cell (4.11). The header
               names the outcome rather than a step, and the bar reads full —
               the completion panel is not step N of anything (4.9). */}
           <WizardHeader
+            minHeight={workflowNavigation ? GUIDED_WORKFLOW_HEADER_MIN_HEIGHT : undefined}
             icon={ClipboardCheck}
             eyebrow={`Control Assessment · ${decidedCount} of ${initialTotal} assessed`}
             title={skippedCount > 0 ? "Assessment walk paused" : "Control assessment complete"}
             progress={{ value: initialTotal, total: initialTotal, label: "Control assessment progress" }}
             onClose={<ModalCloseButton onClose={onClose} />}
           />
+          {workflowNavigation && <WizardStageStrip {...workflowNavigation} />}
           <WizardOutcomePane>
             <CompletionScreen
               title={skippedCount > 0 ? "Some controls still need a decision" : "Every key control is assessed"}
@@ -155,15 +178,15 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
                   Review skipped controls &middot; {skippedCount}
                 </Button>
               )
-              : remediationCount > 0 && onGoToRemediation
+              : onContinueToFindings
                 ? (
                 <Button
                   variant="primary"
                   icon={Wrench}
                   iconRight={ArrowRight}
-                  onClick={() => { onClose(); onGoToRemediation(); }}
+                  onClick={onContinueToFindings}
                 >
-                  Continue to Findings &amp; Remediation &middot; {remediationCount}
+                  Continue to File Findings &amp; CAPs{filingCount > 0 ? ` · ${filingCount}` : ""}
                 </Button>
                 )
                 : undefined}
@@ -173,9 +196,8 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
     );
   }
 
-  // The first frame after opening renders before the snapshot effect has run
-  // (empty domain order, no active domain) — show nothing rather than
-  // flashing the completion screen.
+  // A missing current item can still occur while live engine facts change.
+  // The initial workflow frame is populated synchronously above.
   if (!current) return null;
 
   return (
@@ -202,6 +224,7 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
         },
         onSkip: () => setSkippedIds((prev) => new Set(prev).add(current.controlId)),
       }}
+      workflowNavigation={workflowNavigation}
     />
   );
 }

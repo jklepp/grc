@@ -20,6 +20,8 @@ import { SystemActions } from "./SystemActions";
 import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
 import type { EvaluationStep } from "./ControlEvaluationPanel";
 import { ControlAssessmentWalk } from "./ControlAssessmentWalk";
+import { AssuranceWorkflow } from "./AssuranceWorkflow";
+import type { AssuranceStageId } from "./AssuranceWorkflow";
 import { keyControlAssessmentQueue } from "./recordAssessment";
 import AddSystemWizard from "../../components/AddSystemWizard";
 import type { ControlId, SystemId } from "../../graph/ids";
@@ -68,10 +70,13 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   const [scopeReviewOpen, setScopeReviewOpen] = useState(false);
   const [requestedWave, setRequestedWave] = useState<ReviewWave | null>(null);
   const [assessmentWalkOpen, setAssessmentWalkOpen] = useState(false);
+  const [assuranceOpen, setAssuranceOpen] = useState(false);
+  const [assuranceInitialStage, setAssuranceInitialStage] = useState<AssuranceStageId>("scope");
   const [controlsSelection, setControlsSelection] = useState<ControlSelection | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorInitialStep, setEditorInitialStep] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7>(1);
   const [resumeScopeAfterEdit, setResumeScopeAfterEdit] = useState(false);
+  const [resumeAssuranceAfterEdit, setResumeAssuranceAfterEdit] = useState(false);
   const assessmentStarted = useRef(false);
   const liveEngine = useLiveEngine();
   const user = useSignedInUser();
@@ -136,12 +141,17 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
   useEffect(() => {
     if (!startAssessment || assessmentStarted.current) return;
     assessmentStarted.current = true;
-    setRequestedWave(null);
-    setScopeReviewOpen(true);
+    setAssuranceInitialStage("scope");
+    setAssuranceOpen(true);
   }, [startAssessment]);
 
   function openAssessmentWalk() {
     setAssessmentWalkOpen(true);
+  }
+
+  function openAssurance(stage: AssuranceStageId) {
+    setAssuranceInitialStage(stage);
+    setAssuranceOpen(true);
   }
 
   function openScopeReview(wave: ReviewWave = "not-applicable") {
@@ -207,6 +217,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
     else setLocalSystemId(id);
     setSubTab(SUB_TABS[0].id);
     setSelectedControlId(null);
+    setAssuranceOpen(false);
   }
 
   return (
@@ -216,7 +227,12 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         systems={systems}
         systemId={systemId}
         onSelectSystem={selectSystem}
-        onEdit={allows(canEditSystem(user, system)) ? () => { setEditorInitialStep(1); setResumeScopeAfterEdit(false); setEditorOpen(true); } : undefined}
+        onEdit={allows(canEditSystem(user, system)) ? () => {
+          setEditorInitialStep(1);
+          setResumeScopeAfterEdit(false);
+          setResumeAssuranceAfterEdit(false);
+          setEditorOpen(true);
+        } : undefined}
         formallyAssessed={formalAssessment.complete}
       />
 
@@ -229,8 +245,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           system={system} cockpit={cockpit} compliance={posture.compliance}
           exposure={exposure}
           dataTypes={dataTypes} onNavigate={changeSubTab}
-          onOpenScopeReview={openScopeReview} onSelectControlsGroup={openControlsGroup}
-          onStartAssessment={mayAssess && assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
+          onOpenAssurance={openAssurance}
           onGenerateIsoReport={generateIsoReport}
           formalAssessment={formalAssessment}
         />
@@ -258,7 +273,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           applicabilitySummary={applicabilitySummary} posture={posture}
           findingsByControl={findingsByControl}
           keyControlRemaining={assessmentQueue.length}
-          onStartAssessment={mayAssess && formalAssessment.scopeDecided && assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
+          onStartAssessment={mayAssess && formalAssessment.scopeDecided && assessmentQueue.length > 0 ? () => openAssurance("assess") : undefined}
           walkActive={assessmentWalkOpen}
           onSelectRow={(row) => selectControl(row.controlId)}
           onOpenScopeReview={openScopeReview}
@@ -279,7 +294,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           onNavigate={changeSubTab}
           onSelectControl={selectControl}
           onSelectControlsGroup={openControlsGroup}
-          onStartAssessment={mayAssess && assessmentQueue.length > 0 ? openAssessmentWalk : undefined}
+          onStartAssessment={mayAssess && assessmentQueue.length > 0 ? () => openAssurance("assess") : undefined}
         />
       )}
 
@@ -296,6 +311,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           setScopeReviewOpen(false);
           setEditorInitialStep(4);
           setResumeScopeAfterEdit(true);
+          setResumeAssuranceAfterEdit(false);
           setEditorOpen(true);
         }}
       />
@@ -304,9 +320,24 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         open={assessmentWalkOpen}
         systemId={system.id}
         onClose={() => setAssessmentWalkOpen(false)}
-        onGoToRemediation={() => {
+        onContinueToFindings={() => {
           setAssessmentWalkOpen(false);
           changeSubTab("findings");
+        }}
+      />
+
+      <AssuranceWorkflow
+        key={`${system.id}-${assuranceInitialStage}-${assuranceOpen ? "open" : "closed"}`}
+        open={assuranceOpen}
+        systemId={system.id}
+        initialStage={assuranceInitialStage}
+        onClose={() => setAssuranceOpen(false)}
+        onEditAssets={() => {
+          setAssuranceOpen(false);
+          setEditorInitialStep(4);
+          setResumeScopeAfterEdit(false);
+          setResumeAssuranceAfterEdit(true);
+          setEditorOpen(true);
         }}
       />
 
@@ -326,13 +357,17 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           setEditorOpen(false);
           setEditorInitialStep(1);
           if (resumeScopeAfterEdit) setScopeReviewOpen(true);
+          if (resumeAssuranceAfterEdit) setAssuranceOpen(true);
           setResumeScopeAfterEdit(false);
+          setResumeAssuranceAfterEdit(false);
         }}
         onCreated={() => {
           setEditorOpen(false);
           setEditorInitialStep(1);
           if (resumeScopeAfterEdit) setScopeReviewOpen(true);
+          if (resumeAssuranceAfterEdit) setAssuranceOpen(true);
           setResumeScopeAfterEdit(false);
+          setResumeAssuranceAfterEdit(false);
         }}
         editingSystemId={systemId}
         initialStep={editorInitialStep}

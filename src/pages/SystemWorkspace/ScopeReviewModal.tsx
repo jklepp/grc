@@ -11,8 +11,10 @@ import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
   Button, Callout, CompletionScreen, Field, InlineHint,
   RailGroup, RailItem, SaveErrorCallout, Section, StatTile, StatusPill, TextInput, TX, Well,
-  WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardPane, WizardRail, WizardRailSummary,
+  GUIDED_WORKFLOW_HEADER_MIN_HEIGHT, GUIDED_WORKFLOW_MODAL, WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardPane, WizardRail,
+  WizardRailSummary, WizardStageStrip,
 } from "../../components/wizard/WizardUI";
+import type { WizardStageNavigation } from "../../components/wizard/WizardUI";
 import type { ControlReview } from "../../graph/edges/controlReviews";
 import type { InheritanceGroup, ReviewWave, ReviewWaveControl } from "../../engine/review";
 import type { ControlId, SystemId } from "../../graph/ids";
@@ -58,9 +60,16 @@ interface ScopeReviewModalProps {
   onStartTechnicalReview: () => void;
   onEditAssets?: () => void;
   initialWave?: ReviewWave | null;
+  workflowNavigation?: WizardStageNavigation;
+  onContinue?: () => void;
+  continueLabel?: string;
+  continueCount?: number;
 }
 
-export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTechnicalReview, onEditAssets, initialWave = null }: ScopeReviewModalProps) {
+export function ScopeReviewModal({
+  open, systemId, assessor, onClose, onStartTechnicalReview, onEditAssets, initialWave = null,
+  workflowNavigation, onContinue, continueLabel, continueCount,
+}: ScopeReviewModalProps) {
   const liveEngine = useLiveEngine();
   const system = liveEngine.graph.systemById[systemId];
   const walk = liveEngine.review.wavesForSystem(systemId);
@@ -563,7 +572,12 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
   );
 
   return (
-    <Modal open={open} onClose={onClose} width={1040} height={720}>
+    <Modal
+      open={open}
+      onClose={onClose}
+      width={workflowNavigation ? GUIDED_WORKFLOW_MODAL.width : 1040}
+      height={workflowNavigation ? GUIDED_WORKFLOW_MODAL.height : 720}
+    >
       <WizardChrome>
         {/* One block: the left cell names the flow and how far through it,
             over the rail it summarises; the right cell is the section in hand
@@ -571,8 +585,9 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
             Section identity is chrome, so it stays pinned while the pane
             scrolls instead of scrolling away with the first row. */}
         <WizardHeader
+          minHeight={workflowNavigation ? GUIDED_WORKFLOW_HEADER_MIN_HEIGHT : undefined}
           railSummary={(
-            <WizardRailSummary icon={Target} title="Scope Review" />
+            <WizardRailSummary icon={Target} title={<>Scope<br />Review</>} />
           )}
           eyebrow={sectionHeading.eyebrow}
           title={sectionHeading.title}
@@ -580,6 +595,8 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
           progress={{ value: progressValue, total: SECTION_ORDER.length, label: "Scope review progress" }}
           onClose={<ModalCloseButton onClose={onClose} />}
         />
+
+        {workflowNavigation && <WizardStageStrip {...workflowNavigation} />}
 
         <WizardBody>
           <WizardRail label="Scope review">
@@ -926,14 +943,18 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
                 {sectionRemaining[nextSection] > 0 ? ` · ${sectionRemaining[nextSection]}` : ""}
               </Button>
             )
-            : readyForAssessment && technicalRemaining > 0
+            : readyForAssessment && (technicalRemaining > 0 || Boolean(onContinue))
               ? (
                 <Button
                   variant="primary"
                   iconRight={ArrowRight}
-                  onClick={() => { onClose(); onStartTechnicalReview(); }}
+                  onClick={() => {
+                    if (onContinue) onContinue();
+                    else { onClose(); onStartTechnicalReview(); }
+                  }}
                 >
-                  Continue to Control Assessment · {technicalRemaining}
+                  Continue to {continueLabel ?? "Control Assessment"}
+                  {(continueCount ?? technicalRemaining) > 0 ? ` · ${continueCount ?? technicalRemaining}` : ""}
                 </Button>
               )
               : undefined}

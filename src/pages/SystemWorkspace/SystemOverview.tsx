@@ -6,13 +6,12 @@ import { AssessmentReadiness } from "./overview/AssessmentReadiness";
 import { AttentionRequired } from "./overview/AttentionRequired";
 import { SystemSnapshot } from "./overview/SystemSnapshot";
 import { Panel } from "./shared/Panel";
-import { ASSESSMENT_SELECTION, DEFAULT_SELECTION } from "./SystemControls";
-import type { ControlSelection } from "./SystemControls";
 import type {
   CockpitSummary, ExposurePosture, WorkspaceDataType, WorkspaceSystem,
 } from "./types";
 import type { SystemWorkspaceTab } from "./tabs";
-import type { FormalAssessmentStatus, ReviewWave } from "../../engine/review";
+import type { FormalAssessmentStatus } from "../../engine/review";
+import type { AssuranceStageId } from "./AssuranceWorkflow";
 
 interface SystemOverviewProps {
   system: WorkspaceSystem;
@@ -21,9 +20,7 @@ interface SystemOverviewProps {
   exposure: ExposurePosture;
   dataTypes: WorkspaceDataType[];
   onNavigate: (tab: SystemWorkspaceTab) => void;
-  onOpenScopeReview: (wave: ReviewWave) => void;
-  onSelectControlsGroup: (selection: ControlSelection) => void;
-  onStartAssessment?: () => void;
+  onOpenAssurance: (stage: AssuranceStageId) => void;
   onGenerateIsoReport: () => Promise<void>;
   formalAssessment: FormalAssessmentStatus;
 }
@@ -31,8 +28,7 @@ interface SystemOverviewProps {
 export function SystemOverview(props: SystemOverviewProps) {
   const {
     system, cockpit, compliance, exposure,
-    dataTypes, onNavigate, onOpenScopeReview, onSelectControlsGroup,
-    onStartAssessment, onGenerateIsoReport,
+    dataTypes, onNavigate, onOpenAssurance, onGenerateIsoReport,
     formalAssessment,
   } = props;
   const [generatingReport, setGeneratingReport] = useState(false);
@@ -55,10 +51,10 @@ export function SystemOverview(props: SystemOverviewProps) {
       <Panel>
         <AssessmentReadiness
           formalAssessment={formalAssessment}
-          onScopeClick={() => onOpenScopeReview("not-applicable")}
-          onAssessClick={onStartAssessment ?? (() => onSelectControlsGroup(ASSESSMENT_SELECTION))}
-          onGapsClick={() => onNavigate("findings")}
-          onRemediateClick={() => onSelectControlsGroup(DEFAULT_SELECTION)}
+          onScopeClick={() => onOpenAssurance("scope")}
+          onAssessClick={() => onOpenAssurance("assess")}
+          onGapsClick={() => onOpenAssurance("findings")}
+          onRemediateClick={() => onOpenAssurance("remediate")}
         />
       </Panel>
 

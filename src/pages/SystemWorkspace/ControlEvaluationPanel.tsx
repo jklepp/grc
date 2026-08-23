@@ -33,9 +33,10 @@ import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
   Button, Callout, CheckRow, ChoiceChip, DisclosureButton, EmptyState, Field, FieldGrid, InlineField, InlineHint,
   ProgressBar, RailGroup, RailItem, SaveErrorCallout, Section, Select, StatusPill, TextInput, toneColor, TX, Well,
-  WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardPane, WizardRail, WizardRailSummary, WizardStrip, WZ,
+  GUIDED_WORKFLOW_HEADER_MIN_HEIGHT, WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardPane, WizardRail, WizardRailSummary,
+  WizardStageStrip, WizardStrip, WZ,
 } from "../../components/wizard/WizardUI";
-import type { Tone } from "../../components/wizard/WizardUI";
+import type { Tone, WizardStageNavigation } from "../../components/wizard/WizardUI";
 import { selectedValue } from "./formHelpers";
 import type { AssetOption } from "./formHelpers";
 import type { ControlEvidenceDraft, ControlInstance, EvidenceDraft, Engine, EngineFinding, FindingDraft, ScoredEvidence } from "../../engine";
@@ -619,6 +620,10 @@ export interface PanelWalkState {
   initialTotal: number;
   onRecorded: (rating: ComplianceRating, continueWalk: boolean) => void;
   onSkip: (() => void) | null;
+  title?: string;
+  icon?: LucideIcon;
+  groupLabel?: string;
+  onDraftSaved?: () => void;
 }
 
 interface ControlEvaluationPanelProps {
@@ -630,6 +635,7 @@ interface ControlEvaluationPanelProps {
   // caller already knows the operator is here to file or work a finding
   // (the Outstanding Actions tab), not to re-score the control.
   initialStep?: EvaluationStep;
+  workflowNavigation?: WizardStageNavigation;
 }
 
 // Full-space operator panel for a single control row, organized as the
@@ -641,7 +647,7 @@ interface ControlEvaluationPanelProps {
 // RuntimeFacts copy, validate it with buildLiveEngine, and only persist +
 // reload once that comes back clean.
 export function ControlEvaluationPanel({
-  row: committedRow, system, onClose, walk, initialStep,
+  row: committedRow, system, onClose, walk, initialStep, workflowNavigation,
 }: ControlEvaluationPanelProps) {
   // Lands on Control Scoring — the operator's stated job, and now the first
   // step in the rail, so the landing place and the declared order agree —
@@ -912,7 +918,8 @@ export function ControlEvaluationPanel({
       return;
     }
     setPendingChanges([]);
-    onClose();
+    if (walk?.onDraftSaved) walk.onDraftSaved();
+    else onClose();
   }
 
   function discardDraft() {
@@ -1132,10 +1139,11 @@ export function ControlEvaluationPanel({
            belongs to the chrome; the pills that describe the CONTROL travel
            with the control. */}
       <WizardHeader
+        minHeight={workflowNavigation ? GUIDED_WORKFLOW_HEADER_MIN_HEIGHT : undefined}
         railSummary={(
           <WizardRailSummary
-            icon={walk ? ClipboardCheck : ShieldCheck}
-            title={walk ? "Control Assessment" : "System Control Editor"}
+            icon={walk?.icon ?? (walk ? ClipboardCheck : ShieldCheck)}
+            title={walk?.title ?? (walk ? "Control Assessment" : "System Control Editor")}
           />
         )}
         eyebrow={walk && runPosition
@@ -1144,11 +1152,22 @@ export function ControlEvaluationPanel({
         title={row.control.name}
         description={<><span className="font-mono">{row.control.id}</span> · {row.control.domain}</>}
         progress={walk && runPosition
-          ? { value: runPosition, total: walk.initialTotal, label: "Control assessment progress" }
+          ? { value: runPosition, total: walk.initialTotal, label: `${walk.title ?? "Control assessment"} progress` }
           : undefined}
         aside={unsavedCount > 0 ? <StatusPill tone="warning">{unsavedCount} unsaved</StatusPill> : undefined}
         onClose={<ModalCloseButton onClose={requestClose} />}
       />
+
+      {workflowNavigation && (
+        <WizardStageStrip
+          {...workflowNavigation}
+          onSelect={(id) => {
+            if (id === workflowNavigation.activeId) return;
+            if (unsavedCount > 0 && !window.confirm(`Discard ${unsavedCount} unsaved change${unsavedCount === 1 ? "" : "s"} and switch phases?`)) return;
+            workflowNavigation.onSelect(id);
+          }}
+        />
+      )}
 
       {/* ---- Walk strip: who is signing ----
            The assessor used to be typed here, in the chrome, where it read as
@@ -1166,17 +1185,17 @@ export function ControlEvaluationPanel({
         </WizardStrip>
       )}
 
-      <WizardBody enter={Boolean(walk)}>
+      <WizardBody enter={Boolean(walk) && !workflowNavigation}>
         {/* ---- Rail: walk domains (walk mode only), then this control's steps ---- */}
         <WizardRail label="Assessment steps">
           {walk && (
-            <RailGroup label="Domains">
+            <RailGroup label={walk.groupLabel ?? "Domains"}>
               {walk.domains.map((d) => {
                 const isDone = d.remaining === 0;
                 return (
                   <RailItem
                     key={d.domain}
-                    icon={ClipboardCheck}
+                    icon={walk.icon ?? ClipboardCheck}
                     title={d.domain}
                     detail={isDone ? `${d.total} decided` : `${d.remaining} of ${d.total} remaining`}
                     state={isDone ? "done" : d.domain === walk.activeDomain ? "active" : "pending"}
