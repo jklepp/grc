@@ -64,7 +64,11 @@ export const RESPONSIBILITY_META = {
 // mixing "not applicable" into the same ordinal scale as "deficient" would
 // imply a system is worse off for having a control that doesn't apply to it.
 export const APPLICABILITY_META = {
-  "not-applicable": meta({ label: "Not Applicable", Icon: Ban }, "muted", "panel2"),
+  // The status key stays `not-applicable` — it is the engine's bucket name and
+  // appears in facts, validators and review records. Only the label the UI
+  // shows is "Not In Scope", and it is spelled here once so every pill,
+  // filter and summary in the app moves together (CONTRACT 2.7).
+  "not-applicable": meta({ label: "Not In Scope", Icon: Ban }, "muted", "panel2"),
   pending: meta({ label: "Pending", Icon: Clock }, "amber", "amberBg"),
 };
 

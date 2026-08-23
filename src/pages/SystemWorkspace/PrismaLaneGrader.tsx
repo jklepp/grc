@@ -28,7 +28,6 @@ export interface LaneGrade {
 export interface LaneGraderState {
   ratings: Partial<Record<PrismaLevel, ComplianceRating>>;
   assessedBy: string;
-  note: string;
   comment: string;
   // The Implemented lane's substantiation. Only meaningful before a control is
   // assessed — it is the fact that pulls the control into assessment scope, so
@@ -73,7 +72,6 @@ export function initialLaneGraderState(args: {
   return {
     ratings,
     assessedBy,
-    note: "",
     comment: "",
     evidencePending: false,
     source: "",
@@ -110,30 +108,29 @@ export function laneGrades(
   }));
 }
 
-function anyLaneChanged(value: LaneGraderState, levels: Record<PrismaLevel, LevelRating>): boolean {
-  return PRISMA_LEVELS.some((level) => {
-    const picked = value.ratings[level];
-    return picked != null && picked !== levels[level].derived;
-  });
-}
-
 // One readiness rule, read by both the grader (inline field errors) and the
 // panel footer, which names the blocker rather than sitting greyed out for a
 // reason the operator has to go hunting for.
 export function laneGraderBlocker(args: {
   value: LaneGraderState;
-  levels: Record<PrismaLevel, LevelRating>;
   assessed: boolean;
   isProgramScoped: boolean;
   assetOptions: AssetOption[];
 }): string | null {
-  const { value, levels, assessed, isProgramScoped, assetOptions } = args;
+  const { value, assessed, isProgramScoped, assetOptions } = args;
   const implemented = value.ratings.Implemented;
 
   if (!assessed && !isProgramScoped && assetOptions.length === 0) {
-    return "No registered asset requires this asset-scoped control. Update asset attributes or mark it Not Applicable.";
+    return "No registered asset requires this asset-scoped control. Update asset attributes or mark it Not In Scope.";
   }
-  if (!value.assessedBy.trim()) return "Name the assessor of record.";
+  // Not typed here any more: the assessment is signed with the system's
+  // assessor of record (and, once there is a login, with the operator's own
+  // identity). The gate remains because an unsigned assessment is not a record
+  // (5.1) — it just names where the missing signature comes from, because
+  // there is no longer a box on this form to fix it in.
+  if (!value.assessedBy.trim()) {
+    return "This system has no assessor of record — set one in Edit System before grading.";
+  }
   if (!assessed) {
     if (implemented == null) return "Pick where the Implemented lane stands.";
     if (implemented === 0) {
@@ -143,10 +140,11 @@ export function laneGraderBlocker(args: {
       return "Cite an evidence source, or tick “I don’t have evidence yet”.";
     }
   }
-  if (anyLaneChanged(value, levels) && !value.note.trim()) {
-    return "A lane differs from its derived rating — say why.";
-  }
-  if (!value.comment.trim()) return "Describe why the system satisfies each PRISMA lane.";
+  // No separate gate for a changed lane. The comment below is required on
+  // every assessment and is what every override is signed with, so demanding a
+  // second box the moment a lane moved asked the same question twice — and the
+  // writer already fell back to the comment when that box was empty.
+  if (!value.comment.trim()) return "Say why this control stands where you have graded it.";
   return null;
 }
 
@@ -157,11 +155,11 @@ interface PrismaLaneGraderProps {
   assetOptions: AssetOption[];
   value: LaneGraderState;
   onChange: (patch: Partial<LaneGraderState>) => void;
-  // Whether the operator has touched this form yet. An assessed control seeds
-  // its existing overrides, which would otherwise trip "a changed lane needs a
-  // reason" the instant the panel opens — nagging about a decision somebody
-  // made weeks ago. A control with nothing on record states its requirements
-  // straight away, because meeting them is the whole job.
+  // Whether the operator has touched this form yet. An assessed control keeps
+  // its existing answers, which would otherwise raise their own field errors
+  // the instant the panel opens — nagging about a decision somebody made weeks
+  // ago. A control with nothing on record states its requirements straight
+  // away, because meeting them is the whole job.
   dirty: boolean;
 }
 
@@ -181,7 +179,6 @@ export function PrismaLaneGrader({
   const implemented = value.ratings.Implemented;
   const needsImplementedPick = !assessed && implemented == null;
   const canDeclareMissing = isProgramScoped || assetOptions.length > 0;
-  const changed = anyLaneChanged(value, levels);
 
   function pick(level: PrismaLevel, rating: ComplianceRating) {
     onChange({ ratings: { ...value.ratings, [level]: rating } });
@@ -234,120 +231,97 @@ export function PrismaLaneGrader({
       {/* ---- Implemented substantiation ----
           Attached to the grid rather than hosted in its own section: this is
           not a second way to score the control, it is the paperwork the one
-          lane that puts it in scope has always needed. */}
-      {!assessed && (
+          lane that puts it in scope has always needed. It appears once that
+          lane has a rating — before that there is nothing to back, and the
+          footer's blocker already names the one thing to do next (4.7). */}
+      {!assessed && !needsImplementedPick && (
         <Well hollow className="flex flex-col gap-3.5">
           <div className="flex items-center gap-2.5 flex-wrap">
             <span className={TX.itemTitle} style={{ color: C.ink }}>Implemented — what backs this rating</span>
             <span className="ml-auto">
-              <StatusPill tone={needsImplementedPick ? "warning" : "info"}>
-                {needsImplementedPick ? "Awaiting your call" : `${implemented} — ${COMPLIANCE_LABELS[implemented as ComplianceRating]}`}
+              <StatusPill tone="info">
+                {`${implemented} — ${COMPLIANCE_LABELS[implemented as ComplianceRating]}`}
               </StatusPill>
             </span>
           </div>
-          {needsImplementedPick ? (
-            <p className={TX.help} style={{ color: C.muted }}>
-              Is this control actually operating on the assets that require it? Pick the Implemented lane above — that call is the fact which puts this control in assessment scope. The other four lanes derive on their own from the policy library, procedures, evidence metrics and review cadence; adjust them if you disagree.
-            </p>
-          ) : (
-            <>
-              <p className={TX.help} style={{ color: C.muted }}>{RATING_GUIDANCE[implemented as ComplianceRating]}</p>
-              {implemented === 0 ? (
-                <FieldGrid cols={2}>
-                  {!isProgramScoped && (
-                    <Field label="Asset">
-                      <Select
-                        value={value.assetId}
-                        aria-label="Asset the gap is recorded against"
-                        onChange={(e) => onChange({ assetId: e.target.value as AssetId })}
-                      >
-                        {assetOptions.map((a) => <option key={a.assetId} value={a.assetId}>{a.label}</option>)}
-                      </Select>
-                    </Field>
-                  )}
-                  <Field
-                    label="Reason"
-                    span2={isProgramScoped}
-                    error={value.reason.trim() ? null : "Required — say why nothing implements this control here."}
+          <p className={TX.help} style={{ color: C.muted }}>{RATING_GUIDANCE[implemented as ComplianceRating]}</p>
+          {implemented === 0 ? (
+            <FieldGrid cols={2}>
+              {!isProgramScoped && (
+                <Field label="Asset">
+                  <Select
+                    value={value.assetId}
+                    aria-label="Asset the gap is recorded against"
+                    onChange={(e) => onChange({ assetId: e.target.value as AssetId })}
                   >
+                    {assetOptions.map((a) => <option key={a.assetId} value={a.assetId}>{a.label}</option>)}
+                  </Select>
+                </Field>
+              )}
+              <Field
+                label="Reason"
+                span2={isProgramScoped}
+                error={value.reason.trim() ? null : "Required — say why nothing implements this control here."}
+              >
+                <TextInput
+                  value={value.reason}
+                  onChange={(e) => onChange({ reason: e.target.value })}
+                  placeholder="Why this control is not implemented on this boundary"
+                />
+              </Field>
+            </FieldGrid>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <CheckRow
+                checked={value.evidencePending}
+                onChange={(checked) => onChange({ evidencePending: checked })}
+                ariaLabel="I do not have evidence yet — attach it later"
+                label={<>I don&rsquo;t have evidence yet — attach it later</>}
+              />
+              {value.evidencePending ? (
+                <InlineHint tone="neutral">
+                  Saved as a self-attestation — the weakest evidence grade, so the derived rating won&rsquo;t overstate what is on file. Replace it under Evidence by lane once you have the real source.
+                </InlineHint>
+              ) : (
+                <FieldGrid cols={2}>
+                  <Field label="Source" error={value.source.trim() ? null : "Required — name where the evidence came from."}>
                     <TextInput
-                      value={value.reason}
-                      onChange={(e) => onChange({ reason: e.target.value })}
-                      placeholder="Why this control is not implemented on this boundary"
+                      value={value.source}
+                      onChange={(e) => onChange({ source: e.target.value })}
+                      placeholder="e.g. Screenshot of Okta MFA enforcement"
                     />
                   </Field>
+                  <Field label="Evidence type">
+                    <Select
+                      value={value.evidenceType}
+                      aria-label="Evidence type"
+                      onChange={(e) => onChange({ evidenceType: selectedValue(EVIDENCE_TYPES, e.target.value, value.evidenceType) })}
+                    >
+                      {EVIDENCE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </Select>
+                  </Field>
                 </FieldGrid>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  <CheckRow
-                    checked={value.evidencePending}
-                    onChange={(checked) => onChange({ evidencePending: checked })}
-                    ariaLabel="I do not have evidence yet — attach it later"
-                    label={<>I don&rsquo;t have evidence yet — attach it later</>}
-                  />
-                  {value.evidencePending ? (
-                    <InlineHint tone="neutral">
-                      Saved as a self-attestation — the weakest evidence grade, so the derived rating won&rsquo;t overstate what is on file. Replace it under Evidence by lane once you have the real source.
-                    </InlineHint>
-                  ) : (
-                    <FieldGrid cols={2}>
-                      <Field label="Source" error={value.source.trim() ? null : "Required — name where the evidence came from."}>
-                        <TextInput
-                          value={value.source}
-                          onChange={(e) => onChange({ source: e.target.value })}
-                          placeholder="e.g. Screenshot of Okta MFA enforcement"
-                        />
-                      </Field>
-                      <Field label="Evidence type">
-                        <Select
-                          value={value.evidenceType}
-                          aria-label="Evidence type"
-                          onChange={(e) => onChange({ evidenceType: selectedValue(EVIDENCE_TYPES, e.target.value, value.evidenceType) })}
-                        >
-                          {EVIDENCE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                        </Select>
-                      </Field>
-                    </FieldGrid>
-                  )}
-                </div>
               )}
-            </>
+            </div>
           )}
           {!isProgramScoped && assetOptions.length === 0 && (
-            <InlineHint tone="warning">No registered asset requires this asset-scoped control. Update the asset attributes, or use Mark Not Applicable in Scope below.</InlineHint>
+            <InlineHint tone="warning">No registered asset requires this asset-scoped control. Update the asset attributes, or use Mark Not In Scope in Scope below.</InlineHint>
           )}
         </Well>
       )}
 
-      <FieldGrid cols={2}>
-        <Field label="Assessor of record" error={!showErrors || value.assessedBy.trim() ? null : "Required — your name goes on this assessment."}>
-          <TextInput
-            value={value.assessedBy}
-            onChange={(e) => onChange({ assessedBy: e.target.value })}
-            placeholder="Your name"
-            style={{ borderColor: value.assessedBy.trim() ? undefined : C.amber }}
-          />
-        </Field>
-        <Field
-          label="Note"
-          note="Required if you change a lane away from its derived rating."
-          error={!showErrors || !changed || value.note.trim() ? null : "A changed lane needs a reason."}
-        >
-          <TextInput
-            value={value.note}
-            onChange={(e) => onChange({ note: e.target.value })}
-            placeholder="Why a lane differs from the derived rating"
-          />
-        </Field>
-        <Field label="Comment" span2 error={!showErrors || value.comment.trim() ? null : "Required to save an assessment."}>
-          <TextArea
-            value={value.comment}
-            onChange={(e) => onChange({ comment: e.target.value })}
-            placeholder="Describe in detail why the system satisfies each PRISMA lane"
-            style={{ minHeight: 76 }}
-          />
-        </Field>
-      </FieldGrid>
+      <Field
+        label="Comment"
+        note="Signs the assessment, and every lane you have moved away from its derived rating."
+        error={!showErrors || value.comment.trim() ? null : "Required to save an assessment."}
+      >
+        <TextArea
+          value={value.comment}
+          onChange={(e) => onChange({ comment: e.target.value })}
+          placeholder="Why does this control stand where you have graded it?"
+          style={{ minHeight: 76 }}
+        />
+      </Field>
     </Well>
   );
 }

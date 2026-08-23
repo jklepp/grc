@@ -26,19 +26,19 @@ import { implementedFactInput, previewFactInput, recordKeyControlAssessment } fr
 import { loadRuntimeFacts } from "../../engine/runtimeFactsStore";
 import { useLiveEngine } from "../../engine/useLiveEngine";
 import { PRINCIPLE_DOMAINS, STATUS_META as PRINCIPLE_STATUS_META } from "../../data/securityPrinciples";
-import { STATUS_META, IMPLEMENTATION_META, RESPONSIBILITY_META, ratingColor, assetName, evidenceHealthForRow, parseControlRequirement } from "./controlMeta";
+import { STATUS_META, IMPLEMENTATION_META, RESPONSIBILITY_META, ratingColor, assetName, parseControlRequirement } from "./controlMeta";
 import { POLICY_BY_CONTROL, PROCEDURE_BY_CONTROL } from "./policyLookup";
 import { BasisTag } from "../../components/BasisTag";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
-  Brief, Button, Callout, CheckRow, ChoiceChip, DisclosureButton, EmptyState, Field, FieldGrid, InlineField, InlineHint,
+  Button, Callout, CheckRow, ChoiceChip, DisclosureButton, EmptyState, Field, FieldGrid, InlineField, InlineHint,
   ProgressBar, RailGroup, RailItem, SaveErrorCallout, Section, Select, StatusPill, TextInput, toneColor, TX, Well,
-  WizardBanner, WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardPane, WizardRail, WizardStrip, WZ,
+  WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardPane, WizardRail, WizardRailSummary, WizardStrip, WZ,
 } from "../../components/wizard/WizardUI";
 import type { Tone } from "../../components/wizard/WizardUI";
 import { selectedValue } from "./formHelpers";
 import type { AssetOption } from "./formHelpers";
-import type { ControlAssessment, ControlEvidenceDraft, ControlInstance, EvidenceDraft, Engine, EngineFinding, FindingDraft, LevelRating, ScoredEvidence } from "../../engine";
+import type { ControlEvidenceDraft, ControlInstance, EvidenceDraft, Engine, EngineFinding, FindingDraft, ScoredEvidence } from "../../engine";
 import type { RuntimeFacts } from "../../engine/liveGraph";
 import type { AssetId, ControlId, EvidenceId, FindingId, SystemId } from "../../graph/ids";
 import type { Basis, ComplianceRating, EvidenceType, PrismaLevel } from "../../graph/nodes/taxonomy";
@@ -47,17 +47,6 @@ import type { ArtifactSensitivity, EvidenceReviewDecision } from "../../graph/no
 import type { RemediationStatus } from "../../graph/nodes/findings";
 import type { SecurityPrinciple } from "../../data/securityPrinciples";
 import type { ControlMatrixRow, WorkspaceSystem } from "./types";
-
-// The single worst-rated PRISMA lane, paired with its level name — the
-// bottleneck that a one-click "Save Assessment" acts on, and the sentence
-// that answers "why isn't this Satisfied" when no finding has been filed yet
-// to answer it more concretely.
-function worstLevelEntry(assessment: ControlAssessment | null): [PrismaLevel, LevelRating] | null {
-  if (!assessment?.assessed) return null;
-  return PRISMA_LEVELS
-    .map((level): [PrismaLevel, LevelRating] => [level, assessment.levels[level]])
-    .sort((a, b) => a[1].rating - b[1].rating)[0] ?? null;
-}
 
 // Which architecture layer each asset sits in, reusing the exact same
 // request-path classification the Architecture tab's data-flow diagram
@@ -576,6 +565,10 @@ function RequirementText({ description }: { description: string }) {
 // before the work can start. Authority & Mapping follows as the material an
 // assessor goes and consults — the written authority, the clause mappings, the
 // scoring breakdown — which is what it is named for (2.1).
+// The one declaration of this control's run (CONTRACT 4.1). `label` is the
+// rail entry and the header's eyebrow alike, so the two cannot drift. No lead
+// sentence: the header's supporting line names the control this run is about,
+// and what to do on a step is said by the Sections that hold the work.
 const STEPS = [
   { id: "scoring", label: "Control Scoring", icon: Gauge },
   { id: "authority", label: "Authority & Mapping", icon: ScrollText },
@@ -603,7 +596,6 @@ export interface PanelWalkState {
   decidedCount: number;
   initialTotal: number;
   reviewer: string;
-  onReviewerChange: (value: string) => void;
   onRecorded: (rating: ComplianceRating, continueWalk: boolean) => void;
   onSkip: (() => void) | null;
 }
@@ -634,6 +626,11 @@ export function ControlEvaluationPanel({
   // step in the rail, so the landing place and the declared order agree —
   // unless a caller asked to land somewhere else (initialStep).
   const [activeStep, setActiveStep] = useState<EvaluationStep>(initialStep ?? "scoring");
+  const stepDef = STEPS.find((s) => s.id === activeStep) ?? STEPS[0];
+  // The header titles a control, so its counter counts controls (4.11): where
+  // this one sits in the walk's queue, not which of its four steps is open.
+  // Direct edit has no queue to be nth of, so it names the step alone.
+  const runPosition = walk ? Math.min(walk.decidedCount + 1, walk.initialTotal) : null;
   const [attachingLane, setAttachingLane] = useState<PrismaLevel | null>(null);
   const [editingLaneEvidenceId, setEditingLaneEvidenceId] = useState<EvidenceId | null>(null);
   const [showMaturityDetails, setShowMaturityDetails] = useState(false);
@@ -793,11 +790,8 @@ export function ControlEvaluationPanel({
   const implMeta = IMPLEMENTATION_META.find((m) => m.type === row.control.implementationType);
   const controlFindings = draftEngine.findings.findingsForSystem(system.id).filter((f) => f.controlId === row.control.id);
   const urgentRemediation = mostUrgentRemediation(controlFindings);
-  const worstEntry = worstLevelEntry(row.assessment);
-  const worst = worstEntry?.[1] ?? null;
   const isProgramScoped = row.keyControl?.scope === "program";
   const programApplicability = isProgramScoped ? draftEngine.applicability.resolveProgramApplicability(system.id, row.control.id) : null;
-  const evidenceHealth = evidenceHealthForRow(row);
   const assessment = row.assessment;
   const assessed = Boolean(assessment?.assessed);
   // What the grid grades against: the live preview while a control is still
@@ -805,7 +799,7 @@ export function ControlEvaluationPanel({
   const gradingLevels = previewLevels ?? assessment?.levels ?? null;
   const laneBlocker = gradingLevels
     ? laneGraderBlocker({
-        value: laneState, levels: gradingLevels, assessed,
+        value: laneState, assessed,
         isProgramScoped: Boolean(isProgramScoped), assetOptions: recordAssetOptions,
       })
     : "This control has no assessment to grade.";
@@ -816,7 +810,7 @@ export function ControlEvaluationPanel({
   // A staged exclusion overrides all of that. Saying "this control does not
   // apply here" is the opposite of grading it, and on an unassessed control the
   // grader's own blocker would otherwise refuse the save — demanding a rating
-  // for a control the operator has just declared Not Applicable.
+  // for a control the operator has just declared Not In Scope.
   const savingAssessment = !excludeStaged && (!assessed || laneDirty);
   const saveBlocker = savingAssessment ? laneBlocker : null;
   const canSave = savingAssessment ? saveBlocker === null : pendingChanges.length > 0;
@@ -939,7 +933,6 @@ export function ControlEvaluationPanel({
   function handleLaneChange(patch: Partial<LaneGraderState>) {
     // Walk mode keeps the assessor at the walk level so a name typed on the
     // first control survives the remount onto the next one.
-    if (patch.assessedBy !== undefined && walk) walk.onReviewerChange(patch.assessedBy);
     setLaneDirty(true);
     setSaveError(null);
     setLaneState((current) => ({ ...current, ...patch }));
@@ -983,7 +976,7 @@ export function ControlEvaluationPanel({
           controlId: row.control.id,
           level: grade.level,
           rating: grade.rating,
-          note: laneState.note.trim() || laneState.comment.trim(),
+          note: laneState.comment.trim(),
           assessedBy,
           assessedAt: stamp,
         });
@@ -1061,7 +1054,7 @@ export function ControlEvaluationPanel({
   // same dry run and the same Save.
   function handleMarkOutOfScope(reason: string) {
     const staged = stageMutation(
-      `Marked Not Applicable — ${row.control.id}`,
+      `Marked Not In Scope — ${row.control.id}`,
       (existing) => upsertControlReview(existing, {
         systemId: system.id,
         controlId: row.control.id,
@@ -1081,39 +1074,52 @@ export function ControlEvaluationPanel({
   return (
     <Modal open onClose={requestClose} width={1180} height={840}>
       <WizardChrome>
-      {walk
-        ? <WizardBanner icon={ClipboardCheck} title="Control Assessment Wizard" />
-        : <WizardBanner icon={ShieldCheck} title="System Control Editor" />}
-      {/* ---- Header ----
-           The subject here is one specific control, so its id and domain ride
-           in the kit's `eyebrow` slot rather than in a header this file draws
-           for itself. */}
+      {/* ---- Masthead ----
+           The flow's name over the rail, the step in hand over the pane, the
+           run on the bottom edge (4.10, 4.11). The control itself is named at
+           the top of the pane instead: it is the subject of every step, not
+           one of them, and putting it here left the header describing
+           something and the body describing something else.
+
+           This is the one wizard whose subject CHANGES mid-run, so the
+           header names the control and folds the step into the eyebrow beside
+           the position (4.11). Everywhere else the subject is the flow and the
+           header names the step. The control must never scroll away — it is
+           what every step on screen is about — and a card in the pane could
+           not promise that at any size or colour.
+
+           The only aside is the unsaved count, which is save state and so
+           belongs to the chrome; the pills that describe the CONTROL travel
+           with the control. */}
       <WizardHeader
-        icon={walk ? ClipboardCheck : ShieldCheck}
-        eyebrow={`${row.control.id} · ${row.control.domain}`}
+        railSummary={(
+          <WizardRailSummary
+            icon={walk ? ClipboardCheck : ShieldCheck}
+            title={walk ? "Control Assessment" : "System Control Editor"}
+          />
+        )}
+        eyebrow={walk && runPosition
+          ? `Control ${runPosition} of ${walk.initialTotal} · ${Math.round((runPosition / walk.initialTotal) * 100)}% · ${stepDef.label}`
+          : stepDef.label}
         title={row.control.name}
-        aside={
-          <div className="flex items-center gap-2 flex-wrap justify-end">
-            {unsavedCount > 0 && <StatusPill tone="warning">{unsavedCount} unsaved</StatusPill>}
-            <StatusPill color={statusMeta.color} surface={statusMeta.bg} icon={statusMeta.Icon}>{statusMeta.label}</StatusPill>
-            {respMeta && <StatusPill color={respMeta.color} surface={respMeta.bg} icon={respMeta.Icon}>{respMeta.label}</StatusPill>}
-            {implMeta && <StatusPill color={implMeta.color} surface={implMeta.bg} icon={implMeta.Icon}>{implMeta.type}</StatusPill>}
-            <GlancePill Icon={Gauge} label="Assurance" value={row.score != null ? `${row.score}${row.assessment?.band?.label ? ` · ${row.assessment.band.label}` : ""}` : "—"} />
-          </div>
-        }
+        description={<><span className="font-mono">{row.control.id}</span> · {row.control.domain}</>}
+        progress={walk && runPosition
+          ? { value: runPosition, total: walk.initialTotal, label: "Control assessment progress" }
+          : undefined}
+        aside={unsavedCount > 0 ? <StatusPill tone="warning">{unsavedCount} unsaved</StatusPill> : undefined}
         onClose={<ModalCloseButton onClose={requestClose} />}
       />
 
-      {/* ---- Walk strip: overall progress + who is signing ----
+      {/* ---- Walk strip: who is signing ----
            The assessor used to be typed here, in the chrome, where it read as
            decoration while silently disabling Save. It is a labelled, required
-           field in the grader now; this only reports it. */}
+           field in the grader now; this only reports it.
+
+           It used to carry the walk's progress too. The masthead counts the
+           same run now, so repeating it here was two readings of one thing
+           (4.9) sitting one band apart. */}
       {walk && (
         <WizardStrip icon={ClipboardCheck}>
-          <span className={`${TX.label} shrink-0`} style={{ color: C.muted }}>
-            Assessed {walk.decidedCount} of {walk.initialTotal}
-          </span>
-          <ProgressBar value={walk.decidedCount} total={walk.initialTotal} label="Key controls assessed" />
           <InlineField label="Assessor">
             <span className={TX.body} style={{ color: laneState.assessedBy.trim() ? C.ink : C.amber }}>
               {laneState.assessedBy.trim() || "not named yet"}
@@ -1162,11 +1168,55 @@ export function ControlEvaluationPanel({
 
         {/* ---- Content pane ---- */}
         <WizardPane>
+          {/* What the catalog asks, kept in view on every step because it is
+              what all four are answering. An ordinary Section — no card of its
+              own design — that names the control in its title, so the block
+              still says what it is about once the header has scrolled out of
+              the reader's attention. */}
+          <Section
+            icon={BookOpenText}
+            title={`${row.control.name} — Control Requirement`}
+            clamp={108}
+            expandLabel={requirementClauseCount > 0 ? "Read the rest" : "Read it in full"}
+            aside={(
+              <div className="flex items-center gap-2">
+                {requirementClauseCount > 0 && (
+                  <StatusPill tone="neutral">{requirementClauseCount} requirements</StatusPill>
+                )}
+                {activeStep !== "authority" && (
+                  <Button size="sm" iconRight={ChevronRight} onClick={() => setActiveStep("authority")}>
+                    Authority &amp; Mapping
+                  </Button>
+                )}
+              </div>
+            )}
+          >
+            <RequirementText description={row.control.description} />
+          </Section>
+
           {saveError && <SaveErrorCallout problems={saveError} />}
 
           {/* ===== Authority & Mapping ===== */}
           {activeStep === "authority" && (
             <>
+              {/* How this control is held on this boundary — what it is graded
+                  as, who runs it, how it is carried, and the assurance that
+                  comes out. These used to ride in the subject card's top-right
+                  corner, where four pills crowded the one thing that card is
+                  for: saying which control you are on. */}
+              <Section
+                icon={ShieldCheck}
+                title="How this control is held"
+                description="Its assessment status, who runs it, how it is implemented, and the assurance it currently carries."
+              >
+                <div className="flex items-center gap-2 flex-wrap">
+                  <StatusPill color={statusMeta.color} surface={statusMeta.bg} icon={statusMeta.Icon}>{statusMeta.label}</StatusPill>
+                  {respMeta && <StatusPill color={respMeta.color} surface={respMeta.bg} icon={respMeta.Icon}>{respMeta.label}</StatusPill>}
+                  {implMeta && <StatusPill color={implMeta.color} surface={implMeta.bg} icon={implMeta.Icon}>{implMeta.type}</StatusPill>}
+                  <GlancePill Icon={Gauge} label="Assurance" value={row.score != null ? `${row.score}${row.assessment?.band?.label ? ` · ${row.assessment.band.label}` : ""}` : "—"} />
+                </div>
+              </Section>
+
               {(governingPolicy || governingProcedure) && (
                 <Section icon={ScrollText} title="Policies and procedures" description="The written authority this control is evidenced against.">
                   {governingPolicy && (
@@ -1289,39 +1339,6 @@ export function ControlEvaluationPanel({
                     </Button>
                     <Button size="sm" onClick={() => setGapNudge(null)}>Dismiss</Button>
                   </span>
-                </Callout>
-              )}
-              {/* What the catalog asks, directly above the lanes that answer
-                  it. This used to be a step of its own, which meant the walk
-                  opened on Scoring with the requirement one rail click away in
-                  the bottom-left — the operator graded against a control they
-                  had to go and read somewhere else. `Brief` measures rather
-                  than assumes: only the handful of controls written as long
-                  enumerated lists clamp, and those clamp on a clause boundary
-                  with the count in view. */}
-              <Brief
-                icon={BookOpenText}
-                label="What this control asks"
-                expandLabel={requirementClauseCount > 0 ? "Read the rest" : "Read it in full"}
-                aside={
-                  <>
-                    {requirementClauseCount > 0 && (
-                      <StatusPill tone="neutral">{requirementClauseCount} requirements</StatusPill>
-                    )}
-                    <Button size="sm" iconRight={ChevronRight} onClick={() => setActiveStep("authority")}>
-                      Authority &amp; Mapping
-                    </Button>
-                  </>
-                }
-              >
-                <RequirementText description={row.control.description} />
-              </Brief>
-
-              {!assessed && (
-                <Callout tone="warning" title="Nothing is on record for this control yet — the score is null, not zero.">
-                  No fact backs {row.control.id} on this boundary. The lanes below show what the graph <i>would</i> derive
-                  once it is in scope: Policy and Procedure read the policy and SOP libraries, Measured and Managed read
-                  evidence prevalence and the review calendar. Grade every lane you can, answer Implemented, and save.
                 </Callout>
               )}
 
@@ -1456,32 +1473,6 @@ export function ControlEvaluationPanel({
                 })}
               </Section>
 
-              <Section
-                icon={ClipboardCheck}
-                title="Assessment"
-                description="The status this control currently carries on this boundary, and what it rests on."
-                aside={
-                  <span className="flex items-center gap-2">
-                    <StatusPill color={statusMeta.color} surface={statusMeta.bg} icon={statusMeta.Icon}>{statusMeta.label}</StatusPill>
-                    <BasisTag basis={row.basis} />
-                  </span>
-                }
-              >
-                <Field label="Assessment rationale">
-                  <p className={TX.lead} style={{ color: C.ink }}>{worst ? worst.rationale : row.explanation}</p>
-                </Field>
-                <FieldGrid cols={2}>
-                  <Field label="Control owner">
-                    <div className={TX.body} style={{ color: C.ink }}>
-                      {assessment && assessment.owners.length > 0 ? assessment.owners.map((o) => o.name).join(", ") : "Unassigned"}
-                    </div>
-                  </Field>
-                  <Field label="Evidence confidence">
-                    <div className={`${TX.body} font-semibold`} style={{ color: evidenceHealth.color }}>{evidenceHealth.label}</div>
-                  </Field>
-                </FieldGrid>
-              </Section>
-
               {row.control.toolHint && (
                 <Section icon={Wrench} title="Enforced by" description="The tooling the catalog expects to carry this control.">
                   <p className={TX.lead} style={{ color: C.ink }}>{row.control.toolHint}</p>
@@ -1514,7 +1505,7 @@ export function ControlEvaluationPanel({
               {/* The scope escape hatch, at the bottom of Scoring because it is
                   what you reach for when grading turns out to be the wrong
                   question. Same three labels Scope Review settled on — `Mark
-                  Not Applicable…` opens the reason, `Confirm Not Applicable`
+                  Not In Scope…` opens the reason, `Confirm Not In Scope`
                   records it — so the two surfaces read as one decision made in
                   two places, not two different ones. */}
               <Section
@@ -1523,9 +1514,9 @@ export function ControlEvaluationPanel({
                 description="This control is in scope for this boundary. Record an exclusion if its premise does not hold here."
               >
                 {excludeStaged ? (
-                  <Callout tone="warning" title="Marked Not Applicable — not saved yet">
+                  <Callout tone="warning" title="Marked Not In Scope — not saved yet">
                     Goes out with the rest of your changes when you save. The control then leaves this
-                    system's applicable set and appears under Not Applicable in Scope Review, which is where
+                    system's applicable set and appears under Not In Scope in Scope Review, which is where
                     it can be pulled back in.
                   </Callout>
                 ) : excluding ? (
@@ -1551,7 +1542,7 @@ export function ControlEvaluationPanel({
                         value={excludeNote}
                         onChange={(e) => setExcludeNote(e.target.value)}
                         placeholder="e.g. No physical facility inside this boundary"
-                        aria-label={`Reason ${row.control.id} is Not Applicable`}
+                        aria-label={`Reason ${row.control.id} is not in scope`}
                       />
                     </Field>
                     <div className="flex items-center justify-end gap-2.5">
@@ -1563,7 +1554,7 @@ export function ControlEvaluationPanel({
                         disabled={!excludeNote.trim()}
                         onClick={() => handleMarkOutOfScope(excludeNote.trim())}
                       >
-                        Confirm Not Applicable
+                        Confirm Not In Scope
                       </Button>
                     </div>
                   </Well>
@@ -1574,7 +1565,7 @@ export function ControlEvaluationPanel({
                     icon={Ban}
                     onClick={() => { setExcluding(true); setExcludeNote(""); }}
                   >
-                    Mark Not Applicable…
+                    Mark Not In Scope…
                   </Button>
                 )}
               </Section>

@@ -70,10 +70,22 @@ Varying a label to describe the *basis* of a decision splinters one action into
 several ("Accept report" vs "Confirm program coverage" on the same button); the
 basis belongs in the row's supporting line and the recorded note.
 
-**2.7 Status text uses the engine's own vocabulary.** In Scope / Not Applicable
+**2.7 Status text uses one vocabulary, defined once.** In Scope / Not In Scope
 / Inherited / Assessed / Unassessed and the PRISMA level names appear in the UI
-exactly as the engine defines them. A surface that paraphrases a status invents
+exactly as `controlMeta.ts` spells them. A surface that paraphrases a status invents
 a second vocabulary for the same fact.
+
+The label and the engine's key are allowed to differ, and one of them does: the
+bucket is `not-applicable` in facts, validators and review records, while the UI
+says **Not In Scope** everywhere. That is a rename of the word, not of the
+status, and it is why the definition lives in one constant — renaming a status
+is never a per-surface decision. Any surface hard-coding the word instead of
+reading the label has already broken this rule, whether or not it currently
+agrees.
+
+The same words in a standard's own voice are not this vocabulary: an ISO 27001
+Statement of Applicability says "applicable / not applicable" because ISO does,
+and the exported report keeps saying so.
 
 ## 3. What to ask a human
 
@@ -123,6 +135,13 @@ still holding work, never back at step one.
 **4.6 Counts agree across surfaces.** If the rail counts claims, the button
 counting the same thing counts claims — never controls.
 
+A rail's subtext is not one of those counts. It states how big the step is —
+its population, in controls, the same unit on every row — so four rail entries
+can be compared at a glance. Progress is carried by the row's own done/active
+state, the header's counter and the footer, and each of those stays in the unit
+of the act it describes. What 4.6 forbids is an action and its own count
+disagreeing, not a population and a progress reading sitting in one rail.
+
 **4.7 One footer pattern.** Every surface closes with the pinned `WizardFooter`:
 status on the left — what is unsaved on a staged surface, where you are on one
 whose header does not already say (4.11) — actions on the right,
@@ -150,6 +169,12 @@ bar reads as the block's underline rather than as a control of its own: both
 read the same declared step order (4.1), so they cannot disagree. Anything that
 would need its own row is a second indicator and is not allowed.
 
+A walk that works one item at a time has two things it could count — the steps
+inside the item in hand, and the items across the whole run. It counts the one
+its header is titled after (4.11), once. When the masthead took over the outer
+run, the `WizardStrip` that had been reporting it stopped: two readings of the
+same run, one band apart, is exactly what this rule exists to prevent.
+
 **4.10 One chrome stack, in one order.** Every wizard screen — including
 completion screens and the holds between items — is a masthead, optionally one
 `WizardStrip`, then the body, then `WizardFooter`. A screen that drops the
@@ -159,18 +184,61 @@ reads as one.
 
 The masthead comes in two forms, and a surface picks one:
 
-- *Unified* — one `WizardHeader` carrying the whole thing: the flow and the
-  position in its eyebrow, the step's title and lead, and the run as a flush
-  `ProgressBar` on its bottom edge. One block, one background.
+- *Unified* — one `WizardHeader`, split on the body's own column line
+  (`WIZARD_COLS`, declared once beside `WizardBody`, never restated in a
+  caller). The left cell is a `WizardRailSummary` over the rail: the flow's
+  mark and name. The right cell is the step in hand, flush with the pane. The
+  run rides the bottom edge as a flush `ProgressBar`. One block, one
+  background, no banner above it.
 - *Stacked* — `WizardBanner` above a `WizardHeader`. The older form; see the
   open migration below.
 
-**4.11 The eyebrow names the flow and the position; the title names the step.**
-One line — "Add System · Step 3 of 8" — answers both of the questions a wizard
-owes its reader on arrival, in the order they are asked, and leaves the title
-free to be the step and nothing else. So there is exactly one title-scale thing
-on a wizard screen, and the accent survives as the eyebrow and the bar rather
-than as a block of colour competing with it.
+**4.11 The left cell names the flow; the right cell owns whatever changes.**
+The rail summary answers "which wizard is this" over the column that lists the
+run, and stops there. The header beside it, over the column that holds the
+work, carries the position (`Step 3 of 8 · 38%`) in its eyebrow and then the
+thing the reader has to keep track of. Which thing that is depends on the
+wizard:
+
+- **The subject is constant** — one system, one scope. The header titles the
+  *step*, and its supporting line is the one instruction for the work in that
+  pane. Add System and Scope Review.
+- **The subject changes mid-run** — one control, then the next. The header
+  titles the *subject*, its supporting line places that subject
+  (`CFG-02 · Configuration Management`), and the step name folds into the
+  eyebrow beside the position: `Control 12 of 42 · 29% · Control Scoring`. The
+  control assessment walk and the evaluation panel.
+
+The test is which fact goes stale while the reader looks away. Pinned chrome is
+the only place that can promise never to scroll, and it must spend that promise
+on the thing that changes — not on a constant, with the changing thing left to
+a card in the pane at whatever size or colour. That card was tried at four
+weights and none of them fixed it, because the problem was placement.
+
+Position reads with the step it counts, not across a column boundary from it —
+and the title stays the only title-scale thing on a wizard screen.
+
+The position word names what is being counted, and the counter counts whatever
+the header is titled after. Where the header titles a step that word is
+**Step** — "Step 2 of 3 · 67%" — on every such wizard, even where the surface's
+internals call the unit something else: a reader walking two of them should not
+have to learn that this one counts sections and that one counts steps. Where
+the header titles a subject, it is the subject's own word: "Control 12 of 42".
+A counter that counts one thing while the title names another leaves the reader
+deciding which of the two the percentage belongs to.
+
+A surface with no run to be nth of — the evaluation panel opened on one control
+from a row click — states the step name alone and lets the rail carry position
+(4.9). It does not invent "Control 1 of 1".
+
+A step is titled with the same words its rail entry uses and the engine defines
+(2.2, 2.7), and its supporting line is the one imperative instruction for the
+work in that pane (2.5). That instruction is chrome: as a `Callout` at the top
+of the pane it scrolled away with the first row, which is what put it here.
+
+A terminal completion screen is not a step (4.9): the summary, the eyebrow and
+the bar all read complete, rather than reporting whichever rail entry the
+screen happens to render on.
 
 A step's header takes no icon square. The square anchors a header whose subject
 is a specific record — a control, a finding — and a step is already named by
@@ -179,7 +247,20 @@ edge as the body's first card; with it, the title sat 44px inboard of
 everything it headed, which is what made the band read as a foreign object
 sitting on top of the form.
 
-**4.12 Step identity is chrome, not body.** The step title and its position
+**4.12 Reference prose is a Section like any other.** What a control asks,
+what a finding claims — the text a step keeps in view because every step is
+answering it — is an ordinary `Section` with a `clamp`, not a card of its own
+design. The control it belongs to is named in the header above (4.11), so the
+block has no identity to carry and no reason to look different from the work
+beside it. `clamp` measures rather than assumes: a body that fits renders in
+full with no disclosure at all, and only one that overruns clamps, fades and
+gains a toggle.
+
+Status is not identity either. The pills saying how a control is graded, who
+runs it and what it scores belong to the step that is about those facts, not
+beside its name.
+
+**4.13 Step identity is chrome, not body.** The step title and its position
 stay pinned in the header; they do not scroll. A heading rendered as the first
 thing inside the scrolling pane leaves the reader, two fields down, with no
 answer to "which step is this" — and it pushes the fields themselves below the
@@ -199,6 +280,13 @@ was used.
 **5.3 The note states the basis, including a weak one.** "Accepted AWS SOC 2
 Type II…" and "…no report on file" are both legitimate records; hiding the
 second is not.
+
+One rationale may sign every record a single act writes. Grading a control
+writes the assessment and one override per lane moved off its derived rating —
+that is one decision, not several, and asking for a reason per record put two
+free-text boxes on screen asking near-identical questions. Ask once, write it
+to all of them. A second box is only earned when it asks a genuinely different
+question, not a narrower version of the same one.
 
 **5.4 Dry-run, then commit.** Mutate a `RuntimeFacts` copy through the helpers
 in `engine/runtimeMutations.ts` — never hand-assemble fact records in a
@@ -258,12 +346,13 @@ amend here — never an undocumented local exception.
 
 ### Migrations in progress
 
-- **Unified masthead (4.10–4.12).** One block: flow and position in the
-  eyebrow, the step's own title and lead below it, the run on the bottom edge.
-  **Has it:** Add / Edit / Duplicate System. **Still to adopt:** Scope Review,
-  the control assessment walk and the evaluation panel, the finding editor —
-  each still wears the stacked masthead and headers the surface rather than the
-  step in hand. The kit primitive for the old in-pane step heading
+- **Unified masthead (4.10–4.13).** One block split on the body's column line:
+  flow and position over the rail, the step's own title and lead over the pane,
+  the run on the bottom edge.
+  **Has it:** Add / Edit / Duplicate System, Scope Review, the control
+  assessment walk and the evaluation panel. **Still to adopt:** the finding
+  editor, which still wears the stacked masthead and headers the surface rather
+  than the step in hand. The kit primitive for the old in-pane step heading
   (`StepHeader`) is already deleted, so nothing can be built on that part of
   the old pattern in the meantime.
 
@@ -277,9 +366,14 @@ amend here — never an undocumented local exception.
   mode of the evaluation panel — one control, reached by a row click, with no
   run to walk. The same component in walk mode banners as "Control Assessment
   Wizard".
-- **Scope Review paints its row decisions `variant="primary"`** while 4.8 says
-  the primary lives in the footer and nowhere else. Left as-is because Scope
-  Review is an *immediate* surface (5.6): the row buttons are the work, and the
-  footer's Continue appears only once the section is settled, so the two never
-  compete on screen. If 4.8 is meant literally, these drop to `secondary` and
-  the rule gains a sentence saying so.
+- **Scope Review paints its decisions `variant="primary"`** while 4.8 says the
+  primary lives in the footer and nowhere else. Left as-is because Scope Review
+  is an *immediate* surface (5.6): those buttons are the work, and the footer's
+  Continue appears only once the step is settled, so the two never compete on
+  screen. Every one of them is painted the same way — row confirmations, the
+  disclosure that opens an exclusion, and the batch "Confirm all N" in a card's
+  aside — because they are one act at different fan-outs (5.2), and paint that
+  varied with the fan-out made them read as different kinds of decision. None
+  of them is painted `danger`: taking a control out of scope is a routine
+  review call backed by a reason and a named reviewer. If 4.8 is meant
+  literally, these drop to `secondary` and the rule gains a sentence saying so.

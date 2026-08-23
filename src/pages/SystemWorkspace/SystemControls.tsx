@@ -122,7 +122,7 @@ const ALL_SELECTION: ControlSelection = { kind: "all", label: "All Applicable Co
 // { kind: "status" | "responsibility" | "remediation-group" |
 // "assessment-group" | "all", key, label } or null; clicking the active chip
 // again falls back to the default view rather than clearing to empty — this
-// table is never supposed to show nothing. Applicability (Not Applicable /
+// table is never supposed to show nothing. Applicability (Not In Scope /
 // Applicability Review) isn't part of this local selection at all — those
 // chips navigate straight into the Scope Review screen instead, since that's
 // the only place a pending or excluded call can actually be resolved.
@@ -514,7 +514,7 @@ function sortRows(rows: ControlMatrixRow[], sort: SortState | null, findingsByCo
 
 // The dynamic drill-down table: whatever chip is selected up in the summary
 // card, its matching controls render here, filtered and sorted further by
-// the controls above the header row. Applicability (Not Applicable /
+// the controls above the header row. Applicability (Not In Scope /
 // Applicability Review) is deliberately not a selection this table can show —
 // those are one-control-plus-a-reason, not a status to work through here, and
 // the only place to act on them is Scope Review.

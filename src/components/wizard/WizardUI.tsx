@@ -29,10 +29,20 @@ export const WZ = {
   onAccent: "#fff",
 } as const;
 
-// The one typography scale. Sizes: 10 (eyebrow/label), 11 (help/meta),
-// 12.5 (body), 13.5 (section title), 19 (step title / figure).
+// The one typography scale. Sizes: 10 (label), 11 (help/meta), 11.5 (eyebrow),
+// 12.5 (body), 13.5 (section title), 16 (card title), 19 (step title / figure).
+//
+// `eyebrow` sits above `label` rather than beside it because the two stopped
+// being the same job: it is now the wizard's position line ("Step 3 of 8 ·
+// 38%") and the footer's status, both of which are read at a glance from
+// across the screen, while `label` names a field the reader is already looking
+// at. Both places that use it are the same kind of indicator, so they grow
+// together (CONTRACT 1.4).
 export const TX = {
-  eyebrow: "text-[10px] uppercase tracking-[0.14em] font-mono font-medium",
+  eyebrow: "text-[11.5px] uppercase tracking-[0.12em] font-mono font-medium",
+  // The name of a thing that owns its card — currently the flow in the
+  // masthead's rail cell.
+  cardTitle: "text-[16px] font-semibold leading-snug",
   modalTitle: "text-[17px] font-semibold leading-tight",
   stepTitle: "text-[19px] font-semibold leading-tight",
   railTitle: "text-[12px] font-semibold leading-tight",
@@ -78,9 +88,35 @@ export function StepBody({ children }: { children: ReactNode }) {
 
 // `grow` lets a Section fill a flex column and hand its own body the height,
 // so a long list can scroll inside the card instead of the whole step.
-export function Section({ icon: Icon, title, description, aside, grow = false, alignBody = false, children }: {
-  icon: LucideIcon; title: string; description?: string; aside?: ReactNode; grow?: boolean; alignBody?: boolean; children: ReactNode;
+// `clamp` height-bounds a body of reference prose — what a control asks, what a
+// finding claims — that a step keeps in view without letting it push the work
+// below the fold. It MEASURES rather than assumes: a body that fits renders in
+// full with no disclosure at all, and only one that overruns clamps, fades and
+// gains a toggle. Assuming the clamp instead would put the common short case
+// behind a click to serve a rare long one.
+export function Section({ icon: Icon, title, description, aside, grow = false, alignBody = false, clamp, expandLabel = "Read the rest", children }: {
+  icon: LucideIcon; title: string; description?: string; aside?: ReactNode; grow?: boolean;
+  alignBody?: boolean; clamp?: number; expandLabel?: ReactNode; children: ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const bodyRef = React.useRef<HTMLDivElement>(null);
+  // Measured on every resize, not just on mount: the pane reflows when the
+  // modal is resized or a sibling expands, and a clamp that was right at one
+  // width is wrong at another.
+  React.useLayoutEffect(() => {
+    const el = bodyRef.current;
+    if (!el || clamp == null) return;
+    const measure = () => setOverflows(el.scrollHeight > clamp + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [clamp, children]);
+  const clamped = clamp != null && overflows && !open;
+  const fade = clamp == null
+    ? undefined
+    : `linear-gradient(to bottom, #000 ${Math.max(0, clamp - 40)}px, transparent ${clamp}px)`;
   return (
     <section
       className={grow ? "flex-1 min-h-0 flex flex-col" : undefined}
@@ -99,73 +135,23 @@ export function Section({ icon: Icon, title, description, aside, grow = false, a
         </div>
         {aside && <div className="shrink-0">{aside}</div>}
       </header>
-      <div className={`${alignBody ? "pt-4 pr-4 pb-4 pl-[60px]" : "p-4"} flex flex-col gap-4 ${grow ? "flex-1 min-h-0" : ""}`}>{children}</div>
-    </section>
-  );
-}
-
-// Reference material a step has to keep in view while the work happens beside
-// it — as opposed to a Section, which frames work of its own. It wears the same
-// header as a Section (icon square, 13.5px title) on purpose: it sits in the
-// same column as the Sections it informs, and a smaller title made it read as a
-// caption on the card below rather than as a block in its own right. Two things
-// still earn it a primitive rather than a Section (1.2):
-//
-//   * it carries no description line — the content IS the explanation, and a
-//     sentence about it would say the same thing twice; and
-//   * its body is height-bounded and MEASURED. Content that fits renders in
-//     full with no disclosure at all; only content that overruns `maxHeight`
-//     clamps, fades, and gains a toggle. Assuming the clamp instead would put
-//     the common short case behind a click to serve a rare long one, which is
-//     the failure this replaced.
-export function Brief({ icon: Icon, label, aside, maxHeight = 108, expandLabel = "Read the rest", children }: {
-  icon?: LucideIcon; label: string; aside?: ReactNode;
-  maxHeight?: number; expandLabel?: ReactNode; children: ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  const [overflows, setOverflows] = useState(false);
-  const bodyRef = React.useRef<HTMLDivElement>(null);
-  // Measured on every resize, not just on mount: the pane reflows when the
-  // modal is resized or a sibling section expands, and a clamp that was right
-  // at one width is wrong at another.
-  React.useLayoutEffect(() => {
-    const el = bodyRef.current;
-    if (!el) return;
-    const measure = () => setOverflows(el.scrollHeight > maxHeight + 1);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [maxHeight, children]);
-  const clamped = overflows && !open;
-  const fade = `linear-gradient(to bottom, #000 ${Math.max(0, maxHeight - 40)}px, transparent ${maxHeight}px)`;
-  return (
-    <section style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: WZ.radius.card }}>
-      <header className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${C.border}` }}>
-        {Icon && (
-          <span
-            className="w-7 h-7 flex items-center justify-center shrink-0"
-            style={{ background: C.accentBg, color: C.accent, borderRadius: WZ.radius.control }}
-          >
-            <Icon size={15} />
-          </span>
-        )}
-        <h3 className={TX.sectionTitle} style={{ color: C.ink }}>{label}</h3>
-        {aside && <div className="ml-auto shrink-0 flex items-center gap-2">{aside}</div>}
-      </header>
-      <div className="px-4 py-3.5 flex flex-col gap-2.5">
-        <div
-          ref={bodyRef}
-          style={clamped
-            ? { maxHeight, overflow: "hidden", maskImage: fade, WebkitMaskImage: fade }
-            : undefined}
-        >
-          {children}
-        </div>
-        {overflows && (
-          <DisclosureButton open={open} onToggle={() => setOpen((v) => !v)}>
-            {open ? "Show less" : expandLabel}
-          </DisclosureButton>
+      <div className={`${alignBody ? "pt-4 pr-4 pb-4 pl-[60px]" : "p-4"} flex flex-col gap-4 ${grow ? "flex-1 min-h-0" : ""}`}>
+        {clamp == null ? children : (
+          <>
+            <div
+              ref={bodyRef}
+              style={clamped
+                ? { maxHeight: clamp, overflow: "hidden", maskImage: fade, WebkitMaskImage: fade }
+                : undefined}
+            >
+              {children}
+            </div>
+            {overflows && (
+              <DisclosureButton open={open} onToggle={() => setOpen((v) => !v)}>
+                {open ? "Show less" : expandLabel}
+              </DisclosureButton>
+            )}
+          </>
         )}
       </div>
     </section>
@@ -664,12 +650,48 @@ export function WizardBanner({ icon: Icon, title }: { icon?: LucideIcon; title: 
 // icon square, optional eyebrow naming the subject, title, supporting line,
 // then chrome-level asides and the close control.
 //
+// The masthead's left cell: which flow you are in. It sits directly over the
+// rail it heads, so the mark and the name read as that column's title rather
+// than as a badge floating beside the step. Name only — position belongs to
+// the header's eyebrow beside it (4.11), where it sits with the step it counts
+// instead of being read across a column boundary. Composed here rather than in
+// each surface (1.1).
+export function WizardRailSummary({ icon: Icon, title }: {
+  icon: LucideIcon; title: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 min-w-0">
+      <span
+        className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg"
+        style={{ background: C.accent, color: WZ.onAccent, boxShadow: "0 2px 6px rgba(79, 57, 170, .22)" }}
+        aria-hidden="true"
+      >
+        <Icon size={18} strokeWidth={2.25} />
+      </span>
+      {/* Wraps to two lines rather than truncating: the cell is one rail
+          wide, and "System Control Edi…" answers the question this cell exists
+          to answer worse than a second line costs. */}
+      <div
+        className={`${TX.cardTitle} leading-5 min-w-0`}
+        style={{ color: C.ink, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
+      >
+        {title}
+      </div>
+    </div>
+  );
+}
+
 // `eyebrow` exists because the assessment panel's subject is a specific
 // control — its id and domain belong above the name, not folded into it. On a
-// wizard it names the flow and the position in one line ("Add System · Step 1
-// of 8"), which is the whole reason this header can be the entire masthead
-// (CONTRACT 4.11). A surface with no second line omits `description` rather
-// than inventing a header of its own.
+// wizard it places the step ("Step 3", "Section 2") above the step's own name.
+// A surface with no second line omits `description` rather than inventing a
+// header of its own.
+//
+// `railSummary` makes this header the whole masthead: it fills a cell one rail
+// wide, on the body's own column line, so the flow's name and how far through
+// it you are sit over the rail while the step in hand sits over the pane
+// (CONTRACT 4.11). Pass a `WizardRailSummary` — the cell is chrome, so it is
+// never drawn inline by a surface.
 //
 // `progress` puts the run on the header's bottom edge as a flush `ProgressBar`
 // — full width, no radius, sitting on the border it shares with the body. It

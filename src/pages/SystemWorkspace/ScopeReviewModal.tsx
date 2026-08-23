@@ -9,9 +9,9 @@ import { APPLICABILITY_META, RESPONSIBILITY_META } from "./controlMeta";
 import { keyControlAssessmentQueue } from "./recordAssessment";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
-  Button, Callout, CompletionScreen, Field, HeaderStat, InlineField, InlineHint,
+  Button, Callout, CompletionScreen, Field, InlineHint,
   RailGroup, RailItem, SaveErrorCallout, Section, StatTile, StatusPill, TextInput, TX, Well,
-  WizardBanner, WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardPane, WizardRail,
+  WizardBody, WizardChrome, WizardFooter, WizardHeader, WizardPane, WizardRail, WizardRailSummary,
 } from "../../components/wizard/WizardUI";
 import type { ControlReview } from "../../graph/edges/controlReviews";
 import type { InheritanceGroup, ReviewWave, ReviewWaveControl } from "../../engine/review";
@@ -39,7 +39,7 @@ type ScopeView = "out-of-scope" | "external" | "internal";
 const SECTION_ORDER = ["out-of-scope", "external", "internal"] as const;
 type Section = (typeof SECTION_ORDER)[number];
 const SECTION_LABEL: Record<Section, string> = {
-  "out-of-scope": "Not Applicable",
+  "out-of-scope": "Not In Scope",
   external: "External Inheritance",
   internal: "Internal Inheritance",
 };
@@ -188,7 +188,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
   // Guided hand-offs at the moment a section's last decision lands: Out of
   // Scope hands off to External Inheritance, External to Internal, in that
   // order — the same order the footer's Continue button offers. When the last
-  // one lands, the completion screen (which lives on the Not Applicable view)
+  // one lands, the completion screen (which lives on the Not In Scope view)
   // takes over instead. Only the transition advances the view — navigating
   // back to a finished section to re-read it stays possible.
   useEffect(() => {
@@ -262,7 +262,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
     commitReviews(group.remaining.map((item) => review(item.control.id, group.bucket, "confirm", noteForGroup(group))));
   }
 
-  // The bulk action External/Internal were missing next to Not Applicable's
+  // The bulk action External/Internal were missing next to Not In Scope's
   // "Confirm all" — one claim, one program, and a required report or
   // certification each carry enough weight to deserve their own row, but
   // clicking through a long list of them one at a time added nothing a
@@ -279,7 +279,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
   }
 
   // The reversal takeOwnership never had: a claim already accepted for this
-  // one control, re-confirmed after a second look. Not Applicable has always
+  // one control, re-confirmed after a second look. Not In Scope has always
   // let a confirmed exclusion be pulled back (reversalRow); an inheritance
   // claim decided one way, individually, deserves the same way back the
   // other.
@@ -295,13 +295,65 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
   const SystemOwnedIcon = RESPONSIBILITY_META[RESPONSIBILITIES.INTERNAL].Icon;
   const naMeta = APPLICABILITY_META["not-applicable"];
 
-  const footerPosition = view === "external"
-      ? `External inheritance · ${externalConfirmed} of ${externalGroups.length} claims confirmed`
+  // The rail's subtext is one thing in one unit on every step: how many
+  // controls that step is about. It is a population size, not a progress
+  // reading — how far along you are is carried by the rail's own done/active
+  // state, the header's counter and the footer's counts, each of which stays
+  // in the unit of the act it describes (4.6). Three different units across
+  // three adjacent rows made the rail unreadable at a glance.
+  const outOfScopeControls = naItems.length + noAssetControls.length;
+  const externalControls = externalGroups.reduce((n, g) => n + g.controls.length, 0);
+  const internalControls = internalGroups.reduce((n, g) => n + g.controls.length, 0);
+  const controlCount = (n: number) => `${n} control${n === 1 ? "" : "s"}`;
+
+  // What the header says about the step in hand — the same shape and the same
+  // word as the Add System wizard (4.11): the eyebrow places you, the title is
+  // the step's own name exactly as the rail and the engine spell it
+  // (2.2, 2.7), and the description is the one imperative instruction for
+  // doing the work here (2.5). Each section used to open with this sentence as
+  // a Callout inside the pane, where it scrolled away with the first row.
+  //
+  // The completion panel is a screen of its own, not a step, so it names
+  // itself rather than borrowing whichever step the rail happens to be on.
+  const sectionIndex = Math.max(0, SECTION_ORDER.indexOf(view as Section));
+  const sectionNumber = sectionIndex + 1;
+  const reviewComplete = everythingDone && view === "out-of-scope";
+  // The completion panel is the end of the run, not the first section it
+  // happens to render on: the summary and the bar read full, or the chrome
+  // would tell the reader they are a third of the way through a review it is
+  // congratulating them for finishing.
+  const progressValue = reviewComplete ? SECTION_ORDER.length : sectionNumber;
+  const stepEyebrow = `Step ${sectionNumber} of ${SECTION_ORDER.length} · ${Math.round((sectionNumber / SECTION_ORDER.length) * 100)}%`;
+  const sectionHeading: { eyebrow: string; title: string; description?: string } = reviewComplete
+    ? { eyebrow: "Review complete", title: "Scope confirmed" }
+    : view === "external"
+      ? {
+          eyebrow: stepEyebrow,
+          title: SECTION_LABEL.external,
+          description: `Controls ${system?.provider ?? "the provider"} runs for this boundary. Each row is one covered domain — accept the report or certification that backs it.`,
+        }
       : view === "internal"
-        ? `Internal inheritance · ${internalConfirmed} of ${internalGroups.length} programs confirmed`
+        ? {
+            eyebrow: stepEyebrow,
+            title: SECTION_LABEL.internal,
+            description: "Controls covered by ACME's own central programs — run by us, evidenced at program level like any other control. Confirm each program actually reaches this boundary.",
+          }
+        : {
+            eyebrow: stepEyebrow,
+            title: SECTION_LABEL["out-of-scope"],
+            description: `Review these controls for accuracy — confirm each one really is out of scope here, or pull it back in. The other ${summary.applicable} controls are already in scope and need nothing from you.`,
+          };
+
+  // Counts only: the header above already names the step, so repeating it
+  // here spent the status slot on a word the reader can see. Still counted in
+  // the unit that section's rail entry counts in (4.6).
+  const footerPosition = view === "external"
+      ? `${externalConfirmed} of ${externalGroups.length} claims confirmed`
+      : view === "internal"
+        ? `${internalConfirmed} of ${internalGroups.length} programs confirmed`
         : outOfScopeDone
-          ? "Not Applicable review complete"
-          : `Not Applicable review · ${outOfScopeRemaining} to decide`;
+          ? "All exclusions confirmed"
+          : `${outOfScopeRemaining} to decide`;
 
   const footerHint = !canWrite
     ? <InlineHint tone="warning">Name a reviewer of record before any scope decision can be saved.</InlineHint>
@@ -328,9 +380,13 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
     && !everythingDone;
 
   // Three row shapes, one vocabulary for the two decisions they offer (2.6):
-  // `Mark in scope` wherever pullIntoScope is called, `Mark Not Applicable…` for
-  // the disclosure that first asks for a reason, and `Confirm Not Applicable` for
-  // the button that actually records the exclusion — whether the reason was
+  // `Mark in scope` wherever pullIntoScope is called, `Mark Not In Scope…` for
+  // the disclosure that first asks for a reason, and `Confirm Not In Scope` for
+  // the button that actually records the exclusion. All of them are painted
+  // `primary` like every other row decision on this surface: taking a control
+  // out of scope is a routine review call backed by a reason and a reviewer,
+  // not a destructive act, and `danger` made the same decision look like two
+  // different kinds of act depending on which section you were standing in — whether the reason was
   // derived by the rules or just typed. These had drifted to three labels for
   // the in-scope act alone ("Pull into scope" / "Mark applicable" / "Mark in
   // scope"), which reads as three different decisions.
@@ -369,7 +425,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
             <div className="flex items-center gap-2 shrink-0">
               <Button size="sm" disabled={!canWrite} onClick={() => pullIntoScope(item.control)}>Mark in scope</Button>
               <Button size="sm" variant="primary" icon={Ban} disabled={!canWrite} onClick={() => confirmExclusion(item)}>
-                Confirm Not Applicable
+                Confirm Not In Scope
               </Button>
             </div>
           )}
@@ -403,12 +459,12 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
               <Button size="sm" disabled={!canWrite} onClick={() => pullIntoScope(item.control)}>Mark in scope</Button>
               <Button
                 size="sm"
-                variant="danger"
+                variant="primary"
                 icon={Ban}
                 disabled={!canWrite}
                 onClick={() => { setExcludingPendingId(item.control.id); setPendingNote(""); }}
               >
-                Mark Not Applicable…
+                Mark Not In Scope…
               </Button>
             </div>
           )}
@@ -419,19 +475,19 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
               <Field
                 label="Reason"
                 note="Required — this was flagged as an open question, so the exclusion needs its own answer, not the question restated."
-                error={pendingNote.trim() ? null : "Enter why this control is Not Applicable to this boundary."}
+                error={pendingNote.trim() ? null : "Enter why this control is not in scope for this boundary."}
               >
                 <TextInput
                   value={pendingNote}
                   onChange={(e) => setPendingNote(e.target.value)}
                   placeholder="Why doesn't this control's premise hold here?"
-                  aria-label={`Reason ${item.control.id} is Not Applicable`}
+                  aria-label={`Reason ${item.control.id} is not in scope`}
                 />
               </Field>
               <div className="flex items-center justify-end gap-2.5">
                 <Button size="sm" onClick={() => { setExcludingPendingId(null); setPendingNote(""); }}>Cancel</Button>
                 <Button size="sm" variant="primary" icon={Check} disabled={!pendingNote.trim()} onClick={() => confirmPendingOut(item, pendingNote.trim())}>
-                  Confirm Not Applicable
+                  Confirm Not In Scope
                 </Button>
               </div>
             </Well>
@@ -457,12 +513,12 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
           {onEditAssets && <Button size="sm" onClick={onEditAssets}>Update assets</Button>}
           <Button
             size="sm"
-            variant="danger"
+            variant="primary"
             icon={Ban}
             disabled={!canWrite}
             onClick={() => { setExcludingPendingId(control.id); setPendingNote(""); }}
           >
-            Mark Not Applicable…
+            Mark Not In Scope…
           </Button>
         </div>
       </div>
@@ -471,20 +527,20 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
           <Well hollow className="flex flex-col gap-3.5">
             <Field
               label="Reason"
-              note="Required — explain why this asset-scoped control does not apply to this boundary."
-              error={pendingNote.trim() ? null : "Enter why this control is Not Applicable to this boundary."}
+              note="Required — explain why this asset-scoped control is not in scope for this boundary."
+              error={pendingNote.trim() ? null : "Enter why this control is not in scope for this boundary."}
             >
               <TextInput
                 value={pendingNote}
                 onChange={(e) => setPendingNote(e.target.value)}
                 placeholder="Why doesn't this control's premise hold here?"
-                aria-label={`Reason ${control.id} is Not Applicable`}
+                aria-label={`Reason ${control.id} is not in scope`}
               />
             </Field>
             <div className="flex items-center justify-end gap-2.5">
               <Button size="sm" onClick={() => { setExcludingPendingId(null); setPendingNote(""); }}>Cancel</Button>
               <Button size="sm" variant="primary" icon={Check} disabled={!pendingNote.trim()} onClick={() => confirmNoAssetOut(control, pendingNote.trim())}>
-                Confirm Not Applicable
+                Confirm Not In Scope
               </Button>
             </div>
           </Well>
@@ -496,29 +552,19 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
   return (
     <Modal open={open} onClose={onClose} width={1040} height={720}>
       <WizardChrome>
-        <WizardBanner icon={Target} title="Scope Review Wizard" />
-        {/* One instruction, imperative, naming the three sections in the rail
-            in the order they are worked (2.5). The reasoning behind the model
-            — why in-scope controls need no ceremony — belongs in each
-            section's own description, not in the chrome above every view. */}
+        {/* One block: the left cell names the flow and how far through it,
+            over the rail it summarises; the right cell is the section in hand
+            and the one instruction for it; the run rides the bottom edge.
+            Section identity is chrome, so it stays pinned while the pane
+            scrolls instead of scrolling away with the first row. */}
         <WizardHeader
-          icon={Target}
-          title="Scope Review"
-          description="Work the three sections in order: confirm controls that are Not Applicable, accept the provider coverage you rely on, then confirm which ACME programs reach this system. Everything else is already in scope and needs nothing from you here."
-          aside={
-            <>
-              <HeaderStat label="In scope" value={`${summary.applicable} of ${summary.total}`} />
-              <InlineField label="Reviewer">
-                <TextInput
-                  value={reviewer}
-                  onChange={(e) => setReviewer(e.target.value)}
-                  placeholder="Assessor of record"
-                  aria-label="Reviewer of record"
-                  style={{ width: 190 }}
-                />
-              </InlineField>
-            </>
-          }
+          railSummary={(
+            <WizardRailSummary icon={Target} title="Scope Review" />
+          )}
+          eyebrow={sectionHeading.eyebrow}
+          title={sectionHeading.title}
+          description={sectionHeading.description}
+          progress={{ value: progressValue, total: SECTION_ORDER.length, label: "Scope review progress" }}
           onClose={<ModalCloseButton onClose={onClose} />}
         />
 
@@ -527,10 +573,8 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
             <RailGroup connected>
               <RailItem
                 icon={naMeta.Icon}
-                title="Not Applicable"
-                detail={outOfScopeDone
-                  ? `${naItems.length} decided`
-                  : `${outOfScopeRemaining} to decide`}
+                title="Not In Scope"
+                detail={controlCount(outOfScopeControls)}
                 state={outOfScopeState}
                 complete={outOfScopeDone}
                 onClick={() => setView("out-of-scope")}
@@ -538,7 +582,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
               <RailItem
                 icon={RESPONSIBILITY_META[RESPONSIBILITIES.VENDOR].Icon}
                 title="External Inheritance"
-                detail={`${externalConfirmed} of ${externalGroups.length} claims confirmed`}
+                detail={controlCount(externalControls)}
                 state={externalState}
                 complete={externalDone}
                 onClick={() => setView("external")}
@@ -546,7 +590,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
               <RailItem
                 icon={RESPONSIBILITY_META[RESPONSIBILITIES.ENTERPRISE].Icon}
                 title="Internal Inheritance"
-                detail={`${internalConfirmed} of ${internalGroups.length} programs confirmed`}
+                detail={controlCount(internalControls)}
                 state={internalState}
                 complete={internalDone}
                 onClick={() => setView("internal")}
@@ -574,6 +618,29 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
           <WizardPane>
             {saveError && <SaveErrorCallout problems={saveError} />}
 
+            {/* The reviewer of record used to sit permanently in the header,
+                where it was chrome on every view for a value that is already
+                known on most systems. It appears here only when it is missing
+                — which is exactly when it blocks the work (6.3, 6.4) — and the
+                surface signs decisions with the system's assessor otherwise. */}
+            {!canWrite && (
+              <Callout tone="warning" title="Name a reviewer of record.">
+                <p className="mb-2.5">
+                  Every scope decision is recorded against the person who made it, so nothing here can be
+                  confirmed until this is filled in.
+                </p>
+                <Field label="Reviewer of record">
+                  <TextInput
+                    value={reviewer}
+                    onChange={(e) => setReviewer(e.target.value)}
+                    placeholder="e.g. J. Ortiz — Security Engineering"
+                    aria-label="Reviewer of record"
+                    style={{ maxWidth: 320 }}
+                  />
+                </Field>
+              </Callout>
+            )}
+
             {view === "out-of-scope" && everythingDone && (
               <CompletionScreen
                 title="Scope confirmed"
@@ -581,7 +648,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
                 tiles={
                   <div className="grid gap-3 grid-cols-2 xl:grid-cols-4">
                     <StatTile label="In scope" value={summary.applicable} />
-                    <StatTile label="Not Applicable" value={naItems.length} />
+                    <StatTile label="Not In Scope" value={naItems.length} />
                     <StatTile label="Claims confirmed" value={groups.length} />
                     <StatTile label="To grade" value={technicalRemaining} hint="Key controls the assessment walk will ask about" />
                   </div>
@@ -592,11 +659,6 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
 
             {view === "out-of-scope" && !everythingDone && (
               <>
-                <Callout tone="info" title="Review the Not Applicable controls for accuracy.">
-                  The other {summary.applicable} controls are already in scope and need nothing from you here.
-                  Check that each control below really doesn't apply to this system — confirm it, or pull it back into scope.
-                </Callout>
-
                 {pendingItems.length > 0 && (
                   <Section
                     icon={naMeta.Icon}
@@ -630,7 +692,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
                   title="Derived exclusions"
                   description="Controls whose premise does not hold in this boundary. Read the reason, then confirm — or pull the control back into scope."
                   aside={exclusionsRemaining.length > 1 ? (
-                    <Button size="sm" icon={Check} disabled={!canWrite} onClick={confirmAllExclusions}>
+                    <Button size="sm" variant="primary" icon={Check} disabled={!canWrite} onClick={confirmAllExclusions}>
                       Confirm all {exclusionsRemaining.length}
                     </Button>
                   ) : undefined}
@@ -652,7 +714,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
                     itself cannot carry: these controls were graded before
                     somebody decided they do not apply here. Shown as a record,
                     not a decision — there is nothing to confirm, which is why
-                    it sits inside Not Applicable rather than earning a rail
+                    it sits inside Not In Scope rather than earning a rail
                     entry of its own. Absent entirely when nothing qualifies. */}
                 {dormant.length > 0 && (
                   <Section
@@ -713,10 +775,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
               <Section
                 grow
                 icon={view === "external" ? RESPONSIBILITY_META[RESPONSIBILITIES.VENDOR].Icon : RESPONSIBILITY_META[RESPONSIBILITIES.ENTERPRISE].Icon}
-                title={view === "external" ? "External inheritance" : "Internal inheritance"}
-                description={view === "external"
-                  ? `Controls ${system?.provider ?? "the provider"} runs for this boundary. Each row is one covered domain — accept the report or certification that backs it.`
-                  : "Controls covered by ACME's own central programs — run by us, evidenced at program level like any other control. Confirm each program actually reaches this boundary."}
+                title={view === "external" ? "Provider-covered domains" : "ACME-run programs"}
                 aside={(() => {
                   const shown = view === "external" ? externalGroups : internalGroups;
                   const unit = view === "external" ? "claim" : "program";
@@ -725,7 +784,7 @@ export function ScopeReviewModal({ open, systemId, assessor, onClose, onStartTec
                   return (
                     <div className="flex items-center gap-2">
                       {remainingGroups.length > 1 && (
-                        <Button size="sm" icon={Check} disabled={!canWrite} onClick={() => confirmAllGroups(remainingGroups)}>
+                        <Button size="sm" variant="primary" icon={Check} disabled={!canWrite} onClick={() => confirmAllGroups(remainingGroups)}>
                           Confirm all {remainingGroups.length} {unit}{remainingGroups.length === 1 ? "" : "s"}
                         </Button>
                       )}

@@ -10,7 +10,7 @@ import {
   AddButton, Button, Callout, CheckRow, Checkbox, ChoiceChip, EmptyState, EntityCard, EntityList, Field, FieldGrid,
   InlineHint, OptionCard, RailGroup, RailItem, RemoveButton, SaveErrorCallout, Section, Select, StatTile, StatusPill,
   StepBody, TextArea, TextInput, ToggleCard, TX, Well, WizardBody, WizardChrome,
-  WizardFooter, WizardHeader, WizardPane, WizardRail,
+  WizardFooter, WizardHeader, WizardPane, WizardRail, WizardRailSummary,
 } from "./wizard/WizardUI";
 import {
   ORGS, VENDORS, PROVIDER_CERTIFICATIONS, HOSTING_TYPES, INHERITED_DOMAINS,
@@ -1185,29 +1185,16 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   return (
     <Modal open={open} onClose={close} width={1000} height={720}>
       <WizardChrome>
-        {/* One block: the eyebrow names the flow and the position in a single
-            line, the step names itself below it, and the run rides the bottom
-            edge. Step identity is chrome, so it stays pinned while the body
-            scrolls instead of scrolling away with the first field. */}
+        {/* One block: the left cell names the flow over the rail it heads,
+            the eyebrow places you in the run, the step names itself below it,
+            and the run rides the bottom edge. Step identity is chrome, so it
+            stays pinned while the body scrolls instead of scrolling away with
+            the first field. */}
         <WizardHeader
           railSummary={(
-            <div className="flex items-center gap-3 min-w-0">
-              <span
-                className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg"
-                style={{ background: C.accent, color: "white", boxShadow: "0 2px 6px rgba(79, 57, 170, .22)" }}
-                aria-hidden="true"
-              >
-                <ClipboardCheck size={18} strokeWidth={2.25} />
-              </span>
-              <div className="min-w-0">
-                <div className="text-base leading-5 font-semibold truncate" style={{ color: C.ink }}>{modeName}</div>
-                <div className={`${TX.eyebrow} mt-1.5`} style={{ color: C.accent }}>
-                  Step {step} of {total} · {Math.round((step / total) * 100)}%
-                </div>
-              </div>
-            </div>
+            <WizardRailSummary icon={ClipboardCheck} title={modeName} />
           )}
-          eyebrow={`Step ${step}`}
+          eyebrow={`Step ${step} of ${total} · ${Math.round((step / total) * 100)}%`}
           title={stepHeading.title}
           description={stepHeading.description}
           progress={{ value: step, total, label: `${modeName} progress` }}

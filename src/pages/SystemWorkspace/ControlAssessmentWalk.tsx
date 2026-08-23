@@ -4,7 +4,7 @@ import { C } from "../../theme";
 import { useLiveEngine } from "../../engine/useLiveEngine";
 import Modal, { ModalCloseButton } from "../../components/Modal";
 import {
-  Button, CompletionScreen, HeaderStat, StatTile, WizardBanner, WizardChrome,
+  Button, CompletionScreen, StatTile, WizardChrome,
   WizardFooter, WizardHeader, WizardOutcomePane,
 } from "../../components/wizard/WizardUI";
 import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
@@ -119,17 +119,20 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
     return (
       <Modal open onClose={onClose} width={880} height={620}>
         <WizardChrome>
-          <WizardBanner icon={ClipboardCheck} title="Control Assessment Wizard" />
+          {/* The run is over, so this screen has no rail to head and takes
+              the masthead without its rail-summary cell (4.11). The header
+              names the outcome rather than a step, and the bar reads full —
+              the completion panel is not step N of anything (4.9). */}
           <WizardHeader
             icon={ClipboardCheck}
-            title="Control Assessment"
-            description="Every applicable key control on this boundary, worked one at a time and signed by the assessor of record."
-            aside={<HeaderStat label="Assessed" value={`${decidedCount} of ${initialTotal}`} />}
+            eyebrow={`Control Assessment · ${decidedCount} of ${initialTotal} assessed`}
+            title={skippedCount > 0 ? "Assessment walk paused" : "Control assessment complete"}
+            progress={{ value: initialTotal, total: initialTotal, label: "Control assessment progress" }}
             onClose={<ModalCloseButton onClose={onClose} />}
           />
           <WizardOutcomePane>
             <CompletionScreen
-              title={skippedCount > 0 ? "Assessment walk paused" : "Control assessment complete"}
+              title={skippedCount > 0 ? "Some controls still need a decision" : "Every key control is assessed"}
               description={skippedCount > 0
                 ? `${decidedCount} of ${initialTotal} applicable key controls now have a recorded assessment; ${skippedCount} still need a decision.`
                 : "Every applicable key control on this boundary now has a recorded fact behind its score."}
@@ -192,7 +195,6 @@ export function ControlAssessmentWalk({ open, systemId, onClose, onGoToRemediati
         decidedCount,
         initialTotal,
         reviewer,
-        onReviewerChange: setReviewer,
         onRecorded: (_rating, continueWalk) => {
           setRecordedIds((previous) => new Set(previous).add(current.controlId));
           if (!continueWalk) {
