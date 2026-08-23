@@ -15,6 +15,7 @@
       - "key-management"
       - "secrets-store"
       - "saas-tenant"
+      - "message-queue"
     minClassification: "Confidential"
   rationale: "Holds data at rest at Confidential tier or above."
   source: "Data classification tier"
@@ -31,6 +32,7 @@
       - "backup-vault"
       - "relational-db"
       - "vector-db"
+      - "message-queue"
   rationale: "Either holds key material or depends on a customer-managed key to protect data at rest."
   source: "Asset type"
 - controlId: "DCH-18"
@@ -42,6 +44,7 @@
       - "vector-db"
       - "saas-tenant"
       - "log-feed"
+      - "message-queue"
   rationale: "Retains data over time, so a defined retention and disposal point exists."
   source: "Asset type"
 - controlId: "CFG-02"
@@ -58,6 +61,10 @@
       - "compute-service"
       - "relational-db"
       - "vector-db"
+      - "web-app"
+      - "model-endpoint"
+      - "batch-job"
+      - "admin-console"
   rationale: "Exposes services, ports, or functions that can be narrowed to what the workload actually needs."
   source: "Asset type"
 - controlId: "CHG-02"
@@ -75,6 +82,8 @@
       - "backup-vault"
       - "saas-tenant"
       - "saas-api"
+      - "model-endpoint"
+      - "message-queue"
   rationale: "Serves or stores data for more than one tenant, so isolation has to hold below the
     application layer."
   source: "Asset type"
@@ -104,6 +113,9 @@
       - "compute-service"
       - "relational-db"
       - "vector-db"
+      - "web-app"
+      - "batch-job"
+      - "admin-console"
     hostingTypes:
       - "cloud"
       - "on-prem"
@@ -125,6 +137,7 @@
       - "saas-api"
       - "api-gateway"
       - "secrets-store"
+      - "admin-console"
   rationale: "Issues, holds, or verifies credentials, so credential lifetime and rotation are its concern."
   source: "Asset type"
 - controlId: "IAC-20"
@@ -141,6 +154,9 @@
       - "export-endpoint"
       - "waf"
       - "egress-gateway"
+      - "web-app"
+      - "model-endpoint"
+      - "admin-console"
   rationale: "Sits on a trust boundary where traffic crosses into or out of the system."
   source: "Asset type"
 - controlId: "NET-17"
@@ -176,6 +192,9 @@
       - "relational-db"
       - "vector-db"
       - "saas-api"
+      - "web-app"
+      - "model-endpoint"
+      - "message-queue"
   rationale: "Serves live request traffic whose volume can exceed what it is provisioned for."
   source: "Asset type"
 - controlId: AST-05
@@ -198,6 +217,7 @@
       - vector-db
       - secrets-store
       - key-management
+      - message-queue
   rationale: Holds data that must be unrecoverable once the component is disposed of, destroyed, or
     repurposed.
   source: Asset type
@@ -207,6 +227,7 @@
       - identity-provider
       - iam
       - saas-tenant
+      - admin-console
   rationale: Authenticates access through an identity provider or tenant where MFA enforcement is
     actually configured.
   source: Asset type
@@ -222,6 +243,7 @@
       - secrets-store
       - iam
       - identity-provider
+      - admin-console
   rationale: Carries privileged or service-account access that needs restriction beyond standard user access.
   source: Asset type
 - controlId: DCH-09
@@ -231,6 +253,7 @@
       - backup-vault
       - relational-db
       - vector-db
+      - message-queue
   rationale: Stores data that must be sanitized before release, reuse, or disposal.
   source: Asset type
 - controlId: DCH-19
@@ -241,6 +264,7 @@
       - relational-db
       - vector-db
       - saas-tenant
+      - message-queue
   rationale: Holds data whose geographic location and cross-border flow needs to be tracked.
   source: Asset type
 - controlId: CLD-04
@@ -257,6 +281,9 @@
       - compute-service
       - relational-db
       - vector-db
+      - web-app
+      - batch-job
+      - admin-console
   rationale: Runs software that needs routine scanning for vulnerabilities and configuration errors.
   source: Asset type
 - controlId: BCD-08
@@ -273,6 +300,8 @@
       - relational-db
       - vector-db
       - compute-service
+      - message-queue
+      - batch-job
   rationale: Holds state or runs workloads that must be recoverable to a known-good condition after a
     disruption.
   source: Asset type
@@ -283,6 +312,8 @@
       - relational-db
       - vector-db
       - egress-gateway
+      - message-queue
+      - batch-job
   rationale: Runs workloads or data stores that need isolation from other network resources.
   source: Asset type
 - controlId: WEB-03
@@ -290,6 +321,8 @@
     assetKinds:
       - waf
       - api-gateway
+      - web-app
+      - admin-console
   rationale: Fronts application traffic that a WAF can inspect and filter.
   source: Asset type
 - controlId: TDA-18
@@ -298,6 +331,9 @@
       - api-gateway
       - compute-service
       - model-gateway
+      - web-app
+      - model-endpoint
+      - admin-console
   rationale: Accepts external input at the application or model layer that needs validation.
   source: Asset type
 - controlId: TDA-20

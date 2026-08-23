@@ -31,3 +31,24 @@
   dataAccessible:
     - "DT-008"
   criticality: "high"
+
+- systemId: "SYS-003"
+  vendorId: "VEND-APM"
+  dependency: >
+    Application performance monitoring and distributed tracing. Request traces carry prompt
+    and completion text, so the boundary's most sensitive payload leaves it here for a
+    reason unrelated to serving the request.
+  dataAccessible:
+    - "DT-003"
+    - "DT-005"
+    - "DT-006"
+  criticality: "high"
+- systemId: "SYS-003"
+  vendorId: "VEND-ANALYTICS"
+  dependency: >
+    Client-side product analytics embedded in the customer web app. Event payloads can
+    include message text unless the integration is configured to strip it.
+  dataAccessible:
+    - "DT-001"
+    - "DT-005"
+  criticality: "moderate"

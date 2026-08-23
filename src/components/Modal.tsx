@@ -11,10 +11,18 @@ interface ModalProps {
   onClose: () => void;
   width?: number;
   height?: number;
+  // "fullscreen" fills the browser WINDOW instead of sizing to width/height —
+  // for surfaces whose whole point is room (the system canvas expanded).
+  //
+  // The window, deliberately, not the screen. An earlier pass drove the native
+  // Fullscreen API here, which takes over the whole monitor the way F11 does
+  // and hides the app around it; that is a bigger, more disorienting thing than
+  // "make this panel big" and it is not what expanding a diagram should mean.
+  variant?: "panel" | "fullscreen";
   children: ReactNode;
 }
 
-export default function Modal({ open, onClose, width = 960, height = 700, children }: ModalProps) {
+export default function Modal({ open, onClose, width = 960, height = 700, variant = "panel", children }: ModalProps) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -33,22 +41,28 @@ export default function Modal({ open, onClose, width = 960, height = 700, childr
 
   if (!open) return null;
 
+  const fullscreen = variant === "fullscreen";
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-6"
+      // Edge to edge when fullscreen: the point is maximum canvas, and a scrim
+      // margin around a panel that is already filling the window is just border
+      // you cannot use. Clicking out is still possible on the panel variant;
+      // here Esc and the close button are the way out.
+      className={`fixed inset-0 z-50 flex items-center justify-center ${fullscreen ? "p-0" : "p-6"}`}
       style={{ background: "rgba(0,0,0,0.55)" }}
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
         role="dialog"
         aria-modal="true"
-        className="rounded-2xl overflow-hidden flex flex-col"
+        className={`overflow-hidden flex flex-col ${fullscreen ? "" : "rounded-2xl"}`}
         style={{
-          width: `min(${width}px, 100%)`,
-          height: `min(${height}px, 100%)`,
+          width: fullscreen ? "100%" : `min(${width}px, 100%)`,
+          height: fullscreen ? "100%" : `min(${height}px, 100%)`,
           background: C.panel,
-          border: `1px solid ${C.border}`,
-          boxShadow: "0 24px 64px -12px rgba(0,0,0,0.45)",
+          border: fullscreen ? "none" : `1px solid ${C.border}`,
+          boxShadow: fullscreen ? "none" : "0 24px 64px -12px rgba(0,0,0,0.45)",
         }}
       >
         {children}

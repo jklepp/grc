@@ -12,6 +12,9 @@
     - "AST-003-05"
     - "AST-003-06"
     - "AST-003-04"
+    - "AST-003-31"
+    - "AST-003-32"
+    - "AST-003-33"
   collectedAt: "2026-08-13"
   periodStart: "2026-08-13T13:40:00Z"
   periodEnd: "2026-08-13T13:42:18Z"
@@ -82,6 +85,17 @@
     - "AST-003-04"
     - "AST-003-05"
     - "AST-003-06"
+    - "AST-003-26"
+    - "AST-003-27"
+    - "AST-003-28"
+    - "AST-003-29"
+    - "AST-003-30"
+    - "AST-003-31"
+    - "AST-003-32"
+    - "AST-003-33"
+    - "AST-003-34"
+    - "AST-003-35"
+    - "AST-003-36"
   collectedAt: "2026-08-12"
   coveragePct: 100
   result: "pass"
@@ -130,6 +144,9 @@
     - "AST-003-05"
     - "AST-003-06"
     - "AST-003-04"
+    - "AST-003-31"
+    - "AST-003-32"
+    - "AST-003-33"
   collectedAt: "2026-08-13"
   coveragePct: 100
   result: "pass"
@@ -140,6 +157,8 @@
   controlId: "DCH-18"
   assetIds:
     - "AST-003-05"
+    - "AST-003-32"
+    - "AST-003-35"
   collectedAt: "2026-07-05"
   coveragePct: 70
   result: "partial"
@@ -169,6 +188,7 @@
   controlId: "DCH-18"
   assetIds:
     - "AST-003-06"
+    - "AST-003-31"
   collectedAt: "2026-08-08"
   coveragePct: 100
   result: "pass"
@@ -191,6 +211,10 @@
     - "AST-003-05"
     - "AST-003-06"
     - "AST-003-08"
+    - "AST-003-26"
+    - "AST-003-27"
+    - "AST-003-28"
+    - "AST-003-36"
   collectedAt: "2026-08-14"
   coveragePct: 100
   result: "pass"
@@ -203,6 +227,8 @@
   assetIds:
     - "AST-003-02"
     - "AST-003-03"
+    - "AST-003-30"
+    - "AST-003-34"
   collectedAt: "2026-08-07"
   coveragePct: 100
   result: "pass"
@@ -231,6 +257,10 @@
     - "AST-003-02"
     - "AST-003-04"
     - "AST-003-06"
+    - "AST-003-26"
+    - "AST-003-27"
+    - "AST-003-30"
+    - "AST-003-34"
   collectedAt: "2026-08-12"
   coveragePct: 100
   result: "pass"
@@ -241,6 +271,8 @@
   controlId: "CFG-03"
   assetIds:
     - "AST-003-03"
+    - "AST-003-31"
+    - "AST-003-36"
   collectedAt: "2026-07-14"
   coveragePct: 100
   result: "partial"
@@ -263,6 +295,17 @@
     - "AST-003-06"
     - "AST-003-07"
     - "AST-003-08"
+    - "AST-003-26"
+    - "AST-003-27"
+    - "AST-003-28"
+    - "AST-003-29"
+    - "AST-003-30"
+    - "AST-003-31"
+    - "AST-003-32"
+    - "AST-003-33"
+    - "AST-003-34"
+    - "AST-003-35"
+    - "AST-003-36"
   collectedAt: "2026-05-20"
   coveragePct: 90
   result: "pass"
@@ -318,6 +361,7 @@
   assetIds:
     - "AST-003-01"
     - "AST-003-02"
+    - "AST-003-27"
   collectedAt: "2026-08-12"
   coveragePct: 100
   result: "pass"
@@ -344,6 +388,14 @@
     - "AST-003-06"
     - "AST-003-07"
     - "AST-003-08"
+    - "AST-003-26"
+    - "AST-003-27"
+    - "AST-003-28"
+    - "AST-003-30"
+    - "AST-003-31"
+    - "AST-003-34"
+    - "AST-003-35"
+    - "AST-003-36"
   collectedAt: "2026-08-14"
   coveragePct: 100
   result: "pass"
@@ -356,6 +408,9 @@
   assetIds:
     - "AST-003-03"
     - "AST-003-04"
+    - "AST-003-29"
+    - "AST-003-32"
+    - "AST-003-33"
   collectedAt: "2026-08-14"
   coveragePct: 60
   result: "partial"
@@ -390,6 +445,13 @@
     - "AST-003-05"
     - "AST-003-06"
     - "AST-003-07"
+    - "AST-003-27"
+    - "AST-003-28"
+    - "AST-003-30"
+    - "AST-003-31"
+    - "AST-003-34"
+    - "AST-003-35"
+    - "AST-003-36"
   collectedAt: "2026-08-11"
   coveragePct: 100
   result: "pass"
@@ -402,6 +464,10 @@
   assetIds:
     - "AST-003-03"
     - "AST-003-04"
+    - "AST-003-26"
+    - "AST-003-29"
+    - "AST-003-32"
+    - "AST-003-33"
   collectedAt: "2026-08-11"
   coveragePct: 45
   result: "partial"
@@ -418,6 +484,8 @@
   assetIds:
     - "AST-003-05"
     - "AST-003-06"
+    - "AST-003-32"
+    - "AST-003-35"
   collectedAt: "2026-08-06"
   coveragePct: 100
   result: "pass"
@@ -446,6 +514,10 @@
     - "AST-003-01"
     - "AST-003-02"
     - "AST-003-06"
+    - "AST-003-27"
+    - "AST-003-30"
+    - "AST-003-31"
+    - "AST-003-34"
   collectedAt: "2026-08-08"
   coveragePct: 100
   result: "pass"
@@ -457,6 +529,8 @@
   assetIds:
     - "AST-003-03"
     - "AST-003-04"
+    - "AST-003-26"
+    - "AST-003-36"
   collectedAt: "2026-08-08"
   coveragePct: 100
   result: "partial"
@@ -474,6 +548,16 @@
     - "AST-003-06"
     - "AST-003-07"
     - "AST-003-08"
+    - "AST-003-26"
+    - "AST-003-27"
+    - "AST-003-28"
+    - "AST-003-29"
+    - "AST-003-30"
+    - "AST-003-31"
+    - "AST-003-32"
+    - "AST-003-33"
+    - "AST-003-34"
+    - "AST-003-35"
   collectedAt: "2026-08-14"
   coveragePct: 100
   result: "pass"
@@ -484,6 +568,7 @@
   controlId: "IAC-21"
   assetIds:
     - "AST-003-03"
+    - "AST-003-36"
   collectedAt: "2026-08-14"
   coveragePct: 100
   result: "fail"
@@ -595,6 +680,16 @@
     - "AST-003-08"
     - "AST-003-01"
     - "AST-003-02"
+    - "AST-003-26"
+    - "AST-003-27"
+    - "AST-003-28"
+    - "AST-003-29"
+    - "AST-003-30"
+    - "AST-003-31"
+    - "AST-003-32"
+    - "AST-003-33"
+    - "AST-003-34"
+    - "AST-003-35"
   collectedAt: "2026-06-30"
   coveragePct: 100
   result: "pass"
@@ -606,6 +701,7 @@
   assetIds:
     - "AST-003-03"
     - "AST-003-04"
+    - "AST-003-36"
   collectedAt: "2026-06-30"
   coveragePct: 50
   result: "partial"
@@ -660,6 +756,16 @@
     - "AST-003-06"
     - "AST-003-07"
     - "AST-003-08"
+    - "AST-003-26"
+    - "AST-003-27"
+    - "AST-003-28"
+    - "AST-003-29"
+    - "AST-003-30"
+    - "AST-003-31"
+    - "AST-003-32"
+    - "AST-003-33"
+    - "AST-003-34"
+    - "AST-003-35"
   collectedAt: "2026-08-12"
   coveragePct: 100
   result: "pass"
@@ -671,6 +777,7 @@
   assetIds:
     - "AST-003-03"
     - "AST-003-04"
+    - "AST-003-36"
   collectedAt: "2026-08-12"
   coveragePct: 100
   result: "partial"
@@ -686,6 +793,7 @@
   controlId: "NET-03"
   assetIds:
     - "AST-003-01"
+    - "AST-003-26"
   collectedAt: "2026-08-14"
   coveragePct: 100
   result: "pass"
@@ -697,6 +805,8 @@
   assetIds:
     - "AST-003-02"
     - "AST-003-03"
+    - "AST-003-27"
+    - "AST-003-30"
   collectedAt: "2026-08-09"
   coveragePct: 100
   result: "pass"
@@ -787,6 +897,8 @@
   assetIds:
     - "AST-003-05"
     - "AST-003-06"
+    - "AST-003-31"
+    - "AST-003-32"
   collectedAt: "2026-08-14"
   coveragePct: 100
   result: "pass"
@@ -824,6 +936,10 @@
     - "AST-003-01"
     - "AST-003-02"
     - "AST-003-06"
+    - "AST-003-26"
+    - "AST-003-27"
+    - "AST-003-30"
+    - "AST-003-31"
   collectedAt: "2026-08-14"
   coveragePct: 100
   result: "pass"
@@ -835,6 +951,8 @@
   assetIds:
     - "AST-003-03"
     - "AST-003-04"
+    - "AST-003-29"
+    - "AST-003-33"
   collectedAt: "2026-08-14"
   coveragePct: 100
   result: "partial"
@@ -940,3 +1058,139 @@
   note: "Covers the hardening of the KMS service fleet itself, which is the half of this
     control ACME does not operate. ACME's configurable surface here is key policy, assessed
     under CRY-09."
+
+# ---- SYS-003: coverage for the agent platform's own moving parts ----------------------
+# The estate-wide sweeps above were extended in place where they genuinely run over the
+# whole boundary. These are the checks that are specific to the components added with the
+# request path, and are recorded separately rather than folded into a record whose source
+# does not describe them.
+
+- id: "EV-9200"
+  source: "Managed data service baseline posture review"
+  evidenceType: "API configuration observation"
+  controlId: "CFG-02"
+  assetIds:
+    - "AST-003-31"
+    - "AST-003-32"
+    - "AST-003-33"
+    - "AST-003-35"
+  collectedAt: "2026-08-12"
+  collectorType: "automated"
+  coveragePct: 100
+  result: "pass"
+  independence: "automated"
+  note: "Parameter groups, bucket settings and queue attributes compared against the
+    approved baseline for each managed service."
+- id: "EV-9201"
+  source: "Model provider configuration attestation"
+  evidenceType: "Self-attestation"
+  controlId: "CFG-02"
+  assetIds:
+    - "AST-003-29"
+  collectedAt: "2026-06-30"
+  coveragePct: 60
+  result: "partial"
+  independence: "internal"
+  note: "The endpoint is provider-operated, so its baseline is asserted rather than
+    observed. ACME can see the model and routing configuration it sets, not the
+    hardening of the inference fleet underneath it."
+
+- id: "EV-9202"
+  source: "Managed service tenant isolation review"
+  evidenceType: "API configuration observation"
+  controlId: "CLD-06"
+  assetIds:
+    - "AST-003-30"
+    - "AST-003-32"
+    - "AST-003-33"
+  collectedAt: "2026-08-10"
+  collectorType: "automated"
+  coveragePct: 100
+  result: "pass"
+  independence: "automated"
+  note: "Per-tenant prefixes and queue-level access policies confirmed to deny
+    cross-tenant reads."
+- id: "EV-9203"
+  source: "Model provider tenancy review"
+  evidenceType: "Document"
+  controlId: "CLD-06"
+  assetIds:
+    - "AST-003-29"
+  collectedAt: "2026-06-10"
+  coveragePct: 50
+  result: "partial"
+  independence: "internal"
+  note: "Shared inference infrastructure. Logical separation is contractual and described
+    in the provider's documentation; ACME has no way to test it directly."
+
+- id: "EV-9204"
+  source: "Egress boundary and admin exposure test"
+  evidenceType: "Automated technical test"
+  controlId: "NET-03"
+  assetIds:
+    - "AST-003-29"
+    - "AST-003-36"
+  collectedAt: "2026-08-14"
+  collectorType: "automated"
+  coveragePct: 100
+  result: "partial"
+  independence: "automated"
+  note: "Model traffic is confirmed to leave only through the secure egress gateway. The
+    admin console remains reachable from the public internet behind SSO rather than
+    being restricted to the corporate network."
+
+- id: "EV-9205"
+  source: "SQS message retention configuration"
+  evidenceType: "API configuration observation"
+  controlId: "DCH-18"
+  assetIds:
+    - "AST-003-33"
+  collectedAt: "2026-08-12"
+  collectorType: "automated"
+  coveragePct: 100
+  result: "pass"
+  independence: "automated"
+  note: "Message retention set to four days with a dead-letter queue at the same period,
+    so nothing outlives the window unnoticed."
+
+- id: "EV-9206"
+  source: "RDS audit logging and deletion protection review"
+  evidenceType: "API configuration observation"
+  controlId: "MON-08"
+  assetIds:
+    - "AST-003-31"
+  collectedAt: "2026-08-11"
+  collectorType: "automated"
+  coveragePct: 80
+  result: "partial"
+  independence: "automated"
+  note: "Deletion protection and automated backups are on, but transcript rows remain
+    updatable by the application role, so the store is protected against loss rather
+    than against alteration."
+
+- id: "EV-9207"
+  source: "Okta MFA enforcement — admin console application"
+  evidenceType: "Automated technical test"
+  controlId: "IAC-10"
+  assetIds:
+    - "AST-003-36"
+  collectedAt: "2026-08-13"
+  collectorType: "automated"
+  coveragePct: 100
+  result: "pass"
+  independence: "automated"
+  note: "Console sign-in is gated by the corporate identity provider with phishing-
+    resistant MFA required and no local account fallback."
+
+- id: "EV-9208"
+  source: "Model endpoint surface review"
+  evidenceType: "API configuration observation"
+  controlId: "CFG-03"
+  assetIds:
+    - "AST-003-29"
+  collectedAt: "2026-07-28"
+  coveragePct: 70
+  result: "partial"
+  independence: "internal"
+  note: "Only the completions surface is enabled for this key, but the provider exposes
+    the narrowing as an account setting rather than something ACME can enforce."
