@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Plug, Search, ChevronDown, ShieldCheck } from "lucide-react";
 import { C, CLASS_META } from "../theme";
+import { TouchHint } from "./TouchHint";
 import { assuranceBand } from "../engine";
 import type { DataType } from "../graph/nodes/dataTypes";
 import type { ClassificationTier } from "../graph/nodes/taxonomy";
@@ -58,15 +59,21 @@ export function AssuranceBadge({ pct, size = 34 }: { pct?: number | null; size?:
 // control graded, every gap recorded as a Finding/CAP. Deliberately a
 // distinct claim from assurance/classification — see the formalAssessment
 // derivation in SystemWorkspace.tsx.
+// The title is the whole definition of the claim, and it appears nowhere
+// else — so below `lg`, where there is no hover, the badge becomes tappable.
+const FORMALLY_ASSESSED_HINT = "Scope decided, every applicable control evaluated, every gap has a Finding/CAP on record";
+
 export function FormallyAssessedBadge() {
   return (
-    <span
-      className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded font-semibold uppercase tracking-wide"
-      style={{ background: C.greenBg, color: C.green, letterSpacing: "0.04em" }}
-      title="Scope decided, every applicable control evaluated, every gap has a Finding/CAP on record"
-    >
-      <ShieldCheck size={11} /> Formally Assessed
-    </span>
+    <TouchHint hint={FORMALLY_ASSESSED_HINT}>
+      <span
+        className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded font-semibold uppercase tracking-wide"
+        style={{ background: C.greenBg, color: C.green, letterSpacing: "0.04em" }}
+        title={FORMALLY_ASSESSED_HINT}
+      >
+        <ShieldCheck size={11} /> Formally Assessed
+      </span>
+    </TouchHint>
   );
 }
 

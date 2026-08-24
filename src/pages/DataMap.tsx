@@ -70,6 +70,29 @@ function AssuranceRiskCard({ title, risk }: { title: string; risk: AssetRollup["
 // different questions and differ by an order of magnitude in count, so a single
 // toggle would force you to accept the control plane's fan-out just to see the
 // request path.
+// Each chip carries its hint in a `title`, which on a phone never opens —
+// and those hints are the only place the line kinds are explained. The chips
+// are already buttons (tapping one toggles its filter), so the explanation
+// cannot hang off a tap the way a badge's can; it gets a disclosure of its
+// own instead, and only below `lg`, where the tooltips are dead.
+function EdgeKindLegend() {
+  return (
+    <details className="lg:hidden w-full">
+      <summary className="text-[11px] font-medium py-1.5 cursor-pointer" style={{ color: C.accent }}>
+        What these line kinds mean
+      </summary>
+      <dl className="mt-1 mb-1 space-y-2">
+        {EDGE_CHIPS.map(({ key, label, hint }) => (
+          <div key={key}>
+            <dt className="text-[11px] font-semibold" style={{ color: C.ink }}>{label}</dt>
+            <dd className="text-[11px] leading-relaxed" style={{ color: C.muted }}>{hint}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
+  );
+}
+
 const EDGE_CHIPS: { key: keyof EdgeKindFilter; label: string; hint: string }[] = [
   { key: "data", label: "Data", hint: "The request path: what moves through the boundary." },
   { key: "actors", label: "Actors", hint: "Who calls in, and what the boundary calls out to." },
@@ -102,7 +125,7 @@ function EdgeKindChips({
           <button
             key={key}
             onClick={() => onChange({ ...value, [key]: !on })}
-            className="px-2 py-1.5 rounded-md text-[11px] font-medium whitespace-nowrap"
+            className="px-2 py-1.5 max-lg:px-2.5 max-lg:py-2.5 max-lg:min-h-11 rounded-md text-[11px] font-medium whitespace-nowrap"
             style={{ background: on ? C.accentBg : "transparent", color: on ? C.accent : C.muted }}
             title={hint}
             aria-pressed={on}
@@ -196,7 +219,7 @@ function SystemDetailPanel({ assetId, onClose }: { assetId: AssetId; onClose: ()
             <br />{asset.systems.length === 1 ? `${asset.systems[0].name} · ${asset.systems[0].id}` : asset.systems.map((s) => s.name).join(", ")} · {asset.classification}
           </div>
         </div>
-        <button onClick={onClose} className="p-1.5 rounded-lg shrink-0" style={{ color: C.muted, background: C.panel2 }} title="Close">
+        <button onClick={onClose} className="p-1.5 max-lg:p-3 rounded-lg shrink-0" style={{ color: C.muted, background: C.panel2 }} title="Close">
           <X size={16} />
         </button>
       </div>
@@ -553,6 +576,7 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
                       Lines
                     </span>
                     <EdgeKindChips value={edgeKinds} counts={edgeStats.counts} onChange={setEdgeKinds} />
+                    <EdgeKindLegend />
                   </div>
                 ) : <div />}
 
@@ -560,7 +584,7 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
                   {viewMode === "canvas" && (
                     <button
                       onClick={() => setExpanded(true)}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium"
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 max-lg:py-2.5 max-lg:min-h-11 rounded-lg text-[11px] font-medium"
                       style={{ background: C.panel, color: C.muted, border: `1px solid ${C.border}` }}
                       title="Fill the window with the canvas"
                     >
@@ -571,7 +595,7 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
                     <button
                       onClick={handleExportPdf}
                       disabled={exporting}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium"
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 max-lg:py-2.5 max-lg:min-h-11 rounded-lg text-[11px] font-medium"
                       style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accent}`, opacity: exporting ? 0.6 : 1 }}
                     >
                       {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
@@ -581,7 +605,7 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
                   <div className="flex items-center rounded-lg p-0.5" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
                     <button
                       onClick={() => setViewMode("canvas")}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium"
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 max-lg:py-2.5 max-lg:min-h-11 rounded-md text-[11px] font-medium"
                       style={{ background: viewMode === "canvas" ? C.panel : "transparent", color: viewMode === "canvas" ? C.ink : C.muted }}
                       title="The whole boundary on one pannable surface. Click an asset to focus it."
                     >
@@ -589,7 +613,7 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
                     </button>
                     <button
                       onClick={() => setViewMode("diagram")}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium"
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 max-lg:py-2.5 max-lg:min-h-11 rounded-md text-[11px] font-medium"
                       style={{ background: viewMode === "diagram" ? C.panel : "transparent", color: viewMode === "diagram" ? C.ink : C.muted }}
                       title="Print-shaped diagram, plus the control plane as a matrix. Exports to PDF."
                     >

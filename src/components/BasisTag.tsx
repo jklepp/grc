@@ -1,5 +1,6 @@
 import React from "react";
 import { C } from "../theme";
+import { TouchHint } from "./TouchHint";
 import { BASIS_META } from "../engine";
 import type { Basis } from "../graph/nodes/taxonomy";
 
@@ -15,13 +16,17 @@ export function BasisTag({ basis }: BasisTagProps) {
   if (!basis) return null;
   const meta = BASIS_META[basis];
   const key: "green" | "accent" | "amber" | "na" = basis === "measured" ? "green" : basis === "inherited" ? "accent" : basis === "assessed" ? "amber" : "na";
+  // meta.detail is the only place a basis is explained, so below `lg` --
+  // where a title never opens -- the tag itself becomes the way to read it.
   return (
-    <span
-      className="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0"
-      title={meta?.detail}
-      style={{ color: key === "na" ? C.muted : C[key], background: key === "na" ? "transparent" : C[`${key}Bg`], border: key === "na" ? `1px solid ${C.border}` : "none" }}
-    >
-      {meta?.label ?? basis}
-    </span>
+    <TouchHint hint={meta?.detail ?? ""}>
+      <span
+        className="text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0"
+        title={meta?.detail}
+        style={{ color: key === "na" ? C.muted : C[key], background: key === "na" ? "transparent" : C[`${key}Bg`], border: key === "na" ? `1px solid ${C.border}` : "none" }}
+      >
+        {meta?.label ?? basis}
+      </span>
+    </TouchHint>
   );
 }

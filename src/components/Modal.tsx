@@ -124,7 +124,7 @@ export function ModalCloseButton({ onClose }: { onClose: () => void }) {
     <button
       onClick={onClose}
       aria-label="Close"
-      className="rounded-lg p-1.5 transition-colors"
+      className="rounded-lg p-1.5 max-lg:p-3 transition-colors"
       style={{ color: C.muted }}
       onMouseEnter={(e) => (e.currentTarget.style.background = C.panel2)}
       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
