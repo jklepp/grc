@@ -150,7 +150,7 @@ const GROUP_META: Record<WorkGroupId, { icon: LucideIcon; title: string; descrip
   remediate: {
     icon: Wrench,
     title: "Remediation Pipeline",
-    description: "Every planned Finding for this system, staged by what it needs next — and, once every finding on a control is Complete, the reassessment that clears the gap.",
+    description: "Findings in flight for this system, staged by what each needs next — and, once every finding on a control is Complete, the reassessment that clears the gap.",
   },
 };
 
@@ -275,12 +275,15 @@ function WorkItemRow({ item, selected, onOpen, action }: {
           </div>
         )}
       </div>
-      {/* The row itself opens the work; a click on the action button must not
-          do both. */}
+      {/* The row itself opens the work; a press on the action button must not
+          do both. Keydown as well as click: without it the row's handler
+          preventDefault()s Enter and Space before the button can act on them,
+          so the keyboard path opens the editor instead of advancing status. */}
       <div
         className="py-3 pl-3 flex items-center"
         style={{ borderLeft: `1px solid ${C.border}` }}
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
       >
         {action}
       </div>
@@ -383,7 +386,9 @@ export function SystemActions({
       if (severity && item.severity !== severity) return false;
       // Source is a Finding's own field; asking for one excludes work that has
       // no Finding behind it, which is what the filter is being asked to do.
-      if (source && (item.finding?.source ?? null) !== source) return false;
+      // A Finding that names no source IS a control gap — the default the
+      // authored dataset leans on, so it must not filter down to nothing.
+      if (source && (item.finding ? item.finding.source ?? "control-gap" : null) !== source) return false;
       if (domain && item.domain !== domain) return false;
       if (!q) return true;
       return (

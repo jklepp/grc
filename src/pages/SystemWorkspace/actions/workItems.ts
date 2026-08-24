@@ -138,7 +138,16 @@ export function buildWorkItems(input: WorkItemInput): WorkItem[] {
     });
   }
 
-  for (const f of findings.filter((x) => x.open && !x.capRecorded)) {
+  // Lane 3's own population, not every unplanned Finding: review.ts builds
+  // gapControlsMissingCap from gap controls only, and that is what Overview's
+  // readiness lane and formalAssessment.complete read. A pen-test Finding on a
+  // control graded implemented is remediation work, not filing work — counting
+  // it here would have this tab and Overview answer the same question two ways.
+  const missingCapControlIds = new Set(formalAssessment.gapControlsMissingCap.map((g) => g.controlId));
+  const gapNoCap = findings.filter((f) => f.open && !f.capRecorded && missingCapControlIds.has(f.controlId));
+  const gapNoCapIds = new Set(gapNoCap.map((f) => f.id));
+
+  for (const f of gapNoCap) {
     items.push({
       key: `cap:${f.id}`,
       group: "gaps",
@@ -159,8 +168,10 @@ export function buildWorkItems(input: WorkItemInput): WorkItem[] {
   }
 
   // ---- Remediation Pipeline -------------------------------------------------
-  // Planned findings, plus the closed ones the status filter can bring back.
-  for (const f of findings.filter((x) => x.capRecorded || !x.open)) {
+  // Every Finding the gaps lane did not claim, plus the closed ones the status
+  // filter can bring back. Complement of gapNoCap by construction, so no
+  // Finding is dropped from the table and none appears in two groups.
+  for (const f of findings.filter((x) => !gapNoCapIds.has(x.id))) {
     const meta = FINDING_REMEDIATION_STATUS_META[f.remediationStatus];
     items.push({
       key: `finding:${f.id}`,

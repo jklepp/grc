@@ -6,7 +6,7 @@ import { SectionHeader } from "./shared/SectionHeader";
 import type { TopRisk } from "./types";
 
 // What could go wrong, how exposed are we, and what are we doing about it?
-// Open findings/CAPs derived from these risks live on the Findings tab.
+// Open findings/CAPs derived from these risks live on the Actions tab.
 export function SystemRisk({ topRisks }: { topRisks: TopRisk[] }) {
   return (
     <div className="px-8 pb-10 space-y-8">
