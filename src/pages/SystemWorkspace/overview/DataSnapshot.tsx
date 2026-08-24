@@ -26,7 +26,7 @@ export function DataSnapshot({ dataTypes, onNavigate }: { dataTypes: WorkspaceDa
       {top.length === 0 ? (
         <div className="text-sm" style={{ color: C.muted }}>No data types mapped to this system's assets.</div>
       ) : (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {top.map((t) => (
             <button key={t.id} onClick={() => onNavigate("data")} className="text-left">
               <DataTypeCard dataType={t} />

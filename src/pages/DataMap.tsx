@@ -90,8 +90,11 @@ function EdgeKindChips({
   counts: Record<keyof EdgeKindFilter, number>;
   onChange: (next: EdgeKindFilter) => void;
 }) {
+  // Six chips do not fit a phone, and this is a segmented control rather
+  // than a wrapping list, so below `lg` it scrolls inside itself instead of
+  // pushing the page wider.
   return (
-    <div className="flex items-center rounded-lg p-0.5 gap-0.5" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+    <div className="flex items-center rounded-lg p-0.5 gap-0.5 max-w-full max-lg:overflow-x-auto" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
       {EDGE_CHIPS.map(({ key, label, hint }) => {
         const on = value[key];
         const count = counts[key];
@@ -178,7 +181,12 @@ function SystemDetailPanel({ assetId, onClose }: { assetId: AssetId; onClose: ()
   const held = dataForAsset(assetId);
 
   return (
-    <div className="shrink-0 flex flex-col" style={{ width: 320, borderLeft: `1px solid ${C.border}`, background: C.panel, position: "sticky", top: 0, maxHeight: "100vh", overflowY: "auto" }}>
+    // Same list-then-detail move as the Asset Register's rail: below `lg` this
+    // is the pane rather than a column beside one.
+    <div
+      className="shrink-0 flex flex-col w-full lg:w-[320px] overflow-y-auto lg:sticky lg:top-0 lg:max-h-[100vh] lg:border-l"
+      style={{ borderColor: C.border, background: C.panel }}
+    >
       <div className="flex items-start justify-between gap-2 px-5 pt-5 pb-4" style={{ borderBottom: `1px solid ${C.border}` }}>
         <div className="min-w-0">
           <span className="text-xs font-bold px-2 py-1 rounded" style={{ background: C.accentBg, color: C.accent }}>{asset.code}</span>
@@ -444,11 +452,11 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
   ) : null;
 
   return (
-    <div className="w-full flex" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <div className="flex-1 min-w-0">
+    <div className="w-full flex flex-col lg:flex-row" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <div className={`flex-1 min-w-0 ${selectedKey ? "max-lg:hidden" : ""}`}>
         {embedded ? (
           description && (
-            <div className="px-8">
+            <div className="px-4 lg:px-8">
               <SectionHeader description={description} aside={dataTypeFilter} />
             </div>
           )
@@ -474,7 +482,7 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
           />
         )}
 
-        <div className="px-8 pb-4">
+        <div className="px-4 lg:px-8 pb-4">
           {system ? (
             <>
               {viewMode === "canvas" ? (
@@ -540,7 +548,7 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
                   page rather than the view. */}
               <div className="flex items-end justify-between gap-3 mt-3 flex-wrap">
                 {viewMode === "canvas" ? (
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
                     <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
                       Lines
                     </span>
@@ -615,7 +623,7 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
         </div>
 
         {system && (
-          <div className="px-8 pb-6">
+          <div className="px-4 lg:px-8 pb-6">
             <WeakestLinkBanner system={system} />
           </div>
         )}
@@ -644,7 +652,7 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
               <ModalCloseButton onClose={() => setExpanded(false)} />
             </div>
           </div>
-          <div className="flex flex-1 min-h-0">
+          <div className="flex flex-col lg:flex-row flex-1 min-h-0">
             <div className="flex-1 min-w-0 min-h-0 p-3">
               <SystemCanvas
                 layout={layout}

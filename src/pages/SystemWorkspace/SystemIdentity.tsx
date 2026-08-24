@@ -151,7 +151,7 @@ export function SystemIdentity({ system, identity, exposure }: SystemIdentityPro
   const emergencyException = exposure.exceptions.find((exception) => exception.condition === "unmanaged-break-glass-access");
 
   return (
-    <div className="px-8 pb-10 space-y-8">
+    <div className="px-4 lg:px-8 pb-10 space-y-8">
       <Panel>
         <SectionHeader
           icon={Fingerprint}

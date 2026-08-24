@@ -123,7 +123,7 @@ export function GovernanceLanding({ onSelect }: { onSelect: (area: GovernanceAre
         description="Choose the governance workflow you want to work in. Each area uses the same connected control, system, evidence, and accountability model."
       />
 
-      <div className="px-8">
+      <div className="px-4 lg:px-8">
         <AreaSelectList areas={AREAS} onSelect={onSelect} />
       </div>
     </div>

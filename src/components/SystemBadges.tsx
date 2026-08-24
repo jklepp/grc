@@ -171,8 +171,8 @@ export function SystemPicker({ systems, systemId, onSelect, width = 380 }: Syste
     function onDocMouseDown(e: MouseEvent) {
       if (containerRef.current && e.target instanceof Node && !containerRef.current.contains(e.target)) setOpen(false);
     }
-    document.addEventListener("mousedown", onDocMouseDown);
-    return () => document.removeEventListener("mousedown", onDocMouseDown);
+    document.addEventListener("pointerdown", onDocMouseDown);
+    return () => document.removeEventListener("pointerdown", onDocMouseDown);
   }, []);
 
   function choose(id: SystemId) {

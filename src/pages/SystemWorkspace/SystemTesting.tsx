@@ -183,7 +183,7 @@ export function SystemTesting({ secTests, vuln, ir, resilience, vendors, identit
   const actionColor = criticalAttentionCount > 0 ? C.red : attentionItems.length > 0 ? C.amber : C.green;
 
   return (
-    <div className="px-8 pb-10 space-y-8">
+    <div className="px-4 lg:px-8 pb-10 space-y-8">
       <Panel>
         <SectionHeader
           icon={Activity}
@@ -247,7 +247,7 @@ export function SystemTesting({ secTests, vuln, ir, resilience, vendors, identit
             title="Security Testing"
             description="The latest independent penetration test and adversarial red-team exercise results."
           />
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
             {(["penetration-test", "red-team"] as const).map((type) => {
               const latest = secTests.latestByType[type];
               return (
@@ -291,13 +291,13 @@ export function SystemTesting({ secTests, vuln, ir, resilience, vendors, identit
           />
           {vuln ? (
             <>
-              <div className="grid grid-cols-4 gap-4 mb-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                 <StatTile label="Critical" value={vuln.criticalCount} color={vuln.criticalCount > 0 ? C.red : C.green} />
                 <StatTile label="High" value={vuln.highCount} color={vuln.highCount > 0 ? C.amber : C.green} />
                 <StatTile label="Past SLA" value={vuln.pastSlaCount} color={vuln.pastSlaCount > 0 ? C.red : C.green} />
                 <StatTile label="Patch SLA Compliance" value={`${vuln.patchSlaCompliancePct}%`} />
               </div>
-              <div className="grid grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                 <IdentificationField label="Configuration Findings" value={vuln.configFindingCount} />
                 <IdentificationField label="Unsupported Components" value={vuln.unsupportedComponentCount} />
                 <IdentificationField label="Internet-Facing Critical" value={vuln.internetFacingCriticalCount} />
@@ -315,7 +315,7 @@ export function SystemTesting({ secTests, vuln, ir, resilience, vendors, identit
             title="Incident Response"
             description="Plan currency, production incidents, tabletop coverage, and resulting response actions."
           />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <SubCard>
               <div className="flex items-center justify-between mb-3">
                 <div className="text-sm font-semibold" style={{ color: C.ink }}>IR Plan</div>
@@ -365,11 +365,11 @@ export function SystemTesting({ secTests, vuln, ir, resilience, vendors, identit
             title="Resilience / Backup / Recovery"
             description="Backup configuration and the recovery exercises that prove the system can meet its objectives."
           />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <SubCard>
               <div className="text-sm font-semibold mb-3" style={{ color: C.ink }}>Backup Configuration</div>
               {resilience.backup ? (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <IdentificationField label="Enabled" value={resilience.backup.enabled ? "Yes" : "No"} />
                   <IdentificationField label="Coverage" value={`${resilience.backup.coveragePct}%`} />
                   <IdentificationField label="Immutable" value={resilience.backup.immutable ? "Yes" : "No"} />

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { CalendarClock, Layers, Info } from "lucide-react";
 import { C } from "../theme";
 import { PageHeader, SectionHeading } from "../components/Headings";
+import { useIsNarrow } from "../components/useIsNarrow";
 import {
   FREQUENCIES, PERIODS_PER_YEAR, PERIOD_LABELS, ACTIVITY_TYPES, STATUS_META, CURRENT_YEAR,
   ACTIVITY_STATUSES, SCHEDULED_ACTIVITIES, activitiesForFrequency, currentPeriod, statusCountsForPeriod, parseLocalDate,
@@ -58,9 +59,18 @@ export default function ScheduledActivities({ onNavigate }: { onNavigate?: (targ
   const periods = Array.from({ length: periodCount }, (_, i) => i + 1);
   const current = currentPeriod(frequency);
   const counts = statusCountsForPeriod(frequency, current);
-  const activityColWidth = frequency === "Monthly" ? 26 : frequency === "Annual" ? 46 : 38;
-  const ownerColWidth = frequency === "Monthly" ? 10 : 14;
-  const periodColWidth = (100 - activityColWidth - ownerColWidth) / periodCount;
+  // A twelve-period year compresses each column to about a dozen pixels on a
+  // phone, and `table-layout: fixed` with percentage columns means it cannot
+  // scroll out of that either — it just gets narrower. So below `lg` the
+  // table carries the one period actually being asked about, which is the
+  // reading the tiles above it already lead with. This has to be a real
+  // predicate rather than a CSS class: the colgroup is built in JS, and a
+  // hidden column still claims its track.
+  const isNarrow = useIsNarrow();
+  const shownPeriods = isNarrow ? periods.filter((p) => p === current) : periods;
+  const activityColWidth = isNarrow ? 56 : frequency === "Monthly" ? 26 : frequency === "Annual" ? 46 : 38;
+  const ownerColWidth = isNarrow ? 20 : frequency === "Monthly" ? 10 : 14;
+  const periodColWidth = (100 - activityColWidth - ownerColWidth) / shownPeriods.length;
 
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -68,10 +78,10 @@ export default function ScheduledActivities({ onNavigate }: { onNavigate?: (targ
         icon={CalendarClock}
         title="Governance Schedule"
         description="Every control that runs on a fixed cadence, grouped by activity type and tracked against its real due date."
-        descriptionClassName="max-w-none whitespace-nowrap"
+        descriptionClassName="max-w-none lg:whitespace-nowrap"
       />
 
-      <div className="px-8 pb-5">
+      <div className="px-4 lg:px-8 pb-5">
         <div className="inline-flex items-center gap-1 rounded-xl p-1" style={{ background: C.panel2 }}>
           {FREQUENCIES.map((f) => (
             <button
@@ -84,13 +94,19 @@ export default function ScheduledActivities({ onNavigate }: { onNavigate?: (targ
             </button>
           ))}
         </div>
+        {/* The omitted columns are stated rather than silently dropped. */}
+        {isNarrow && shownPeriods.length < periods.length && (
+          <div className="text-[11px] mt-2" style={{ color: C.muted }}>
+            Showing {periodLabels[current - 1]} only — the full {CURRENT_YEAR} year is on a wider screen.
+          </div>
+        )}
       </div>
 
-      <div className="px-8 pb-6">
+      <div className="px-4 lg:px-8 pb-6">
         <div className="text-xs uppercase tracking-wide mb-2 font-medium" style={{ color: C.muted }}>
           {frequency === "Annual" ? `FY ${CURRENT_YEAR}` : `${periodLabels[current - 1]} ${CURRENT_YEAR}`} — current {frequency.toLowerCase()} period at a glance
         </div>
-        <div className="grid grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           {ACTIVITY_STATUSES.map((key) => {
             const meta = STATUS_META[key];
             return (
@@ -103,14 +119,14 @@ export default function ScheduledActivities({ onNavigate }: { onNavigate?: (targ
         </div>
       </div>
 
-      <div className="px-8 pb-6">
+      <div className="px-4 lg:px-8 pb-6">
         <div className="flex items-start gap-2 text-[11px] leading-relaxed rounded-lg p-3" style={{ background: C.accentBg, color: C.ink }}>
           <Info size={13} className="shrink-0 mt-0.5" style={{ color: C.accent }} />
           <span>{SCOPE_NOTE[frequency]}</span>
         </div>
       </div>
 
-      <div className="px-8 pb-12 space-y-6">
+      <div className="px-4 lg:px-8 pb-12 space-y-6">
         {ACTIVITY_TYPES.map((type) => {
           const typeItems = items.filter((a) => a.type === type);
           if (typeItems.length === 0) return null;
@@ -129,13 +145,13 @@ export default function ScheduledActivities({ onNavigate }: { onNavigate?: (targ
                   <colgroup>
                     <col style={{ width: `${activityColWidth}%` }} />
                     <col style={{ width: `${ownerColWidth}%` }} />
-                    {periods.map((p) => <col key={p} style={{ width: `${periodColWidth}%` }} />)}
+                    {shownPeriods.map((p) => <col key={p} style={{ width: `${periodColWidth}%` }} />)}
                   </colgroup>
                   <thead>
                     <tr style={{ background: C.panel2 }}>
                       <th className="text-left text-[10px] uppercase tracking-wide px-3 py-2.5 font-semibold" style={{ color: C.muted }}>Activity</th>
                       <th className="text-left text-[10px] uppercase tracking-wide px-3 py-2.5 font-semibold" style={{ color: C.muted }}>Owner</th>
-                      {periods.map((p) => (
+                      {shownPeriods.map((p) => (
                         <th
                           key={p}
                           className="text-center text-[10px] uppercase tracking-wide px-1 py-2.5 font-semibold"
@@ -182,7 +198,7 @@ export default function ScheduledActivities({ onNavigate }: { onNavigate?: (targ
                           )}
                         </td>
                         <td className="px-3 py-3 align-top text-xs" style={{ color: C.muted }}>{a.owner}</td>
-                        {periods.map((p) => (
+                        {shownPeriods.map((p) => (
                           <td key={p} className="px-1.5 py-2 align-top">
                             <StatusCell instance={a.instances.find((i) => i.period === p)} />
                           </td>

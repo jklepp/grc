@@ -282,8 +282,8 @@ function BarRow({ label, count, applicable, fill, active, onClick, trailing }: B
           onClick();
         }
       }}
-      className="w-full grid items-center text-left rounded cursor-pointer"
-      style={{ gridTemplateColumns: "140px minmax(0, 1fr)", gap: 12, height: 28, background: active ? C.panel2 : "transparent" }}
+      className="w-full grid items-center text-left rounded cursor-pointer gap-3 grid-cols-[92px_minmax(0,1fr)] lg:grid-cols-[140px_minmax(0,1fr)]"
+      style={{ height: 28, background: active ? C.panel2 : "transparent" }}
     >
       <span className="text-xs text-right truncate pr-1" style={{ color: C.ink, fontWeight: active ? 600 : 400 }}>{label}</span>
       <span className="relative block" style={{ height: 14 }}>
@@ -414,7 +414,7 @@ function StatusChart({
         </div>
 
         {zeroed.length > 0 && (
-          <div className="grid items-center mt-1.5" style={{ gridTemplateColumns: "140px minmax(0, 1fr)", gap: 12 }}>
+          <div className="grid items-center mt-1.5 gap-3 grid-cols-[92px_minmax(0,1fr)] lg:grid-cols-[140px_minmax(0,1fr)]">
             <span />
             <span className="text-xs" style={{ color: C.muted, borderTop: `1px solid ${C.border}`, paddingTop: 9 }}>
               {zeroed.map((r) => STATUS_META[r.status].label).join(", ")} — 0 {zeroed.length === 1 ? "" : "each"}
@@ -588,7 +588,10 @@ function SelectedControlsTable({
         )}
       </div>
       <FilterBar filters={filters} onChange={onFilterChange} domainOptions={domainOptions} frameworkOptions={frameworkOptions} showStatusFilters />
-      <div style={{ maxHeight: 480, overflow: "auto" }}>
+      {/* The 480px cap is a desktop affordance: on a phone it would trap a
+          drag inside a box the page is already scrolling, so the cap lifts and
+          the page scrolls the whole table. */}
+      <div className="overflow-auto lg:max-h-[480px]">
         <table
           className="w-full text-left text-xs"
           style={{ minWidth: CONTROL_TABLE_MIN_WIDTH, borderCollapse: "separate", borderSpacing: 0 }}
@@ -675,7 +678,7 @@ export function SystemControls({
   }
 
   return (
-    <div className="px-8 pb-10 space-y-8">
+    <div className="px-4 lg:px-8 pb-10 space-y-8">
       {/* No action in the card header: the walk button lives on the Not
           Assessed row, next to the count it acts on. Two buttons to one
           destination is the duplication this card was rebuilt to drop. */}

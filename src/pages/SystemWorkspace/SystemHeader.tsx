@@ -22,7 +22,7 @@ export function SystemHeader({ system, formallyAssessed, children }: SystemHeade
   const band = assuranceBand(system.overallAssurance);
   return (
     <div style={{ background: C.panel, borderBottom: `1px solid ${C.border}` }}>
-      <div className="px-8 pt-3.5 flex items-center justify-between gap-4 flex-wrap">
+      <div className="px-4 lg:px-8 pt-3.5 flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3 min-w-0">
           <h1 className="text-[23px] font-semibold leading-tight" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>
             {system.name}

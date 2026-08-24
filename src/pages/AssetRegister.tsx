@@ -120,7 +120,7 @@ function AssetRow({ asset, onSelect, selected }: AssetSelectProps) {
   return (
     <button
       onClick={() => onSelect(asset.id)}
-      className="w-full grid items-center gap-3 pl-3.5 pr-4 py-2 text-left transition-colors"
+      className="w-full grid items-center gap-3 pl-3.5 pr-4 py-2 text-left transition-colors min-w-[620px]"
       style={{
         gridTemplateColumns: ASSET_COLUMNS,
         borderBottom: `1px solid ${C.border}`,
@@ -148,9 +148,11 @@ function AssetRow({ asset, onSelect, selected }: AssetSelectProps) {
 function AssetTable({ assets, groups, selectedId, onSelect }: { assets: AssetRollup[]; groups?: AssetLaneGroup[]; selectedId: AssetId | null; onSelect: (id: AssetId) => void }) {
   const rowGroups = groups ?? [{ id: "unmapped" as const, label: "", assets }];
   return (
-    <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
+    // Header and rows share one column template, so this scrolls rather than
+    // stacking: unlabelled columns of values are worse than a sideways swipe.
+    <div className="rounded-xl overflow-hidden max-lg:overflow-x-auto" style={{ border: `1px solid ${C.border}` }}>
       <div
-        className="grid gap-3 pl-3.5 pr-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide"
+        className="grid gap-3 pl-3.5 pr-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide min-w-[620px]"
         style={{ gridTemplateColumns: ASSET_COLUMNS, background: C.panel2, color: C.muted, borderBottom: `1px solid ${C.border}` }}
       >
         <div>ID</div>
@@ -267,7 +269,14 @@ function AssetDetailPanel({ asset, onClose }: { asset: AssetRollup; onClose: () 
   const visibleControls = showAllControls ? sortedControls : sortedControls.slice(0, 5);
 
   return (
-    <div className="shrink-0 flex flex-col" style={{ width: 360, borderLeft: `1px solid ${C.border}`, background: C.panel, position: "sticky", top: 0, maxHeight: "100vh", overflowY: "auto" }}>
+    // Below `lg` the rail is not a column beside the list -- there is no room
+    // for one -- so it becomes the whole pane and the list steps aside. The
+    // page already knows what is selected and already has a close button, so
+    // list-then-detail needs no new state and no route of its own.
+    <div
+      className="shrink-0 flex flex-col w-full lg:w-[360px] overflow-y-auto lg:sticky lg:top-0 lg:max-h-[100vh] lg:border-l"
+      style={{ borderColor: C.border, background: C.panel }}
+    >
       <div className="flex items-start justify-between gap-2 px-5 pt-5 pb-4" style={{ borderBottom: `1px solid ${C.border}` }}>
         <div className="min-w-0">
           <div className="text-sm font-semibold" style={{ color: C.ink }}>{asset.name}</div>
@@ -392,8 +401,8 @@ export default function AssetRegister({ systemId }: { systemId?: SystemId }) {
   });
 
   return (
-    <div className="w-full flex" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <div className="flex-1 min-w-0">
+    <div className="w-full flex flex-col lg:flex-row" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <div className={`flex-1 min-w-0 ${selected ? "max-lg:hidden" : ""}`}>
         {!systemId && (
           <PageHeader
             icon={Boxes}
@@ -407,7 +416,7 @@ export default function AssetRegister({ systemId }: { systemId?: SystemId }) {
           />
         )}
 
-        <div className="px-8 py-6 space-y-4">
+        <div className="px-4 lg:px-8 py-6 space-y-4">
           <div className="flex items-center justify-between gap-4 flex-wrap rounded-lg px-4 py-3" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
             <div className="flex items-center gap-4 text-xs" style={{ color: C.muted }}>
               <span><b style={{ color: C.ink }}>{assets.length}</b> assets</span>

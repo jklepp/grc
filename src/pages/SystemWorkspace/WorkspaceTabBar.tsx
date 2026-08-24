@@ -31,6 +31,22 @@ function DetailsMenuRow({ tab, isActive, onClick }: { tab: Tab; isActive: boolea
   );
 }
 
+// One tab chip. Extracted so the inline row and the unfolded group below
+// `lg` cannot drift into two slightly different chips.
+function TabChip({ tab, isActive, onClick }: { tab: Tab; isActive: boolean; onClick: () => void }) {
+  const Icon = tab.icon;
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-t-lg text-xs font-medium transition-colors"
+      style={{ color: isActive ? "#fff" : C.muted, background: isActive ? C.accentStrong : "transparent" }}
+    >
+      {Icon && <Icon size={13} />}
+      {tab.label}
+    </button>
+  );
+}
+
 export function WorkspaceTabBar({ tabs, active, onChange }: { tabs: readonly Tab[]; active: SystemWorkspaceTab; onChange: (id: SystemWorkspaceTab) => void }) {
   const primaryTabs = tabs.filter((t) => t.group === "primary");
   const detailsTabs = tabs.filter((t) => t.group === "details");
@@ -51,25 +67,28 @@ export function WorkspaceTabBar({ tabs, active, onChange }: { tabs: readonly Tab
   }
 
   return (
-    <div className="px-8 pt-2">
+    <div className="px-4 lg:px-8 pt-2">
       <div className="flex items-center gap-1 flex-wrap">
-        {primaryTabs.map((t) => {
-          const isActive = active === t.id;
-          const Icon = t.icon;
-          return (
-            <button
-              key={t.id}
-              onClick={() => onChange(t.id)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-t-lg text-xs font-medium transition-colors"
-              style={{ color: isActive ? "#fff" : C.muted, background: isActive ? C.accentStrong : "transparent" }}
-            >
-              {Icon && <Icon size={13} />}
-              {t.label}
-            </button>
-          );
-        })}
+        {primaryTabs.map((t) => (
+          <TabChip key={t.id} tab={t} isActive={active === t.id} onClick={() => onChange(t.id)} />
+        ))}
 
-        <div className="relative" onMouseEnter={() => { cancelClose(); setOpen(true); }} onMouseLeave={scheduleClose}>
+        {/* Below `lg` the group unfolds into ordinary chips. The dropdown it
+            stands in for opens on hover only, so on a touch screen these six
+            tabs had no route at all: tapping "Details" navigates to the
+            group's landing page, which does not list them, and the menu never
+            appears. `contents` drops the chips straight into the flex row so
+            they wrap alongside the primary tabs rather than forming a block. */}
+        <div className="contents lg:hidden">
+          {detailsHome && (
+            <TabChip tab={detailsHome} isActive={active === detailsHome.id} onClick={() => onChange(detailsHome.id)} />
+          )}
+          {detailsTabs.map((t) => (
+            <TabChip key={t.id} tab={t} isActive={active === t.id} onClick={() => onChange(t.id)} />
+          ))}
+        </div>
+
+        <div className="hidden lg:block relative" onMouseEnter={() => { cancelClose(); setOpen(true); }} onMouseLeave={scheduleClose}>
           <button
             onClick={() => { if (detailsHome) { cancelClose(); setOpen(false); onChange(detailsHome.id); } else setOpen(true); }}
             className="flex items-center gap-1.5 px-3 py-2 rounded-t-lg text-xs font-medium transition-colors"

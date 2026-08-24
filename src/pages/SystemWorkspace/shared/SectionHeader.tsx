@@ -38,7 +38,7 @@ export function SectionHeader({ icon: Icon, title, description, aside, className
     );
   }
   return (
-    <div className={`flex items-center justify-between gap-4 mb-4 ${className}`}>
+    <div className={`flex items-center justify-between gap-4 mb-4 max-lg:flex-wrap ${className}`}>
       <div className="flex items-start gap-2.5 min-w-0">
         {Icon && <Icon size={16} className="mt-0.5 shrink-0" color={C.accent} />}
         <div className="min-w-0">

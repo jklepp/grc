@@ -88,7 +88,7 @@ export function UserEditorModal({ initial, newId, roster, people, orgs, isSelf, 
     problems.find((p) => p.field === field && p.userId === draft.id)?.message ?? null;
 
   return (
-    <Modal open onClose={onCancel} width={720} height={660}>
+    <Modal open onClose={onCancel} width={720} height={660} requiresRoom="Editing a user">
       <WizardChrome>
         <WizardHeader
           icon={UserCog}

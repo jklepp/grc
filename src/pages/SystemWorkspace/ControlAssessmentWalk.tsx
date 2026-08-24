@@ -134,6 +134,7 @@ export function ControlAssessmentWalk({
   if (complete) {
     return (
       <Modal
+        requiresRoom="The control assessment walk"
         open
         onClose={onClose}
         width={workflowNavigation ? GUIDED_WORKFLOW_MODAL.width : 880}

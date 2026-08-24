@@ -274,7 +274,7 @@ function StepEvidenceForm({ step, execution, onComplete }: StepEvidenceFormProps
       {ev.type === "fields" && (
         <div>
           <label className="text-xs font-medium flex items-center gap-1.5 mb-2" style={{ color: C.ink }}><Calculator size={12} />{ev.label}</label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
             {ev.fields.map((f) => (
               <div key={f.key}>
                 <div className="text-[10px] mb-1" style={{ color: C.muted }}>{f.label}</div>
@@ -737,11 +737,11 @@ export default function ProcedureLibrary({ onNavigate }: { onNavigate?: (pageId:
         icon={ListChecks}
         title="Procedures"
         description={'One Standard Operating Procedure per Assurance Category — the "how" behind each policy\'s "what."'}
-        descriptionClassName="max-w-none whitespace-nowrap"
+        descriptionClassName="max-w-none lg:whitespace-nowrap"
       />
 
-      <div className="px-8 flex gap-5 pb-12">
-        <div className="w-64 shrink-0 rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}`, height: "fit-content" }}>
+      <div className="px-4 lg:px-8 flex flex-col lg:flex-row gap-4 lg:gap-5 pb-12">
+        <div className="w-full lg:w-64 shrink-0 rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}`, height: "fit-content" }}>
           {PROCEDURES.map((p) => {
             const isActive = p.id === selectedId;
             return (
@@ -765,7 +765,7 @@ export default function ProcedureLibrary({ onNavigate }: { onNavigate?: (pageId:
           <h2 className="text-2xl mb-3" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>{selected.title}</h2>
           <p className="text-sm leading-relaxed mb-4" style={{ color: C.ink }}>{selected.purpose}</p>
 
-          <div className="grid grid-cols-3 gap-2 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 mb-6">
             <MetaChip icon={User} label="Owner" value={selected.owner} />
             <MetaChip icon={RefreshCw} label="Review Cadence" value={selected.reviewCadence} />
             <MetaChip icon={FileCheck2} label="Typical Evidence" value={selected.evidenceType} />
@@ -888,7 +888,7 @@ export default function ProcedureLibrary({ onNavigate }: { onNavigate?: (pageId:
                     return (
                       <React.Fragment key={i}>
                         {showDivider && (
-                          <div className="flex items-center gap-2 pt-1">
+                          <div className="flex items-center gap-2 pt-1 max-lg:flex-wrap">
                             <span className="text-[10px] uppercase tracking-wide font-semibold shrink-0" style={{ color: C.muted }}>
                               Recommended — beyond the current framework mapping
                             </span>

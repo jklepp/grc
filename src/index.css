@@ -76,3 +76,32 @@
 .rf-canvas .react-flow__node.selected {
   outline: none;
 }
+
+/* --- Narrow viewports -----------------------------------------------------
+   Two rules, and deliberately only two.
+
+   `-webkit-text-size-adjust` stops iOS inflating body text when the device is
+   rotated into landscape.
+
+   The second rule is the iOS zoom-on-focus workaround. Safari zooms the page
+   when a focused control's font size is under 16px and never zooms back,
+   leaving the reader on a page they now have to pan. This app's controls are
+   10-14px by design (see WizardUI's TX scale), so rather than fork that scale
+   across the ~370 places that set a pixel size, lift every control to 16px on
+   touch devices below the `lg` line the layout already switches on. It is
+   scoped to `pointer: coarse` so a mouse-driven desktop window is never
+   affected at any width, and bounded above by `lg` so the wizard surfaces --
+   which only render at `lg` and up -- keep their own scale untouched. */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+}
+
+@media (pointer: coarse) and (width < 64rem) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

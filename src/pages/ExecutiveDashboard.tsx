@@ -127,7 +127,7 @@ export default function ExecutiveDashboard({
       />
 
       {/* The score and the coverage behind it stay adjacent but distinct. */}
-      <div className="px-8">
+      <div className="px-4 lg:px-8">
         <section
           className="rounded-2xl p-7 grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-8 items-center"
           style={{ background: C.panel, color: C.ink, border: `1px solid ${C.border}` }}
@@ -174,7 +174,7 @@ export default function ExecutiveDashboard({
         </section>
       </div>
 
-      <div className="px-8 pt-8 pb-8 grid grid-cols-1 xl:grid-cols-5 gap-8 items-start">
+      <div className="px-4 lg:px-8 pt-8 pb-8 grid grid-cols-1 xl:grid-cols-5 gap-8 items-start">
         <section
           className="xl:col-span-3 rounded-2xl p-5"
           style={{ background: C.panel, border: `1px solid ${C.border}` }}
@@ -297,7 +297,7 @@ export default function ExecutiveDashboard({
         </section>
       </div>
 
-      <div className="mx-8 mb-8 px-4 py-3 rounded-lg flex items-start gap-2 text-[11px]" style={{ color: C.muted, background: C.panel2 }}>
+      <div className="mx-4 lg:mx-8 mb-8 px-4 py-3 rounded-lg flex items-start gap-2 text-[11px]" style={{ color: C.muted, background: C.panel2 }}>
         <Server size={13} className="shrink-0 mt-0.5" />
         <span>Assurance measures assessed control strength. Assessment coverage is reported separately and is never treated as part of the assurance score.</span>
       </div>

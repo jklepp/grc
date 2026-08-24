@@ -192,7 +192,7 @@ export default function App() {
     <div
       className="flex flex-col"
       style={{
-        background: C.bg, minHeight: "100vh",
+        background: C.bg, minHeight: "100dvh",
         "--wz-accent": C.accent, "--wz-ring": C.accentBg, "--wz-hover": C.panel2,
       } as React.CSSProperties}
     >

@@ -61,10 +61,10 @@ export function SystemData({ system, dataTypes, resilience, backupRecovery }: Sy
   const recoveryVerified = Boolean(lastTest?.restoreSuccessful && resilience.targetsMetLastTest && !resilience.overdue);
 
   return (
-    <div className="px-8 pb-10 space-y-8">
+    <div className="px-4 lg:px-8 pb-10 space-y-8">
       <Panel>
         <SectionHeader icon={Database} title="Data Profile" description="Population, geographic, and lifecycle characteristics for this system's data." />
-        <div className="grid grid-cols-4 gap-5">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
           <IdentificationField label="Data Subjects" value={system.dataProfile.subjects.join(", ")} />
           <IdentificationField label="Approx. Records" value={system.dataProfile.approxRecords.toLocaleString()} />
           <IdentificationField label="Residency" value={system.dataProfile.residency.join(", ")} />

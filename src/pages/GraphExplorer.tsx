@@ -625,11 +625,11 @@ export default function GraphExplorer() {
       />
 
       {tab === "health" ? (
-        <div className="px-8 py-4 pb-12">
+        <div className="px-4 lg:px-8 py-4 pb-12">
           <ModelHealth onSelect={select} />
         </div>
       ) : (
-        <div className="px-8 py-4 pb-12 grid gap-4 items-start" style={{ gridTemplateColumns: "minmax(220px, 1fr) minmax(320px, 2fr) minmax(300px, 1.6fr)" }}>
+        <div className="px-4 lg:px-8 py-4 pb-12 grid gap-4 items-start grid-cols-1 lg:grid-cols-[minmax(220px,1fr)_minmax(320px,2fr)_minmax(300px,1.6fr)]">
           {/* Node picker */}
           <div className="rounded-xl p-3 sticky top-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
             <div className="flex flex-wrap gap-1 mb-3">

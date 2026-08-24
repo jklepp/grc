@@ -140,6 +140,71 @@ function SystemRow({ system, onSelect, onEdit, onDuplicate, onDelete }: SystemRo
   );
 }
 
+// One figure in a card's stat row.
+function CardStat({ label, value, color }: { label: string; value: React.ReactNode; color: string }) {
+  return (
+    <div>
+      <div className="text-[17px] font-semibold tabular-nums leading-none" style={{ color }}>{value}</div>
+      <div className="text-[10px] mt-1 leading-tight" style={{ color: C.muted }}>{label}</div>
+    </div>
+  );
+}
+
+// The register's narrow-viewport reading. The table above needs 1180px to
+// keep its numeric tracks aligned, which on a phone means showing under a
+// third of a row at a time -- and because every row is also a tap target,
+// swiping to read it fights opening it. A card sizes to the screen instead:
+// the same fields, the same derived colours, one unambiguous tap.
+//
+// Edit/Duplicate/Delete are not drawn here. All three open the Add System
+// wizard, which needs a desktop-width window, so they would be three dead
+// ends per card. That is a viewport decision, not a permission one -- the
+// table's own cluster keeps its gates.ts checks exactly as they are.
+function SystemCard({ system, onSelect }: { system: SystemRollup; onSelect: (id: SystemId) => void }) {
+  const openFindings = system.findings.filter((f) => f.open).length;
+  const assurance = system.overallAssurance;
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(system.id)}
+      className="w-full text-left px-4 py-3.5 wz-hover transition-colors"
+      style={{ borderTop: `1px solid ${C.border}` }}
+      aria-label={`Open ${system.name}`}
+    >
+      <div className="flex items-start gap-2.5 min-w-0">
+        <SystemAvatar name={system.name} />
+        <div className="min-w-0 flex-1">
+          {/* Wraps rather than truncates: half a system's name answers the
+              question worse than a second line costs. */}
+          <div className="text-sm font-semibold leading-snug" style={{ color: C.ink }}>{system.name}</div>
+          <div className="text-[11px] mt-0.5" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
+            {system.id} · {system.env}
+          </div>
+        </div>
+        {system.classification && (
+          <span className="shrink-0"><ClassificationTag level={system.classification} /></span>
+        )}
+      </div>
+      <div className="grid grid-cols-4 gap-2 mt-3">
+        {/* An unassessed system has no assurance figure at all, and shows an
+            em dash rather than a zero. */}
+        <CardStat
+          label="Assurance"
+          value={assurance == null ? "—" : `${assurance}%`}
+          color={assurance == null ? C.muted : badgeColorFor(assuranceBand(assurance).color).color}
+        />
+        <CardStat label="Coverage" value={`${system.coverage.assessedPct}%`} color={coverageColor(system.coverage.assessedPct)} />
+        <CardStat label="Assets" value={system.assetCount} color={C.ink} />
+        <CardStat
+          label={openFindings === 1 ? "Open finding" : "Open findings"}
+          value={openFindings}
+          color={openFindings > 0 ? C.amber : C.green}
+        />
+      </div>
+    </button>
+  );
+}
+
 // The system-level index: every boundary ACME assesses, in one searchable
 // table, with the entry point for onboarding a new one. Selecting a row hands
 // its id up to Systems, which opens the full System Security Profile on it —
@@ -274,7 +339,7 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
         title="Select a System"
         description="Every system inside ACME's assessment boundary. Select one to open its full security profile, or add a new system to bring it into scope."
         right={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 max-lg:flex-wrap">
             {hasRuntimeFacts(runtimeFacts) && (
               <button
                 type="button"
@@ -309,7 +374,7 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
         }
       />
 
-      <div className="px-8 pb-8">
+      <div className="px-4 lg:px-8 pb-8">
         <div
           className="flex items-center gap-2 pl-3 pr-2 py-2 rounded-lg mb-4"
           style={{ background: C.panel, border: `1px solid ${C.border}`, maxWidth: 380 }}
@@ -330,7 +395,7 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
           </div>
         )}
 
-        <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}`, background: C.panel }}>
+        <div className="rounded-xl overflow-hidden hidden lg:block" style={{ border: `1px solid ${C.border}`, background: C.panel }}>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left text-xs" style={{ minWidth: TABLE_MIN_WIDTH }}>
               <thead
@@ -373,6 +438,21 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
               </tbody>
             </table>
           </div>
+        </div>
+
+        <div className="rounded-xl overflow-hidden lg:hidden" style={{ border: `1px solid ${C.border}`, background: C.panel }}>
+          {filtered.length === 0 ? (
+            <div className="px-4 py-10 text-center">
+              <div className="text-sm font-semibold" style={{ color: C.ink }}>No systems match "{query}"</div>
+              <div className="mt-1 text-xs" style={{ color: C.muted }}>
+                Search matches a system's name, id, or classification.
+              </div>
+            </div>
+          ) : (
+            filtered.map((system) => (
+              <SystemCard key={system.id} system={system} onSelect={onSelectSystem} />
+            ))
+          )}
         </div>
       </div>
 
