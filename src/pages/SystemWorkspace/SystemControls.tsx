@@ -45,7 +45,11 @@ type FindingsByControl = Partial<Record<ControlId, number>>;
 // an open finding. SCF #, governing policy and framework clause mappings are
 // still real data, just lower priority than these six answers, so they moved
 // into ControlEvaluationPanel instead of occupying columns here.
-const CONTROL_GRID = "2fr 130px 90px 160px 130px 80px";
+// The table carries a minimum width and scrolls inside its own container
+// rather than squeezing tracks to fit, so the numeric columns stay aligned.
+const CONTROL_TABLE_MIN_WIDTH = 1080;
+const CELL = "py-2.5";
+const CELL_DIVIDER = { borderBottom: `1px solid ${C.border}` };
 
 function ControlRow({ row, onSelect, findingsCount }: { row: ControlMatrixRow; onSelect: (row: ControlMatrixRow) => void; findingsCount?: number }) {
   const meta = STATUS_META[row.status];
@@ -53,47 +57,57 @@ function ControlRow({ row, onSelect, findingsCount }: { row: ControlMatrixRow; o
   const evidence = evidenceHealthForRow(row);
   const count = findingsCount ?? 0;
   return (
-    <button
+    <tr
       onClick={() => onSelect(row)}
-      className="w-full grid px-4 text-left wz-hover transition-colors"
-      style={{ gridTemplateColumns: CONTROL_GRID, borderBottom: `1px solid ${C.border}` }}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(row); } }}
+      tabIndex={0}
+      aria-label={`Open ${row.control.name}`}
+      className="wz-hover transition-colors"
+      style={{ cursor: "pointer" }}
     >
-      <div className="py-3 min-w-0">
-        <div className="text-sm leading-snug" style={{ color: C.ink }}>{row.control.name}</div>
-        <div className="text-[10px] mt-0.5" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
-          {row.control.id} <span style={{ fontFamily: "inherit" }}>· {row.control.domain}</span>
+      <td className={`${CELL} pl-4 pr-3 whitespace-nowrap text-[13px]`} style={{ ...CELL_DIVIDER, color: C.ink }}>
+        {row.control.id}
+      </td>
+      <td className={`${CELL} px-3 text-[13px]`} style={{ ...CELL_DIVIDER, color: C.ink }}>
+        {row.control.domain}
+      </td>
+      <td className={`${CELL} px-3 min-w-0 text-[13px] leading-snug`} style={{ ...CELL_DIVIDER, color: C.ink }}>
+        {row.control.name}
+      </td>
+      <td className={`${CELL} px-3`} style={CELL_DIVIDER}>
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded whitespace-nowrap" style={{ background: meta.bg, color: meta.color }}>
+            <meta.Icon size={11} /> {meta.label}
+          </span>
+          {row.keyControl && <RadioTower size={12} color={C.muted} />}
         </div>
-      </div>
-      <div className="py-3 pl-3 flex items-center gap-2" style={{ borderLeft: `1px solid ${C.border}` }}>
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded" style={{ background: meta.bg, color: meta.color }}>
-          <meta.Icon size={11} /> {meta.label}
-        </span>
-        {row.keyControl && <RadioTower size={12} color={C.muted} />}
-      </div>
-      <div className="py-3 pl-3 flex items-center" style={{ borderLeft: `1px solid ${C.border}` }}>
-        <span className="text-[13px] font-semibold tabular-nums" style={{ color: row.score != null ? C.ink : C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
-          {row.score != null ? `${row.score}%` : "—"}
-        </span>
-      </div>
-      <div className="py-3 pl-3" style={{ borderLeft: `1px solid ${C.border}` }}>
+      </td>
+      <td
+        className={`${CELL} px-3 text-right tabular-nums text-[13px] font-semibold`}
+        style={{ ...CELL_DIVIDER, color: row.score != null ? C.ink : C.muted, fontFamily: "'IBM Plex Mono', monospace" }}
+      >
+        {row.score != null ? `${row.score}%` : "—"}
+      </td>
+      <td className={`${CELL} px-3`} style={CELL_DIVIDER}>
         {respMeta && (
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded" style={{ background: respMeta.bg, color: respMeta.color }}>
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded whitespace-nowrap" style={{ background: respMeta.bg, color: respMeta.color }}>
             <respMeta.Icon size={11} /> {respMeta.label}
           </span>
         )}
-      </div>
-      <div className="py-3 pl-3 min-w-0" style={{ borderLeft: `1px solid ${C.border}` }}>
-        <div className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded" style={{ background: evidence.bg, color: evidence.color }}>
+      </td>
+      <td className={`${CELL} px-3 min-w-0`} style={CELL_DIVIDER}>
+        <div className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded whitespace-nowrap" style={{ background: evidence.bg, color: evidence.color }}>
           <evidence.Icon size={11} /> {evidence.label}
         </div>
         {evidence.detail && <div className="text-[10px] mt-0.5" style={{ color: C.muted }}>{evidence.detail}</div>}
-      </div>
-      <div className="py-3 pl-3 flex items-center" style={{ borderLeft: `1px solid ${C.border}` }}>
-        <span className="text-sm font-semibold tabular-nums" style={{ color: count > 0 ? C.red : C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
-          {count}
-        </span>
-      </div>
-    </button>
+      </td>
+      <td
+        className={`${CELL} pl-3 pr-4 text-right tabular-nums text-[13px] font-semibold`}
+        style={{ ...CELL_DIVIDER, color: count > 0 ? C.red : C.muted, fontFamily: "'IBM Plex Mono', monospace" }}
+      >
+        {count}
+      </td>
+    </tr>
   );
 }
 
@@ -574,19 +588,36 @@ function SelectedControlsTable({
         )}
       </div>
       <FilterBar filters={filters} onChange={onFilterChange} domainOptions={domainOptions} frameworkOptions={frameworkOptions} showStatusFilters />
-      <div className="grid text-[10px] font-semibold uppercase tracking-wide px-4 py-2.5" style={{ gridTemplateColumns: CONTROL_GRID, background: C.panel2, borderBottom: `1px solid ${C.border}`, color: C.muted }}>
-        <TableHeaderCell label="CONTROL" first />
-        <TableHeaderCell label="STATUS" sortKey="status" sort={sort} onSort={onSort} />
-        <TableHeaderCell label="ASSURANCE" sortKey="assurance" sort={sort} onSort={onSort} />
-        <TableHeaderCell label="RESPONSIBILITY" sortKey="responsibility" sort={sort} onSort={onSort} />
-        <TableHeaderCell label="EVIDENCE" sortKey="evidence" sort={sort} onSort={onSort} />
-        <TableHeaderCell label="FINDINGS" sortKey="findings" sort={sort} onSort={onSort} />
-      </div>
-      <div style={{ maxHeight: 480, overflowY: "auto" }}>
-        {rows.map((row) => (
-          <ControlRow key={row.control.id} row={row} onSelect={onSelectRow} findingsCount={findingsByControl[row.control.id]} />
-        ))}
-        {rows.length === 0 && <div className="p-6 text-xs text-center" style={{ color: C.muted }}>No controls match this filter.</div>}
+      <div style={{ maxHeight: 480, overflow: "auto" }}>
+        <table
+          className="w-full text-left text-xs"
+          style={{ minWidth: CONTROL_TABLE_MIN_WIDTH, borderCollapse: "separate", borderSpacing: 0 }}
+        >
+          {/* Sticky so the headings survive the 480px scroll the way they did
+              when they sat outside it. */}
+          <thead className="text-[10px] font-semibold uppercase tracking-wide" style={{ position: "sticky", top: 0, zIndex: 1 }}>
+            <tr>
+              <TableHeaderCell label="CONTROL ID" first />
+              <TableHeaderCell label="DOMAIN" width={150} />
+              <TableHeaderCell label="CONTROL" />
+              <TableHeaderCell label="STATUS" sortKey="status" sort={sort} onSort={onSort} width={130} />
+              <TableHeaderCell label="ASSURANCE" sortKey="assurance" sort={sort} onSort={onSort} align="right" width={96} />
+              <TableHeaderCell label="RESPONSIBILITY" sortKey="responsibility" sort={sort} onSort={onSort} width={160} />
+              <TableHeaderCell label="EVIDENCE" sortKey="evidence" sort={sort} onSort={onSort} width={130} />
+              <TableHeaderCell label="FINDINGS" sortKey="findings" sort={sort} onSort={onSort} align="right" width={88} last />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <ControlRow key={row.control.id} row={row} onSelect={onSelectRow} findingsCount={findingsByControl[row.control.id]} />
+            ))}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={8} className="p-6 text-xs text-center" style={{ color: C.muted }}>No controls match this filter.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
