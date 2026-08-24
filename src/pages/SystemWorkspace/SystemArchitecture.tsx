@@ -1,7 +1,6 @@
 import React from "react";
 import DataMap from "../DataMap";
 import type { SystemId } from "../../graph/ids";
-import { SectionHeader } from "./shared/SectionHeader";
 
 // How does this system actually work? Actors, ingress/egress, trust
 // boundaries, and data movement — already modeled by DataMap's
@@ -11,15 +10,16 @@ interface SystemArchitectureProps {
   onSelectSystem: (id: SystemId) => void;
 }
 
+// The tab's sentence is passed down rather than rendered here: DataMap puts it
+// in a SectionHeader whose aside carries the data-type filter, so the sentence
+// and the one control that scopes the whole page share a row.
+const DESCRIPTION =
+  "Actors, trust boundaries, request paths, control-plane dependencies, deployment, and recovery infrastructure.";
+
 export function SystemArchitecture({ systemId, onSelectSystem }: SystemArchitectureProps) {
   return (
     <div className="pb-10">
-      <div className="px-8">
-        <SectionHeader
-          description="Actors, trust boundaries, request paths, control-plane dependencies, deployment, and recovery infrastructure."
-        />
-      </div>
-      <DataMap systemId={systemId} onSelectSystem={onSelectSystem} embedded />
+      <DataMap systemId={systemId} onSelectSystem={onSelectSystem} embedded description={DESCRIPTION} />
     </div>
   );
 }

@@ -15,6 +15,7 @@ import FlowDiagramSVG, { FlowDiagramLegend } from "../components/FlowDiagramSVG"
 import FlowMatrixSVG, { FlowMatrixLegend } from "../components/FlowMatrixSVG";
 import { exportFlowDiagramPdf } from "../utils/exportFlowDiagramPdf";
 import Modal, { ModalCloseButton } from "../components/Modal";
+import { SectionHeader } from "./SystemWorkspace/shared/SectionHeader";
 import SystemCanvas from "../components/canvas/SystemCanvas";
 import type { CanvasFocus } from "../components/canvas/SystemCanvas";
 import { DEFAULT_COLLAPSED_BANDS, DEFAULT_EDGE_KINDS } from "../components/canvas/canvasLayout";
@@ -287,9 +288,13 @@ interface DataMapProps {
   systemId?: SystemId | null;
   onSelectSystem?: (systemId: SystemId) => void;
   embedded?: boolean;
+  /** Embedded only: the tab's supporting sentence. Owned by the tab that hosts
+      this page (Architecture), rendered here so the data-type filter can sit on
+      the same row rather than opening a toolbar of its own. */
+  description?: string;
 }
 
-export default function DataMap({ systemId: controlledSystemId, onSelectSystem, embedded = false }: DataMapProps) {
+export default function DataMap({ systemId: controlledSystemId, onSelectSystem, embedded = false, description }: DataMapProps) {
   const liveEngine = useLiveEngine();
   const SYSTEMS = liveEngine.rollups.systemRollups;
   const ALL_ASSETS = SYSTEMS.flatMap((system) => system.assets);
@@ -409,10 +414,45 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
     }
   }
 
+  // Which data type the whole page is filtered to. Rides on the header row —
+  // the page title's row when standalone, the tab's sentence when embedded —
+  // because it scopes everything below it, view mode included.
+  const dataTypeFilter = system ? (
+    <div className="flex items-center gap-1.5 shrink-0">
+      <select
+        value={dataTypeId}
+        onChange={(e) => setDataTypeId(systemDataTypes.find((dataType) => dataType.id === e.target.value)?.id ?? "all")}
+        className="text-xs pl-3 pr-7 py-2 rounded-lg font-medium"
+        style={{ background: C.panel, color: C.ink, border: `1px solid ${C.border}` }}
+      >
+        <option value="all">All data</option>
+        {systemDataTypes.map((dt) => (
+          <option key={dt.id} value={dt.id}>{dt.name}</option>
+        ))}
+      </select>
+      {dataTypeId !== "all" && (
+        <button
+          onClick={() => setDataTypeId("all")}
+          className="flex items-center justify-center p-2 rounded-lg shrink-0"
+          style={{ background: C.panel, color: C.muted, border: `1px solid ${C.border}` }}
+          title="Reset to all data"
+        >
+          <RotateCcw size={13} />
+        </button>
+      )}
+    </div>
+  ) : null;
+
   return (
     <div className="w-full flex" style={{ fontFamily: "'Inter', sans-serif" }}>
       <div className="flex-1 min-w-0">
-        {!embedded && (
+        {embedded ? (
+          description && (
+            <div className="px-8">
+              <SectionHeader description={description} aside={dataTypeFilter} />
+            </div>
+          )
+        ) : (
           <PageHeader
             icon={Network}
             title={
@@ -425,81 +465,18 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
               ) : "Systems Data Flow"
             }
             description="How the system is built, connected, protected, and exposed across its assets and trust boundaries."
-            right={<SystemPicker systems={SYSTEMS} systemId={systemId} onSelect={selectSystem} />}
+            right={
+              <div className="flex items-center gap-2">
+                {dataTypeFilter}
+                <SystemPicker systems={SYSTEMS} systemId={systemId} onSelect={selectSystem} />
+              </div>
+            }
           />
         )}
 
         <div className="px-8 pb-4">
           {system ? (
             <>
-              <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className="flex items-center rounded-lg p-0.5" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                    <button
-                      onClick={() => setViewMode("canvas")}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium"
-                      style={{ background: viewMode === "canvas" ? C.panel : "transparent", color: viewMode === "canvas" ? C.ink : C.muted }}
-                      title="The whole boundary on one pannable surface. Click an asset to focus it."
-                    >
-                      <Waypoints size={12} /> Canvas
-                    </button>
-                    <button
-                      onClick={() => setViewMode("diagram")}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium"
-                      style={{ background: viewMode === "diagram" ? C.panel : "transparent", color: viewMode === "diagram" ? C.ink : C.muted }}
-                      title="Print-shaped diagram, plus the control plane as a matrix. Exports to PDF."
-                    >
-                      <Workflow size={12} /> Diagram
-                    </button>
-                  </div>
-                  {viewMode === "canvas" && (
-                    <button
-                      onClick={() => setExpanded(true)}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium"
-                      style={{ background: C.panel, color: C.muted, border: `1px solid ${C.border}` }}
-                      title="Fill the window with the canvas"
-                    >
-                      <Maximize2 size={12} /> Expand
-                    </button>
-                  )}
-                  {viewMode === "diagram" && (
-                    <button
-                      onClick={handleExportPdf}
-                      disabled={exporting}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium"
-                      style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accent}`, opacity: exporting ? 0.6 : 1 }}
-                    >
-                      {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-                      {exporting ? "Exporting…" : "Export PDF"}
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <select
-                    value={dataTypeId}
-                    onChange={(e) => setDataTypeId(systemDataTypes.find((dataType) => dataType.id === e.target.value)?.id ?? "all")}
-                    className="text-xs pl-3 pr-7 py-2 rounded-lg font-medium"
-                    style={{ background: C.panel, color: C.ink, border: `1px solid ${C.border}` }}
-                  >
-                    <option value="all">All data</option>
-                    {systemDataTypes.map((dt) => (
-                      <option key={dt.id} value={dt.id}>{dt.name}</option>
-                    ))}
-                  </select>
-                  {dataTypeId !== "all" && (
-                    <button
-                      onClick={() => setDataTypeId("all")}
-                      className="flex items-center justify-center p-2 rounded-lg shrink-0"
-                      style={{ background: C.panel, color: C.muted, border: `1px solid ${C.border}` }}
-                      title="Reset to all data"
-                    >
-                      <RotateCcw size={13} />
-                    </button>
-                  )}
-                </div>
-              </div>
-
               {viewMode === "canvas" ? (
                 <SystemCanvas
                   layout={layout}
@@ -556,17 +533,63 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
                 </div>
               )}
 
-              {/* The line filters sit under the canvas, not above it: they read as
-                  controls on what you are looking at, and the toolbar above was
-                  carrying too much at once. */}
-              {viewMode === "canvas" && (
-                <div className="flex items-center gap-2 mt-3 flex-wrap">
-                  <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
-                    Lines
-                  </span>
-                  <EdgeKindChips value={edgeKinds} counts={edgeStats.counts} onChange={setEdgeKinds} />
+              {/* Everything that acts on the drawing sits under the drawing. The
+                  toolbar this replaced ran a fourth bar of chrome between the
+                  workspace tabs and the picture; the header row above now
+                  carries only the data-type filter, which scopes the whole
+                  page rather than the view. */}
+              <div className="flex items-end justify-between gap-3 mt-3 flex-wrap">
+                {viewMode === "canvas" ? (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
+                      Lines
+                    </span>
+                    <EdgeKindChips value={edgeKinds} counts={edgeStats.counts} onChange={setEdgeKinds} />
+                  </div>
+                ) : <div />}
+
+                <div className="flex items-center gap-2 shrink-0">
+                  {viewMode === "canvas" && (
+                    <button
+                      onClick={() => setExpanded(true)}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium"
+                      style={{ background: C.panel, color: C.muted, border: `1px solid ${C.border}` }}
+                      title="Fill the window with the canvas"
+                    >
+                      <Maximize2 size={12} /> Expand
+                    </button>
+                  )}
+                  {viewMode === "diagram" && (
+                    <button
+                      onClick={handleExportPdf}
+                      disabled={exporting}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium"
+                      style={{ background: C.accentBg, color: C.accent, border: `1px solid ${C.accent}`, opacity: exporting ? 0.6 : 1 }}
+                    >
+                      {exporting ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                      {exporting ? "Exporting…" : "Export PDF"}
+                    </button>
+                  )}
+                  <div className="flex items-center rounded-lg p-0.5" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
+                    <button
+                      onClick={() => setViewMode("canvas")}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium"
+                      style={{ background: viewMode === "canvas" ? C.panel : "transparent", color: viewMode === "canvas" ? C.ink : C.muted }}
+                      title="The whole boundary on one pannable surface. Click an asset to focus it."
+                    >
+                      <Waypoints size={12} /> Canvas
+                    </button>
+                    <button
+                      onClick={() => setViewMode("diagram")}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-medium"
+                      style={{ background: viewMode === "diagram" ? C.panel : "transparent", color: viewMode === "diagram" ? C.ink : C.muted }}
+                      title="Print-shaped diagram, plus the control plane as a matrix. Exports to PDF."
+                    >
+                      <Workflow size={12} /> Diagram
+                    </button>
+                  </div>
                 </div>
-              )}
+              </div>
 
               <div className="text-[11px] mt-3" style={{ color: C.muted }}>
                 {layout.edges.length} data flow{layout.edges.length === 1 ? "" : "s"} shown
