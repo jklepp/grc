@@ -31,13 +31,13 @@ export function PageHeader({ icon: Icon, eyebrow, title, tagline, description, d
               so it centers against a single line of text the same way whether or
               not a page happens to have a tagline. */}
           <div className="flex items-center gap-3">
-            {Icon && <Icon size={26} color={C.accent} strokeWidth={2.25} className="shrink-0" />}
-            <h1 className="text-3xl font-bold leading-tight" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>
+            {Icon && <Icon size={21} color={C.accent} strokeWidth={2.25} className="shrink-0" />}
+            <h1 className="text-2xl leading-tight" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>
               {title}
             </h1>
           </div>
           {tagline && (
-            <div className="text-xs mt-1" style={{ color: C.muted, marginLeft: Icon ? 38 : 0 }}>{tagline}</div>
+            <div className="text-xs mt-1" style={{ color: C.muted, marginLeft: Icon ? 33 : 0 }}>{tagline}</div>
           )}
         </div>
         {right}
