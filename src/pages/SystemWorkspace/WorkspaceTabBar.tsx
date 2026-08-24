@@ -38,7 +38,7 @@ function TabChip({ tab, isActive, onClick }: { tab: Tab; isActive: boolean; onCl
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-t-lg text-xs font-medium transition-colors"
+      className="flex items-center gap-1.5 px-2.5 py-1.5 max-lg:px-3 max-lg:py-2.5 max-lg:min-h-11 rounded-t-lg text-xs font-medium transition-colors"
       style={{ color: isActive ? "#fff" : C.muted, background: isActive ? C.accentStrong : "transparent" }}
     >
       {Icon && <Icon size={13} />}

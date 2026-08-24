@@ -31,7 +31,7 @@ interface SectionHeaderProps {
 export function SectionHeader({ icon: Icon, title, description, aside, className = "" }: SectionHeaderProps) {
   if (!title) {
     return (
-      <div className={`flex items-start justify-between gap-4 mb-3.5 ${className}`}>
+      <div className={`flex items-start justify-between gap-4 mb-3.5 max-lg:flex-wrap ${className}`}>
         <div className="text-xs leading-relaxed min-w-0" style={{ color: C.muted }}>{description}</div>
         {aside && <div className="shrink-0">{aside}</div>}
       </div>

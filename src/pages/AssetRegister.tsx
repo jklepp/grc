@@ -295,7 +295,7 @@ function AssetDetailPanel({ asset, onClose }: { asset: AssetRollup; onClose: () 
             )}
           </div>
         </div>
-        <button onClick={onClose} className="p-1.5 rounded-lg shrink-0" style={{ color: C.muted, background: C.panel2 }} title="Close">
+        <button onClick={onClose} className="p-1.5 max-lg:p-3 rounded-lg shrink-0" style={{ color: C.muted, background: C.panel2 }} title="Close">
           <X size={16} />
         </button>
       </div>

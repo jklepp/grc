@@ -81,7 +81,7 @@ export function TabBar<T extends string>({ tabs, active, onChange, variant = "pr
               <button
                 key={t.id}
                 onClick={() => onChange(t.id)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-t-lg text-xs font-medium transition-colors"
+                className="flex items-center gap-1.5 px-3 py-2 max-lg:py-2.5 max-lg:min-h-11 rounded-t-lg text-xs font-medium transition-colors"
                 style={{
                   color: isActive ? "#fff" : C.muted,
                   background: isActive ? C.accentStrong : "transparent",
