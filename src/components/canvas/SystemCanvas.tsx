@@ -16,8 +16,8 @@ import { DARK } from "../../theme";
 import type { AssetId } from "../../graph/ids";
 import type { FlowLayout } from "../../utils/flowDiagramLayout";
 import { buildCanvasGraph } from "./canvasLayout";
-import type { CanvasVendor, EdgeKindFilter } from "./canvasLayout";
-import { CanvasActorNode, CanvasAssetNode, CanvasLaneNode, CanvasVendorNode } from "./CanvasNodes";
+import type { CanvasBandId, CanvasVendor, EdgeKindFilter } from "./canvasLayout";
+import { CanvasActorNode, CanvasAssetNode, CanvasBandNode, CanvasLaneNode, CanvasVendorNode } from "./CanvasNodes";
 
 // Module-level. Rebuilding this object each render remounts every node, logs
 // React Flow warning #002, and would defeat the theme handling below.
@@ -26,6 +26,7 @@ const nodeTypes = {
   actor: CanvasActorNode,
   vendor: CanvasVendorNode,
   lane: CanvasLaneNode,
+  band: CanvasBandNode,
 };
 
 export interface CanvasFocus { cx: number; cy: number; zoom: number }
@@ -35,6 +36,8 @@ export interface SystemCanvasProps {
   systemProvider: string;
   vendors: readonly CanvasVendor[];
   edgeKinds: EdgeKindFilter;
+  collapsedBands: ReadonlySet<CanvasBandId>;
+  onToggleBand: (bandId: CanvasBandId) => void;
   selectedKey: AssetId | null;
   onSelectNode: (assetId: AssetId | null) => void;
   rolesFor: (assetId: AssetId) => string[] | null;
@@ -91,7 +94,8 @@ function ViewportBridge({
 }
 
 function Inner({
-  layout, systemProvider, vendors, edgeKinds, selectedKey, onSelectNode, rolesFor,
+  layout, systemProvider, vendors, edgeKinds, collapsedBands, onToggleBand,
+  selectedKey, onSelectNode, rolesFor,
   mode, initialFocus, onFocusChange, onCounts,
 }: SystemCanvasProps) {
   // Every colour below comes from DARK, not from the mutable C. The canvas is
@@ -109,10 +113,11 @@ function Inner({
         systemProvider,
         vendors,
         edgeKinds,
+        collapsedBands,
         selectedKey,
         tokens: { accent: DARK.accent, muted: DARK.muted, green: DARK.green, amber: DARK.amber, red: DARK.red, na: DARK.na },
       }),
-    [layout, systemProvider, vendors, edgeKinds, selectedKey]
+    [layout, systemProvider, vendors, edgeKinds, collapsedBands, selectedKey]
   );
 
   // The data-type filter turns a card's type line into the roles it plays for
@@ -153,10 +158,16 @@ function Inner({
 
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
+      // A band strip is a control, not a thing to select: clicking it folds
+      // its band and leaves whatever asset was selected selected.
+      if (node.type === "band") {
+        onToggleBand((node.data as { bandId: CanvasBandId }).bandId);
+        return;
+      }
       if (node.type !== "asset") return;
       onSelectNode(node.id === selectedKey ? null : (node.id as AssetId));
     },
-    [onSelectNode, selectedKey]
+    [onSelectNode, onToggleBand, selectedKey]
   );
 
   // A node click bubbles up to the pane, so an unguarded handler would clear

@@ -17,8 +17,8 @@ import { exportFlowDiagramPdf } from "../utils/exportFlowDiagramPdf";
 import Modal, { ModalCloseButton } from "../components/Modal";
 import SystemCanvas from "../components/canvas/SystemCanvas";
 import type { CanvasFocus } from "../components/canvas/SystemCanvas";
-import { DEFAULT_EDGE_KINDS } from "../components/canvas/canvasLayout";
-import type { EdgeKindFilter } from "../components/canvas/canvasLayout";
+import { DEFAULT_COLLAPSED_BANDS, DEFAULT_EDGE_KINDS } from "../components/canvas/canvasLayout";
+import type { CanvasBandId, EdgeKindFilter } from "../components/canvas/canvasLayout";
 import type { AssetRollup, SystemRollup } from "../engine";
 import type { AssetId, DataTypeId, SystemId } from "../graph/ids";
 import { useLiveEngine } from "../engine/useLiveEngine";
@@ -307,6 +307,10 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
   // Canvas state lives here rather than inside SystemCanvas so it survives the
   // remount when the view is expanded, and so the toolbar owns the controls.
   const [edgeKinds, setEdgeKinds] = useState<EdgeKindFilter>(DEFAULT_EDGE_KINDS);
+  // Lives here for the same reason edgeKinds does: the embedded and expanded
+  // canvases are two React Flow instances, so a band opened in one has to stay
+  // open when the reader moves to the other.
+  const [collapsedBands, setCollapsedBands] = useState<ReadonlySet<CanvasBandId>>(DEFAULT_COLLAPSED_BANDS);
   const [expanded, setExpanded] = useState(false);
   const [edgeStats, setEdgeStats] = useState<{ counts: Record<keyof EdgeKindFilter, number>; visible: number }>(
     { counts: { data: 0, actors: 0, vendors: 0, controlPlane: 0, deploy: 0, backupRestore: 0 }, visible: 0 }
@@ -353,6 +357,14 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
   // the request path. Built from the same (possibly data-type-filtered)
   // layout the card view uses, so switching views never changes what's
   // actually being shown.
+  const toggleBand = useCallback((bandId: CanvasBandId) => {
+    setCollapsedBands((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(bandId)) next.add(bandId);
+      return next;
+    });
+  }, []);
+
   const dataFlowDiagram = useMemo(() => buildDataFlowDiagram(layout), [layout]);
   const controlPlaneMatrix = useMemo(() => buildControlPlaneMatrix(layout, getAsset), [layout]);
 
@@ -497,6 +509,8 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
                   systemProvider={system.provider}
                   vendors={vendorPosture.vendors}
                   edgeKinds={edgeKinds}
+                  collapsedBands={collapsedBands}
+                  onToggleBand={toggleBand}
                   selectedKey={selectedKey}
                   onSelectNode={setSelectedKey}
                   rolesFor={rolesFor}
@@ -605,6 +619,8 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
                 systemProvider={system.provider}
                 vendors={vendorPosture.vendors}
                 edgeKinds={edgeKinds}
+                collapsedBands={collapsedBands}
+                onToggleBand={toggleBand}
                 selectedKey={selectedKey}
                 onSelectNode={setSelectedKey}
                 rolesFor={rolesFor}

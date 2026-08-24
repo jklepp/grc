@@ -9,7 +9,7 @@
 // rail — which is where there is room to read them.
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
-import { Cpu, User } from "lucide-react";
+import { ChevronDown, ChevronRight, Cpu, User } from "lucide-react";
 import { CLASS_META_DARK, DARK } from "../../theme";
 import type { ClassificationLabel } from "../../theme";
 import { ACTOR_KINDS, IMPACT_LEVEL_LABELS } from "../../engine";
@@ -85,6 +85,55 @@ export function CanvasLaneNode({ data }: NodeProps) {
       >
         {text}
       </div>
+    </div>
+  );
+}
+
+export type BandNodeData = {
+  bandId: string;
+  title: string;
+  count: number;
+  collapsed: boolean;
+  width: number;
+  hiddenEdges: number;
+};
+
+// A band's header strip, running the full width of the grid.
+//
+// Unlike CanvasLaneNode this is NOT inert: the whole strip is the click target
+// that folds and unfolds its band, so it keeps pointer events and shows a
+// chevron pointing the way it will move. Collapsed, it also reports how many
+// lines are being withheld — a band that hides six assets and fourteen flows
+// should say so rather than leaving the reader to wonder what moved.
+export function CanvasBandNode({ data }: NodeProps) {
+  const { title, count, collapsed, width, hiddenEdges } = data as BandNodeData;
+  const Chevron = collapsed ? ChevronRight : ChevronDown;
+  const assets = `${count} ${count === 1 ? "asset" : "assets"}`;
+  return (
+    <div
+      className="flex items-center gap-2 rounded-full border px-3 cursor-pointer"
+      style={{
+        width,
+        height: "100%",
+        color: DARK.muted,
+        background: DARK.panel2,
+        borderColor: DARK.border,
+      }}
+      title={collapsed ? `Show ${assets}` : `Hide ${title}`}
+    >
+      <Chevron size={13} className="shrink-0" aria-hidden />
+      <span
+        className="text-[13px] uppercase tracking-widest font-semibold leading-none truncate"
+        style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+      >
+        {title}
+      </span>
+      <span className="text-[10px] leading-none shrink-0">{assets}</span>
+      {collapsed && hiddenEdges > 0 && (
+        <span className="text-[10px] leading-none shrink-0">
+          · {hiddenEdges} {hiddenEdges === 1 ? "line" : "lines"} hidden
+        </span>
+      )}
     </div>
   );
 }

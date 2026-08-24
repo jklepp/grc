@@ -40,6 +40,12 @@ const BAND_GAP = 24;
 // type size plus its rule, or the header crops.
 const LANE_H = 32;
 const LANE_GAP = 14;
+// A band's own header strip. Same height as a lane header so the two read as
+// one family of chrome, but full grid width and interactive: the strip IS the
+// control that folds and unfolds its band.
+const BAND_H = LANE_H;
+// Air between a band's header and its first row of cards.
+const BAND_TITLE_GAP = 12;
 
 export interface EdgeKindFilter {
   data: boolean;
@@ -71,11 +77,39 @@ export interface CanvasTokens {
   accent: string; muted: string; green: string; amber: string; red: string; na: string;
 }
 
+// The bands drawn beneath the request path, in the order the engine sections
+// them. Declared once, here, so the ids the collapse state is keyed on are the
+// same ones the layout draws, rather than a slug derived from a title in two
+// places that can drift apart.
+export const CANVAS_BANDS = [
+  { id: "band-workforce-access", title: "Workforce Access" },
+  { id: "band-data-plane", title: "Data Plane" },
+  { id: "band-control-plane", title: "Control Plane" },
+  { id: "band-software-deployment", title: "Software Deployment" },
+  { id: "band-backup-recovery", title: "Backup & Recovery" },
+] as const;
+
+export type CanvasBandId = (typeof CANVAS_BANDS)[number]["id"];
+
+const BAND_TITLE: Record<CanvasBandId, string> = Object.fromEntries(
+  CANVAS_BANDS.map((b) => [b.id, b.title])
+) as Record<CanvasBandId, string>;
+
+// Collapsed by default. Expanded, the bands roughly double the diagram's
+// height on a system the size of the AI platform — and the request path alone
+// is already taller than the pane it sits in, which is what put fit-to-view at
+// a third of full size and made every label unreadable. Each strip names what
+// is behind it and counts it, so nothing is hidden silently.
+export const DEFAULT_COLLAPSED_BANDS: ReadonlySet<CanvasBandId> = new Set(
+  CANVAS_BANDS.map((b) => b.id)
+);
+
 export interface CanvasInput {
   layout: FlowLayout;
   systemProvider: string;
   vendors: readonly CanvasVendor[];
   edgeKinds: EdgeKindFilter;
+  collapsedBands: ReadonlySet<CanvasBandId>;
   selectedKey: AssetId | null;
   tokens: CanvasTokens;
 }
@@ -147,10 +181,16 @@ function sidesFor(a: Placed, b: Placed): { sourceHandle: string; targetHandle: s
 }
 
 export function buildCanvasGraph(input: CanvasInput): CanvasResult {
-  const { layout, systemProvider, vendors, edgeKinds, selectedKey, tokens } = input;
+  const { layout, systemProvider, vendors, edgeKinds, collapsedBands, selectedKey, tokens } = input;
 
   const nodes: Node[] = [];
   const placed = new Map<string, Placed>();
+  // Assets folded away inside a collapsed band, and the strips that stand in
+  // for them. An edge with an endpoint in here cannot be drawn; it is counted
+  // against the band instead, so a folded band reports what it is withholding.
+  const hiddenAssets = new Map<string, CanvasBandId>();
+  const hiddenEdgeCounts = new Map<CanvasBandId, number>();
+  const bandStrips = new Map<CanvasBandId, Node>();
   // assetId -> its stored `provider`, so vendor edges can be drawn from a fact
   // rather than by searching the node array for one.
   const assetProviders = new Map<string, string>();
@@ -187,10 +227,10 @@ export function buildCanvasGraph(input: CanvasInput): CanvasResult {
   // Lane headers sit above the request path and are pure chrome: not
   // selectable, not connectable, and no entry in `placed` so no edge can ever
   // anchor to one.
-  const pushLane = (id: string, x: number, w: number, text: string, y = 0) => {
+  const pushLane = (id: string, x: number, w: number, text: string) => {
     nodes.push({
       id, type: "lane",
-      position: { x, y },
+      position: { x, y: 0 },
       initialWidth: w,
       initialHeight: LANE_H,
       measured: { width: w, height: LANE_H },
@@ -199,6 +239,27 @@ export function buildCanvasGraph(input: CanvasInput): CanvasResult {
       draggable: false,
       focusable: false,
     });
+  };
+
+  // A band's header strip. Chrome like a lane header, but it is the click
+  // target that collapses its band, so it stays focusable and returns the node
+  // — the withheld-line count is written back onto it once the edges are
+  // known. Still absent from `placed`: no edge ever anchors to a label.
+  const pushBand = (
+    id: CanvasBandId, w: number, count: number, collapsed: boolean, y: number
+  ): Node => {
+    const node: Node = {
+      id, type: "band",
+      position: { x: 0, y },
+      initialWidth: w,
+      initialHeight: BAND_H,
+      measured: { width: w, height: BAND_H },
+      data: { bandId: id, title: BAND_TITLE[id], count, collapsed, width: w, hiddenEdges: 0 },
+      selectable: false,
+      draggable: false,
+    };
+    nodes.push(node);
+    return node;
   };
 
   // ---- Row 0: the request path, actors at either end ---------------------------
@@ -363,37 +424,48 @@ export function buildCanvasGraph(input: CanvasInput): CanvasResult {
   const columnCount = Math.max(1, columns.length);
   let bandTop = rowTop + tallest * ROW_PITCH + BAND_GAP;
 
+  // The grid's own width — the same span a lane header covering every column
+  // would have, so a band strip lines up flush with the request path above it.
+  const gridWidth = columnCount * COLUMN_PITCH - (COLUMN_PITCH - NODE_W);
+
   // ---- Bands beneath, in the engine's own order --------------------------------
-  // A band with nothing in it contributes no height and no gap, so a system
-  // with no AI pipeline (or no delivery tooling) collapses cleanly instead of
-  // leaving a void where a label would have been.
-  // The band's title rides in the gutter to the LEFT of the grid — one column
-  // pitch out at x = -COLUMN_PITCH, so it lands on the same rhythm as every
-  // other card rather than floating at an arbitrary offset. Titled bands are
-  // the horizontal counterpart of the lane headers along the top, and reuse the
-  // same pill node.
-  const band = (items: Item[], title: string) => {
+  // A band with nothing in it contributes no height, no gap and no strip, so a
+  // system with no AI pipeline (or no delivery tooling) collapses cleanly
+  // instead of leaving a void where a label would have been.
+  //
+  // Every band that DOES have content gets a full-width header strip: its
+  // title, how many assets are inside, and — collapsed — how many lines are
+  // being withheld. The strip is the click target, so a band is opened by
+  // clicking the thing that names it.
+  //
+  // This replaced a pill in the gutter at x = -COLUMN_PITCH. That pill sat
+  // outside the content's left edge, so it widened the fit-to-view extent by a
+  // whole column for chrome alone, and it scrolled out of sight the moment you
+  // panned right — a band lost its name exactly while you were reading it.
+  const band = (items: Item[], bandId: CanvasBandId) => {
     if (!items.length) return;
+    const collapsed = collapsedBands.has(bandId);
+    bandStrips.set(bandId, pushBand(bandId, gridWidth, items.length, collapsed, bandTop));
+
+    if (collapsed) {
+      // Registered, not placed. `add` below finds no geometry for these and
+      // charges the missing line to the band instead of dropping it silently.
+      items.forEach((item) => {
+        if (item.kind === "asset") hiddenAssets.set(item.asset.id, bandId);
+      });
+      bandTop += BAND_H + BAND_GAP;
+      return;
+    }
+
+    const top = bandTop + BAND_H + BAND_TITLE_GAP;
     items.forEach((item, i) => {
       const x = (i % columnCount) * COLUMN_PITCH;
-      const y = bandTop + Math.floor(i / columnCount) * ROW_PITCH;
+      const y = top + Math.floor(i / columnCount) * ROW_PITCH;
       placeItem(item, x, y);
     });
 
     const rows = Math.ceil(items.length / columnCount);
-    // Centre the label against the band's actual content, not its slot: the
-    // last row carries no bottom gutter, so subtracting one gutter is what
-    // keeps a two-row band's title from sitting low.
-    const contentH = rows * ROW_PITCH - (ROW_PITCH - ASSET_H);
-    pushLane(
-      `band-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
-      -COLUMN_PITCH,
-      NODE_W,
-      title,
-      bandTop + (contentH - LANE_H) / 2
-    );
-
-    bandTop += rows * ROW_PITCH + BAND_GAP;
+    bandTop += BAND_H + BAND_TITLE_GAP + rows * ROW_PITCH + BAND_GAP;
   };
 
   // Whatever workforce ingress was NOT folded into the ingress column. With
@@ -403,11 +475,11 @@ export function buildCanvasGraph(input: CanvasInput): CanvasResult {
   //
   // Titles are the engine's own section names, matching what the card view used
   // and what the Diagram view still shows.
-  band(assetItems(workforceBandEntries), "Workforce Access");
-  band(assetItems(layout.dataPlane), "Data Plane");
-  band(assetItems(layout.branches), "Control Plane");
-  band(assetItems(layout.softwareDeployment), "Software Deployment");
-  band(assetItems(layout.backupRecovery), "Backup & Recovery");
+  band(assetItems(workforceBandEntries), "band-workforce-access");
+  band(assetItems(layout.dataPlane), "band-data-plane");
+  band(assetItems(layout.branches), "band-control-plane");
+  band(assetItems(layout.softwareDeployment), "band-software-deployment");
+  band(assetItems(layout.backupRecovery), "band-backup-recovery");
 
   // ---- Edges -------------------------------------------------------------------
   const counts: Record<keyof EdgeKindFilter, number> = {
@@ -429,7 +501,19 @@ export function buildCanvasGraph(input: CanvasInput): CanvasResult {
   ) => {
     const a = placed.get(source);
     const b = placed.get(target);
-    if (!a || !b) return;
+    if (!a || !b) {
+      // An endpoint sits inside a collapsed band. Counted once per band the
+      // line touches, so the strip can say what folding it cost. Only edges of
+      // an ENABLED kind reach here, which is what makes the number mean "lines
+      // you would otherwise be seeing".
+      const bands = new Set<CanvasBandId>();
+      const from = hiddenAssets.get(source);
+      const to = hiddenAssets.get(target);
+      if (from) bands.add(from);
+      if (to) bands.add(to);
+      bands.forEach((id) => hiddenEdgeCounts.set(id, (hiddenEdgeCounts.get(id) ?? 0) + 1));
+      return;
+    }
     const { stroke, dash } = edgeStyle(kind, tokens);
     const { sourceHandle, targetHandle } = sidesFor(a, b);
     if (!dimmed) visibleEdgeCount += 1;
@@ -525,6 +609,13 @@ export function buildCanvasGraph(input: CanvasInput): CanvasResult {
       add(`ven-${assetId}-${v.vendorId}`, assetId, `vendor-${v.vendorId}`, "depends-on",
         v.dependency, !touches(assetId, `vendor-${v.vendorId}`));
     });
+  });
+
+  // Strips are pushed while the bands are laid out, before a single edge
+  // exists, so the withheld-line count is written back now that they do.
+  hiddenEdgeCounts.forEach((hiddenEdges, id) => {
+    const strip = bandStrips.get(id);
+    if (strip) strip.data = { ...strip.data, hiddenEdges };
   });
 
   return { nodes, edges, counts, substrateVendorId, visibleEdgeCount };
