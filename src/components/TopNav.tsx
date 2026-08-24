@@ -4,7 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import type { ThemeMode } from "../theme";
 import { GOVERNANCE_AREAS } from "../pages/governanceAreas";
 import type { GovernanceAreaId } from "../pages/governanceAreas";
-import { OVERVIEW_AREAS } from "../pages/overviewAreas";
+import { VISIBLE_OVERVIEW_AREAS } from "../pages/overviewAreas";
 import type { OverviewAreaId } from "../pages/overviewAreas";
 import { ROLE_LABELS, initialsOf } from "../auth/roster";
 import type { User } from "../auth/roster";
@@ -178,7 +178,7 @@ export default function TopNav({ active, onSelect, user, onSignOut, onOpenSettin
           label="Overview"
           icon={LayoutDashboard}
           isActive={active === "overview"}
-          areas={OVERVIEW_AREAS.map((a) => ({ id: OVERVIEW_LEGACY_ID[a.id], label: a.label, icon: a.icon }))}
+          areas={VISIBLE_OVERVIEW_AREAS.map((a) => ({ id: OVERVIEW_LEGACY_ID[a.id], label: a.label, icon: a.icon }))}
           onSelect={onSelect}
           onSelectArea={onSelect}
         />

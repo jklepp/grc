@@ -6,13 +6,12 @@ import { C } from "../theme";
 import { PageHeader } from "../components/Headings";
 import type { SystemId } from "../graph/ids";
 import {
-  ALL_FINDINGS, ASSURANCE_TARGET, MATERIAL_RISKS, cockpitSummary, getAllRisks,
+  ALL_FINDINGS, ASSURANCE_TARGET, MATERIAL_RISKS, cockpitSummary,
   getAllSystems, getEnterprise, profileSummary,
 } from "../engine";
 
 const ENTERPRISE = getEnterprise();
 const SYSTEMS = getAllSystems();
-const RISKS = getAllRisks();
 const ENTERPRISE_ASSURANCE = ENTERPRISE.assurance ?? 0;
 const ASSURANCE_GAP = ENTERPRISE_ASSURANCE - ASSURANCE_TARGET;
 const MATERIAL_RISK_IDS = new Set(MATERIAL_RISKS.map((risk) => risk.id));
@@ -43,7 +42,7 @@ interface AttentionItem {
   status: string;
   title: string;
   detail: string;
-  target: "risk-register" | "data-estate";
+  target: "data-estate";
   systemId?: SystemId;
 }
 
@@ -61,17 +60,9 @@ const FINDING_ATTENTION: AttentionItem[] = ALL_FINDINGS.map((finding) => {
   };
 });
 
-const RISK_ATTENTION: AttentionItem[] = RISKS
-  .filter((risk) => risk.escalated)
-  .map((risk) => ({
-    id: `risk:${risk.id}`,
-    priority: 1,
-    tone: "urgent",
-    status: "Decision required",
-    title: risk.materialLabel ?? risk.scenario,
-    detail: `${risk.owner} · residual ${risk.residual.severity}/${risk.residual.likelihood}`,
-    target: "risk-register",
-  }));
+// Escalated risks used to appear here, linking into the Risk Register. That
+// page is deprecated and no longer navigable, so the rows are gone rather than
+// left pointing at somewhere the user can't reach.
 
 const OPERATIONAL_ATTENTION: AttentionItem[] = SYSTEMS.flatMap((system) =>
   cockpitSummary(system.id).attentionRequired
@@ -90,7 +81,6 @@ const OPERATIONAL_ATTENTION: AttentionItem[] = SYSTEMS.flatMap((system) =>
 
 const ATTENTION_ITEMS = [
   ...FINDING_ATTENTION,
-  ...RISK_ATTENTION,
   ...OPERATIONAL_ATTENTION,
 ].sort((a, b) => a.priority - b.priority || a.title.localeCompare(b.title));
 
@@ -270,7 +260,7 @@ export default function ExecutiveDashboard({
               {ATTENTION_ITEMS.length} priority items
             </span>
           </div>
-          <p className="text-xs mt-1 mb-3" style={{ color: C.muted }}>Highest-impact work across findings, risk, and operations.</p>
+          <p className="text-xs mt-1 mb-3" style={{ color: C.muted }}>Highest-impact work across findings and operations.</p>
 
           {shownAttention.length === 0 ? (
             <div className="py-8 text-center">
@@ -301,7 +291,7 @@ export default function ExecutiveDashboard({
 
           {remainingAttention > 0 && (
             <div className="text-[11px] pt-3" style={{ borderTop: `1px solid ${C.border}`, color: C.muted }}>
-              +{remainingAttention} more priority item{remainingAttention === 1 ? "" : "s"} available in Systems and the Risk Register.
+              +{remainingAttention} more priority item{remainingAttention === 1 ? "" : "s"} available in Systems.
             </div>
           )}
         </section>

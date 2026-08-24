@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
-  Link2, BookOpenText, Layers, FileCheck2, Wrench, Gauge, Plus, Pencil, Trash2, Check, ChevronRight,
+  Link2, BookOpenText, Layers, Wrench, Gauge, Plus, Pencil, Trash2, Check, ChevronRight,
   ScrollText, Network, ClipboardCheck, ShieldCheck, Ban,
 } from "lucide-react";
 import { C } from "../../theme";
@@ -658,6 +658,10 @@ export function ControlEvaluationPanel({
   // this one sits in the walk's queue, not which of its four steps is open.
   // Direct edit has no queue to be nth of, so it names the step alone.
   const runPosition = walk ? Math.min(walk.decidedCount + 1, walk.initialTotal) : null;
+  // Which lane row has its evidence open, and what is being staged inside it.
+  // One lane at a time: the five rows are meant to be read against each other,
+  // and four expanded lists between them would defeat that.
+  const [openLane, setOpenLane] = useState<PrismaLevel | null>(null);
   const [attachingLane, setAttachingLane] = useState<PrismaLevel | null>(null);
   const [editingLaneEvidenceId, setEditingLaneEvidenceId] = useState<EvidenceId | null>(null);
   const [showMaturityDetails, setShowMaturityDetails] = useState(false);
@@ -1006,6 +1010,79 @@ export function ControlEvaluationPanel({
     setLaneDirty(true);
     setSaveError(null);
     setLaneState((current) => ({ ...current, ...patch }));
+  }
+
+  function handleToggleLane(level: PrismaLevel) {
+    setOpenLane((current) => (current === level ? null : level));
+    setAttachingLane(null);
+    setEditingLaneEvidenceId(null);
+  }
+
+  // Attach opens the lane it belongs to, so the form never lands behind a
+  // collapsed row.
+  function handleAttachLane(level: PrismaLevel) {
+    setOpenLane(level);
+    setAttachingLane(level);
+    setEditingLaneEvidenceId(null);
+  }
+
+  // One lane's substantiation, handed to the grader as a slot: the library
+  // record its rating derives from, the records attached to it, and whichever
+  // form is staging a change. It lives here rather than in the grader because
+  // all three read and stage against this panel's draft engine; the lane row
+  // owns only the chrome around them.
+  function renderLaneEvidence(level: PrismaLevel) {
+    const laneLevels = gradingLevels ?? assessment?.levels ?? null;
+    const derivedFrom = laneDerivedDoc[level];
+    return (
+      <>
+        {derivedFrom && laneLevels && (
+          <LaneDerivedFrom
+            code={derivedFrom.code}
+            title={derivedFrom.title}
+            detail={derivedFrom.detail}
+            rationale={laneLevels[level].rationale}
+            basis={laneLevels[level].basis}
+          />
+        )}
+        {laneEvidence[level].map((e) => editingLaneEvidenceId === e.id ? (
+          <EvidenceForm
+            independent={independent}
+            key={e.id}
+            initial={{ ...e, exceptions: e.exceptions ?? "", population: e.population ?? "" }}
+            assetOptions={assetOptions}
+            isProgramScoped={isProgramScoped}
+            prismaLevel={level}
+            onCancel={() => setEditingLaneEvidenceId(null)}
+            onSubmit={(patch) => handleUpdateEvidence(e.id, patch, `Updated evidence — ${patch.source || e.source}`)}
+          />
+        ) : (
+          <EvidenceCard
+            key={e.id}
+            e={e}
+            governing={governingEvidenceIds.has(e.id)}
+            assetLabel={e.assetIds.length > 0
+              ? e.assetIds.slice(0, 2).map((id) => assetName(system, id)).join(", ")
+                + (e.assetIds.length > 2 ? ` +${e.assetIds.length - 2} more` : "")
+              : undefined}
+            getArtifacts={draftEngine!.selectors.getEvidenceArtifacts}
+            getReviews={draftEngine!.selectors.getEvidenceReviews}
+            onEdit={() => { setEditingLaneEvidenceId(e.id); setAttachingLane(null); }}
+            onDelete={() => handleDeleteEvidence(e)}
+          />
+        ))}
+        {attachingLane === level && (
+          <EvidenceForm
+            independent={independent}
+            assetOptions={assetOptions}
+            isProgramScoped={isProgramScoped}
+            prismaLevel={level}
+            onCancel={() => setAttachingLane(null)}
+            onSubmit={(draft) => handleAttachEvidence(draft)}
+          />
+        )}
+      </>
+    );
   }
 
   // The one commit an assessment makes. Everything the operator decided on
@@ -1438,12 +1515,20 @@ export function ControlEvaluationPanel({
                 </Callout>
               )}
 
+              {/* Scoring and its substantiation in one section: one row per
+                  PRISMA lane, carrying that lane's scale, what is attached to
+                  it, and the way to attach more. Implemented-lane records are
+                  the ones the engine samples for scoring; records attached to
+                  the other four lanes document that lane's claim (the policy
+                  PDF, the SOP extract, the metric export, the review minutes)
+                  without entering the implementation pool — see
+                  RawEvidence.prismaLevel. */}
               <Section
                 icon={Gauge}
                 title="PRISMA lanes"
                 description={assessed
-                  ? "Derived ratings are suggestions. Accept them, or pick 0 / 25 / 50 / 75 / 100 on each lane."
-                  : "Grade all five. Untouched lanes save at their derived rating; Implemented is the one call only you can make."}
+                  ? "Grade each lane and attach what backs it in the same row. Derived ratings are suggestions — accept them, or pick 0 / 25 / 50 / 75 / 100."
+                  : "Grade all five and attach what backs each one. Untouched lanes save at their derived rating; Implemented is the one call only you can make."}
                 aside={assessed
                   ? undefined
                   : <StatusPill tone="warning">Not assessed</StatusPill>}
@@ -1457,118 +1542,15 @@ export function ControlEvaluationPanel({
                     value={laneState}
                     onChange={handleLaneChange}
                     dirty={laneDirty}
+                    laneEvidence={laneEvidence}
+                    laneDerivedDoc={laneDerivedDoc}
+                    openLane={openLane}
+                    onToggleLane={handleToggleLane}
+                    onAttach={handleAttachLane}
+                    renderLaneEvidence={renderLaneEvidence}
+                    laneFormOpen={attachingLane !== null || editingLaneEvidenceId !== null}
                   />
                 )}
-              </Section>
-
-              {/* One evidence slot per PRISMA lane, in ladder order.
-                  Implemented-lane records are the ones the engine samples for
-                  scoring; records attached to the other four lanes document
-                  that lane's claim (the policy PDF, the SOP extract, the
-                  metric export, the review minutes) without entering the
-                  implementation pool — see RawEvidence.prismaLevel. */}
-              <Section
-                icon={FileCheck2}
-                title="Evidence by lane"
-                description="Policy and Procedure already carry the library record their rating was derived from; attach an artifact to the others — the test output, the metric, the review minutes. Implemented-lane records are sampled for scoring; the other lanes' records document the claim behind the derived rating."
-              >
-                {PRISMA_LEVELS.map((level, idx) => {
-                  const laneLevels = gradingLevels ?? assessment.levels;
-                  // The preview seeds Implemented with a placeholder so the
-                  // other four lanes can derive; it is not a rating anybody
-                  // has claimed yet, so this row says so rather than quoting
-                  // a number the operator never picked.
-                  const laneRating = effectiveRating(laneState, laneLevels, level, assessed);
-                  const records = laneEvidence[level];
-                  const derivedFrom = laneDerivedDoc[level];
-                  return (
-                    <Well key={level} className="flex flex-col gap-3">
-                      <div className="flex items-center gap-2.5 flex-wrap">
-                        <span
-                          className={`${TX.code} w-[22px] h-[22px] rounded-full flex items-center justify-center shrink-0`}
-                          style={{ background: "transparent", border: `1.5px solid ${C.border}`, color: C.muted }}
-                        >
-                          {idx + 1}
-                        </span>
-                        <span className={TX.itemTitle} style={{ color: C.ink }}>{level}</span>
-                        <span
-                          className={`${TX.help} font-mono font-semibold tabular-nums`}
-                          style={{ color: laneRating == null ? C.muted : ratingColor(laneRating) }}
-                        >
-                          {laneRating == null ? "Not yet assessed" : `${laneRating} — ${COMPLIANCE_LABELS[laneRating]}`}
-                        </span>
-                        {/* A lane with a derived source is substantiated even
-                            with nothing attached, so it must not wear the same
-                            amber "None attached" as a lane nothing backs. */}
-                        <StatusPill tone={records.length > 0 ? "success" : derivedFrom ? "neutral" : "warning"}>
-                          {records.length > 0
-                            ? `${records.length} attached`
-                            : derivedFrom ? `Derived from ${derivedFrom.code}` : "None attached"}
-                        </StatusPill>
-                        {attachingLane !== level && (
-                          <span className="ml-auto">
-                            <Button
-                              size="sm"
-                              icon={Plus}
-                              onClick={() => { setAttachingLane(level); setEditingLaneEvidenceId(null); }}
-                            >
-                              Attach evidence
-                            </Button>
-                          </span>
-                        )}
-                      </div>
-                      {derivedFrom && (
-                        <LaneDerivedFrom
-                          code={derivedFrom.code}
-                          title={derivedFrom.title}
-                          detail={derivedFrom.detail}
-                          rationale={laneLevels[level].rationale}
-                          basis={laneLevels[level].basis}
-                        />
-                      )}
-                      {records.length > 0 && (
-                        <div className="flex flex-col gap-2">
-                          {records.map((e) => editingLaneEvidenceId === e.id ? (
-                            <EvidenceForm
-                              independent={independent}
-                              key={e.id}
-                              initial={{ ...e, exceptions: e.exceptions ?? "", population: e.population ?? "" }}
-                              assetOptions={assetOptions}
-                              isProgramScoped={isProgramScoped}
-                              prismaLevel={level}
-                              onCancel={() => setEditingLaneEvidenceId(null)}
-                              onSubmit={(patch) => handleUpdateEvidence(e.id, patch, `Updated evidence — ${patch.source || e.source}`)}
-                            />
-                          ) : (
-                            <EvidenceCard
-                              key={e.id}
-                              e={e}
-                              governing={governingEvidenceIds.has(e.id)}
-                              assetLabel={e.assetIds.length > 0
-                                ? e.assetIds.slice(0, 2).map((id) => assetName(system, id)).join(", ")
-                                  + (e.assetIds.length > 2 ? ` +${e.assetIds.length - 2} more` : "")
-                                : undefined}
-                              getArtifacts={draftEngine.selectors.getEvidenceArtifacts}
-                              getReviews={draftEngine.selectors.getEvidenceReviews}
-                              onEdit={() => { setEditingLaneEvidenceId(e.id); setAttachingLane(null); }}
-                              onDelete={() => handleDeleteEvidence(e)}
-                            />
-                          ))}
-                        </div>
-                      )}
-                      {attachingLane === level && (
-                        <EvidenceForm
-                          independent={independent}
-                          assetOptions={assetOptions}
-                          isProgramScoped={isProgramScoped}
-                          prismaLevel={level}
-                          onCancel={() => setAttachingLane(null)}
-                          onSubmit={(draft) => handleAttachEvidence(draft)}
-                        />
-                      )}
-                    </Well>
-                  );
-                })}
               </Section>
 
               {row.control.toolHint && (

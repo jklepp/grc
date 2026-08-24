@@ -5,6 +5,7 @@ import type { NavigationPageId } from "./components/TopNav";
 import Systems from "./pages/Systems";
 import Governance from "./pages/Governance";
 import Overview from "./pages/Overview";
+import { isVisibleOverviewArea } from "./pages/overviewAreas";
 import GraphExplorer from "./pages/GraphExplorer";
 import Settings from "./pages/Settings/Settings";
 import { DEFAULT_SYSTEM_ID } from "./pages/SystemWorkspace/SystemWorkspace";
@@ -26,8 +27,11 @@ function governanceTab(tab?: string): GovernanceTab | undefined {
   return tab === "ccf" || tab === "policy" || tab === "procedures" || tab === "principles" || tab === "schedule" || tab === "exceptions" ? tab : undefined;
 }
 
+// Only areas the nav still offers resolve; a route to a deprecated one (an old
+// bookmark, or a LEGACY_ROUTES id another page still calls) returns undefined
+// and Overview falls back to the dashboard.
 function overviewTab(tab?: string): OverviewTab | undefined {
-  return tab === "dashboard" || tab === "risk-register" || tab === "footprint" ? tab : undefined;
+  return tab != null && isVisibleOverviewArea(tab) ? tab : undefined;
 }
 
 // Old top-level ids for pages that got folded into a consolidated page (e.g.
