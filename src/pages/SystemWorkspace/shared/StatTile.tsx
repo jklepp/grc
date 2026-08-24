@@ -22,7 +22,7 @@ export function StatTile({ label, value, sub, color, pct, ring, ringColor, muted
   const ringPct = ring !== undefined ? ring : pct;
   const ringCol = ringColor || color || (muted ? C.muted : C.accent);
   return (
-    <div className="rounded-xl p-4 flex items-center justify-between gap-3" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+    <div className="rounded-lg p-4 flex items-center justify-between gap-3" style={{ background: C.panel2 }}>
       <div className="min-w-0">
         <div className="text-2xl font-semibold" style={{ color: color || C.ink, fontFamily: "'Source Serif 4', serif" }}>{value}</div>
         <div className="text-xs mt-1" style={{ color: C.muted }}>{label}</div>

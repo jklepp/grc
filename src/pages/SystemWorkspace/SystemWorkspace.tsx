@@ -15,7 +15,6 @@ import { SystemControls } from "./SystemControls";
 import type { ControlSelection } from "./SystemControls";
 import { ScopeReviewModal } from "./ScopeReviewModal";
 import { SystemRisk } from "./SystemRisk";
-import { SystemFindings } from "./SystemFindings";
 import { SystemAssets } from "./SystemAssets";
 import { SystemActions } from "./SystemActions";
 import { ControlEvaluationPanel } from "./ControlEvaluationPanel";
@@ -277,10 +276,9 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
 
       {subTab === "risk" && <SystemRisk topRisks={topRisks} />}
 
-      {subTab === "findings" && <SystemFindings systemId={system.id} findings={findings} formalAssessment={formalAssessment} />}
-
       {subTab === "actions" && (
         <SystemActions
+          systemId={system.id}
           matrix={matrix}
           formalAssessment={formalAssessment}
           findings={findings}
@@ -316,7 +314,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         onClose={() => setAssessmentWalkOpen(false)}
         onContinueToFindings={() => {
           setAssessmentWalkOpen(false);
-          changeSubTab("findings");
+          changeSubTab("actions");
         }}
       />
 

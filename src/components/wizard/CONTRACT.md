@@ -22,7 +22,7 @@ check — fixed by adding `complete`, not by hand-rolling a rail row.)
 add a parallel scoring or applicability UI.
 
 **1.4 One findings editor.** Creating or editing a Finding/CAP uses the shared
-Finding editor only, whether opened from SystemFindings or from the evaluation
+Finding editor only, whether opened from the Actions tab or from the evaluation
 panel. Never add a parallel findings form.
 
 **1.5 Consistency is a cross-surface invariant.** A change to shared chrome,

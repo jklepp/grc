@@ -4,7 +4,7 @@ import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { C } from "../../../theme";
 
 // The column heading used by every data table in the workspace — the Controls
-// table it started in, and Findings & CAPs. Shared rather than copied so the
+// table it started in, and the Actions table. Shared rather than copied so the
 // two tables sort with the same affordance and read as one component
 // (CONTRACT 1.2/1.4).
 //

@@ -20,7 +20,7 @@ export const DOMAIN_TO_TAB: Partial<Record<string, SystemWorkspaceTab>> = {
   "Identity & Access": "identity",
   Vulnerability: "security",
   Exposure: "security",
-  Findings: "findings",
+  Findings: "actions",
   Risk: "risk",
   "Control Assurance": "controls",
 };

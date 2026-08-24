@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { RadioTower, Layers, ClipboardCheck } from "lucide-react";
 import { C } from "../../theme";
+import { Panel } from "./shared/Panel";
 import { SectionHeader } from "./shared/SectionHeader";
 import { FilterSelect } from "./shared/FilterSelect";
 import { GAP_CONTROL_STATUSES } from "../../engine/review";
@@ -356,7 +357,12 @@ function StatusChart({
   ) : null;
 
   return (
-    <div className="rounded-xl p-5" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+    <Panel>
+      <SectionHeader
+        icon={Layers}
+        title="Control Posture"
+        description="What holds, what is still unexamined, and the work between the two."
+      />
       <PostureAnchor
         assurance={posture.assurance}
         assessed={assessed}
@@ -418,7 +424,7 @@ function StatusChart({
           />
         ))}
       </div>
-    </div>
+    </Panel>
   );
 }
 
@@ -638,16 +644,10 @@ export function SystemControls({
   }
 
   return (
-    <div className="px-8 pb-10 space-y-6">
-      {/* No action in the header: the walk button lives on the Not Assessed
-          row, next to the count it acts on. Two buttons to one destination is
-          the duplication this card was rebuilt to drop. */}
-      <SectionHeader
-        icon={Layers}
-        title="Control Posture"
-        description="What holds, what is still unexamined, and the work between the two."
-      />
-
+    <div className="px-8 pb-10 space-y-8">
+      {/* No action in the card header: the walk button lives on the Not
+          Assessed row, next to the count it acts on. Two buttons to one
+          destination is the duplication this card was rebuilt to drop. */}
       {applicabilitySummary && posture && (
         <StatusChart
           statusCounts={statusCounts}

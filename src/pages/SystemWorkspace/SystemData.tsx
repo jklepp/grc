@@ -61,8 +61,8 @@ export function SystemData({ system, dataTypes, resilience, backupRecovery }: Sy
   const recoveryVerified = Boolean(lastTest?.restoreSuccessful && resilience.targetsMetLastTest && !resilience.overdue);
 
   return (
-    <div className="px-8 pb-10">
-      <Panel className="mb-5">
+    <div className="px-8 pb-10 space-y-8">
+      <Panel>
         <SectionHeader icon={Database} title="Data Profile" description="Population, geographic, and lifecycle characteristics for this system's data." />
         <div className="grid grid-cols-4 gap-5">
           <IdentificationField label="Data Subjects" value={system.dataProfile.subjects.join(", ")} />
@@ -71,7 +71,7 @@ export function SystemData({ system, dataTypes, resilience, backupRecovery }: Sy
           <IdentificationField label="Retention" value={system.dataProfile.retention} />
         </div>
       </Panel>
-      <Panel className="mb-5">
+      <Panel>
         <SectionHeader
           icon={ListTree}
           title="Data Types Processed"

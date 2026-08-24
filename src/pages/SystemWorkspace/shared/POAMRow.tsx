@@ -17,10 +17,10 @@ const THEME_COLOR: Record<string, string> = {
 // Testing tab's pen-test and tabletop sections, where a finding is supporting
 // detail rather than the list being worked.
 //
-// Findings & CAPs is the surface where findings ARE the work, and it renders
-// them as a sortable table instead (see SystemFindings). This card used to
-// carry that page's click-to-open and action strip; both moved there when the
-// list became a table, so nothing operable is left here.
+// The Actions tab is the surface where findings ARE the work, and it renders
+// them as rows in its action table instead (see SystemActions). This card used
+// to carry that page's click-to-open and action strip; both moved there when
+// the list became a table, so nothing operable is left here.
 export function POAMRow({ item }: { item: EngineFinding }) {
   const statusMeta = FINDING_REMEDIATION_STATUS_META[item.remediationStatus];
   const meta = { color: THEME_COLOR[statusMeta?.color] ?? C.muted, label: statusMeta?.label ?? item.remediationStatus };

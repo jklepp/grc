@@ -1,4 +1,4 @@
-import { Info, Network, Database, Fingerprint, ShieldCheck, Crosshair, Layers, TrendingUp, Boxes, ListTodo, ListChecks, ClipboardList } from "lucide-react";
+import { Info, Network, Database, Fingerprint, ShieldCheck, Crosshair, Layers, TrendingUp, Boxes, ListChecks, ClipboardList } from "lucide-react";
 
 // `group` drives WorkspaceTabBar's layout: "primary" tabs render inline,
 // "details" tabs are folded behind the "Details" dropdown, and the single
@@ -10,7 +10,6 @@ export const SUB_TABS = [
   { id: "overview", label: "Overview", icon: Info, group: "primary" },
   { id: "architecture", label: "Architecture", icon: Network, group: "primary" },
   { id: "controls", label: "Controls", icon: Layers, group: "primary" },
-  { id: "findings", label: "Findings", icon: ListTodo, group: "primary" },
   { id: "actions", label: "Actions", icon: ListChecks, group: "primary" },
   { id: "details", label: "Details", icon: ClipboardList, group: "details-home" },
   { id: "data", label: "Data", icon: Database, group: "details" },

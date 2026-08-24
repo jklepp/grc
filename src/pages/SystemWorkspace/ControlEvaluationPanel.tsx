@@ -851,7 +851,7 @@ export function ControlEvaluationPanel({
   // make. Judging the worst of all five would raise the callout on almost every
   // control in the run, because Measured and Managed derive low across a boundary
   // nobody has instrumented yet; those still get swept up by the Findings & CAPs
-  // lane, which exists for exactly that. Silent until the lane is actually
+  // stage of the Assurance Walk, which exists for exactly that. Silent until the lane is actually
   // graded, and silent again once an open finding tracks the gap.
   const gapNudge = ((): { level: PrismaLevel; rating: ComplianceRating } | null => {
     if (gapNudgeDismissed || !gradingLevels) return null;
@@ -1497,7 +1497,7 @@ export function ControlEvaluationPanel({
                         setActiveStep("findings");
                         setCreatingFinding(true);
                         setCreatingFindingInitial({
-                          // Same title shape Findings & CAPs uses when it files
+                          // Same title shape the Actions tab uses when it files
                           // against a control, so one act does not arrive named
                           // two ways depending on where it was started (2.2).
                           title: `${row.control.name} gap`,
