@@ -3,6 +3,7 @@ import ExecutiveDashboard from "./ExecutiveDashboard";
 import RiskRegister from "./RiskRegister";
 import DataFootprint from "./DataFootprint";
 import type { OverviewAreaId } from "./overviewAreas";
+import type { SystemId } from "../graph/ids";
 
 // Overview merges the former "Executive Dashboard" (now "Assurance
 // Overview"), "Risk Register", and "Enterprise Footprint" top-level pages
@@ -11,10 +12,16 @@ import type { OverviewAreaId } from "./overviewAreas";
 // there's no landing page to pick an area from first — the bare "Overview"
 // nav click has nowhere useful to land but Assurance Overview, so that's the
 // default whenever no area is specified.
-export default function Overview({ onNavigate, initialTab }: { onNavigate?: (target: string) => void; initialTab?: OverviewAreaId }) {
+export default function Overview({
+  onNavigate, onOpenSystem, initialTab,
+}: {
+  onNavigate?: (target: string) => void;
+  onOpenSystem?: (systemId: SystemId) => void;
+  initialTab?: OverviewAreaId;
+}) {
   const area: OverviewAreaId = initialTab ?? "dashboard";
 
   if (area === "risk-register") return <RiskRegister />;
   if (area === "footprint") return <DataFootprint />;
-  return <ExecutiveDashboard onNavigate={onNavigate} />;
+  return <ExecutiveDashboard onNavigate={onNavigate} onOpenSystem={onOpenSystem} />;
 }

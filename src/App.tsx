@@ -170,7 +170,7 @@ export default function App() {
     }
     case "overview": {
       const tab = overviewTab(route.tab);
-      activePage = <Overview key={tab ?? "landing"} initialTab={tab} onNavigate={navigate} />;
+      activePage = <Overview key={tab ?? "landing"} initialTab={tab} onNavigate={navigate} onOpenSystem={openSystem} />;
       break;
     }
     case "graph-explorer":

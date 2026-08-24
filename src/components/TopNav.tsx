@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Sun, Moon, LayoutDashboard, Circle, Database, Landmark, Share2, ChevronDown, ShieldCheck, LogOut, Settings } from "lucide-react";
+import { Sun, Moon, LayoutDashboard, Database, Landmark, Share2, ChevronDown, ShieldCheck, LogOut, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ThemeMode } from "../theme";
 import { CONTROL_AREAS } from "../pages/controlAreas";
@@ -201,18 +201,13 @@ export default function TopNav({ active, onSelect, user, onSignOut, onOpenSettin
           onSelect={onSelect}
           onSelectArea={onSelect}
         />
-        <NavButton item={GRAPH_EXPLORER_ITEM} isActive={active === "graph-explorer"} onClick={() => onSelect("graph-explorer")} />
       </div>
 
       <div className="flex items-center justify-self-end gap-4 shrink-0">
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full" style={{ background: TB.panel, border: `1px solid ${TB.border}` }}>
-          <Circle size={6} fill={TB.green} color={TB.green} />
-          <span className="text-[11px]" style={{ color: TB.muted }}>Vanta · 8m ago</span>
-        </div>
         <button onClick={onToggleTheme} title={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"} style={{ color: TB.muted }}>
           {mode === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         </button>
-        <UserMenu user={user} onSignOut={onSignOut} onOpenSettings={onOpenSettings} />
+        <UserMenu user={user} onSignOut={onSignOut} onOpenSettings={onOpenSettings} onSelect={onSelect} graphActive={active === "graph-explorer"} />
       </div>
     </div>
   );
@@ -224,7 +219,19 @@ export default function TopNav({ active, onSelect, user, onSignOut, onOpenSettin
 //
 // Same hover-with-delayed-close mechanics as GroupedNavButton, for the same
 // reason documented there.
-function UserMenu({ user, onSignOut, onOpenSettings }: { user: User; onSignOut: () => void; onOpenSettings?: () => void }) {
+function UserMenu({
+  user,
+  onSignOut,
+  onOpenSettings,
+  onSelect,
+  graphActive,
+}: {
+  user: User;
+  onSignOut: () => void;
+  onOpenSettings?: () => void;
+  onSelect: (id: string) => void;
+  graphActive: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   function cancelClose() {
@@ -241,6 +248,7 @@ function UserMenu({ user, onSignOut, onOpenSettings }: { user: User; onSignOut: 
   // Someone holding two roles is shown both: R. Chen assesses and owns, and
   // which one applies depends on the system in front of them.
   const roleText = user.roles.map((role) => ROLE_LABELS[role]).join(" · ");
+  const GraphIcon = GRAPH_EXPLORER_ITEM.icon;
 
   return (
     <div className="relative h-16 flex items-center" onMouseEnter={() => { cancelClose(); setOpen(true); }} onMouseLeave={scheduleClose}>
@@ -268,6 +276,14 @@ function UserMenu({ user, onSignOut, onOpenSettings }: { user: User; onSignOut: 
             <div className="text-[11.5px] mt-1.5" style={{ color: TB.accent }}>{roleText}</div>
           </div>
           <div className="h-px mx-1 mb-1" style={{ background: TB.border }} />
+          <button
+            onClick={() => { cancelClose(); setOpen(false); onSelect(GRAPH_EXPLORER_ITEM.id); }}
+            className="w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-lg text-left transition-colors hover:brightness-125"
+            style={{ background: graphActive ? TB.accentBg : "transparent" }}
+          >
+            <GraphIcon size={16} color={TB.accent} />
+            <span className="text-[13px]" style={{ color: TB.ink }}>{GRAPH_EXPLORER_ITEM.label}</span>
+          </button>
           {onOpenSettings && (
             <button
               onClick={() => { cancelClose(); setOpen(false); onOpenSettings(); }}
