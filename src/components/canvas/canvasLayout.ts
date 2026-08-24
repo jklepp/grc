@@ -23,18 +23,22 @@ type ActorEntry = FlowLayout["ingressActors"][number];
 // vendorsForSystem returns is a type error here rather than a silent drift.
 export type CanvasVendor = ReturnType<VendorsApi["vendorsForSystem"]>["vendors"][number];
 
-export const NODE_W = 224;
+// 190, down from 224. Card WIDTH is what caps how large the canvas can be
+// drawn: seven columns is the widest this boundary gets, and at the old pitch
+// that was 1904px against a ~1360px pane, holding fit-to-view under 0.6
+// however tall the pane became. The 34px comes off a name line that was
+// already truncating either way.
+export const NODE_W = 190;
 export const ASSET_H = 80;
 export const ACTOR_H = 72;
 export const VENDOR_H = 80;
 
-const COLUMN_PITCH = NODE_W + 56; // 280
-const ROW_PITCH = ASSET_H + 44; // 124 — 44px of air between stacked cards
+const COLUMN_PITCH = NODE_W + 44; // 234
+const ROW_PITCH = ASSET_H + 28; // 108 — 28px of air between stacked cards
 // Extra separation between bands, ON TOP of ROW_PITCH. Kept small: at 72 the
-// bands sat 196px apart against the 124px rhythm of the request path above
-// them, which read as four detached strips rather than one diagram. 24 leaves
-// bands looser than a column (68px of air versus 44px) so they still group,
-// without the gulf.
+// bands sat well clear of the request path's own rhythm, which read as
+// detached strips rather than one diagram. 24 leaves bands looser than a
+// column (52px of air versus 28px) so they still group, without the gulf.
 const BAND_GAP = 24;
 // Lane header band above the request path. LANE_H has to clear the title's
 // type size plus its rule, or the header crops.
