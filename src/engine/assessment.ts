@@ -283,7 +283,7 @@ export function createAssessment(
     const keyControl = graph.keyControlById[controlId];
     if (keyControl?.scope === "program") return [];
     return (graph.assetsBySystem[systemId] ?? [])
-      .filter((a) => applicability.resolveApplicability(a.id, controlId).required)
+      .filter((a) => applicability.isRequired(a.id, controlId))
       .map((a) => a.id);
   }
 
@@ -348,7 +348,7 @@ export function createAssessment(
     const domain = control.domain;
     const category = categoryForDomain(domain);
 
-    const applicable = applicability.applicableControlsForSystem(systemId).some((c) => c.id === controlId);
+    const applicable = applicability.isApplicable(systemId, controlId);
     // External inheritance first — a domain a system's own hosting arrangement
     // hands to its provider. Internal inheritance only applies where external
     // inheritance doesn't, so a domain can't claim two inheritance sources at

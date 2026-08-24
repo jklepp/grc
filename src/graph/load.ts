@@ -20,7 +20,17 @@ import type { Graph, GraphFacts } from "./types";
 
 export function loadGraph(facts: GraphFacts): Graph {
   const graph = assembleGraph(facts);
-  validateGraph(graph);
+  // 344 assertions across 113 sweeps, and in production they run against a
+  // dataset CI has already proved: check-validator-fires.mjs loads these
+  // exact facts through this exact function as its baseline, and deploy.yml
+  // runs `npm run check` before `npm run build`. So the browser paid for a
+  // result that was known before the bundle existed.
+  //
+  // This is the AUTHORED path only. Runtime facts — the ones a person types
+  // into the wizard — are validated by liveGraph.ts, which calls
+  // validateGraph directly and keeps doing so in production. That is where
+  // unproven data actually enters, and it is still checked.
+  if (import.meta.env.DEV) validateGraph(graph);
   return graph;
 }
 

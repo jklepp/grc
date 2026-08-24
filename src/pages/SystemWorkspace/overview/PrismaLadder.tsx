@@ -62,8 +62,10 @@ function ScoreTile({ label, sub, value, pct, gradient }: { label: string; sub: s
   );
 }
 
-const ASSURANCE_GRADIENT = `linear-gradient(135deg, ${C.accent} 0%, ${C.accentStrong} 100%)`;
-const COMPLIANCE_GRADIENT = `linear-gradient(135deg, ${C.amber} 0%, #2C4A78 100%)`;
+// Functions rather than constants: C is mutated in place by applyTheme, so
+// module-scope gradients froze against the theme active at import time.
+const assuranceGradient = () => `linear-gradient(135deg, ${C.accent} 0%, ${C.accentStrong} 100%)`;
+const complianceGradient = () => `linear-gradient(135deg, ${C.amber} 0%, #2C4A78 100%)`;
 
 // A span rail: a rounded vertical line marking which rungs a tile reads, end
 // ticks fixing where that span starts and stops, and a leader running left
@@ -122,8 +124,8 @@ export function PrismaLadder({ system, compliance, assurance }: PrismaLadderProp
         style={{ "--ladder-h": `${LADDER_H}px`, "--tile-gap": `${TILE_GAP}px`, "--row-gap": `${ROW_GAP}px` } as CSSProperties}
       >
         <div className="w-full lg:w-[220px] shrink-0 flex flex-row lg:flex-col gap-[var(--tile-gap)] lg:h-[var(--ladder-h)]">
-          <ScoreTile label="Compliance" sub="Through Implemented" value={compliance == null ? "—" : `${compliance}%`} pct={compliance} gradient={COMPLIANCE_GRADIENT} />
-          <ScoreTile label="Assurance" sub="All five levels" value={assurance == null ? "—" : `${assurance}%`} pct={assurance} gradient={ASSURANCE_GRADIENT} />
+          <ScoreTile label="Compliance" sub="Through Implemented" value={compliance == null ? "—" : `${compliance}%`} pct={compliance} gradient={complianceGradient()} />
+          <ScoreTile label="Assurance" sub="All five levels" value={assurance == null ? "—" : `${assurance}%`} pct={assurance} gradient={assuranceGradient()} />
         </div>
 
         <div className="relative shrink-0 hidden lg:block" style={{ width: RAIL_GUTTER, height: LADDER_H }}>

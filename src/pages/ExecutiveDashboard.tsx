@@ -1,32 +1,16 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   AlertTriangle, ArrowRight, Building2, Cloud, LayoutDashboard, Server, ShieldCheck,
 } from "lucide-react";
 import { C } from "../theme";
 import { PageHeader } from "../components/Headings";
+import { useLiveEngine } from "../engine/useLiveEngine";
 import type { SystemId } from "../graph/ids";
 import {
   ALL_FINDINGS, ASSURANCE_TARGET, MATERIAL_RISKS, cockpitSummary,
   getAllSystems, getEnterprise, profileSummary,
 } from "../engine";
 
-const ENTERPRISE = getEnterprise();
-const SYSTEMS = getAllSystems();
-const ENTERPRISE_ASSURANCE = ENTERPRISE.assurance ?? 0;
-const ASSURANCE_GAP = ENTERPRISE_ASSURANCE - ASSURANCE_TARGET;
-const MATERIAL_RISK_IDS = new Set(MATERIAL_RISKS.map((risk) => risk.id));
-
-const SYSTEM_PROFILES = SYSTEMS.map((system) => ({
-  system,
-  profile: profileSummary(system.id),
-}));
-
-// "Important" is a visible, deterministic FIPS 199 rule rather than a
-// hand-maintained dashboard flag. A High-impact boundary belongs here; lower
-// impact systems remain available in the System Register.
-const IMPORTANT_SYSTEMS = SYSTEM_PROFILES
-  .filter(({ system }) => system.overallImpact === "high")
-  .sort((a, b) => (a.system.overallAssurance ?? -1) - (b.system.overallAssurance ?? -1));
 
 const OPERATIONAL_DOMAINS = new Set([
   "Security Testing", "Resilience", "Incident Response", "Vendor Assurance",
@@ -46,43 +30,81 @@ interface AttentionItem {
   systemId?: SystemId;
 }
 
-const FINDING_ATTENTION: AttentionItem[] = ALL_FINDINGS.map((finding) => {
-  const material = finding.riskIds.some((id) => MATERIAL_RISK_IDS.has(id));
-  return {
-    id: `finding:${finding.id}`,
-    priority: finding.overdue ? 0 : material ? 1 : 3,
-    tone: finding.overdue || material ? "urgent" : "medium",
-    status: finding.overdue ? "Overdue" : material ? "Material risk" : "Finding",
-    title: finding.title,
-    detail: `${finding.systemIds.join(", ")} · ${finding.ownerName} · due ${finding.due}`,
-    target: "data-estate",
-    systemId: finding.systemIds[0],
-  };
-});
-
+// Everything this page derives, in one pass, keyed on the live engine.
+//
+// All of it used to sit at module scope, which cost twice over. It ran when
+// the App chunk evaluated — cockpitSummary fans out to ten uncached domain
+// calls per system, paid for before anyone had opened the dashboard — and it
+// captured the engine's `export let` bindings at import time. publish()
+// reassigns those on every commit, so a module-level snapshot kept answering
+// from the first engine forever: a save would update the workspace and leave
+// this page quietly stale.
+//
 // Escalated risks used to appear here, linking into the Risk Register. That
-// page is deprecated and no longer navigable, so the rows are gone rather than
-// left pointing at somewhere the user can't reach.
+// page is deprecated and no longer navigable, so the rows are gone rather
+// than left pointing at somewhere the user can't reach.
+function useDashboardData() {
+  const liveEngine = useLiveEngine();
+  // liveEngine is the cache key, not an input: the barrel functions below read
+  // whichever engine is currently published, and that is exactly when this
+  // should recompute.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  return useMemo(() => {
+    const enterprise = getEnterprise();
+    const systems = getAllSystems();
+    const enterpriseAssurance = enterprise.assurance ?? 0;
+    const materialRiskIds = new Set(MATERIAL_RISKS.map((risk) => risk.id));
 
-const OPERATIONAL_ATTENTION: AttentionItem[] = SYSTEMS.flatMap((system) =>
-  cockpitSummary(system.id).attentionRequired
-    .filter((item) => OPERATIONAL_DOMAINS.has(item.domain))
-    .map((item, index) => ({
-      id: `operational:${system.id}:${index}`,
-      priority: item.severity === "critical" || item.severity === "high" ? 2 : 4,
-      tone: item.severity === "critical" || item.severity === "high" ? "high" as const : "medium" as const,
-      status: item.severity === "critical" ? "Critical" : item.severity === "high" ? "High" : "Attention",
-      title: item.label,
-      detail: `${system.name} · ${item.detail}`,
-      target: "data-estate" as const,
-      systemId: system.id,
-    }))
-);
+    // "Important" is a visible, deterministic FIPS 199 rule rather than a
+    // hand-maintained dashboard flag. A High-impact boundary belongs here;
+    // lower impact systems remain available in the System Register.
+    const importantSystems = systems
+      .map((system) => ({ system, profile: profileSummary(system.id) }))
+      .filter(({ system }) => system.overallImpact === "high")
+      .sort((a, b) => (a.system.overallAssurance ?? -1) - (b.system.overallAssurance ?? -1));
 
-const ATTENTION_ITEMS = [
-  ...FINDING_ATTENTION,
-  ...OPERATIONAL_ATTENTION,
-].sort((a, b) => a.priority - b.priority || a.title.localeCompare(b.title));
+    const findingAttention: AttentionItem[] = ALL_FINDINGS.map((finding) => {
+      const material = finding.riskIds.some((id) => materialRiskIds.has(id));
+      return {
+        id: `finding:${finding.id}`,
+        priority: finding.overdue ? 0 : material ? 1 : 3,
+        tone: finding.overdue || material ? "urgent" : "medium",
+        status: finding.overdue ? "Overdue" : material ? "Material risk" : "Finding",
+        title: finding.title,
+        detail: `${finding.systemIds.join(", ")} · ${finding.ownerName} · due ${finding.due}`,
+        target: "data-estate",
+        systemId: finding.systemIds[0],
+      };
+    });
+
+    const operationalAttention: AttentionItem[] = systems.flatMap((system) =>
+      cockpitSummary(system.id).attentionRequired
+        .filter((item) => OPERATIONAL_DOMAINS.has(item.domain))
+        .map((item, index) => ({
+          id: `operational:${system.id}:${index}`,
+          priority: item.severity === "critical" || item.severity === "high" ? 2 : 4,
+          tone: item.severity === "critical" || item.severity === "high" ? "high" as const : "medium" as const,
+          status: item.severity === "critical" ? "Critical" : item.severity === "high" ? "High" : "Attention",
+          title: item.label,
+          detail: `${system.name} · ${item.detail}`,
+          target: "data-estate" as const,
+          systemId: system.id,
+        }))
+    );
+
+    const attentionItems = [...findingAttention, ...operationalAttention]
+      .sort((a, b) => a.priority - b.priority || a.title.localeCompare(b.title));
+
+    return {
+      enterprise,
+      systems,
+      enterpriseAssurance,
+      assuranceGap: enterpriseAssurance - ASSURANCE_TARGET,
+      importantSystems,
+      attentionItems,
+    };
+  }, [liveEngine]);
+}
 
 function attentionColors(tone: AttentionTone): { color: string; background: string } {
   if (tone === "urgent") return { color: C.red, background: C.redBg };
@@ -108,6 +130,17 @@ export default function ExecutiveDashboard({
   onNavigate?: (pageId: string) => void;
   onOpenSystem?: (systemId: SystemId) => void;
 }) {
+  // Destructured to the names the markup below already uses, so this change
+  // is where the values come from and nothing else.
+  const {
+    enterprise: ENTERPRISE,
+    systems: SYSTEMS,
+    enterpriseAssurance: ENTERPRISE_ASSURANCE,
+    assuranceGap: ASSURANCE_GAP,
+    importantSystems: IMPORTANT_SYSTEMS,
+    attentionItems: ATTENTION_ITEMS,
+  } = useDashboardData();
+
   const coverage = ENTERPRISE.coverage;
   const shownAttention = ATTENTION_ITEMS.slice(0, 5);
   const remainingAttention = Math.max(0, ATTENTION_ITEMS.length - shownAttention.length);

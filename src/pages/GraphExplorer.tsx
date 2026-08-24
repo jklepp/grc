@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { Share2, ArrowRight, Activity, Layers, Boxes, Database, ShieldCheck, AlertTriangle, FileCheck2, ChevronRight, Stethoscope } from "lucide-react";
 import { C, CLASS_META } from "../theme";
 import { PageHeader, SectionHeading } from "../components/Headings";
+import { useLiveEngine } from "../engine/useLiveEngine";
 import { BasisTag } from "../components/BasisTag";
 import {
   getAllSystems, getAllAssets, getAllKeyControls, getAllDataTypes, getAllRisks, getAllEvidence,
@@ -415,7 +416,14 @@ function FindingList<T>({ title, items, render, empty }: { title: ReactNode; ite
 }
 
 function ModelHealth({ onSelect }: { onSelect: (type: NodeType, id: string) => void }) {
-  const health = useMemo(() => modelHealth(), []);
+  // Was `useMemo(() => modelHealth(), [])`. Empty deps meant the health
+  // report was computed once and never again — so after any save it showed
+  // the model as it stood at mount. modelHealth() re-scores every asset's
+  // instances, every system's assessments and all evidence, so it does want
+  // memoising; it just has to be keyed on the engine that produced it.
+  const liveEngine = useLiveEngine();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const health = useMemo(() => modelHealth(), [liveEngine]);
   const enterprise = getEnterprise();
 
   return (
@@ -588,6 +596,7 @@ function ModelHealth({ onSelect }: { onSelect: (type: NodeType, id: string) => v
 
 // ---- Page ----------------------------------------------------------------------------
 export default function GraphExplorer() {
+  const liveEngine = useLiveEngine();
   const [tab, setTab] = useState<"explore" | "health">("explore");
   const [type, setType] = useState<NodeType>("asset");
   const [selected, setSelected] = useState<NodeSelection>({ type: "asset", id: "AST-003-03" });
@@ -599,7 +608,11 @@ export default function GraphExplorer() {
     setTraceTarget({ type: nextType, id });
   }
 
-  const list = NODE_TYPES[type].all();
+  // all() walks a whole node collection; at render time it re-ran on every
+  // keystroke elsewhere on the page. It changes with the selected type and
+  // with the engine, and nothing else.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const list = useMemo(() => NODE_TYPES[type].all(), [type, liveEngine]);
 
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import type { ReactNode } from "react";
 import { Search, X, ChevronDown, ChevronRight, RefreshCw, LayoutGrid } from "lucide-react";
 import { C } from "../theme";
+import { useLiveEngine } from "../engine/useLiveEngine";
 import { PageHeader } from "../components/Headings";
 import { CONSOLIDATED_CONTROLS } from "../data/consolidatedControls";
 import { STANDARD_ABBR } from "../data/policies";
@@ -13,8 +14,6 @@ import type { Control, ControlFramework } from "../graph/nodes/controls";
 // system's assessment. How a given system scores against these lives on that
 // system's own Security Profile; this page answers "what do we have," not
 // "how is any one boundary doing against it."
-const CONTROLS = IN_SCOPE_CONTROLS;
-
 const LIST_HEIGHT = 640;
 
 function FrameworkMappingLine({ f }: { f: ControlFramework }) {
@@ -61,6 +60,12 @@ function StandardCard({ label }: { label: string }) {
 }
 
 export default function CommonControlFramework() {
+  // IN_SCOPE_CONTROLS is an `export let` the engine reassigns on publish().
+  // Captured at module scope it froze against the first engine; read here it
+  // follows every commit, which is also why it belongs in the deps below.
+  const liveEngine = useLiveEngine();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const CONTROLS = useMemo(() => IN_SCOPE_CONTROLS, [liveEngine]);
   const [query, setQuery] = useState("");
   const [domainFilter, setDomainFilter] = useState("All");
   const [selected, setSelected] = useState<Control | null>(null);
@@ -72,12 +77,12 @@ export default function CommonControlFramework() {
     return Object.entries(counts)
       .map(([name, total]) => ({ name, total }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, []);
+  }, [CONTROLS]);
 
   const standards = useMemo(() => {
     const set = new Set(CONTROLS.flatMap((c) => c.frameworks.map((f) => f.standard)));
     return [...set].sort();
-  }, []);
+  }, [CONTROLS]);
 
   const filtered = useMemo(
     () =>
@@ -86,7 +91,7 @@ export default function CommonControlFramework() {
           (domainFilter === "All" || c.domain === domainFilter) &&
           (c.name?.toLowerCase().includes(query.toLowerCase()) || c.id?.toLowerCase().includes(query.toLowerCase()))
       ),
-    [query, domainFilter]
+    [query, domainFilter, CONTROLS]
   );
 
   return (

@@ -3,7 +3,9 @@
 // properties at render time, so calling applyTheme() updates the whole app in place
 // without needing Context or prop drilling.
 
-export const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');`;
+// The font request lives in index.html, as markup the preload scanner can
+// see. It used to be an @import injected through a React <style>, which
+// could not begin until the entry chunk had parsed and React had committed.
 
 export const DARK = {
   bg: "#17161A",

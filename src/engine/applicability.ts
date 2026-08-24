@@ -59,7 +59,25 @@ export interface ApplicabilityResolution {
 }
 
 export function createApplicability(graph: Graph, classification: ClassificationApi) {
+  // One entry per asset, for the life of this engine.
+  //
+  // contextFor depends only on the asset, but resolveApplicability calls it
+  // once per CONTROL — so building requiredByAsset below asked the same
+  // question about the same asset ~90 times over, each time re-deriving the
+  // asset's classification and walking its data edges. The graph does not
+  // change within an engine instance, so the answer cannot either, and the
+  // cache dies with the instance.
+  const contextCache = new Map<AssetId, ApplicabilityContext>();
+
   function contextFor(assetId: AssetId): ApplicabilityContext {
+    const cached = contextCache.get(assetId);
+    if (cached) return cached;
+    const built = buildContext(assetId);
+    contextCache.set(assetId, built);
+    return built;
+  }
+
+  function buildContext(assetId: AssetId): ApplicabilityContext {
     const asset = graph.assetById[assetId];
     // hostingType is the only system-derived field here — kind, classification
     // and dataKinds are asset-owned and identical regardless of which system is
@@ -121,12 +139,29 @@ export function createApplicability(graph: Graph, classification: Classification
     };
   }
 
+  // The same answer as resolveApplicability(...).required, without building
+  // the explanation around it.
+  //
+  // resolveApplicability exists to say WHY, so it allocates a matched-rules
+  // array, a reasons array, a context and a result object on every call. Most
+  // callers — this file's own index below, and assessment's populationFor —
+  // only want the boolean, and they ask it once per asset per control. The
+  // branches here mirror that function exactly: no matching rule is false, a
+  // recorded exception is false, anything else is true.
+  function isRequired(assetId: AssetId, controlId: ControlId): boolean {
+    const rules = graph.rulesByControl[controlId];
+    if (!rules || rules.length === 0) return false;
+    const context = contextFor(assetId);
+    if (!rules.some((r) => ruleMatches(r, context))) return false;
+    return !graph.exceptionByPair[`${assetId}::${controlId}`];
+  }
+
   // Precomputed, because every rollup walks this and the rule set is static
   // within one graph.
   const requiredByAsset: Record<AssetId, ControlId[]> = {};
   graph.assets.forEach((asset) => {
     requiredByAsset[asset.id] = graph.assetScopedControls
-      .filter((c) => resolveApplicability(asset.id, c.id).required)
+      .filter((c) => isRequired(asset.id, c.id))
       .map((c) => c.id);
   });
 
@@ -384,7 +419,21 @@ export function createApplicability(graph: Graph, classification: Classification
 
   // Built once. Every coverage figure and every control matrix walks this.
   const applicableBySystem: Record<string, Control[]> = {};
-  graph.systems.forEach((s) => (applicableBySystem[s.id] = applicableControlsForSystem(s.id)));
+  // The same answer as a Set, because the hot question is not "which
+  // controls apply" but "does THIS one" — asked once per control per system
+  // inside assessControl, which was answering it with a linear scan of the
+  // array above. That is ~100 comparisons inside a ~100-iteration loop, per
+  // system: invisible at two systems, ~500k comparisons at fifty.
+  const applicableIdsBySystem: Record<string, Set<ControlId>> = {};
+  graph.systems.forEach((s) => {
+    const controls = applicableControlsForSystem(s.id);
+    applicableBySystem[s.id] = controls;
+    applicableIdsBySystem[s.id] = new Set(controls.map((c) => c.id));
+  });
+
+  function isApplicable(systemId: SystemId, controlId: ControlId): boolean {
+    return applicableIdsBySystem[systemId]?.has(controlId) ?? false;
+  }
 
   return {
     resolveApplicability,
@@ -397,6 +446,8 @@ export function createApplicability(graph: Graph, classification: Classification
     controlsForStandards,
     baselineForSystem,
     applicableControlsForSystem: (systemId: SystemId) => applicableBySystem[systemId] ?? [],
+    isApplicable,
+    isRequired,
     pendingControlsForSystem,
     PROGRAM_CONTROL_IDS: programControlIds,
   };

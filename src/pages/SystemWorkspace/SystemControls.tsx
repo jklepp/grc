@@ -49,7 +49,10 @@ type FindingsByControl = Partial<Record<ControlId, number>>;
 // rather than squeezing tracks to fit, so the numeric columns stay aligned.
 const CONTROL_TABLE_MIN_WIDTH = 1080;
 const CELL = "py-2.5";
-const CELL_DIVIDER = { borderBottom: `1px solid ${C.border}` };
+// A function, not a constant: C is mutated in place by applyTheme, so a
+// module-scope read freezes whichever theme happened to be active at import
+// and never follows the toggle.
+const cellDivider = () => ({ borderBottom: `1px solid ${C.border}` });
 
 function ControlRow({ row, onSelect, findingsCount }: { row: ControlMatrixRow; onSelect: (row: ControlMatrixRow) => void; findingsCount?: number }) {
   const meta = STATUS_META[row.status];
@@ -65,16 +68,16 @@ function ControlRow({ row, onSelect, findingsCount }: { row: ControlMatrixRow; o
       className="wz-hover transition-colors"
       style={{ cursor: "pointer" }}
     >
-      <td className={`${CELL} pl-4 pr-3 whitespace-nowrap text-[13px]`} style={{ ...CELL_DIVIDER, color: C.ink }}>
+      <td className={`${CELL} pl-4 pr-3 whitespace-nowrap text-[13px]`} style={{ ...cellDivider(), color: C.ink }}>
         {row.control.id}
       </td>
-      <td className={`${CELL} px-3 text-[13px]`} style={{ ...CELL_DIVIDER, color: C.ink }}>
+      <td className={`${CELL} px-3 text-[13px]`} style={{ ...cellDivider(), color: C.ink }}>
         {row.control.domain}
       </td>
-      <td className={`${CELL} px-3 min-w-0 text-[13px] leading-snug`} style={{ ...CELL_DIVIDER, color: C.ink }}>
+      <td className={`${CELL} px-3 min-w-0 text-[13px] leading-snug`} style={{ ...cellDivider(), color: C.ink }}>
         {row.control.name}
       </td>
-      <td className={`${CELL} px-3`} style={CELL_DIVIDER}>
+      <td className={`${CELL} px-3`} style={cellDivider()}>
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded whitespace-nowrap" style={{ background: meta.bg, color: meta.color }}>
             <meta.Icon size={11} /> {meta.label}
@@ -84,18 +87,18 @@ function ControlRow({ row, onSelect, findingsCount }: { row: ControlMatrixRow; o
       </td>
       <td
         className={`${CELL} px-3 text-right tabular-nums text-[13px] font-semibold`}
-        style={{ ...CELL_DIVIDER, color: row.score != null ? C.ink : C.muted, fontFamily: "'IBM Plex Mono', monospace" }}
+        style={{ ...cellDivider(), color: row.score != null ? C.ink : C.muted, fontFamily: "'IBM Plex Mono', monospace" }}
       >
         {row.score != null ? `${row.score}%` : "—"}
       </td>
-      <td className={`${CELL} px-3`} style={CELL_DIVIDER}>
+      <td className={`${CELL} px-3`} style={cellDivider()}>
         {respMeta && (
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded whitespace-nowrap" style={{ background: respMeta.bg, color: respMeta.color }}>
             <respMeta.Icon size={11} /> {respMeta.label}
           </span>
         )}
       </td>
-      <td className={`${CELL} px-3 min-w-0`} style={CELL_DIVIDER}>
+      <td className={`${CELL} px-3 min-w-0`} style={cellDivider()}>
         <div className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded whitespace-nowrap" style={{ background: evidence.bg, color: evidence.color }}>
           <evidence.Icon size={11} /> {evidence.label}
         </div>
@@ -103,7 +106,7 @@ function ControlRow({ row, onSelect, findingsCount }: { row: ControlMatrixRow; o
       </td>
       <td
         className={`${CELL} pl-3 pr-4 text-right tabular-nums text-[13px] font-semibold`}
-        style={{ ...CELL_DIVIDER, color: count > 0 ? C.red : C.muted, fontFamily: "'IBM Plex Mono', monospace" }}
+        style={{ ...cellDivider(), color: count > 0 ? C.red : C.muted, fontFamily: "'IBM Plex Mono', monospace" }}
       >
         {count}
       </td>

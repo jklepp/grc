@@ -7,7 +7,10 @@ import type { CockpitItem } from "../../../engine";
 import type { CockpitSummary } from "../types";
 import type { SystemWorkspaceTab } from "../tabs";
 
-const SEVERITY_COLOR: Record<string, string> = { critical: C.red, high: C.red, medium: C.amber, low: C.muted, info: C.green };
+// Read at call time: C is mutated in place by applyTheme, so a module-scope
+// map keeps the theme that was active when this module first evaluated.
+const severityColor = (severity: string): string =>
+  ({ critical: C.red, high: C.red, medium: C.amber, low: C.muted, info: C.green } as Record<string, string>)[severity] ?? C.red;
 
 // Presentation-layer routing only — which tab best explains a cockpit item's
 // domain. Not a scoring decision; mirrors the existing POLICY_BY_CONTROL/
@@ -34,7 +37,7 @@ function AttentionRow({ item, onNavigate }: { item: CockpitItem; onNavigate: (ta
       className="w-full flex items-start gap-2 py-1.5 text-left"
       style={tab ? { cursor: "pointer" } : undefined}
     >
-      <AlertTriangle size={13} className="shrink-0 mt-0.5" color={SEVERITY_COLOR[item.severity] ?? C.red} />
+      <AlertTriangle size={13} className="shrink-0 mt-0.5" color={severityColor(item.severity)} />
       <div className="min-w-0">
         <span className="text-sm" style={{ color: C.ink }}>{item.label}</span>
         <span className="text-xs ml-2" style={{ color: C.muted }}>{item.detail}</span>

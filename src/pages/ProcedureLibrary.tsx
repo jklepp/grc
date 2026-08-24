@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -11,6 +11,7 @@ import { PageHeader, SectionHeading } from "../components/Headings";
 import { PROCEDURES } from "../data/procedures";
 import { POLICIES, getFrameworkClauses, MAPPED_STANDARDS, STANDARD_ABBR } from "../data/policies";
 import { getAllSystems, EVIDENCE_CONFIDENCE } from "../engine";
+import { useLiveEngine } from "../engine/useLiveEngine";
 import type { AuthoredProcedure, AuthoredProcedureStep, ProcedureStepEvidence } from "../data/procedures";
 import { EXEC_STORAGE_KEY, loadExecutions, computeReliability } from "../data/procedureExecutions";
 import { useSignedInUser } from "../auth/useUser";
@@ -18,7 +19,6 @@ import { initialsOf } from "../auth/roster";
 import { canRunProcedure, allows } from "../auth/gates";
 import type { ExecutionStepRecord, ExecutionsMap, ProcedureExecution, ProcedureReliability, StepEvidencePayload } from "../data/procedureExecutions";
 
-const SYSTEMS = getAllSystems();
 
 // A run is owned by whoever started it — the signed-in user, recorded as
 // initials on the execution and on every step they complete. State persists in
@@ -643,6 +643,11 @@ function ExecutionsPanel({ procedure, executions, reliability, expandedRunId, on
 }
 
 export default function ProcedureLibrary({ onNavigate }: { onNavigate?: (pageId: string) => void }) {
+  // getAllSystems() reads an `export let` that publish() reassigns, so a
+  // module-scope snapshot answered from the first engine forever.
+  const liveEngine = useLiveEngine();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const SYSTEMS = useMemo(() => getAllSystems(), [liveEngine]);
   const user = useSignedInUser();
   const mayRun = allows(canRunProcedure(user));
   const initials = initialsOf(user);
