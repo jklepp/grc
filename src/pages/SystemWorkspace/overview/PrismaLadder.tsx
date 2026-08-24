@@ -16,23 +16,42 @@ function bandColor(color?: string): string {
   return C.muted;
 }
 
-// Ladder geometry — everything in this card (brace spans, tile heights, brace
-// tip positions) derives from these two numbers so the columns can never
-// drift out of alignment when a size is tweaked.
+// Ladder geometry — everything in this card (rail spans, tile heights, leader
+// positions) derives from these two numbers so the columns can never drift
+// out of alignment when a size is tweaked.
 const ROW_H = 34;
 const ROW_GAP = 10;
 const rowSpan = (n: number) => n * ROW_H + (n - 1) * ROW_GAP;
 const LADDER_H = rowSpan(PRISMA_LEVELS.length);
 const COMPLIANCE_H = rowSpan(3); // Policy through Implemented
 
+// Both tiles stack in one column to the left of the lanes, splitting the
+// ladder's height between them, so each rail's leader can leave level with
+// the vertical center of the tile it runs to.
+const TILE_GAP = 10;
+const TILE_H = (LADDER_H - TILE_GAP) / 2;
+const COMPLIANCE_LEADER_Y = TILE_H / 2;
+const ASSURANCE_LEADER_Y = TILE_H + TILE_GAP + TILE_H / 2;
+
+// Both rails live in one gutter, and the order is load-bearing: Assurance's
+// runs on the INSIDE against the lanes because it spans all five rows, and
+// Compliance's sits outside it covering only the top three. That way the
+// Assurance leader crosses the Compliance rail's column at a height where
+// that rail has already ended — no line ever crosses another.
+const RAIL_W = 2;
+const TICK_W = 5;
+const RAIL_GUTTER = 46;
+const ASSURANCE_RAIL_X = 34;
+const COMPLIANCE_RAIL_X = 18;
+
 // A hero-style tile matching the app's existing gradient "Current Assurance"
 // card style — a fixed brand color per metric, not score-driven, so
 // Compliance and Assurance stay visually distinct from each other no matter
-// what the numbers do. Sized to its content and centered by its flex parent,
-// not stretched — each tile now sits alone against the span of rows it reads.
+// what the numbers do. Both tiles are the same fixed height (half the ladder)
+// so the pair reads as one stack and each leader has a fixed target.
 function ScoreTile({ label, sub, value, pct, gradient }: { label: string; sub: string; value: ReactNode; pct: number | null; gradient: string }) {
   return (
-    <div className="rounded-xl px-4 py-3 w-full flex items-center justify-between gap-3" style={{ background: gradient }}>
+    <div className="rounded-xl px-4 py-3 w-full flex items-center justify-between gap-3" style={{ background: gradient, height: TILE_H }}>
       <div className="min-w-0">
         <div className="text-2xl font-semibold text-white" style={{ fontFamily: "'Source Serif 4', serif" }}>{value}</div>
         <div className="text-xs mt-1 text-white/85">{label}</div>
@@ -46,29 +65,23 @@ function ScoreTile({ label, sub, value, pct, gradient }: { label: string; sub: s
 const ASSURANCE_GRADIENT = `linear-gradient(135deg, ${C.accent} 0%, ${C.accentStrong} 100%)`;
 const COMPLIANCE_GRADIENT = `linear-gradient(135deg, ${C.amber} 0%, #2C4A78 100%)`;
 
-// A real curly-brace path (flat back against the grouped rows, tip poking
-// left). Color-matching to the tile does the tile↔brace linking. `tipY`
-// lets the tip sit off-center within the curve so it can land level with
-// the vertical center of the row range it's bracketing, independent of
-// where the tile itself sits. Wrap in `transform: scaleX(-1)` to flip it —
-// flat back on the left against the rows, tip poking right toward a tile
-// on the other side.
-function CurlyBrace({ height, width, color, strokeWidth = 2, tipY }: { height: number; width: number; color: string; strokeWidth?: number; tipY?: number }) {
-  const tip = tipY ?? height / 2;
-  const r = Math.min(width, tip, height - tip) * 0.9;
-  const d = `
-    M ${width} 0
-    C ${width - r} 0, ${width - r} 0, ${width - r} ${r}
-    L ${width - r} ${tip - r}
-    C ${width - r} ${tip}, 0 ${tip}, 0 ${tip}
-    C ${width - r} ${tip}, ${width - r} ${tip}, ${width - r} ${tip + r}
-    L ${width - r} ${height - r}
-    C ${width - r} ${height}, ${width - r} ${height}, ${width} ${height}
-  `;
+// A span rail: a rounded vertical line marking which rungs a tile reads, end
+// ticks fixing where that span starts and stops, and a leader running left
+// from the rail to the tile's edge. The leader leaves the rail level with its
+// tile's center rather than at the rail's own midpoint — a straight rail
+// carries an off-center exit without looking lopsided, which is exactly what
+// a curly brace could not do once both tiles stacked into one column.
+function SpanRail({ height, railX, leaderY, color }: { height: number; railX: number; leaderY: number; color: string }) {
+  const bar = (style: React.CSSProperties) => (
+    <div className="absolute rounded-full" style={{ background: color, ...style }} />
+  );
   return (
-    <svg width={width} height={height} style={{ overflow: "visible" }}>
-      <path d={d} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <>
+      {bar({ left: railX, top: 0, width: RAIL_W, height })}
+      {bar({ left: railX, top: 0, width: TICK_W, height: RAIL_W })}
+      {bar({ left: railX, top: height - RAIL_W, width: TICK_W, height: RAIL_W })}
+      {bar({ left: 0, top: leaderY - RAIL_W / 2, width: railX + RAIL_W, height: RAIL_W })}
+    </>
   );
 }
 
@@ -97,15 +110,15 @@ export function PrismaLadder({ system, compliance, assurance }: PrismaLadderProp
         title="System Posture"
         description="Two readings of one five-level ladder — Compliance stops at Implemented, Assurance weighs all five."
       />
-      <div className="flex gap-3 items-start">
-        <div className="w-[220px] shrink-0 flex items-start justify-center" style={{ height: LADDER_H }}>
+      <div className="flex items-start">
+        <div className="w-[220px] shrink-0 flex flex-col" style={{ height: LADDER_H, gap: TILE_GAP }}>
+          <ScoreTile label="Compliance" sub="Through Implemented" value={compliance == null ? "—" : `${compliance}%`} pct={compliance} gradient={COMPLIANCE_GRADIENT} />
           <ScoreTile label="Assurance" sub="All five levels" value={assurance == null ? "—" : `${assurance}%`} pct={assurance} gradient={ASSURANCE_GRADIENT} />
         </div>
 
-        <div className="relative w-[20px] shrink-0" style={{ height: LADDER_H }}>
-          <div className="absolute" style={{ left: 6, top: 0 }}>
-            <CurlyBrace height={LADDER_H} width={14} color={C.accent} tipY={LADDER_H / 2} />
-          </div>
+        <div className="relative shrink-0" style={{ width: RAIL_GUTTER, height: LADDER_H }}>
+          <SpanRail height={LADDER_H} railX={ASSURANCE_RAIL_X} leaderY={ASSURANCE_LEADER_Y} color={C.accent} />
+          <SpanRail height={COMPLIANCE_H} railX={COMPLIANCE_RAIL_X} leaderY={COMPLIANCE_LEADER_Y} color={C.amber} />
         </div>
 
         <div className="flex flex-col flex-1 min-w-0 max-w-[420px]" style={{ gap: ROW_GAP }}>
@@ -115,16 +128,6 @@ export function PrismaLadder({ system, compliance, assurance }: PrismaLadderProp
               <div className="flex-1 min-w-0"><CoverageBar pct={row.pct} color={row.color} barHeight={7} /></div>
             </div>
           ))}
-        </div>
-
-        <div className="relative w-[20px] shrink-0" style={{ height: COMPLIANCE_H }}>
-          <div className="absolute" style={{ left: 0, top: 0, transform: "scaleX(-1)" }}>
-            <CurlyBrace height={COMPLIANCE_H} width={14} color={C.amber} tipY={COMPLIANCE_H / 2} />
-          </div>
-        </div>
-
-        <div className="w-[220px] shrink-0 flex items-start justify-center" style={{ height: COMPLIANCE_H }}>
-          <ScoreTile label="Compliance" sub="Through Implemented" value={compliance == null ? "—" : `${compliance}%`} pct={compliance} gradient={COMPLIANCE_GRADIENT} />
         </div>
       </div>
     </div>
