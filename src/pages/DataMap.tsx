@@ -13,7 +13,7 @@ import {
 import { buildDataFlowDiagram, buildControlPlaneMatrix } from "../utils/flowDiagramLayout";
 import FlowDiagramSVG, { FlowDiagramLegend } from "../components/FlowDiagramSVG";
 import FlowMatrixSVG, { FlowMatrixLegend } from "../components/FlowMatrixSVG";
-import { exportFlowDiagramPdf } from "../utils/exportFlowDiagramPdf";
+
 import Modal, { ModalCloseButton } from "../components/Modal";
 import { SectionHeader } from "./SystemWorkspace/shared/SectionHeader";
 import SystemCanvas from "../components/canvas/SystemCanvas";
@@ -427,6 +427,12 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
     setExporting(true);
     try {
       const dataTypeLabel = dataTypeId !== "all" ? getAllDataTypes().find((d) => d.id === dataTypeId)?.name : undefined;
+      // Fetched on the click, not on the page. jsPDF and its dependencies
+      // (svg2pdf, html2canvas, dompurify) are ~780 kB that only an export
+      // needs, and this page is on the default landing route — so a static
+      // import put all of it in front of every session. Same shape as
+      // SystemWorkspace's ISO report import.
+      const { exportFlowDiagramPdf } = await import("../utils/exportFlowDiagramPdf");
       await exportFlowDiagramPdf({
         dataSvgEl: dataSvgRef.current,
         dataDiagram: dataFlowDiagram,

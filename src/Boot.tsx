@@ -30,7 +30,7 @@
 // has not said who they are.
 import { lazy, Suspense, useEffect, useState } from "react";
 import { initEngine } from "./engine";
-import { applyTheme, storedThemeMode, C, FONT_IMPORT } from "./theme";
+import { applyTheme, storedThemeMode, C } from "./theme";
 import { useUser } from "./auth/useUser";
 import Login from "./pages/Login";
 
@@ -52,7 +52,6 @@ function Splash({ children }: { children: React.ReactNode }) {
       className="flex items-center justify-center"
       style={{ background: C.bg, minHeight: "100dvh", padding: 24 }}
     >
-      <style>{FONT_IMPORT}</style>
       {children}
     </div>
   );
@@ -146,7 +145,6 @@ export default function Boot() {
   if (!user) {
     return (
       <>
-        <style>{FONT_IMPORT}</style>
         <Login />
       </>
     );

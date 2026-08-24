@@ -7,6 +7,7 @@ import type { GovernanceAreaId } from "../pages/governanceAreas";
 import { VISIBLE_OVERVIEW_AREAS } from "../pages/overviewAreas";
 import type { OverviewAreaId } from "../pages/overviewAreas";
 import { ROLE_LABELS, initialsOf } from "../auth/roster";
+import { prefetchRoute } from "../pages/routeChunks";
 import type { User } from "../auth/roster";
 
 // Topbar chrome is intentionally fixed dark regardless of the app-wide light/dark
@@ -89,6 +90,10 @@ function NavButton({ item, isActive, onClick }: { item: NavItem; isActive: boole
   return (
     <button
       onClick={onClick}
+      // Each page is its own chunk now, so start fetching it on the way to
+      // the click. The registry dedupes with the lazy() import.
+      onMouseEnter={() => prefetchRoute(item.id)}
+      onFocus={() => prefetchRoute(item.id)}
       className="flex items-center gap-1.5 h-16 px-3.5 text-[13.5px] font-medium transition-colors"
       style={{ color: isActive ? TB.ink : TB.muted, borderBottom: `2px solid ${isActive ? TB.accent : "transparent"}` }}
     >
@@ -137,7 +142,7 @@ function GroupedNavButton({
     closeTimer.current = setTimeout(() => setOpen(false), 200);
   }
   return (
-    <div className="relative h-16" onMouseEnter={() => { cancelClose(); setOpen(true); }} onMouseLeave={scheduleClose}>
+    <div className="relative h-16" onMouseEnter={() => { cancelClose(); setOpen(true); prefetchRoute(id); }} onMouseLeave={scheduleClose}>
       <button
         onClick={() => onSelect(id)}
         className="flex items-center gap-1.5 h-16 px-3.5 text-[13.5px] font-medium transition-colors"

@@ -1,20 +1,24 @@
-import React, { useEffect, useState } from "react";
+import React, { lazy, startTransition, Suspense, useEffect, useState } from "react";
 import type { ComponentProps } from "react";
 import TopNav from "./components/TopNav";
 import type { NavigationPageId } from "./components/TopNav";
-import Systems from "./pages/Systems";
-import Governance from "./pages/Governance";
-import Overview from "./pages/Overview";
+import { DelayedSpinner } from "./components/DelayedSpinner";
 import { isVisibleOverviewArea } from "./pages/overviewAreas";
-import GraphExplorer from "./pages/GraphExplorer";
-import Settings from "./pages/Settings/Settings";
-import { DEFAULT_SYSTEM_ID } from "./pages/SystemWorkspace/SystemWorkspace";
+
+// One chunk per top-level page; the factories live in ./pages/routeChunks
+// so this module keeps exporting only its component.
+const Systems = lazy(() => import("./pages/Systems"));
+const Governance = lazy(() => import("./pages/Governance"));
+const Overview = lazy(() => import("./pages/Overview"));
+const GraphExplorer = lazy(() => import("./pages/GraphExplorer"));
+const Settings = lazy(() => import("./pages/Settings/Settings"));
+import { defaultSystemId } from "./pages/defaultSystem";
 import type { SystemWorkspaceTab } from "./pages/SystemWorkspace/tabs";
 import type { SystemSelectOptions } from "./pages/SelectSystem";
 import type { SystemId } from "./graph/ids";
 import { hashForRoute, parseHash } from "./router";
 import type { AppRoute } from "./router";
-import { C, applyTheme, FONT_IMPORT, THEME_STORAGE_KEY, storedThemeMode } from "./theme";
+import { C, applyTheme, THEME_STORAGE_KEY, storedThemeMode } from "./theme";
 import type { ThemeMode } from "./theme";
 import { useSignedInUser } from "./auth/useUser";
 import { signOut } from "./auth/session";
@@ -79,10 +83,13 @@ function isNavigationPageId(id: string): id is NavigationPageId {
 }
 
 // Post-login landing: Production AI Platform's workspace, same as before.
-const DEFAULT_ROUTE: AppRoute = { page: "data-estate", systemId: DEFAULT_SYSTEM_ID };
+// A function rather than a constant because it reads the engine, and an
+// engine read at module scope both freezes against the first published
+// engine and forces this module's imports into the initial chunk.
+const defaultRoute = (): AppRoute => ({ page: "data-estate", systemId: defaultSystemId() });
 
 export default function App() {
-  const [route, setRoute] = useState<AppRoute>(() => parseHash(window.location.hash) ?? DEFAULT_ROUTE);
+  const [route, setRoute] = useState<AppRoute>(() => parseHash(window.location.hash) ?? defaultRoute());
   const [startAssessment, setStartAssessment] = useState(false);
   const [mode, setMode] = useState<ThemeMode>(storedThemeMode);
   // Boot renders the login screen instead of App when nobody is signed in, so
@@ -98,15 +105,19 @@ export default function App() {
     // Canonicalize an empty/unknown hash so the first history entry is stable,
     // then let back/forward (and manual hash edits) drive the route.
     if (!parseHash(window.location.hash)) {
-      window.history.replaceState(null, "", hashForRoute(DEFAULT_ROUTE));
+      window.history.replaceState(null, "", hashForRoute(defaultRoute()));
     }
-    const onPopState = () => setRoute(parseHash(window.location.hash) ?? DEFAULT_ROUTE);
+    const onPopState = () => setRoute(parseHash(window.location.hash) ?? defaultRoute());
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
   function applyRoute(next: AppRoute, options?: { replace?: boolean }) {
-    setRoute(next);
+    // A transition, so React keeps the current page painted while the next
+    // one's chunk downloads instead of tearing it down and showing the
+    // Suspense fallback. Without this every navigation to a not-yet-loaded
+    // route would flash a spinner.
+    startTransition(() => setRoute(next));
     const target = hashForRoute(next);
     if (window.location.hash !== target) {
       if (options?.replace) window.history.replaceState(null, "", target);
@@ -120,7 +131,7 @@ export default function App() {
       if (legacy.page === "data-estate") {
         applyRoute({
           page: "data-estate",
-          systemId: route.systemId ?? DEFAULT_SYSTEM_ID,
+          systemId: route.systemId ?? defaultSystemId(),
           systemTab: SYSTEM_TAB_BY_LEGACY_TAB[legacy.tab],
         });
       } else {
@@ -196,7 +207,7 @@ export default function App() {
         "--wz-accent": C.accent, "--wz-ring": C.accentBg, "--wz-hover": C.panel2,
       } as React.CSSProperties}
     >
-      <style>{FONT_IMPORT}</style>
+
       <TopNav
         active={route.page}
         onSelect={navigate}
@@ -207,7 +218,11 @@ export default function App() {
         onOpenSettings={allows(canManageUsers(user)) ? () => navigate("settings") : undefined}
       />
       <div className="flex-1" style={{ overflowY: "auto" }}>
-        {activePage}
+        {/* Only reached on a cold deep-link: applyRoute runs route changes
+            as transitions, which hold the previous page instead. */}
+        <Suspense fallback={<DelayedSpinner label="Loading" fill />}>
+          {activePage}
+        </Suspense>
       </div>
     </div>
   );

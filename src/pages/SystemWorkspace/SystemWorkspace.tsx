@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { WorkspaceTabBar } from "./WorkspaceTabBar";
-import { getAllSystems } from "../../engine";
 import { SUB_TABS } from "./tabs";
 import { STATUS_ORDER } from "./controlMeta";
 import { SystemHeader } from "./SystemHeader";
@@ -28,16 +27,11 @@ import type { ControlId, SystemId } from "../../graph/ids";
 import type { SystemWorkspaceTab } from "./tabs";
 import type { ReviewWave } from "../../engine/review";
 import { useLiveEngine } from "../../engine/useLiveEngine";
+import { defaultSystemId } from "../defaultSystem";
 import { useSignedInUser } from "../../auth/useUser";
 import { canAssess, allows } from "../../auth/gates";
 
-const SYSTEMS = getAllSystems();
 
-// Opens on Production AI Platform — the system most worth landing on by
-// default — falling back to the first system if it's ever renamed or removed.
-const DEFAULT_SYSTEM = SYSTEMS.find((s) => s.name === "Production AI Platform") ?? SYSTEMS[0];
-if (!DEFAULT_SYSTEM) throw new Error("System workspace requires at least one system.");
-export const DEFAULT_SYSTEM_ID = DEFAULT_SYSTEM.id;
 
 interface SystemWorkspaceProps {
   systemId?: SystemId | null;
@@ -49,7 +43,7 @@ interface SystemWorkspaceProps {
 }
 
 export default function SystemWorkspace({ systemId: controlledSystemId, onSelectSystem, initialSubTab, onSubTabChange, onNavigate, startAssessment = false }: SystemWorkspaceProps) {
-  const [localSystemId, setLocalSystemId] = useState(DEFAULT_SYSTEM_ID);
+  const [localSystemId, setLocalSystemId] = useState(() => defaultSystemId());
   const systemId = controlledSystemId ?? localSystemId;
   const [subTab, setSubTab] = useState<SystemWorkspaceTab>(SUB_TABS.some((t) => t.id === initialSubTab) ? initialSubTab! : SUB_TABS[0].id);
   // The route (URL hash) can change the requested tab after mount — e.g. the
@@ -245,7 +239,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
       )}
 
       {subTab === "architecture" && (
-        <SystemArchitecture systemId={systemId} onSelectSystem={selectSystem} />
+        <SystemArchitecture systemId={system.id} onSelectSystem={selectSystem} />
       )}
 
       {subTab === "data" && <SystemData system={system} dataTypes={dataTypes} resilience={resilience} backupRecovery={backupRecovery} />}
@@ -290,48 +284,60 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         />
       )}
 
-      {subTab === "assets" && <SystemAssets systemId={systemId} />}
+      {subTab === "assets" && <SystemAssets systemId={system.id} />}
 
-      <ScopeReviewModal
-        open={scopeReviewOpen}
-        systemId={system.id}
-        assessor={assessor}
-        initialWave={requestedWave}
-        onClose={() => setScopeReviewOpen(false)}
-        onStartTechnicalReview={openAssessmentWalk}
-        onEditAssets={() => {
-          setScopeReviewOpen(false);
-          setEditorInitialStep(4);
-          setResumeScopeAfterEdit(true);
-          setResumeAssuranceAfterEdit(false);
-          setEditorOpen(true);
-        }}
-      />
+      {/* Mounted only while open, like the evaluation panel below. Hooks
+          cannot follow an early return, so a modal that guards on `open`
+          inside itself has already run its body — and these two run engine
+          derivations up there: this one builds the wave projection, the
+          inheritance groups and the applicability summary before it decides
+          it is closed, on every render of the workspace, on every tab. */}
+      {scopeReviewOpen && (
+        <ScopeReviewModal
+          open
+          systemId={system.id}
+          assessor={assessor}
+          initialWave={requestedWave}
+          onClose={() => setScopeReviewOpen(false)}
+          onStartTechnicalReview={openAssessmentWalk}
+          onEditAssets={() => {
+            setScopeReviewOpen(false);
+            setEditorInitialStep(4);
+            setResumeScopeAfterEdit(true);
+            setResumeAssuranceAfterEdit(false);
+            setEditorOpen(true);
+          }}
+        />
+      )}
 
-      <ControlAssessmentWalk
-        open={assessmentWalkOpen}
-        systemId={system.id}
-        onClose={() => setAssessmentWalkOpen(false)}
-        onContinueToFindings={() => {
-          setAssessmentWalkOpen(false);
-          changeSubTab("actions");
-        }}
-      />
+      {assessmentWalkOpen && (
+        <ControlAssessmentWalk
+          open
+          systemId={system.id}
+          onClose={() => setAssessmentWalkOpen(false)}
+          onContinueToFindings={() => {
+            setAssessmentWalkOpen(false);
+            changeSubTab("actions");
+          }}
+        />
+      )}
 
-      <AssuranceWorkflow
-        key={`${system.id}-${assuranceInitialStage}-${assuranceOpen ? "open" : "closed"}`}
-        open={assuranceOpen}
-        systemId={system.id}
-        initialStage={assuranceInitialStage}
-        onClose={() => setAssuranceOpen(false)}
-        onEditAssets={() => {
-          setAssuranceOpen(false);
-          setEditorInitialStep(4);
-          setResumeScopeAfterEdit(false);
-          setResumeAssuranceAfterEdit(true);
-          setEditorOpen(true);
-        }}
-      />
+      {assuranceOpen && (
+        <AssuranceWorkflow
+          key={`${system.id}-${assuranceInitialStage}`}
+          open
+          systemId={system.id}
+          initialStage={assuranceInitialStage}
+          onClose={() => setAssuranceOpen(false)}
+          onEditAssets={() => {
+            setAssuranceOpen(false);
+            setEditorInitialStep(4);
+            setResumeScopeAfterEdit(false);
+            setResumeAssuranceAfterEdit(true);
+            setEditorOpen(true);
+          }}
+        />
+      )}
 
       {selectedRow && (
         <ControlEvaluationPanel
@@ -343,8 +349,12 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         />
       )}
 
+      {/* 2,310 lines and 48 useState hooks, and its own `open` guard sits
+          inside <Modal> — so the whole body ran on every workspace render
+          whether or not anyone was editing a system. */}
+      {editorOpen && (
       <AddSystemWizard
-        open={editorOpen}
+        open
         onClose={() => {
           setEditorOpen(false);
           setEditorInitialStep(1);
@@ -364,6 +374,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         editingSystemId={systemId}
         initialStep={editorInitialStep}
       />
+      )}
     </div>
   );
 }

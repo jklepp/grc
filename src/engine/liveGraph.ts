@@ -326,6 +326,46 @@ export function buildLiveEngine(baseFacts: GraphFacts, runtime: RuntimeFacts): B
     assessmentScopes: correctedAssessmentScopes,
   };
 
+  // The second pass exists because the correction above can change the facts
+  // the graph is built from. When it changes nothing — the common case for an
+  // evaluation save, which stages evidence, findings and PRISMA overrides but
+  // touches neither applicability nor scope — the trial engine already IS the
+  // final engine, and rebuilding it costs a second assembleGraph, a second
+  // validateGraph and a second full construction for an identical answer.
+  //
+  // At two systems that is ~6 ms. At fifty it is ~150 ms, on the main thread,
+  // on every save (see scripts/bench-engine.mjs).
+  //
+  // Reference equality is the right test, not deep equality: every entry in
+  // correctedAssessmentScopes is either the untouched input object or a fresh
+  // {...scope} literal, so a correction always breaks identity and an
+  // untouched scope always keeps it.
+  const scopesUnchanged =
+    correctedAssessmentScopes.length === runtime.assessmentScopes.length &&
+    correctedAssessmentScopes.every((scope, i) => scope === runtime.assessmentScopes[i]);
+  const classificationUnchanged =
+    Object.keys(correctedExpectedClassification).length ===
+      Object.keys(runtime.expectedClassification).length;
+
+  if (scopesUnchanged && classificationUnchanged) {
+    // The premise, checked rather than trusted: if the correction really
+    // changed nothing then the facts the second pass would assemble are the
+    // facts the first pass already assembled. Dev only — it costs a merge and
+    // a stringify, which is the thing being avoided in production.
+    if (import.meta.env.DEV) {
+      const wouldBe = mergeFacts(baseFacts, correctedRuntime);
+      if (JSON.stringify(wouldBe) !== JSON.stringify(firstPassFacts)) {
+        throw new Error(
+          "buildLiveEngine: second pass skipped but the corrected facts differ. " +
+          "The scopesUnchanged/classificationUnchanged guard is wrong."
+        );
+      }
+    }
+    const derivationProblems = validateDerivations(trialEngine, { throwOnFailure: false });
+    if (derivationProblems.length > 0) return { engine: null, problems: derivationProblems };
+    return { engine: trialEngine, problems: [] };
+  }
+
   const finalFacts = mergeFacts(baseFacts, correctedRuntime);
   let finalGraph;
   try {

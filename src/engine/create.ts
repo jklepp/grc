@@ -103,7 +103,12 @@ export function createEngine(graph: Graph, options: EngineOptions = {}) {
   // Structural integrity was already proved by loadGraph. This is the other
   // half — the checks that need a derived value to make, and so cannot run
   // until an engine exists.
-  if (options.validate !== false) validateDerivations(engine);
+  //
+  // Dev only, for the reason loadGraph gives: on the authored dataset this
+  // re-proves in every browser what CI proved once. liveGraph.ts runs it
+  // explicitly on the runtime write path, where the answer is not known in
+  // advance, and that call is unguarded.
+  if (import.meta.env.DEV && options.validate !== false) validateDerivations(engine);
 
   return engine;
 }

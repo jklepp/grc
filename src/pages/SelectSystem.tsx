@@ -230,8 +230,16 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
   const mayCreate = allows(canCreateSystem(user));
   const mayDelete = allows(canDeleteSystem(user));
   const systems = liveEngine.rollups.systemRollups;
-  const runtimeFacts = loadRuntimeFacts();
-  const baselineSystemIds = new Set(baseFacts().systems.map((system) => system.id));
+  // localStorage read + JSON.parse + the store's migration passes. It only
+  // changes when the engine is republished, so it does not belong in the
+  // render body it used to sit in.
+  // `liveEngine` is a cache key here rather than an input: both of these read
+  // module state that only changes when publish() swaps the engine, so that
+  // is exactly when they should be recomputed. The rule cannot see that.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const runtimeFacts = useMemo(() => loadRuntimeFacts(), [liveEngine]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const baselineSystemIds = useMemo(() => new Set(baseFacts().systems.map((s) => s.id)), [liveEngine]);
   const deletableSystemIds = new Set(
     mayDelete
       ? runtimeFacts.systems.filter((system) => !baselineSystemIds.has(system.id)).map((system) => system.id)
@@ -456,13 +464,15 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
         </div>
       </div>
 
-      <AddSystemWizard
-        open={wizardOpen}
-        onClose={closeWizard}
-        onCreated={handleWizardSaved}
-        editingSystemId={editingSystemId}
-        cloneFromSystemId={cloneFromSystemId}
-      />
+      {wizardOpen && (
+        <AddSystemWizard
+          open
+          onClose={closeWizard}
+          onCreated={handleWizardSaved}
+          editingSystemId={editingSystemId}
+          cloneFromSystemId={cloneFromSystemId}
+        />
+      )}
 
       <Modal
         open={pendingDelete !== null}

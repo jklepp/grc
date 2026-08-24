@@ -4,10 +4,27 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      The fonts are requested here rather than through an @import in a React
+      <style>, which is where they used to live. That @import could not start
+      until the entry chunk had downloaded, parsed and React had committed a
+      render — invisible to the preload scanner, and roughly 200ms late on a
+      good connection. As markup they are discoverable immediately.
+
+      The two preconnects pay the DNS and TLS cost for both origins up front;
+      googleapis serves the CSS, gstatic serves the font files, and the CSP in
+      vite.config.ts already allows exactly these two.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600;700&amp;family=Inter:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap"
+    />
     <title>ACME ASSURE</title>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
