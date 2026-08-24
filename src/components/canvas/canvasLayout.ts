@@ -29,8 +29,17 @@ export const ACTOR_H = 72;
 export const VENDOR_H = 80;
 
 const COLUMN_PITCH = NODE_W + 56; // 280
-const ROW_PITCH = ASSET_H + 44; // 124
-const BAND_GAP = 72;
+const ROW_PITCH = ASSET_H + 44; // 124 — 44px of air between stacked cards
+// Extra separation between bands, ON TOP of ROW_PITCH. Kept small: at 72 the
+// bands sat 196px apart against the 124px rhythm of the request path above
+// them, which read as four detached strips rather than one diagram. 24 leaves
+// bands looser than a column (68px of air versus 44px) so they still group,
+// without the gulf.
+const BAND_GAP = 24;
+// Lane header band above the request path. LANE_H has to clear the title's
+// type size plus its rule, or the header crops.
+const LANE_H = 32;
+const LANE_GAP = 14;
 
 export interface EdgeKindFilter {
   data: boolean;
@@ -152,7 +161,8 @@ export function buildCanvasGraph(input: CanvasInput): CanvasResult {
     x: number,
     y: number,
     h: number,
-    data: Record<string, unknown>
+    data: Record<string, unknown>,
+    w: number = NODE_W
   ) => {
     nodes.push({
       id, type,
@@ -161,17 +171,34 @@ export function buildCanvasGraph(input: CanvasInput): CanvasResult {
       // Deliberately NOT `width`/`height`: those mean "the caller owns this
       // size", which makes React Flow skip its measurement pass entirely and
       // leaves `measured` empty forever.
-      initialWidth: NODE_W,
+      initialWidth: w,
       initialHeight: h,
-      measured: { width: NODE_W, height: h },
-      handles: handlesFor(NODE_W, h),
+      measured: { width: w, height: h },
+      handles: handlesFor(w, h),
       data,
       selectable: true,
       draggable: false,
     });
     // Our own geometry, kept independent of whatever React Flow measures: it
     // is only used to decide which side of a box each line leaves from.
-    placed.set(id, { id, x, y, w: NODE_W, h });
+    placed.set(id, { id, x, y, w, h });
+  };
+
+  // Lane headers sit above the request path and are pure chrome: not
+  // selectable, not connectable, and no entry in `placed` so no edge can ever
+  // anchor to one.
+  const pushLane = (id: string, x: number, w: number, text: string, y = 0) => {
+    nodes.push({
+      id, type: "lane",
+      position: { x, y },
+      initialWidth: w,
+      initialHeight: LANE_H,
+      measured: { width: w, height: LANE_H },
+      data: { text, width: w },
+      selectable: false,
+      draggable: false,
+      focusable: false,
+    });
   };
 
   // ---- Row 0: the request path, actors at either end ---------------------------
@@ -183,9 +210,13 @@ export function buildCanvasGraph(input: CanvasInput): CanvasResult {
     return [...seen.values()];
   };
 
-  const ingressActors = dedupeActors(layout.ingressActors);
+  // Staff reaching in through a workforce path share the column with customers
+  // and partners reaching in through the public one: both are someone outside
+  // the boundary calling into it, and splitting them cost a whole extra band.
+  // Deduped across BOTH lists, or an actor with an inbound and an internal
+  // access record would be drawn twice in the same column.
+  const ingressActors = dedupeActors([...layout.ingressActors, ...layout.internalActors]);
   const egressActors = dedupeActors(layout.egressActors);
-  const internalActors = dedupeActors(layout.internalActors);
 
   type ActorDirection = "in" | "out" | "internal";
   type Item =
@@ -198,13 +229,64 @@ export function buildCanvasGraph(input: CanvasInput): CanvasResult {
   const actorItems = (entries: ActorEntry[], direction: ActorDirection): Item[] =>
     entries.map((entry) => ({ kind: "actor", entry, direction }));
 
+  // Each column is tagged with the role it plays in the request path, so a lane
+  // header can span "the processing columns" without re-deriving which those
+  // are from position. Depth 0 is the boundary itself (WAF, gateway, the web
+  // app); depths above it are where the request is actually worked on.
+  type ColumnRole = "ingress-actors" | "boundary" | "processing" | "egress" | "egress-actors";
   const columns: Item[][] = [];
-  if (ingressActors.length) columns.push(actorItems(ingressActors, "in"));
+  const columnRoles: ColumnRole[] = [];
+  const addColumn = (items: Item[], role: ColumnRole) => {
+    columns.push(items);
+    columnRoles.push(role);
+  };
+
+  // A secure web gateway is a way IN to the boundary, so on the canvas it sits
+  // with the rest of the ingress rather than in a lane of its own. That trades
+  // a distinction away — the engine still separates customer/partner traffic
+  // (BOUNDARY_INGRESS_KINDS) from workforce traffic (WORKFORCE_INGRESS_KINDS),
+  // and the Diagram view still draws them apart — for one fewer band to read.
+  // A PRESENTATION choice, made here and not in the graph: the kinds keep their
+  // meaning, applicability is untouched, and nothing about scoring moves.
+  const INGRESS_COLUMN_KINDS = new Set(["secure-web-gateway", "identity-provider"]);
+  const workforceIntoIngress = layout.workforceIngress.filter((e) => INGRESS_COLUMN_KINDS.has(e.asset.kind));
+  const workforceBandEntries = layout.workforceIngress.filter((e) => !INGRESS_COLUMN_KINDS.has(e.asset.kind));
+
+  if (ingressActors.length) addColumn(actorItems(ingressActors, "in"), "ingress-actors");
+
+  const boundaryStage = layout.stages.find((s) => s.depth === 0);
+  // If the walk found no depth-0 stage there is still an ingress column to draw
+  // when a gateway was folded in, and it has to come before the processing
+  // columns — hence building it up front rather than appending as we go.
+  if (!boundaryStage && workforceIntoIngress.length) {
+    addColumn(assetItems(workforceIntoIngress), "boundary");
+  }
   layout.stages.forEach((stage) => {
-    columns.push(stage.nodes.map((asset: AssetRollup) => ({ kind: "asset", asset })));
+    const items: Item[] = stage.nodes.map((asset: AssetRollup) => ({ kind: "asset", asset }));
+    if (stage.depth === 0) items.push(...assetItems(workforceIntoIngress));
+    addColumn(items, stage.depth === 0 ? "boundary" : "processing");
   });
-  if (layout.egress.length) columns.push(assetItems(layout.egress));
-  if (egressActors.length) columns.push(actorItems(egressActors, "out"));
+  if (layout.egress.length) addColumn(assetItems(layout.egress), "egress");
+
+  // ---- Vendors -----------------------------------------------------------------
+  // The substrate provider is not drawn. On the AI platform it would be a
+  // single node with ~30 lines converging on it, which buries every flow the
+  // canvas exists to show; it is a badge on each asset it runs instead. Found
+  // by matching the system's own `provider` string rather than by naming a
+  // vendor here, so this holds for a Workday boundary as readily as an AWS one.
+  const substrateVendorId = vendors.find((v) => v.vendor?.name === systemProvider)?.vendorId ?? null;
+  const drawnVendors = vendors.filter((v) => v.vendorId !== substrateVendorId);
+
+  // Vendors share the outbound column with the actors rather than sitting in a
+  // band of their own: both answer "what is outside this boundary that it
+  // reaches", and putting them together also shortens the dependency edges —
+  // the model endpoint's line to its provider becomes a short hop across
+  // instead of a long diagonal to the bottom of the diagram.
+  const outboundItems: Item[] = [
+    ...actorItems(egressActors, "out"),
+    ...drawnVendors.map((entry): Item => ({ kind: "vendor", entry })),
+  ];
+  if (outboundItems.length) addColumn(outboundItems, "egress-actors");
 
   const placeItem = (item: Item, x: number, y: number) => {
     if (item.kind === "asset") {
@@ -225,12 +307,57 @@ export function buildCanvasGraph(input: CanvasInput): CanvasResult {
   };
 
   const tallest = Math.max(1, ...columns.map((c) => c.length));
-  const rowTop = 0;
+  // Room reserved above the request path for lane headers. Nothing else moves:
+  // the bands below are positioned relative to rowTop.
+  const rowTop = LANE_H + LANE_GAP;
 
   columns.forEach((col, ci) => {
     const x = ci * COLUMN_PITCH;
     const yOff = ((tallest - col.length) * ROW_PITCH) / 2;
     col.forEach((item, i) => placeItem(item, x, rowTop + yOff + i * ROW_PITCH));
+  });
+
+  // ---- Lane headers ------------------------------------------------------------
+  // A lane is a contiguous run of columns sharing a role, titled once above the
+  // whole run. Derived from columnRoles rather than hardcoded indices, so a
+  // boundary with more or fewer processing stages still gets one header of the
+  // right width — and a system with none (SYS-042) gets no header at all.
+  const laneSpan = (role: ColumnRole): { x: number; w: number } | null => {
+    const first = columnRoles.indexOf(role);
+    if (first === -1) return null;
+    const last = columnRoles.lastIndexOf(role);
+    return {
+      x: first * COLUMN_PITCH,
+      // Full pitch per column, less the trailing gutter, so the header ends
+      // flush with the right edge of its last card.
+      w: (last - first + 1) * COLUMN_PITCH - (COLUMN_PITCH - NODE_W),
+    };
+  };
+
+  // Names kept identical to the ones the card view used and the Diagram view
+  // still uses, so the same column is called the same thing wherever you meet
+  // it. A role with no columns in this boundary contributes no header.
+  const LANES: { role: ColumnRole; id: string; title: string }[] = [
+    // Plain "Actors", not "Inbound Actors": this column now holds staff
+    // arriving through a workforce path as well as customers and partners
+    // arriving through the public one, and the engine records those as
+    // different directions (internal vs inbound). One of them would be wrong
+    // whichever direction the label named, so it names neither.
+    //
+    // "Outbound Actors" keeps its qualifier because it has not been merged with
+    // anything — it is still only what the boundary calls out to.
+    { role: "ingress-actors", id: "lane-actors-in", title: "Actors" },
+    // Ingress/Egress rather than Web Ingress/Web Egress: workforce paths were
+    // folded into the ingress column, so "Web" no longer describes everything
+    // sitting under it, and the pair reads better matched.
+    { role: "boundary", id: "lane-ingress", title: "Ingress" },
+    { role: "processing", id: "lane-processing", title: "Data Processing" },
+    { role: "egress", id: "lane-egress", title: "Egress" },
+    { role: "egress-actors", id: "lane-actors-out", title: "Outbound Actors" },
+  ];
+  LANES.forEach(({ role, id, title }) => {
+    const span = laneSpan(role);
+    if (span) pushLane(id, span.x, span.w, title);
   });
 
   const columnCount = Math.max(1, columns.length);
@@ -240,33 +367,47 @@ export function buildCanvasGraph(input: CanvasInput): CanvasResult {
   // A band with nothing in it contributes no height and no gap, so a system
   // with no AI pipeline (or no delivery tooling) collapses cleanly instead of
   // leaving a void where a label would have been.
-  const band = (items: Item[]) => {
+  // The band's title rides in the gutter to the LEFT of the grid — one column
+  // pitch out at x = -COLUMN_PITCH, so it lands on the same rhythm as every
+  // other card rather than floating at an arbitrary offset. Titled bands are
+  // the horizontal counterpart of the lane headers along the top, and reuse the
+  // same pill node.
+  const band = (items: Item[], title: string) => {
     if (!items.length) return;
     items.forEach((item, i) => {
       const x = (i % columnCount) * COLUMN_PITCH;
       const y = bandTop + Math.floor(i / columnCount) * ROW_PITCH;
       placeItem(item, x, y);
     });
-    bandTop += Math.ceil(items.length / columnCount) * ROW_PITCH + BAND_GAP;
+
+    const rows = Math.ceil(items.length / columnCount);
+    // Centre the label against the band's actual content, not its slot: the
+    // last row carries no bottom gutter, so subtracting one gutter is what
+    // keeps a two-row band's title from sitting low.
+    const contentH = rows * ROW_PITCH - (ROW_PITCH - ASSET_H);
+    pushLane(
+      `band-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+      -COLUMN_PITCH,
+      NODE_W,
+      title,
+      bandTop + (contentH - LANE_H) / 2
+    );
+
+    bandTop += rows * ROW_PITCH + BAND_GAP;
   };
 
-  // Workforce access sits first: it is still people reaching in, just not
-  // through the customer-facing path.
-  band([...actorItems(internalActors, "internal"), ...assetItems(layout.workforceIngress)]);
-  band(assetItems(layout.dataPlane));
-  band(assetItems(layout.branches));
-  band(assetItems(layout.softwareDeployment));
-  band(assetItems(layout.backupRecovery));
-
-  // ---- Vendors -----------------------------------------------------------------
-  // The substrate provider is not drawn. On the AI platform it would be a
-  // single node with ~30 lines converging on it, which buries every flow the
-  // canvas exists to show; it is a badge on each asset it runs instead. Found
-  // by matching the system's own `provider` string rather than by naming a
-  // vendor here, so this holds for a Workday boundary as readily as an AWS one.
-  const substrateVendorId = vendors.find((v) => v.vendor?.name === systemProvider)?.vendorId ?? null;
-  const drawnVendors = vendors.filter((v) => v.vendorId !== substrateVendorId);
-  band(drawnVendors.map((entry) => ({ kind: "vendor", entry })));
+  // Whatever workforce ingress was NOT folded into the ingress column. With
+  // both the gateway and the identity provider folded in this is empty on both
+  // demo systems, and an empty band contributes no height and no gap — the row
+  // disappears rather than leaving a labelled void.
+  //
+  // Titles are the engine's own section names, matching what the card view used
+  // and what the Diagram view still shows.
+  band(assetItems(workforceBandEntries), "Workforce Access");
+  band(assetItems(layout.dataPlane), "Data Plane");
+  band(assetItems(layout.branches), "Control Plane");
+  band(assetItems(layout.softwareDeployment), "Software Deployment");
+  band(assetItems(layout.backupRecovery), "Backup & Recovery");
 
   // ---- Edges -------------------------------------------------------------------
   const counts: Record<keyof EdgeKindFilter, number> = {

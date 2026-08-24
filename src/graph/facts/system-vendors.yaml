@@ -9,13 +9,6 @@
     - "DT-003"
     - "DT-004"
   criticality: "critical"
-- systemId: "SYS-003"
-  vendorId: "VEND-MODEL-PROVIDER"
-  dependency: "Third-party LLM inference backing RAG completions"
-  dataAccessible:
-    - "DT-002"
-    - "DT-003"
-  criticality: "critical"
 
 - systemId: "SYS-042"
   vendorId: "VEND-WORKDAY"

@@ -58,6 +58,37 @@ function Badge({ bg, color, children, title }: { bg: string; color: string; chil
   );
 }
 
+export type LaneNodeData = { text: string; width: number };
+
+// A lane header: a pill running the full width of the columns the lane covers,
+// with the title centred inside it. The pill's own width is what shows the
+// lane's extent, which is why there is no separate rule underneath — the bar
+// and the line are the same object.
+//
+// Chrome, not content — pointer-events off so panning and clicking pass
+// straight through it, and no handles because nothing connects to a label.
+export function CanvasLaneNode({ data }: NodeProps) {
+  const { text, width } = data as LaneNodeData;
+  return (
+    <div
+      className="flex items-center justify-center pointer-events-none"
+      style={{ width, height: "100%" }}
+    >
+      <div
+        className="w-full rounded-full border py-1 text-[13px] uppercase tracking-widest font-semibold leading-none text-center truncate"
+        style={{
+          color: DARK.muted,
+          background: DARK.panel2,
+          borderColor: DARK.border,
+          fontFamily: "'IBM Plex Mono', monospace",
+        }}
+      >
+        {text}
+      </div>
+    </div>
+  );
+}
+
 export type AssetNodeData = {
   asset: AssetRollup;
   substrate: boolean;

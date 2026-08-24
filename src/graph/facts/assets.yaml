@@ -305,9 +305,11 @@
 # gateway, and the staff console that edits production prompts outside the register
 # entirely — each of them a real control surface with a real blast radius.
 #
-# AST-003-29's provider is "External Model Provider" rather than a brand: it has to match
-# VEND-MODEL-PROVIDER.name so the vendor dependency derives from a stored fact instead of
-# a name guess. See src/graph/nodes/vendors.ts.
+# AST-003-29's provider is "External Model Provider" rather than a brand, and deliberately
+# has no matching row in vendors.yaml. The external party is already modelled once, as
+# ACTOR-MODEL-PROVIDER — registering it a second time as a vendor drew the same
+# organisation twice on the architecture canvas without adding a fact. `provider` here is
+# a display label, which is how Splunk, Okta, Zscaler and Terraform Cloud are carried too.
 
 - id: "AST-003-26"
   systemIds: ["SYS-003"]

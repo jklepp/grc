@@ -16,12 +16,6 @@
   sharedResponsibilityReviewed: true
   certificationId: "CERT-WORKDAY-SOC2-2026"
 
-- id: "VENDASSR-VEND-MODEL-PROVIDER-2025"
-  vendorId: "VEND-MODEL-PROVIDER"
-  reassessedAt: "2025-06-10"
-  cadenceDays: 365
-  sharedResponsibilityReviewed: false
-
 - id: "VENDASSR-VEND-PAYROLL-2026"
   vendorId: "VEND-PAYROLL"
   reassessedAt: "2026-01-20"

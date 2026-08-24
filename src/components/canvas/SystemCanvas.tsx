@@ -17,7 +17,7 @@ import type { AssetId } from "../../graph/ids";
 import type { FlowLayout } from "../../utils/flowDiagramLayout";
 import { buildCanvasGraph } from "./canvasLayout";
 import type { CanvasVendor, EdgeKindFilter } from "./canvasLayout";
-import { CanvasActorNode, CanvasAssetNode, CanvasVendorNode } from "./CanvasNodes";
+import { CanvasActorNode, CanvasAssetNode, CanvasLaneNode, CanvasVendorNode } from "./CanvasNodes";
 
 // Module-level. Rebuilding this object each render remounts every node, logs
 // React Flow warning #002, and would defeat the theme handling below.
@@ -25,6 +25,7 @@ const nodeTypes = {
   asset: CanvasAssetNode,
   actor: CanvasActorNode,
   vendor: CanvasVendorNode,
+  lane: CanvasLaneNode,
 };
 
 export interface CanvasFocus { cx: number; cy: number; zoom: number }
@@ -193,7 +194,12 @@ function Inner({
       <ViewportBridge initialFocus={initialFocus} onFocusChange={onFocusChange} />
       <Background color={DARK.border} gap={20} />
       <Controls showInteractive={false} position="bottom-right" />
-      <Panel position="bottom-left">
+      {/* Top-right, not bottom-left: the legend is anchored to the viewport
+          while the band titles live in canvas space, and at fit-to-view the
+          bottom-left corner is exactly where the last band's title lands. The
+          zoom controls hold the bottom-right, and the diagram's tall bands run
+          down the left, so this is the corner least likely to cover anything. */}
+      <Panel position="top-right">
         <CanvasLegend edgeKinds={edgeKinds} />
       </Panel>
     </ReactFlow>
