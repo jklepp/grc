@@ -453,17 +453,14 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
                     </button>
                   </div>
                   {viewMode === "canvas" && (
-                    <>
-                      <EdgeKindChips value={edgeKinds} counts={edgeStats.counts} onChange={setEdgeKinds} />
-                      <button
-                        onClick={() => setExpanded(true)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium"
-                        style={{ background: C.panel, color: C.muted, border: `1px solid ${C.border}` }}
-                        title="Fill the window with the canvas"
-                      >
-                        <Maximize2 size={12} /> Expand
-                      </button>
-                    </>
+                    <button
+                      onClick={() => setExpanded(true)}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium"
+                      style={{ background: C.panel, color: C.muted, border: `1px solid ${C.border}` }}
+                      title="Fill the window with the canvas"
+                    >
+                      <Maximize2 size={12} /> Expand
+                    </button>
                   )}
                   {viewMode === "diagram" && (
                     <button
@@ -556,6 +553,18 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
                       <FlowMatrixLegend />
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* The line filters sit under the canvas, not above it: they read as
+                  controls on what you are looking at, and the toolbar above was
+                  carrying too much at once. */}
+              {viewMode === "canvas" && (
+                <div className="flex items-center gap-2 mt-3 flex-wrap">
+                  <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
+                    Lines
+                  </span>
+                  <EdgeKindChips value={edgeKinds} counts={edgeStats.counts} onChange={setEdgeKinds} />
                 </div>
               )}
 
