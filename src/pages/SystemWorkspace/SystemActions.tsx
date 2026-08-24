@@ -78,7 +78,7 @@ const THEME_COLOR: Record<WorkTone, string> = {
 // outstanding, how bad, where it stands, who owns it, when it is owed, and the
 // one move that advances it. The same six-column read the Controls table uses;
 // everything lower-priority (control name, asset, domain) rides as a sub-line.
-const WORK_GRID = "2fr 96px 150px 150px 104px 132px";
+// Column widths live on the header cells now (see the table below).
 
 type WorkSortKey = "severity" | "status" | "owner" | "due";
 type WorkSort = TableSortState<WorkSortKey>;
@@ -205,9 +205,13 @@ function GroupRow({ group, count, selected, onSelect }: {
 
 // ---- The table ---------------------------------------------------------------
 
-// One work item as a table row. A div rather than a button because the Next
-// move cell carries its own button, and the row still opens on click or
-// Enter/Space the way the Controls table's rows do.
+// The table carries a minimum width and scrolls inside its own container
+// rather than squeezing tracks to fit.
+const WORK_TABLE_MIN_WIDTH = 1040;
+const CELL = "py-2.5";
+
+// One work item as a table row. The row opens on click or Enter/Space, and the
+// Next move cell carries its own button.
 function WorkItemRow({ item, selected, onOpen, action }: {
   item: WorkItem;
   selected: boolean;
@@ -218,28 +222,28 @@ function WorkItemRow({ item, selected, onOpen, action }: {
   const sevMeta = item.severity ? FINDING_SEVERITY_META[item.severity] : null;
   const sevColor = sevMeta?.color === "red" ? C.red : sevMeta?.color === "amber" ? C.amber : C.muted;
   const sevBg = sevMeta?.color === "red" ? C.redBg : sevMeta?.color === "amber" ? C.amberBg : C.panel2;
+  const cell = { borderBottom: `1px solid ${C.border}`, background: selected ? C.accentBg : undefined };
   return (
-    <div
+    <tr
       onClick={onOpen}
-      role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
-      className="w-full grid px-4 text-left wz-hover transition-colors cursor-pointer"
-      style={{
-        gridTemplateColumns: WORK_GRID,
-        borderBottom: `1px solid ${C.border}`,
-        background: selected ? C.accentBg : undefined,
-      }}
+      aria-label={`Open ${item.title}`}
+      className="wz-hover transition-colors"
+      style={{ cursor: "pointer" }}
     >
-      <div className="py-3 pr-3 min-w-0">
-        <div className="text-sm leading-snug truncate" style={{ color: C.ink }}>{item.title}</div>
+      <td className={`${CELL} pl-4 pr-3 whitespace-nowrap text-[13px]`} style={{ ...cell, color: item.controlIds.length ? C.ink : C.muted }}>
+        {item.controlIds.length ? item.controlIds.join(" · ") : "—"}
+      </td>
+      <td className={`${CELL} px-3 min-w-0`} style={cell}>
+        <div className="text-[13px] leading-snug truncate" style={{ color: C.ink }}>{item.title}</div>
         <div className="text-[10px] mt-0.5 truncate" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
           {item.detail}
         </div>
-      </div>
-      <div className="py-3 pl-3 flex items-center" style={{ borderLeft: `1px solid ${C.border}` }}>
+      </td>
+      <td className={`${CELL} px-3`} style={cell}>
         {sevMeta ? (
-          <span className="text-[11px] font-semibold px-2 py-0.5 rounded" style={{ color: sevColor, background: sevBg }}>
+          <span className="text-[11px] font-semibold px-2 py-0.5 rounded whitespace-nowrap" style={{ color: sevColor, background: sevBg }}>
             {sevMeta.label}
           </span>
         ) : (
@@ -247,9 +251,9 @@ function WorkItemRow({ item, selected, onOpen, action }: {
           // say so the way the Controls table's assurance column does.
           <span className="text-[11px]" style={{ color: C.muted }}>—</span>
         )}
-      </div>
-      <div className="py-3 pl-3 min-w-0" style={{ borderLeft: `1px solid ${C.border}` }}>
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold" style={{ color: statusColor }}>
+      </td>
+      <td className={`${CELL} px-3 min-w-0`} style={cell}>
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold whitespace-nowrap" style={{ color: statusColor }}>
           <Circle size={7} fill={statusColor} color={statusColor} /> {item.statusLabel}
         </span>
         {item.finding && !item.finding.open && item.finding.closedDate && (
@@ -258,36 +262,36 @@ function WorkItemRow({ item, selected, onOpen, action }: {
             {item.finding.closureEvidenceIds && item.finding.closureEvidenceIds.length > 0 && ` · ${item.finding.closureEvidenceIds.length} evidence`}
           </div>
         )}
-      </div>
-      <div className="py-3 pl-3 min-w-0" style={{ borderLeft: `1px solid ${C.border}` }}>
+      </td>
+      <td className={`${CELL} px-3 min-w-0`} style={cell}>
         <div className="text-xs truncate" style={{ color: item.owner ? C.ink : C.muted }}>{item.owner ?? "—"}</div>
         {item.finding && (
           <div className="text-[10px] mt-0.5 truncate" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{item.finding.jira}</div>
         )}
-      </div>
-      <div className="py-3 pl-3 min-w-0" style={{ borderLeft: `1px solid ${C.border}` }}>
+      </td>
+      <td className={`${CELL} px-3 text-right`} style={cell}>
         <div className="text-[11px] font-semibold tabular-nums" style={{ color: item.overdue ? C.red : item.due ? C.ink : C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
           {item.due ?? "—"}
         </div>
         {item.overdue && (
-          <div className="flex items-center gap-1 text-[10px] font-semibold mt-0.5" style={{ color: C.red }}>
+          <div className="flex items-center justify-end gap-1 text-[10px] font-semibold mt-0.5" style={{ color: C.red }}>
             <AlertCircle size={10} /> Overdue
           </div>
         )}
-      </div>
+      </td>
       {/* The row itself opens the work; a press on the action button must not
           do both. Keydown as well as click: without it the row's handler
           preventDefault()s Enter and Space before the button can act on them,
           so the keyboard path opens the editor instead of advancing status. */}
-      <div
-        className="py-3 pl-3 flex items-center"
-        style={{ borderLeft: `1px solid ${C.border}` }}
+      <td
+        className={`${CELL} pl-3 pr-4`}
+        style={cell}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
       >
         {action}
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }
 
@@ -391,9 +395,13 @@ export function SystemActions({
       if (source && (item.finding ? item.finding.source ?? "control-gap" : null) !== source) return false;
       if (domain && item.domain !== domain) return false;
       if (!q) return true;
+      // Control ids explicitly: they used to lead the detail line and were
+      // searchable through it, and now that they have their own column the
+      // detail line no longer repeats them.
       return (
         item.title.toLowerCase().includes(q)
         || item.detail.toLowerCase().includes(q)
+        || item.controlIds.some((id) => id.toLowerCase().includes(q))
         || (item.owner ?? "").toLowerCase().includes(q)
       );
     });
@@ -610,41 +618,51 @@ export function SystemActions({
           )}
         </div>
 
-        <div
-          className="grid text-[10px] font-semibold uppercase tracking-wide px-4 py-2.5"
-          style={{ gridTemplateColumns: WORK_GRID, background: C.panel2, borderBottom: `1px solid ${C.border}`, color: C.muted }}
-        >
-          <TableHeaderCell label="ACTION ITEM" first />
-          <TableHeaderCell label="SEVERITY" sortKey="severity" sort={sort} onSort={onSort} />
-          <TableHeaderCell label="STATUS" sortKey="status" sort={sort} onSort={onSort} />
-          <TableHeaderCell label="OWNER" sortKey="owner" sort={sort} onSort={onSort} />
-          {/* The column is the item's DUE date — it is what `overdue` is
-              computed from, and calling it "Target" while the editor beside
-              it also has a separate Target date field made two different
-              dates share one word (CONTRACT 2.7). */}
-          <TableHeaderCell label="DUE" sortKey="due" sort={sort} onSort={onSort} />
-          <TableHeaderCell label="NEXT MOVE" />
+        <div className="overflow-x-auto">
+          <table
+            className="w-full text-left text-xs"
+            style={{ minWidth: WORK_TABLE_MIN_WIDTH, borderCollapse: "separate", borderSpacing: 0 }}
+          >
+            <thead className="text-[10px] font-semibold uppercase tracking-wide">
+              <tr>
+                <TableHeaderCell label="CONTROL ID" first />
+                <TableHeaderCell label="ACTION ITEM" />
+                <TableHeaderCell label="SEVERITY" sortKey="severity" sort={sort} onSort={onSort} width={96} />
+                <TableHeaderCell label="STATUS" sortKey="status" sort={sort} onSort={onSort} width={150} />
+                <TableHeaderCell label="OWNER" sortKey="owner" sort={sort} onSort={onSort} width={150} />
+                {/* The column is the item's DUE date — it is what `overdue` is
+                    computed from, and calling it "Target" while the editor beside
+                    it also has a separate Target date field made two different
+                    dates share one word (CONTRACT 2.7). */}
+                <TableHeaderCell label="DUE" sortKey="due" sort={sort} onSort={onSort} align="right" width={104} />
+                <TableHeaderCell label="NEXT MOVE" width={132} last />
+              </tr>
+            </thead>
+            <tbody>
+              {visible.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-6 text-xs text-center" style={{ color: C.muted }}>
+                    {items.length === 0
+                      ? "Nothing outstanding on this system."
+                      : filtersActive || statusFilter !== "open" || group
+                        ? "No actions match these filters."
+                        : "No actions to show."}
+                  </td>
+                </tr>
+              ) : (
+                visible.map((item) => (
+                  <WorkItemRow
+                    key={item.key}
+                    item={item}
+                    selected={Boolean(item.finding && editingId === item.finding.id)}
+                    onOpen={() => openItem(item)}
+                    action={actionFor(item)}
+                  />
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-
-        {visible.length === 0 ? (
-          <div className="p-6 text-xs text-center" style={{ color: C.muted }}>
-            {items.length === 0
-              ? "Nothing outstanding on this system."
-              : filtersActive || statusFilter !== "open" || group
-                ? "No actions match these filters."
-                : "No actions to show."}
-          </div>
-        ) : (
-          visible.map((item) => (
-            <WorkItemRow
-              key={item.key}
-              item={item}
-              selected={Boolean(item.finding && editingId === item.finding.id)}
-              onOpen={() => openItem(item)}
-              action={actionFor(item)}
-            />
-          ))
-        )}
       </div>
 
       {/* One editor, opened for whichever act is in hand. Keyed on the subject
