@@ -396,7 +396,7 @@
   systemIds: ["SYS-003"]
   name: "Audit Log Store"
   type: "AWS S3 Bucket (Object Lock, append-only)"
-  kind: "log-feed"
+  kind: "object-storage"
   provider: "AWS"
   code: "AUD"
   impactLevel: "high"
