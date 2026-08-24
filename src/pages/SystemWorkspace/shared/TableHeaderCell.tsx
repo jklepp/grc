@@ -8,8 +8,11 @@ import { C } from "../../../theme";
 // two tables sort with the same affordance and read as one component
 // (CONTRACT 1.2/1.4).
 //
-// `first` drops the divider on the leading column: the table's own left edge
-// is already there.
+// Renders the <th> itself: both tables are semantic tables now, matching the
+// System picker's, and a heading that returned a bare div could not sit inside
+// one. `first`/`last` carry the table's outer padding on the edge columns;
+// `align: "right"` belongs on the columns whose cells are right-aligned
+// tabular numbers, so heading and figure share an edge.
 export interface TableSortState<K extends string> { key: K; dir: "asc" | "desc" }
 
 function SortIcon({ dir }: { dir: "asc" | "desc" | null }) {
@@ -17,25 +20,38 @@ function SortIcon({ dir }: { dir: "asc" | "desc" | null }) {
   return dir === "asc" ? <ChevronUp size={11} /> : <ChevronDown size={11} />;
 }
 
-export function TableHeaderCell<K extends string>({ label, sortKey, sort, onSort, first = false }: {
+export function TableHeaderCell<K extends string>({
+  label, sortKey, sort, onSort, first = false, last = false, align = "left", width,
+}: {
   label: ReactNode;
   sortKey?: K;
   sort?: TableSortState<K> | null;
   onSort?: (key: K) => void;
   first?: boolean;
+  last?: boolean;
+  align?: "left" | "right";
+  width?: number;
 }) {
-  const style: CSSProperties = { borderLeft: first ? "none" : `1px solid ${C.border}`, paddingLeft: first ? 0 : 12, color: C.muted };
-  if (sortKey == null) {
-    return <div style={style}>{label}</div>;
-  }
-  const active = sort?.key === sortKey;
+  const active = sortKey != null && sort?.key === sortKey;
+  const style: CSSProperties = {
+    color: active ? C.ink : C.muted,
+    background: C.panel2,
+    borderBottom: `1px solid ${C.border}`,
+    width,
+  };
+  const cls = [
+    first ? "pl-4" : "pl-3",
+    last ? "pr-4" : "pr-3",
+    "py-2 font-semibold whitespace-nowrap",
+    align === "right" ? "text-right" : "",
+  ].join(" ");
+
+  if (sortKey == null) return <th className={cls} style={style}>{label}</th>;
   return (
-    <button
-      onClick={() => onSort?.(sortKey)}
-      className="flex items-center gap-1 text-left"
-      style={{ ...style, color: active ? C.ink : C.muted }}
-    >
-      {label} <SortIcon dir={active ? sort.dir : null} />
-    </button>
+    <th className={cls} style={style}>
+      <button onClick={() => onSort?.(sortKey)} className="inline-flex items-center gap-1" style={{ color: "inherit" }}>
+        {label} <SortIcon dir={active && sort ? sort.dir : null} />
+      </button>
+    </th>
   );
 }

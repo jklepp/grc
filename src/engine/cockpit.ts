@@ -18,7 +18,7 @@ import type { ResilienceApi } from "./resilience";
 import type { IncidentResponseApi } from "./incidentResponse";
 import type { VendorsApi } from "./vendors";
 import type { CadenceStatus } from "./assurance";
-import type { SystemId } from "../graph/ids";
+import type { ControlId, SystemId } from "../graph/ids";
 
 export interface CockpitItem {
   domain: string;
@@ -39,6 +39,12 @@ export interface DueRecurringItem {
   title: string;
   domain: string;
   cadence: CadenceStatus;
+  /**
+   * The control requirement this obligation proves. Empty when nothing on the
+   * scheduled-activities calendar operationalizes it — see
+   * ACTIVITY_FOR_OBLIGATION in dueRecurringForSystem.
+   */
+  controlIds: ControlId[];
 }
 
 export function createCockpit(
@@ -201,8 +207,18 @@ export function createCockpit(
 
     const items: DueRecurringItem[] = [];
 
+    // Which control a recurring obligation proves is already authored, on the
+    // scheduled-activities calendar — and validated there against the real
+    // control catalogue. Join through it rather than restating control ids
+    // here, so there is one place the mapping can be wrong.
+    const controlsFor = (activityId: string): ControlId[] =>
+      graph.scheduledActivities.find((a) => a.id === activityId)?.controlIds ?? [];
+
     if (idPosture.review) {
-      items.push({ key: "access-review", title: "Access Review", domain: "Identity & Access", cadence: idPosture.review.cadence });
+      items.push({
+        key: "access-review", title: "Access Review", domain: "Identity & Access",
+        cadence: idPosture.review.cadence, controlIds: controlsFor("privileged-access-recert"),
+      });
     }
 
     (["penetration-test", "red-team"] as const).forEach((type) => {
@@ -213,19 +229,31 @@ export function createCockpit(
           title: type === "penetration-test" ? "Penetration Test" : "Red Team Exercise",
           domain: "Security Testing",
           cadence: latest.cadence,
+          // No scheduled activity covers the red team exercise, so it stays
+          // unlinked rather than borrowing the penetration test's control.
+          controlIds: type === "penetration-test" ? controlsFor("penetration-test") : [],
         });
       }
     });
 
     if (resil.lastDrTest) {
-      items.push({ key: "dr-test", title: "DR Test", domain: "Resilience", cadence: resil.lastDrTest.cadence });
+      items.push({
+        key: "dr-test", title: "DR Test", domain: "Resilience",
+        cadence: resil.lastDrTest.cadence, controlIds: controlsFor("tier1-restore-test"),
+      });
     }
 
     if (ir.lastTabletop) {
-      items.push({ key: "ir-tabletop", title: "IR Tabletop", domain: "Incident Response", cadence: ir.lastTabletop.cadence });
+      items.push({
+        key: "ir-tabletop", title: "IR Tabletop", domain: "Incident Response",
+        cadence: ir.lastTabletop.cadence, controlIds: controlsFor("ir-plan-test"),
+      });
     }
     if (ir.planCurrency) {
-      items.push({ key: "ir-plan-review", title: "IR Plan Review", domain: "Incident Response", cadence: ir.planCurrency.cadence });
+      items.push({
+        key: "ir-plan-review", title: "IR Plan Review", domain: "Incident Response",
+        cadence: ir.planCurrency.cadence, controlIds: controlsFor("ir-plan-test"),
+      });
     }
 
     vendorPosture.vendors.forEach((v) => {
@@ -235,6 +263,7 @@ export function createCockpit(
           title: `Vendor Reassessment — ${v.vendor?.name ?? v.vendorId}`,
           domain: "Vendor Assurance",
           cadence: v.assurance.cadence,
+          controlIds: controlsFor("critical-vendor-reassessment"),
         });
       }
     });

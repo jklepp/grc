@@ -45,7 +45,15 @@ export interface WorkItem {
   overdue: boolean;
   /** Whether this is still work. Complete Findings are the only items that aren't. */
   outstanding: boolean;
+  /** The single control this row acts on, and what "Open control" opens. */
   controlId: ControlId | null;
+  /**
+   * Every control the row cites. One for anything derived from a Finding or a
+   * control row; a recurring obligation can prove more than one (Access Review
+   * covers IAC-16 and IAC-17), and proves none when nothing on the
+   * scheduled-activities calendar operationalizes it.
+   */
+  controlIds: ControlId[];
   finding: EngineFinding | null;
   /** Assurance domain, shared vocabulary across all three sources so the domain filter works on every row. */
   domain: string | null;
@@ -89,7 +97,8 @@ export function buildWorkItems(input: WorkItemInput): WorkItem[] {
       due: cadence.dueAt ?? null,
       overdue: cadence.overdue,
       outstanding: true,
-      controlId: null,
+      controlId: item.controlIds[0] ?? null,
+      controlIds: item.controlIds,
       finding: null,
       domain: item.domain,
     });
@@ -102,7 +111,7 @@ export function buildWorkItems(input: WorkItemInput): WorkItem[] {
       group: "assess",
       kind: "unassessed",
       title: row.control.name,
-      detail: `${row.control.id} · ${row.control.domain}`,
+      detail: row.control.domain,
       severity: null,
       statusLabel: "Unassessed",
       statusTone: "muted",
@@ -111,6 +120,7 @@ export function buildWorkItems(input: WorkItemInput): WorkItem[] {
       overdue: false,
       outstanding: true,
       controlId: row.controlId,
+      controlIds: [row.controlId],
       finding: null,
       domain: row.control.domain,
     });
@@ -124,7 +134,7 @@ export function buildWorkItems(input: WorkItemInput): WorkItem[] {
       group: "gaps",
       kind: "gap-no-finding",
       title: control.name,
-      detail: `${control.id} · scored a gap with nothing filed against it`,
+      detail: "scored a gap with nothing filed against it",
       severity: null,
       statusLabel: "No Finding",
       statusTone: "red",
@@ -133,6 +143,7 @@ export function buildWorkItems(input: WorkItemInput): WorkItem[] {
       overdue: false,
       outstanding: true,
       controlId,
+      controlIds: [controlId],
       finding: null,
       domain: control.domain ?? null,
     });
@@ -153,7 +164,7 @@ export function buildWorkItems(input: WorkItemInput): WorkItem[] {
       group: "gaps",
       kind: "gap-no-cap",
       title: f.title,
-      detail: `${f.controlId} · ${f.controlName} · no corrective action plan`,
+      detail: `${f.controlName} · no corrective action plan`,
       severity: f.severity ?? null,
       statusLabel: "Needs a CAP",
       statusTone: "amber",
@@ -162,6 +173,7 @@ export function buildWorkItems(input: WorkItemInput): WorkItem[] {
       overdue: f.overdue,
       outstanding: true,
       controlId: f.controlId,
+      controlIds: [f.controlId],
       finding: f,
       domain: f.control?.domain ?? null,
     });
@@ -178,7 +190,7 @@ export function buildWorkItems(input: WorkItemInput): WorkItem[] {
       group: "remediate",
       kind: "finding",
       title: f.title,
-      detail: `${f.controlId} · ${f.controlName} · ${f.assetName ?? "no asset named"}`,
+      detail: `${f.controlName} · ${f.assetName ?? "no asset named"}`,
       severity: f.severity ?? null,
       statusLabel: meta?.label ?? f.remediationStatus,
       statusTone: (meta?.color as WorkTone) ?? "muted",
@@ -187,6 +199,7 @@ export function buildWorkItems(input: WorkItemInput): WorkItem[] {
       overdue: f.overdue,
       outstanding: f.open,
       controlId: f.controlId,
+      controlIds: [f.controlId],
       finding: f,
       domain: f.control?.domain ?? null,
     });
@@ -199,7 +212,7 @@ export function buildWorkItems(input: WorkItemInput): WorkItem[] {
       group: "remediate",
       kind: "reassess",
       title: control.name,
-      detail: `${control.id} · every Finding complete, the grade still says gap`,
+      detail: "every Finding complete, the grade still says gap",
       severity: null,
       statusLabel: "Ready to reassess",
       statusTone: "accent",
@@ -208,6 +221,7 @@ export function buildWorkItems(input: WorkItemInput): WorkItem[] {
       overdue: false,
       outstanding: true,
       controlId,
+      controlIds: [controlId],
       finding: null,
       domain: control.domain ?? null,
     });
