@@ -33,4 +33,11 @@ function cspPlugin(): Plugin {
 export default defineConfig({
   base: '/grc/',
   plugins: [react(), tailwindcss(), cspPlugin()],
+  build: {
+    // The only build option here, and it emits metadata rather than changing
+    // output: scripts/check-bundle-budget.mjs walks the manifest to work out
+    // which chunks the entry actually pulls, which is the difference between
+    // measuring the initial load and measuring the whole dist directory.
+    manifest: true,
+  },
 })
