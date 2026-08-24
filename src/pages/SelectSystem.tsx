@@ -2,10 +2,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Server, Plus, AlertTriangle, Search, Pencil, Copy, Trash2, Download } from "lucide-react";
 import { C } from "../theme";
 import { PageHeader } from "../components/Headings";
-import { ClassificationTag, AssuranceBadge } from "../components/SystemBadges";
+import { ClassificationTag, badgeColorFor } from "../components/SystemBadges";
 import AddSystemWizard from "../components/AddSystemWizard";
 import Modal, { ModalCloseButton } from "../components/Modal";
-import { baseFacts, commitRuntimeFacts, removeRuntimeSystem, restoreBaselineSystems } from "../engine";
+import { assuranceBand, baseFacts, commitRuntimeFacts, removeRuntimeSystem, restoreBaselineSystems } from "../engine";
 import { loadRuntimeFacts, hasRuntimeFacts } from "../engine/runtimeFactsStore";
 import { useLiveEngine } from "../engine/useLiveEngine";
 import type { SystemId } from "../graph/ids";
@@ -19,16 +19,17 @@ function coverageColor(pct: number): string {
   return C.red;
 }
 
-// No content-sized tracks: the table fills the page width instead of scrolling.
-// Fixed last track so Edit-only rows share a column with Delete+Edit rows.
-const COLUMNS = "minmax(0, 1.3fr) minmax(0, 1.2fr) 68px 72px 56px minmax(0, 1fr) 208px";
+// The table carries a minimum width and scrolls inside its own container
+// rather than squeezing tracks to fit the viewport, so the numeric block stays
+// aligned at every width.
+const TABLE_MIN_WIDTH = 1180;
 
 function SystemAvatar({ name }: { name: string }) {
   const initial = name.trim().charAt(0).toUpperCase();
   return (
     <div
-      className="flex items-center justify-center rounded-lg shrink-0 font-semibold"
-      style={{ width: 34, height: 34, background: C.accentBg, color: C.accent, fontFamily: "'Source Serif 4', serif" }}
+      className="flex items-center justify-center rounded-md shrink-0 font-semibold text-[11px]"
+      style={{ width: 22, height: 22, background: C.accentBg, color: C.accent, fontFamily: "'Source Serif 4', serif" }}
     >
       {initial}
     </div>
@@ -47,14 +48,11 @@ interface SystemRowProps {
 
 function SystemRow({ system, onSelect, onEdit, onDuplicate, onDelete }: SystemRowProps) {
   const openFindings = system.findings.filter((f) => f.open).length;
+  const assurance = system.overallAssurance;
   return (
-    <div
-      className="w-full min-w-0 grid items-center gap-3 pl-3.5 pr-4 py-3.5 text-left transition-colors group wz-hover"
-      style={{
-        gridTemplateColumns: COLUMNS,
-        borderBottom: `1px solid ${C.border}`,
-        cursor: "pointer",
-      }}
+    <tr
+      className="transition-colors wz-hover"
+      style={{ borderBottom: `1px solid ${C.border}`, cursor: "pointer" }}
       onClick={() => onSelect(system.id)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -62,76 +60,83 @@ function SystemRow({ system, onSelect, onEdit, onDuplicate, onDelete }: SystemRo
           onSelect(system.id);
         }
       }}
-      role="button"
       tabIndex={0}
       aria-label={`Open ${system.name}`}
     >
-      <div className="flex items-center gap-3 min-w-0">
-        <SystemAvatar name={system.name} />
-        <div className="min-w-0 text-left">
-          <div className="text-sm font-semibold leading-snug break-words" style={{ color: C.ink }}>{system.name}</div>
-          <div className="flex items-center gap-2 mt-0.5 min-w-0">
-            <div className="text-[11px] truncate" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{system.id}</div>
-            {system.classification && (
-              <span className="shrink-0">
-                <ClassificationTag level={system.classification} />
-              </span>
-            )}
-          </div>
+      <td className="px-4 py-2.5 whitespace-nowrap text-[11px]" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
+        {system.id}
+      </td>
+      <td className="px-3 py-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <SystemAvatar name={system.name} />
+          <div className="text-[13px] font-semibold leading-snug truncate" style={{ color: C.ink }}>{system.name}</div>
+          {system.classification && (
+            <span className="shrink-0">
+              <ClassificationTag level={system.classification} />
+            </span>
+          )}
         </div>
-      </div>
-      <div className="text-xs truncate min-w-0" style={{ color: C.muted }}>{system.env}</div>
-      <div className="flex items-center min-w-0">
-        <AssuranceBadge pct={system.overallAssurance} size={34} />
-      </div>
-      <div className="text-sm font-semibold min-w-0">
-        <span style={{ color: coverageColor(system.coverage.assessedPct) }}>{system.coverage.assessedPct}%</span>
-      </div>
-      <div className="text-xs min-w-0" style={{ color: C.muted }}>{system.assetCount}</div>
-      <div className="text-xs truncate min-w-0">
+      </td>
+      <td className="px-3 py-2.5 truncate" style={{ color: C.muted }}>{system.env}</td>
+      {/* Assurance and coverage read as one aligned numeric block; an
+          unassessed system has no assurance figure at all, and shows an em
+          dash rather than a zero. */}
+      <td
+        className="px-3 py-2.5 text-right tabular-nums font-semibold"
+        style={{ color: assurance == null ? C.muted : badgeColorFor(assuranceBand(assurance).color).color }}
+      >
+        {assurance == null ? "—" : `${assurance}%`}
+      </td>
+      <td className="px-3 py-2.5 text-right tabular-nums font-semibold" style={{ color: coverageColor(system.coverage.assessedPct) }}>
+        {system.coverage.assessedPct}%
+      </td>
+      <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: C.muted }}>{system.assetCount}</td>
+      <td className="px-3 py-2.5">
         {openFindings > 0 ? (
-          <span className="flex items-center gap-1" style={{ color: C.amber }}><AlertTriangle size={11} /> {openFindings} open</span>
+          <span className="flex items-center gap-1 whitespace-nowrap" style={{ color: C.amber }}><AlertTriangle size={11} /> {openFindings} open</span>
         ) : (
-          <span style={{ color: C.green }}>No open findings</span>
+          <span className="whitespace-nowrap" style={{ color: C.green }}>No open findings</span>
         )}
-      </div>
-      <div className="flex items-center justify-end gap-1.5 min-w-0" onClick={(event) => event.stopPropagation()}>
-        {onDelete && (
-          <button
-            type="button"
-            onClick={() => onDelete(system)}
-            className="flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold"
-            style={{ color: C.red, background: C.redBg, border: `1px solid ${C.red}` }}
-            aria-label={`Delete ${system.name}`}
-          >
-            <Trash2 size={11} /> Delete
-          </button>
-        )}
-        {onDuplicate && (
-          <button
-            type="button"
-            onClick={() => onDuplicate(system.id)}
-            className="flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold"
-            style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
-            aria-label={`Duplicate ${system.name}`}
-            title="Create a new system as an exact copy of this one"
-          >
-            <Copy size={11} /> Duplicate
-          </button>
-        )}
-        {onEdit && (
-          <button
-            type="button"
-            onClick={() => onEdit(system.id)}
-            className="flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold"
-            style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
-            aria-label={`Edit ${system.name}`}
-          >
-            <Pencil size={11} /> Edit
-          </button>
-        )}
-      </div>
-    </div>
+      </td>
+      <td className="px-3 py-2.5 pr-4 text-right" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-end gap-1.5">
+          {onDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(system)}
+              className="flex items-center justify-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold whitespace-nowrap"
+              style={{ color: C.red, background: C.redBg, border: `1px solid ${C.red}` }}
+              aria-label={`Delete ${system.name}`}
+            >
+              <Trash2 size={10} /> Delete
+            </button>
+          )}
+          {onDuplicate && (
+            <button
+              type="button"
+              onClick={() => onDuplicate(system.id)}
+              className="flex items-center justify-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold whitespace-nowrap"
+              style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
+              aria-label={`Duplicate ${system.name}`}
+              title="Create a new system as an exact copy of this one"
+            >
+              <Copy size={10} /> Duplicate
+            </button>
+          )}
+          {onEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(system.id)}
+              className="flex items-center justify-center gap-1 rounded-md px-2 py-1 text-[10px] font-semibold whitespace-nowrap"
+              style={{ color: C.ink, background: C.panel, border: `1px solid ${C.border}` }}
+              aria-label={`Edit ${system.name}`}
+            >
+              <Pencil size={10} /> Edit
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
   );
 }
 
@@ -325,37 +330,49 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
           </div>
         )}
 
-        <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}` }}>
-          <div
-            className="grid gap-3 pl-3.5 pr-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide"
-            style={{ gridTemplateColumns: COLUMNS, background: C.panel2, color: C.muted, borderBottom: `1px solid ${C.border}` }}
-          >
-            <div className="min-w-0">System</div>
-            <div className="min-w-0">Env</div>
-            <div className="min-w-0">Assurance</div>
-            <div className="min-w-0">Coverage</div>
-            <div className="min-w-0">Assets</div>
-            <div className="min-w-0">Findings</div>
-            <div className="min-w-0 text-right">Actions</div>
+        <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.border}`, background: C.panel }}>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left text-xs" style={{ minWidth: TABLE_MIN_WIDTH }}>
+              <thead
+                className="text-[10px] font-semibold uppercase tracking-wide"
+                style={{ background: C.panel2, color: C.muted, borderBottom: `1px solid ${C.border}` }}
+              >
+                <tr>
+                  <th className="px-4 py-2 font-semibold">System ID</th>
+                  <th className="px-3 py-2 font-semibold">System</th>
+                  <th className="px-3 py-2 font-semibold">Env</th>
+                  <th className="px-3 py-2 text-right font-semibold">Assurance</th>
+                  <th className="px-3 py-2 text-right font-semibold">Coverage</th>
+                  <th className="px-3 py-2 text-right font-semibold">Assets</th>
+                  <th className="px-3 py-2 font-semibold">Findings</th>
+                  <th className="px-3 py-2 pr-4 text-right font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+                    <td colSpan={8} className="px-4 py-10 text-center">
+                      <div className="text-sm font-semibold" style={{ color: C.ink }}>No systems match "{query}"</div>
+                      <div className="mt-1 text-xs" style={{ color: C.muted }}>
+                        Search matches a system's name, id, or classification.
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((system) => (
+                    <SystemRow
+                      key={system.id}
+                      system={system}
+                      onSelect={onSelectSystem}
+                      onEdit={allows(canEditSystem(user, system)) ? openEditSystem : undefined}
+                      onDuplicate={mayCreate ? openDuplicateSystem : undefined}
+                      onDelete={deletableSystemIds.has(system.id) ? setPendingDelete : undefined}
+                    />
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-          {filtered.length === 0 ? (
-            <div className="px-4 py-6 text-sm text-center" style={{ color: C.muted, background: C.panel }}>
-              No systems match "{query}"
-            </div>
-          ) : (
-            <div style={{ background: C.panel }}>
-              {filtered.map((system) => (
-                <SystemRow
-                  key={system.id}
-                  system={system}
-                  onSelect={onSelectSystem}
-                  onEdit={allows(canEditSystem(user, system)) ? openEditSystem : undefined}
-                  onDuplicate={mayCreate ? openDuplicateSystem : undefined}
-                  onDelete={deletableSystemIds.has(system.id) ? setPendingDelete : undefined}
-                />
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
