@@ -1,4 +1,5 @@
 export { Panel } from "./Panel";
+export { SubCard } from "./SubCard";
 export { IdentificationField } from "./IdentificationField";
 export { StatRing } from "./StatRing";
 export { StatTile } from "./StatTile";

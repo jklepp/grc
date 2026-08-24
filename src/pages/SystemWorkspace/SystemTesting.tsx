@@ -7,6 +7,7 @@ import type { LucideIcon } from "lucide-react";
 import { C } from "../../theme";
 import { SectionHeader } from "./shared/SectionHeader";
 import { Panel } from "./shared/Panel";
+import { SubCard } from "./shared/SubCard";
 import { IdentificationField } from "./shared/IdentificationField";
 import { StatTile } from "./shared/StatTile";
 import { CadenceBadge } from "./shared/CadenceBadge";
@@ -63,7 +64,7 @@ function TestingMetric({ icon: Icon, label, value, detail, color = C.ink }: {
   color?: string;
 }) {
   return (
-    <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+    <div className="rounded-lg p-4" style={{ background: C.panel2 }}>
       <div className="flex items-center gap-2 text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.muted }}>
         <Icon size={13} /> {label}
       </div>
@@ -183,7 +184,7 @@ export function SystemTesting({ secTests, vuln, ir, resilience, vendors, identit
 
   return (
     <div className="px-8 pb-10 space-y-8">
-      <div>
+      <Panel>
         <SectionHeader
           icon={Activity}
           title="Testing Posture"
@@ -196,95 +197,98 @@ export function SystemTesting({ secTests, vuln, ir, resilience, vendors, identit
           <TestingMetric icon={ClipboardList} label="Open findings" value={openFindingCount} detail="Test and exercise findings" color={openFindingCount > 0 ? C.amber : C.green} />
           <TestingMetric icon={Bug} label="Patch SLA" value={vuln ? `${vuln.patchSlaCompliancePct}%` : "—"} detail={vuln ? `Snapshot ${vuln.asOf}` : "No scan on record"} color={!vuln ? C.muted : vuln.patchSlaCompliancePct >= 95 ? C.green : vuln.patchSlaCompliancePct >= 90 ? C.amber : C.red} />
         </div>
-        <div className="flex gap-2 flex-wrap mb-4" aria-label="Testing section navigation">
+        <div className="flex gap-2 flex-wrap" aria-label="Testing section navigation">
           {TESTING_SECTIONS.map(({ id, label, icon: Icon }) => (
-            <button key={id} type="button" onClick={() => scrollToTestingSection(id)} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.ink }}>
+            <button key={id} type="button" onClick={() => scrollToTestingSection(id)} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors" style={{ background: C.panel2, color: C.ink }}>
               <Icon size={13} /> {label}
             </button>
           ))}
         </div>
+      </Panel>
+
+      <Panel>
+        <SectionHeader
+          icon={ClipboardList}
+          title="Testing Actions"
+          description="Findings and other actions derived from recorded cadence, coverage, vulnerabilities, and test results."
+          aside={<span className="text-[11px] font-semibold px-2 py-1 rounded-full" style={{ color: actionColor, background: criticalAttentionCount > 0 ? C.redBg : attentionItems.length > 0 ? C.amberBg : C.greenBg }}>{attentionItems.length} item{attentionItems.length === 1 ? "" : "s"}</span>}
+        />
+        {attentionItems.length === 0 ? (
+          <div className="flex items-center gap-2 rounded-lg p-3 text-sm" style={{ background: C.greenBg, color: C.green }}><CheckCircle2 size={16} /> No testing posture items currently need attention.</div>
+        ) : (
+          <div className="divide-y" style={{ borderColor: C.border }}>
+            {attentionItems.map((item) => {
+              const meta = ATTENTION_META[item.severity];
+              const AttentionIcon = item.severity === "critical" ? ShieldAlert : AlertTriangle;
+              return (
+                <div key={item.id} className="flex flex-wrap lg:flex-nowrap items-center gap-3 py-3 first:pt-0 last:pb-0" style={{ borderColor: C.border }}>
+                  <div className="rounded-lg p-2 shrink-0" style={{ background: meta.background, color: meta.color }}><AttentionIcon size={15} /></div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded" style={{ background: C.panel2, color: C.muted }}>{item.type}</span>
+                      <span className="text-sm font-semibold" style={{ color: C.ink }}>{item.title}</span>
+                      <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded" style={{ background: meta.background, color: meta.color }}>{item.status}</span>
+                    </div>
+                  </div>
+                  <div className="hidden lg:block w-[34%] text-xs leading-relaxed text-right" style={{ color: C.muted }}>{item.detail}</div>
+                  <button type="button" onClick={() => scrollToTestingSection(item.sectionId)} className="inline-flex items-center gap-1 text-xs font-semibold shrink-0" style={{ color: C.accent }} aria-label={`Review ${item.title}`}>Review <ChevronRight size={14} /></button>
+                  <div className="lg:hidden basis-full pl-11 text-xs leading-relaxed" style={{ color: C.muted }}>{item.detail}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Panel>
+
+      <div id="security-testing" style={{ scrollMarginTop: 24 }}>
         <Panel>
           <SectionHeader
-            icon={ClipboardList}
-            title="Testing Actions"
-            description="Findings and other actions derived from recorded cadence, coverage, vulnerabilities, and test results."
-            aside={<span className="text-[11px] font-semibold px-2 py-1 rounded-full" style={{ color: actionColor, background: criticalAttentionCount > 0 ? C.redBg : attentionItems.length > 0 ? C.amberBg : C.greenBg }}>{attentionItems.length} item{attentionItems.length === 1 ? "" : "s"}</span>}
+            icon={Crosshair}
+            title="Security Testing"
+            description="The latest independent penetration test and adversarial red-team exercise results."
           />
-          {attentionItems.length === 0 ? (
-            <div className="flex items-center gap-2 rounded-lg p-3 text-sm" style={{ background: C.greenBg, color: C.green }}><CheckCircle2 size={16} /> No testing posture items currently need attention.</div>
-          ) : (
-            <div className="divide-y" style={{ borderColor: C.border }}>
-              {attentionItems.map((item) => {
-                const meta = ATTENTION_META[item.severity];
-                const AttentionIcon = item.severity === "critical" ? ShieldAlert : AlertTriangle;
-                return (
-                  <div key={item.id} className="flex flex-wrap lg:flex-nowrap items-center gap-3 py-3 first:pt-0 last:pb-0" style={{ borderColor: C.border }}>
-                    <div className="rounded-lg p-2 shrink-0" style={{ background: meta.background, color: meta.color }}><AttentionIcon size={15} /></div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded" style={{ background: C.panel2, color: C.muted }}>{item.type}</span>
-                        <span className="text-sm font-semibold" style={{ color: C.ink }}>{item.title}</span>
-                        <span className="text-[10px] uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded" style={{ background: meta.background, color: meta.color }}>{item.status}</span>
+          <div className="grid grid-cols-2 gap-4 mb-4">
+            {(["penetration-test", "red-team"] as const).map((type) => {
+              const latest = secTests.latestByType[type];
+              return (
+                <SubCard key={type}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-sm font-semibold" style={{ color: C.ink }}>{type === "penetration-test" ? "External Penetration Test" : "Red Team"}</div>
+                    {latest && <CadenceBadge cadence={latest.cadence} />}
+                  </div>
+                  {latest ? (
+                    <div className="space-y-1.5 text-sm" style={{ color: C.ink }}>
+                      <div>Last completed <span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{latest.completedAt}</span> · {latest.vendor}</div>
+                      <div className="text-xs" style={{ color: C.muted }}>{latest.scope}</div>
+                      <div className="flex items-center gap-3 mt-1.5">
+                        <span style={{ color: latest.criticalFindingCount > 0 ? C.red : C.muted }}>Critical: {latest.criticalFindingCount}</span>
+                        <span style={{ color: latest.highFindingCount > 0 ? C.amber : C.muted }}>High: {latest.highFindingCount}</span>
+                        {type === "red-team" && latest.objectiveAchieved !== undefined && (
+                          <span style={{ color: latest.objectiveAchieved ? C.green : C.red }}>Objective {latest.objectiveAchieved ? "achieved" : "not achieved"}</span>
+                        )}
                       </div>
                     </div>
-                    <div className="hidden lg:block w-[34%] text-xs leading-relaxed text-right" style={{ color: C.muted }}>{item.detail}</div>
-                    <button type="button" onClick={() => scrollToTestingSection(item.sectionId)} className="inline-flex items-center gap-1 text-xs font-semibold shrink-0" style={{ color: C.accent }} aria-label={`Review ${item.title}`}>Review <ChevronRight size={14} /></button>
-                    <div className="lg:hidden basis-full pl-11 text-xs leading-relaxed" style={{ color: C.muted }}>{item.detail}</div>
-                  </div>
-                );
-              })}
+                  ) : <div className="text-sm" style={{ color: C.muted }}>Never conducted.</div>}
+                </SubCard>
+              );
+            })}
+          </div>
+          {secTests.openFindings.length > 0 && (
+            <div>
+              <div className="text-xs mb-2" style={{ color: C.muted }}>Open findings from these exercises:</div>
+              {secTests.openFindings.map((f) => <POAMRow key={f.id} item={f} />)}
             </div>
           )}
         </Panel>
       </div>
 
-      <div id="security-testing" style={{ scrollMarginTop: 24 }}>
-        <SectionHeader
-          icon={Crosshair}
-          title="Security Testing"
-          description="The latest independent penetration test and adversarial red-team exercise results."
-        />
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          {(["penetration-test", "red-team"] as const).map((type) => {
-            const latest = secTests.latestByType[type];
-            return (
-              <Panel key={type}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-sm font-semibold" style={{ color: C.ink }}>{type === "penetration-test" ? "External Penetration Test" : "Red Team"}</div>
-                  {latest && <CadenceBadge cadence={latest.cadence} />}
-                </div>
-                {latest ? (
-                  <div className="space-y-1.5 text-sm" style={{ color: C.ink }}>
-                    <div>Last completed <span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{latest.completedAt}</span> · {latest.vendor}</div>
-                    <div className="text-xs" style={{ color: C.muted }}>{latest.scope}</div>
-                    <div className="flex items-center gap-3 mt-1.5">
-                      <span style={{ color: latest.criticalFindingCount > 0 ? C.red : C.muted }}>Critical: {latest.criticalFindingCount}</span>
-                      <span style={{ color: latest.highFindingCount > 0 ? C.amber : C.muted }}>High: {latest.highFindingCount}</span>
-                      {type === "red-team" && latest.objectiveAchieved !== undefined && (
-                        <span style={{ color: latest.objectiveAchieved ? C.green : C.red }}>Objective {latest.objectiveAchieved ? "achieved" : "not achieved"}</span>
-                      )}
-                    </div>
-                  </div>
-                ) : <div className="text-sm" style={{ color: C.muted }}>Never conducted.</div>}
-              </Panel>
-            );
-          })}
-        </div>
-        {secTests.openFindings.length > 0 && (
-          <div>
-            <div className="text-xs mb-2" style={{ color: C.muted }}>Open findings from these exercises:</div>
-            {secTests.openFindings.map((f) => <POAMRow key={f.id} item={f} />)}
-          </div>
-        )}
-      </div>
-
       <div id="vulnerability-scanning" style={{ scrollMarginTop: 24 }}>
-        <SectionHeader
-          icon={Bug}
-          title="Vulnerability Scanning"
-          description="Current vulnerability volume, patch-SLA performance, and internet-facing exposure."
-        />
         <Panel>
+          <SectionHeader
+            icon={Bug}
+            title="Vulnerability Scanning"
+            description="Current vulnerability volume, patch-SLA performance, and internet-facing exposure."
+          />
           {vuln ? (
             <>
               <div className="grid grid-cols-4 gap-4 mb-4">
@@ -305,136 +309,142 @@ export function SystemTesting({ secTests, vuln, ir, resilience, vendors, identit
       </div>
 
       <div id="incident-response" style={{ scrollMarginTop: 24 }}>
-        <SectionHeader
-          icon={Siren}
-          title="Incident Response"
-          description="Plan currency, production incidents, tabletop coverage, and resulting response actions."
-        />
-        <div className="grid grid-cols-2 gap-4">
-          <Panel>
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-semibold" style={{ color: C.ink }}>IR Plan</div>
-              {ir.planCurrency && <CadenceBadge cadence={ir.planCurrency.cadence} />}
-            </div>
-            <div className="text-sm" style={{ color: C.ink }}>{ir.planCurrency ? `Last reviewed ${ir.planCurrency.lastReviewedAt}` : "No plan on record"}</div>
-            <div className="text-sm mt-3 pt-3" style={{ color: C.ink, borderTop: `1px solid ${C.border}` }}>Last production incident</div>
-            <div className="text-sm" style={{ color: C.muted }}>
-              {ir.lastIncident ? `${ir.lastIncident.occurredAt} · ${ir.lastIncident.severity} · lessons learned ${ir.lastIncident.lessonsLearnedComplete ? "complete" : "outstanding"}` : "None on record"}
-            </div>
-          </Panel>
-          <Panel>
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-semibold" style={{ color: C.ink }}>Last Tabletop</div>
-              {lastTabletop && <CadenceBadge cadence={lastTabletop.cadence} />}
-            </div>
-            {lastTabletop ? (
-              <div className="space-y-1.5 text-sm" style={{ color: C.ink }}>
-                <div>{lastTabletop.conductedAt} · {lastTabletop.scenario}</div>
-                <div className="text-xs" style={{ color: C.muted }}>{lastTabletop.scope === "program" ? "Program-wide exercise" : "System-specific exercise"}</div>
-                <div style={{ color: C.muted }}>Issues identified: {lastTabletop.issuesIdentified}</div>
-                <div className="flex gap-1.5 flex-wrap mt-1">
-                  {lastTabletop.participatingFunctions.map((f) => (
-                    <span key={f} className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: C.greenBg, color: C.green }}><CheckCircle2 size={9} className="inline mr-1" />{f.replace(/-/g, " ")}</span>
-                  ))}
-                  {missingTabletopFunctions.map((f) => (
-                    <span key={f} className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: C.amberBg, color: C.amber }}><AlertTriangle size={9} className="inline mr-1" />{f.replace(/-/g, " ")} not exercised</span>
-                  ))}
-                </div>
+        <Panel>
+          <SectionHeader
+            icon={Siren}
+            title="Incident Response"
+            description="Plan currency, production incidents, tabletop coverage, and resulting response actions."
+          />
+          <div className="grid grid-cols-2 gap-4">
+            <SubCard>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm font-semibold" style={{ color: C.ink }}>IR Plan</div>
+                {ir.planCurrency && <CadenceBadge cadence={ir.planCurrency.cadence} />}
               </div>
-            ) : <div className="text-sm" style={{ color: C.muted }}>No tabletop on record.</div>}
-          </Panel>
-        </div>
-        {ir.openFindings.length > 0 && (
-          <div className="mt-4">
-            <div className="text-xs mb-2" style={{ color: C.muted }}>Open items from tabletop exercises:</div>
-            {ir.openFindings.map((f) => <POAMRow key={f.id} item={f} />)}
+              <div className="text-sm" style={{ color: C.ink }}>{ir.planCurrency ? `Last reviewed ${ir.planCurrency.lastReviewedAt}` : "No plan on record"}</div>
+              <div className="text-sm mt-3 pt-3" style={{ color: C.ink, borderTop: `1px solid ${C.border}` }}>Last production incident</div>
+              <div className="text-sm" style={{ color: C.muted }}>
+                {ir.lastIncident ? `${ir.lastIncident.occurredAt} · ${ir.lastIncident.severity} · lessons learned ${ir.lastIncident.lessonsLearnedComplete ? "complete" : "outstanding"}` : "None on record"}
+              </div>
+            </SubCard>
+            <SubCard>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm font-semibold" style={{ color: C.ink }}>Last Tabletop</div>
+                {lastTabletop && <CadenceBadge cadence={lastTabletop.cadence} />}
+              </div>
+              {lastTabletop ? (
+                <div className="space-y-1.5 text-sm" style={{ color: C.ink }}>
+                  <div>{lastTabletop.conductedAt} · {lastTabletop.scenario}</div>
+                  <div className="text-xs" style={{ color: C.muted }}>{lastTabletop.scope === "program" ? "Program-wide exercise" : "System-specific exercise"}</div>
+                  <div style={{ color: C.muted }}>Issues identified: {lastTabletop.issuesIdentified}</div>
+                  <div className="flex gap-1.5 flex-wrap mt-1">
+                    {lastTabletop.participatingFunctions.map((f) => (
+                      <span key={f} className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: C.greenBg, color: C.green }}><CheckCircle2 size={9} className="inline mr-1" />{f.replace(/-/g, " ")}</span>
+                    ))}
+                    {missingTabletopFunctions.map((f) => (
+                      <span key={f} className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: C.amberBg, color: C.amber }}><AlertTriangle size={9} className="inline mr-1" />{f.replace(/-/g, " ")} not exercised</span>
+                    ))}
+                  </div>
+                </div>
+              ) : <div className="text-sm" style={{ color: C.muted }}>No tabletop on record.</div>}
+            </SubCard>
           </div>
-        )}
+          {ir.openFindings.length > 0 && (
+            <div className="mt-4">
+              <div className="text-xs mb-2" style={{ color: C.muted }}>Open items from tabletop exercises:</div>
+              {ir.openFindings.map((f) => <POAMRow key={f.id} item={f} />)}
+            </div>
+          )}
+        </Panel>
       </div>
 
       <div id="resilience-testing" style={{ scrollMarginTop: 24 }}>
-        <SectionHeader
-          icon={LifeBuoy}
-          title="Resilience / Backup / Recovery"
-          description="Backup configuration and the recovery exercises that prove the system can meet its objectives."
-        />
-        <div className="grid grid-cols-2 gap-4">
-          <Panel>
-            <div className="text-sm font-semibold mb-3" style={{ color: C.ink }}>Backup Configuration</div>
-            {resilience.backup ? (
-              <div className="grid grid-cols-2 gap-4">
-                <IdentificationField label="Enabled" value={resilience.backup.enabled ? "Yes" : "No"} />
-                <IdentificationField label="Coverage" value={`${resilience.backup.coveragePct}%`} />
-                <IdentificationField label="Immutable" value={resilience.backup.immutable ? "Yes" : "No"} />
-                <IdentificationField label="Cross-Region" value={resilience.backup.crossRegion ? "Yes" : "No"} />
-                <IdentificationField label="RPO Target" value={`${resilience.backup.rpoTargetMinutes}m`} />
-                <IdentificationField label="RTO Target" value={`${resilience.backup.rtoTargetMinutes}m`} />
-              </div>
-            ) : <div className="text-sm" style={{ color: C.muted }}>No backup configuration on record.</div>}
-          </Panel>
-          <Panel>
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-semibold" style={{ color: C.ink }}>Last Recovery Test</div>
-              {resilience.lastDrTest && <CadenceBadge cadence={resilience.lastDrTest.cadence} />}
-            </div>
-            {resilience.lastDrTest ? (
-              <div className="grid grid-cols-2 gap-3 text-sm" style={{ color: C.ink }}>
-                <IdentificationField label="Date" value={resilience.lastDrTest.conductedAt} />
-                <IdentificationField label="Restore Successful" value={resilience.lastDrTest.restoreSuccessful ? "Yes" : "No"} />
-                {resilience.backup ? (
-                  <div className="col-span-2 space-y-3 pt-1">
-                    <RecoveryComparison label="Recovery point (RPO)" actual={resilience.lastDrTest.actualRpoMinutes} target={resilience.backup.rpoTargetMinutes} />
-                    <RecoveryComparison label="Recovery time (RTO)" actual={resilience.lastDrTest.actualRtoMinutes} target={resilience.backup.rtoTargetMinutes} />
-                  </div>
-                ) : (
-                  <>
-                    <IdentificationField label="Actual RPO" value={`${resilience.lastDrTest.actualRpoMinutes}m`} />
-                    <IdentificationField label="Actual RTO" value={`${resilience.lastDrTest.actualRtoMinutes}m`} />
-                  </>
-                )}
-                <div className="col-span-2">
-                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: resilience.targetsMetLastTest ? C.greenBg : C.redBg, color: resilience.targetsMetLastTest ? C.green : C.red }}>
-                    Targets {resilience.targetsMetLastTest ? "met" : "not met"}
-                  </span>
+        <Panel>
+          <SectionHeader
+            icon={LifeBuoy}
+            title="Resilience / Backup / Recovery"
+            description="Backup configuration and the recovery exercises that prove the system can meet its objectives."
+          />
+          <div className="grid grid-cols-2 gap-4">
+            <SubCard>
+              <div className="text-sm font-semibold mb-3" style={{ color: C.ink }}>Backup Configuration</div>
+              {resilience.backup ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <IdentificationField label="Enabled" value={resilience.backup.enabled ? "Yes" : "No"} />
+                  <IdentificationField label="Coverage" value={`${resilience.backup.coveragePct}%`} />
+                  <IdentificationField label="Immutable" value={resilience.backup.immutable ? "Yes" : "No"} />
+                  <IdentificationField label="Cross-Region" value={resilience.backup.crossRegion ? "Yes" : "No"} />
+                  <IdentificationField label="RPO Target" value={`${resilience.backup.rpoTargetMinutes}m`} />
+                  <IdentificationField label="RTO Target" value={`${resilience.backup.rtoTargetMinutes}m`} />
                 </div>
-                {resilience.lastDrTest.issues && <div className="col-span-2 text-xs" style={{ color: C.amber }}>{resilience.lastDrTest.issues}</div>}
+              ) : <div className="text-sm" style={{ color: C.muted }}>No backup configuration on record.</div>}
+            </SubCard>
+            <SubCard>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm font-semibold" style={{ color: C.ink }}>Last Recovery Test</div>
+                {resilience.lastDrTest && <CadenceBadge cadence={resilience.lastDrTest.cadence} />}
               </div>
-            ) : <div className="text-sm" style={{ color: C.muted }}>No recovery test on record.</div>}
-          </Panel>
-        </div>
+              {resilience.lastDrTest ? (
+                <div className="grid grid-cols-2 gap-3 text-sm" style={{ color: C.ink }}>
+                  <IdentificationField label="Date" value={resilience.lastDrTest.conductedAt} />
+                  <IdentificationField label="Restore Successful" value={resilience.lastDrTest.restoreSuccessful ? "Yes" : "No"} />
+                  {resilience.backup ? (
+                    <div className="col-span-2 space-y-3 pt-1">
+                      <RecoveryComparison label="Recovery point (RPO)" actual={resilience.lastDrTest.actualRpoMinutes} target={resilience.backup.rpoTargetMinutes} />
+                      <RecoveryComparison label="Recovery time (RTO)" actual={resilience.lastDrTest.actualRtoMinutes} target={resilience.backup.rtoTargetMinutes} />
+                    </div>
+                  ) : (
+                    <>
+                      <IdentificationField label="Actual RPO" value={`${resilience.lastDrTest.actualRpoMinutes}m`} />
+                      <IdentificationField label="Actual RTO" value={`${resilience.lastDrTest.actualRtoMinutes}m`} />
+                    </>
+                  )}
+                  <div className="col-span-2">
+                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: resilience.targetsMetLastTest ? C.greenBg : C.redBg, color: resilience.targetsMetLastTest ? C.green : C.red }}>
+                      Targets {resilience.targetsMetLastTest ? "met" : "not met"}
+                    </span>
+                  </div>
+                  {resilience.lastDrTest.issues && <div className="col-span-2 text-xs" style={{ color: C.amber }}>{resilience.lastDrTest.issues}</div>}
+                </div>
+              ) : <div className="text-sm" style={{ color: C.muted }}>No recovery test on record.</div>}
+            </SubCard>
+          </div>
+        </Panel>
       </div>
 
       <div id="vendor-assurance" style={{ scrollMarginTop: 24 }}>
-        <SectionHeader
-          icon={Handshake}
-          title="Vendor / Dependency Assurance"
-          description="Critical external dependencies, reassessment cadence, certifications, and shared-responsibility coverage."
-        />
-        <div className="space-y-3">
-          {vendors.vendors.map((v) => (
-            <Panel key={v.vendorId}>
-              <div className="flex items-start justify-between gap-3 mb-2">
-                <div>
-                  <div className="text-sm font-semibold" style={{ color: C.ink }}>{v.vendor?.name ?? v.vendorId}</div>
-                  <div className="text-xs" style={{ color: C.muted }}>{v.dependency}</div>
+        <Panel>
+          <SectionHeader
+            icon={Handshake}
+            title="Vendor / Dependency Assurance"
+            description="Critical external dependencies, reassessment cadence, certifications, and shared-responsibility coverage."
+          />
+          <div className="space-y-3">
+            {vendors.vendors.map((v) => (
+              <SubCard key={v.vendorId}>
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div>
+                    <div className="text-sm font-semibold" style={{ color: C.ink }}>{v.vendor?.name ?? v.vendorId}</div>
+                    <div className="text-xs" style={{ color: C.muted }}>{v.dependency}</div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[11px] px-2 py-0.5 rounded-full capitalize" style={{ background: C.panel2, color: C.muted }}>{v.criticality}</span>
+                    {v.assurance && <CadenceBadge cadence={v.assurance.cadence} />}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-[11px] px-2 py-0.5 rounded-full capitalize" style={{ background: C.panel2, color: C.muted }}>{v.criticality}</span>
-                  {v.assurance && <CadenceBadge cadence={v.assurance.cadence} />}
+                <div className="flex items-center gap-4 text-xs flex-wrap" style={{ color: C.muted }}>
+                  <span>Reassessed: {v.assurance?.reassessedAt ?? "never"}</span>
+                  <span style={{ color: v.assurance?.sharedResponsibilityReviewed ? C.green : C.amber }}>
+                    Shared responsibility {v.assurance?.sharedResponsibilityReviewed ? "reviewed" : "not reviewed"}
+                  </span>
+                  {v.assurance?.certification && <span>Backed by {v.assurance.certification.id}</span>}
+                  {v.dataAccessible.length > 0 && <span>Data: {v.dataAccessible.length} type{v.dataAccessible.length !== 1 ? "s" : ""} accessible</span>}
                 </div>
-              </div>
-              <div className="flex items-center gap-4 text-xs flex-wrap" style={{ color: C.muted }}>
-                <span>Reassessed: {v.assurance?.reassessedAt ?? "never"}</span>
-                <span style={{ color: v.assurance?.sharedResponsibilityReviewed ? C.green : C.amber }}>
-                  Shared responsibility {v.assurance?.sharedResponsibilityReviewed ? "reviewed" : "not reviewed"}
-                </span>
-                {v.assurance?.certification && <span>Backed by {v.assurance.certification.id}</span>}
-                {v.dataAccessible.length > 0 && <span>Data: {v.dataAccessible.length} type{v.dataAccessible.length !== 1 ? "s" : ""} accessible</span>}
-              </div>
-            </Panel>
-          ))}
-          {vendors.vendors.length === 0 && <div className="text-sm" style={{ color: C.muted }}>No dependencies registered for this system.</div>}
-        </div>
+              </SubCard>
+            ))}
+            {vendors.vendors.length === 0 && <div className="text-sm" style={{ color: C.muted }}>No dependencies registered for this system.</div>}
+          </div>
+        </Panel>
       </div>
 
       <RecentSystemActivity identity={identity} resilience={resilience} secTests={secTests} ir={ir} vendors={vendors} />

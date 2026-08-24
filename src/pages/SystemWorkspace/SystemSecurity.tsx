@@ -91,7 +91,7 @@ export function SystemSecurity({ exposure, sdlc, vendors, onOpenExceptionRegiste
   const servicesWithoutWaf = exposure.externalServices.filter((service) => service.internetFacing && !service.wafProtected).length;
 
   return (
-    <div className="px-8 pb-10 space-y-5">
+    <div className="px-8 pb-10 space-y-8">
       <Panel>
         <SectionHeader
           icon={ShieldCheck}

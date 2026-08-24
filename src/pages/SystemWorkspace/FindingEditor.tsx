@@ -2,7 +2,7 @@
 //
 // This lived inside ControlEvaluationPanel, where the control was never a
 // question — the panel is open ON a control, so the form spoke only about the
-// gap. Findings & CAPs needs the same form without that context, so the control
+// gap. The Actions tab needs the same form without that context, so the control
 // becomes a field there and stays fixed here.
 //
 // Three exports, one form:
