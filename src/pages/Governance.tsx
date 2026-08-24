@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import CommonControlFramework from "./CommonControlFramework";
 import PolicyCenter from "./PolicyCenter";
 import ProcedureLibrary from "./ProcedureLibrary";
 import SecurityPrinciples from "./SecurityPrinciples";
@@ -7,13 +8,15 @@ import ExceptionRegister from "./ExceptionRegister";
 import { GovernanceLanding } from "./GovernanceLanding";
 import type { GovernanceAreaId } from "./governanceAreas";
 
-// Governance merges the former Policy Center, Procedure Library, Security
-// Principles, and Governance Schedule (formerly "Activity Timeliness") top-
-// level pages into one, switched by an in-page tab bar instead of four
-// sidebar entries. Each page's own content is untouched — this is purely a
-// shell around them. System Register (formerly "System Security Plan")
-// lives on Data Estate now, not here.
+// Governance merges the former Common Controls, Policies (formerly "Policy
+// Center"), Procedures (formerly "Procedure Library"), Security Principles,
+// and Governance Schedule (formerly "Activity Timeliness") top-level pages
+// into one, switched by an in-page tab bar instead of separate sidebar
+// entries. Each page's own content is untouched — this is purely a shell
+// around them. System Register (formerly "System Security Plan") lives on
+// Data Estate now, not here.
 const PAGE_BY_AREA = {
+  ccf: CommonControlFramework,
   policy: PolicyCenter,
   procedures: ProcedureLibrary,
   principles: SecurityPrinciples,
@@ -30,6 +33,7 @@ type GovernanceTab = GovernanceAreaId;
 // a tab on a different consolidated page (e.g. "ssp") fall through to
 // onNavigate so App.jsx's LEGACY_ROUTES can send them there.
 const INTERNAL_TABS: Record<string, GovernanceTab> = {
+  ccf: "ccf",
   "policy-center": "policy",
   "procedure-library": "procedures",
   "security-principles": "principles",

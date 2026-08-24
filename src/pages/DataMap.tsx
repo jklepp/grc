@@ -53,7 +53,7 @@ function AssuranceChip({ label, value, band }: { label: string; value: ReactNode
 // AssuranceCategoryBar and PROFILE_STATUS_META are gone with the per-asset
 // category rollups and per-asset profile evaluation they drew. Categories are
 // still scored and still evaluated against the tier profile — once per system,
-// on the Control Profile page.
+// in the engine (evaluateSystemAgainstProfile).
 function AssuranceRiskCard({ title, risk }: { title: string; risk: AssetRollup["inherentRisk"] }) {
   const { color, bg } = colorFor(risk.band.color);
   return (

@@ -404,7 +404,7 @@ export type { ManagedException, ExceptionLifecycleStatus, ExceptionReviewStatus 
 // happens whenever anything it imports is edited — the new instance starts with
 // every binding below unassigned and initPromise back to null, and nobody calls
 // initEngine() a second time. Pages that read the surface while they evaluate
-// (ControlProfile's `getAllSystems()` at module scope, for one) then die with
+// (ExecutiveDashboard's `getAllSystems()` at module scope, for one) then die with
 // "getAllSystems is not a function", and the app goes blank until a manual
 // refresh.
 //

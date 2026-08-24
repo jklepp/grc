@@ -7,8 +7,7 @@ import type { SystemId } from "./graph/ids";
 //   #/overview[/dashboard|risk-register|footprint]
 //   #/systems                     → system picker
 //   #/systems/<SystemId>[/<tab>]  → one system's workspace, on a tab
-//   #/controls[/ccf|control-profile]
-//   #/governance[/policy|procedures|principles|schedule|exceptions]
+//   #/governance[/ccf|policy|procedures|principles|schedule|exceptions]
 //   #/graph
 //   #/settings[/users]            → admin only, reached from the user menu
 // App owns parsing/serializing; pages keep navigating through onNavigate ids.
@@ -25,7 +24,6 @@ export interface AppRoute {
 const PAGE_BY_SLUG: Record<string, NavigationPageId> = {
   overview: "overview",
   systems: "data-estate",
-  controls: "assurance",
   governance: "governance",
   graph: "graph-explorer",
   settings: "settings",

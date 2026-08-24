@@ -1,16 +1,23 @@
-import { CalendarClock, FileText, ListChecks, Shield, ShieldAlert } from "lucide-react";
+import { CalendarClock, FileText, LayoutGrid, ListChecks, Shield, ShieldAlert } from "lucide-react";
 
 export const GOVERNANCE_AREAS = [
   {
+    id: "ccf",
+    label: "Common Controls",
+    shortLabel: "Common Controls",
+    icon: LayoutGrid,
+    description: "Browse the common control catalog, its domains, and the framework clauses each control satisfies.",
+  },
+  {
     id: "policy",
-    label: "Policy Center",
+    label: "Policies",
     shortLabel: "Policies",
     icon: FileText,
     description: "Publish, review, and map the policies that establish ACME's governance requirements.",
   },
   {
     id: "procedures",
-    label: "Procedure Library",
+    label: "Procedures",
     shortLabel: "Procedures",
     icon: ListChecks,
     description: "Run evidence-bearing procedures and inspect the operational steps behind policy commitments.",

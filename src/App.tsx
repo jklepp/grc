@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import type { ComponentProps } from "react";
 import TopNav from "./components/TopNav";
 import type { NavigationPageId } from "./components/TopNav";
-import Controls from "./pages/Controls";
 import Systems from "./pages/Systems";
 import Governance from "./pages/Governance";
 import Overview from "./pages/Overview";
@@ -20,16 +19,11 @@ import { useSignedInUser } from "./auth/useUser";
 import { signOut } from "./auth/session";
 import { allows, canManageUsers } from "./auth/gates";
 
-type ControlsTab = NonNullable<ComponentProps<typeof Controls>["initialTab"]>;
 type GovernanceTab = NonNullable<ComponentProps<typeof Governance>["initialTab"]>;
 type OverviewTab = NonNullable<ComponentProps<typeof Overview>["initialTab"]>;
 
-function controlsTab(tab?: string): ControlsTab | undefined {
-  return tab === "ccf" || tab === "control-profile" ? tab : undefined;
-}
-
 function governanceTab(tab?: string): GovernanceTab | undefined {
-  return tab === "policy" || tab === "procedures" || tab === "principles" || tab === "schedule" || tab === "exceptions" ? tab : undefined;
+  return tab === "ccf" || tab === "policy" || tab === "procedures" || tab === "principles" || tab === "schedule" || tab === "exceptions" ? tab : undefined;
 }
 
 function overviewTab(tab?: string): OverviewTab | undefined {
@@ -53,8 +47,7 @@ const LEGACY_ROUTES = {
   "data-map": { page: "data-estate", tab: "map" },
   "gap-matrix": { page: "data-estate", tab: "profile" },
   "asset-register": { page: "data-estate", tab: "assets" },
-  ccf: { page: "assurance", tab: "ccf" },
-  "control-profile": { page: "assurance", tab: "control-profile" },
+  ccf: { page: "governance", tab: "ccf" },
   "policy-center": { page: "governance", tab: "policy" },
   "procedure-library": { page: "governance", tab: "procedures" },
   "security-principles": { page: "governance", tab: "principles" },
@@ -75,7 +68,7 @@ function legacyRouteFor(id: string): LegacyRoute | undefined {
   return Object.entries(LEGACY_ROUTES).find(([routeId]) => routeId === id)?.[1];
 }
 
-const PAGE_IDS: NavigationPageId[] = ["overview", "data-estate", "assurance", "governance", "graph-explorer", "settings"];
+const PAGE_IDS: NavigationPageId[] = ["overview", "data-estate", "governance", "graph-explorer", "settings"];
 
 function isNavigationPageId(id: string): id is NavigationPageId {
   return (PAGE_IDS as string[]).includes(id);
@@ -151,18 +144,13 @@ export default function App() {
     });
   }
 
-  // Controls/Governance/Overview each seed their in-page area/tab from
+  // Governance/Overview each seed their in-page area/tab from
   // `initialTab` only on mount (`useState(initialTab ?? null)`), so keying on
   // the tab forces a remount whenever the route's tab changes — otherwise
   // picking a different sub-area while already on that page would be silently
   // ignored.
   let activePage: React.ReactNode;
   switch (route.page) {
-    case "assurance": {
-      const tab = controlsTab(route.tab);
-      activePage = <Controls key={tab ?? "landing"} initialTab={tab} onNavigate={navigate} />;
-      break;
-    }
     case "governance": {
       const tab = governanceTab(route.tab);
       activePage = <Governance key={tab ?? "landing"} initialTab={tab} onNavigate={navigate} />;

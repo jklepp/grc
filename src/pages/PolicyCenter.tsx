@@ -124,7 +124,7 @@ export default function PolicyCenter({ onNavigate }: { onNavigate?: (target: str
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
       <PageHeader
         icon={FileText}
-        title="Policy Center"
+        title="Policies"
         description="Plain-language policies for every ACME employee, mapped to ISO 27001 and the SCF crosswalk."
       />
 

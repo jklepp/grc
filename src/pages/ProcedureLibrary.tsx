@@ -735,7 +735,7 @@ export default function ProcedureLibrary({ onNavigate }: { onNavigate?: (pageId:
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
       <PageHeader
         icon={ListChecks}
-        title="Procedure Library"
+        title="Procedures"
         description={'One Standard Operating Procedure per Assurance Category — the "how" behind each policy\'s "what."'}
         descriptionClassName="max-w-none whitespace-nowrap"
       />

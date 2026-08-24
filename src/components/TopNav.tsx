@@ -1,8 +1,7 @@
 import React, { useRef, useState } from "react";
-import { Sun, Moon, LayoutDashboard, Database, Landmark, Share2, ChevronDown, ShieldCheck, LogOut, Settings } from "lucide-react";
+import { Sun, Moon, LayoutDashboard, Database, Landmark, Share2, ChevronDown, LogOut, Settings } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ThemeMode } from "../theme";
-import { CONTROL_AREAS } from "../pages/controlAreas";
 import { GOVERNANCE_AREAS } from "../pages/governanceAreas";
 import type { GovernanceAreaId } from "../pages/governanceAreas";
 import { OVERVIEW_AREAS } from "../pages/overviewAreas";
@@ -27,12 +26,13 @@ const TB = {
 // item that is missing for four users out of five reads as a broken bar. It is
 // reached from the user menu instead, which is where the person it belongs to
 // already is.
-export type NavigationPageId = "overview" | "data-estate" | "assurance" | "governance" | "graph-explorer" | "settings";
+export type NavigationPageId = "overview" | "data-estate" | "governance" | "graph-explorer" | "settings";
 
 // Governance's sub-areas route through the same legacy ids App.jsx's
 // LEGACY_ROUTES already maps to (page: "governance", tab: <area>) — this just
 // avoids re-deriving them from the area id text.
 const GOVERNANCE_LEGACY_ID: Record<GovernanceAreaId, string> = {
+  ccf: "ccf",
   policy: "policy-center",
   procedures: "procedure-library",
   principles: "security-principles",
@@ -183,15 +183,6 @@ export default function TopNav({ active, onSelect, user, onSignOut, onOpenSettin
           onSelectArea={onSelect}
         />
         <NavButton item={ITEMS[0]} isActive={active === "data-estate"} onClick={() => onSelect("data-estate")} />
-        <GroupedNavButton
-          id="assurance"
-          label="Controls"
-          icon={ShieldCheck}
-          isActive={active === "assurance"}
-          areas={CONTROL_AREAS.map((a) => ({ id: a.id, label: a.label, icon: a.icon }))}
-          onSelect={onSelect}
-          onSelectArea={onSelect}
-        />
         <GroupedNavButton
           id="governance"
           label="Governance"

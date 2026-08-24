@@ -7,7 +7,7 @@ import { POLICIES, POLICY_TIERS } from "../data/policies";
 import { PROCEDURES } from "../data/procedures";
 import { PRINCIPLE_STATUS_COUNTS } from "../data/securityPrinciples";
 import { FREQUENCIES, currentPeriod, statusCountsForPeriod } from "../data/scheduledActivities";
-import { EXCEPTION_SUMMARY } from "../engine";
+import { EXCEPTION_SUMMARY, IN_SCOPE_CONTROLS } from "../engine";
 import { GOVERNANCE_AREAS } from "./governanceAreas";
 import type { GovernanceAreaId } from "./governanceAreas";
 
@@ -28,7 +28,19 @@ const scheduleCounts = FREQUENCIES.reduce(
   { completed: 0, upcoming: 0, attention: 0 },
 );
 
+const DOMAIN_COUNT = new Set(IN_SCOPE_CONTROLS.map((control) => control.domain)).size;
+const STANDARD_COUNT = new Set(IN_SCOPE_CONTROLS.flatMap((control) => control.frameworks.map((f) => f.standard))).size;
+
 const AREA_SUMMARIES: Record<GovernanceAreaId, AreaSummary> = {
+  ccf: {
+    metrics: [
+      { value: IN_SCOPE_CONTROLS.length, label: "Controls in scope" },
+      { value: DOMAIN_COUNT, label: "Domains" },
+      { value: STANDARD_COUNT, label: "Standards mapped" },
+    ],
+    attention: 0,
+    attentionLabel: "Browse the control catalog",
+  },
   policy: {
     metrics: [
       { value: POLICIES.length, label: "Published" },
@@ -77,6 +89,7 @@ const AREA_SUMMARIES: Record<GovernanceAreaId, AreaSummary> = {
 };
 
 const AREA_GROUPS: Partial<Record<GovernanceAreaId, string>> = {
+  ccf: "Controls",
   policy: "Policies and Procedures",
   procedures: "Policies and Procedures",
   principles: "Operations",
@@ -98,8 +111,9 @@ const AREAS: AreaListItem<GovernanceAreaId>[] = GOVERNANCE_AREAS.map((area) => {
 });
 
 // List layout matches SelectSystem's system table (bordered row list, avatar,
-// stat readouts) so this landing page and Controls' read as the same "pick
-// one of these" pattern instead of a table on one page and cards on another.
+// stat readouts) so this landing page and the system picker read as the same
+// "pick one of these" pattern instead of a table on one page and cards on
+// another.
 export function GovernanceLanding({ onSelect }: { onSelect: (area: GovernanceAreaId) => void }) {
   return (
     <div className="w-full pb-12">
