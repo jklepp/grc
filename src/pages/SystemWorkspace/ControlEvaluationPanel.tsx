@@ -1212,7 +1212,7 @@ export function ControlEvaluationPanel({
   }
 
   return (
-    <Modal open onClose={requestClose} width={1180} height={840}>
+    <Modal open onClose={requestClose} width={1180} height={840} requiresRoom="Assessing a control">
       <WizardChrome>
       {/* ---- Masthead ----
            The flow's name over the rail, the step in hand over the pane, the

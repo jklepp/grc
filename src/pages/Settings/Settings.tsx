@@ -26,7 +26,7 @@ export default function Settings({ initialTab }: { initialTab?: string }) {
     return (
       <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
         <PageHeader icon={SettingsIcon} title="Settings" />
-        <div className="px-8 pb-8">
+        <div className="px-4 lg:px-8 pb-8">
           <Callout tone="warning" title="Settings is for admins.">
             <p>
               You are signed in as {user.name} ({user.roles.map((r) => ROLE_LABELS[r]).join(", ")}). Managing who can
@@ -64,7 +64,7 @@ export default function Settings({ initialTab }: { initialTab?: string }) {
 // told them they could do.
 function RoleReference() {
   return (
-    <div className="px-8 pb-10">
+    <div className="px-4 lg:px-8 pb-10">
       <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
         <div className="px-4 py-3" style={{ borderBottom: `1px solid ${C.border}` }}>
           <div className="text-sm font-semibold" style={{ color: C.ink }}>What each role can do</div>

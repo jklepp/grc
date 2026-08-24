@@ -1,5 +1,5 @@
 import React from "react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Rows3 } from "lucide-react";
 import { C } from "../../../theme";
 import { StatRing } from "../shared/StatRing";
@@ -51,7 +51,7 @@ const COMPLIANCE_RAIL_X = 18;
 // so the pair reads as one stack and each leader has a fixed target.
 function ScoreTile({ label, sub, value, pct, gradient }: { label: string; sub: string; value: ReactNode; pct: number | null; gradient: string }) {
   return (
-    <div className="rounded-xl px-4 py-3 w-full flex items-center justify-between gap-3" style={{ background: gradient, height: TILE_H }}>
+    <div className="rounded-xl px-4 py-3 w-full min-w-0 flex items-center justify-between gap-3" style={{ background: gradient, height: TILE_H }}>
       <div className="min-w-0">
         <div className="text-2xl font-semibold text-white" style={{ fontFamily: "'Source Serif 4', serif" }}>{value}</div>
         <div className="text-xs mt-1 text-white/85">{label}</div>
@@ -110,18 +110,28 @@ export function PrismaLadder({ system, compliance, assurance }: PrismaLadderProp
         title="System Posture"
         description="Two readings of one five-level ladder — Compliance stops at Implemented, Assurance weighs all five."
       />
-      <div className="flex items-start">
-        <div className="w-[220px] shrink-0 flex flex-col" style={{ height: LADDER_H, gap: TILE_GAP }}>
+      {/* Below `lg` the three columns cannot coexist: the tiles and the rail
+          gutter alone claim 266px, which left the lanes about 30px wide. The
+          pair of tiles turns into a row above the lanes, and the rail goes
+          with it -- it exists to tie each tile to the rungs it reads, and
+          once the two are stacked there is no span left for it to draw.
+          The geometry constants still drive every size; they travel as custom
+          properties so a breakpoint can reach them. */}
+      <div
+        className="flex flex-col lg:flex-row items-stretch lg:items-start gap-4 lg:gap-0"
+        style={{ "--ladder-h": `${LADDER_H}px`, "--tile-gap": `${TILE_GAP}px`, "--row-gap": `${ROW_GAP}px` } as CSSProperties}
+      >
+        <div className="w-full lg:w-[220px] shrink-0 flex flex-row lg:flex-col gap-[var(--tile-gap)] lg:h-[var(--ladder-h)]">
           <ScoreTile label="Compliance" sub="Through Implemented" value={compliance == null ? "—" : `${compliance}%`} pct={compliance} gradient={COMPLIANCE_GRADIENT} />
           <ScoreTile label="Assurance" sub="All five levels" value={assurance == null ? "—" : `${assurance}%`} pct={assurance} gradient={ASSURANCE_GRADIENT} />
         </div>
 
-        <div className="relative shrink-0" style={{ width: RAIL_GUTTER, height: LADDER_H }}>
+        <div className="relative shrink-0 hidden lg:block" style={{ width: RAIL_GUTTER, height: LADDER_H }}>
           <SpanRail height={LADDER_H} railX={ASSURANCE_RAIL_X} leaderY={ASSURANCE_LEADER_Y} color={C.accent} />
           <SpanRail height={COMPLIANCE_H} railX={COMPLIANCE_RAIL_X} leaderY={COMPLIANCE_LEADER_Y} color={C.amber} />
         </div>
 
-        <div className="flex flex-col flex-1 min-w-0 max-w-[420px]" style={{ gap: ROW_GAP }}>
+        <div className="flex flex-col w-full lg:w-auto lg:flex-1 min-w-0 lg:max-w-[420px] gap-[var(--row-gap)]">
           {rows.map((row) => (
             <div key={row.level} className="flex items-center gap-2.5" style={{ height: ROW_H }}>
               <div className="w-[92px] shrink-0 text-xs font-semibold" style={{ color: C.ink }}>{row.level}</div>

@@ -142,14 +142,14 @@ export default function ExceptionRegister() {
         description="The authoritative register for approved security exceptions, their owners, compensating controls, review dates, and expiration decisions."
       />
 
-      <div className="px-8 grid grid-cols-4 gap-4 mb-6">
+      <div className="px-4 lg:px-8 grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Metric label="Total Exceptions" value={EXCEPTION_SUMMARY.total} detail="Formally governed records" />
         <Metric label="Active" value={EXCEPTION_SUMMARY.active} detail="Approved and within lifecycle" tone={C.green} />
         <Metric label="Expiring" value={EXCEPTION_SUMMARY.expiring} detail="Expiration within 90 days" tone={C.amber} />
         <Metric label="Review Required" value={EXCEPTION_SUMMARY.reviewDue} detail="Due soon or overdue" tone={EXCEPTION_SUMMARY.reviewDue > 0 ? C.red : C.green} />
       </div>
 
-      <div className="px-8 mb-5">
+      <div className="px-4 lg:px-8 mb-5">
         <SectionHeading icon={SlidersHorizontal} hint="Find an exception by system, owner, condition, or lifecycle state">Register Filters</SectionHeading>
         <div className="flex flex-wrap gap-3">
           <div className="flex items-center gap-2 rounded-lg px-3 py-2 min-w-72" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
@@ -172,9 +172,9 @@ export default function ExceptionRegister() {
         </div>
       </div>
 
-      <div className="px-8 grid grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)] gap-5 items-start">
-        <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-          <div className="grid px-4 py-2.5 text-[10px] uppercase tracking-wide font-semibold" style={{ gridTemplateColumns: "1fr 130px 100px 110px", color: C.muted, background: C.panel2 }}>
+      <div className="px-4 lg:px-8 grid grid-cols-1 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)] gap-5 items-start">
+        <div className="rounded-xl overflow-hidden max-lg:overflow-x-auto" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+          <div className="grid px-4 py-2.5 text-[10px] uppercase tracking-wide font-semibold min-w-[460px]" style={{ gridTemplateColumns: "1fr 130px 100px 110px", color: C.muted, background: C.panel2 }}>
             <div>Exception</div><div>System</div><div>Status</div><div>Next review</div>
           </div>
           {filtered.map((exception) => {
@@ -185,7 +185,7 @@ export default function ExceptionRegister() {
                 key={exception.id}
                 type="button"
                 onClick={() => setSelectedId(exception.id)}
-                className="w-full grid items-center text-left px-4 py-3.5 transition-colors"
+                className="w-full grid items-center text-left px-4 py-3.5 transition-colors min-w-[460px]"
                 style={{ gridTemplateColumns: "1fr 130px 100px 110px", background: isSelected ? C.accentBg : "transparent", borderTop: `1px solid ${C.border}` }}
               >
                 <div className="min-w-0 pr-4">
@@ -217,7 +217,7 @@ export default function ExceptionRegister() {
       </div>
 
       {EXCEPTION_SUMMARY.expired > 0 && (
-        <div className="mx-8 mt-5 rounded-lg p-3 flex items-start gap-2 text-xs" style={{ background: C.redBg, color: C.red }}>
+        <div className="mx-4 lg:mx-8 mt-5 rounded-lg p-3 flex items-start gap-2 text-xs" style={{ background: C.redBg, color: C.red }}>
           <AlertTriangle size={14} className="shrink-0" /> Expired exceptions require renewal, revocation, or closure; they no longer excuse the underlying condition.
         </div>
       )}

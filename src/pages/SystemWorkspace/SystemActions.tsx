@@ -522,7 +522,7 @@ export function SystemActions({
   const controlsSelection = group === "assess" ? ASSESSMENT_SELECTION : group === "gaps" ? DEFAULT_SELECTION : null;
 
   return (
-    <div className="px-8 pb-10 space-y-8">
+    <div className="px-4 lg:px-8 pb-10 space-y-8">
       {saveError && <SaveErrorCallout problems={saveError} />}
 
       <Panel>

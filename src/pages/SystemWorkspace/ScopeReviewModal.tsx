@@ -573,6 +573,7 @@ export function ScopeReviewModal({
 
   return (
     <Modal
+      requiresRoom="Reviewing scope"
       open={open}
       onClose={onClose}
       width={workflowNavigation ? GUIDED_WORKFLOW_MODAL.width : 1040}

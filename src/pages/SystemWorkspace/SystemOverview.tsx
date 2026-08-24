@@ -34,7 +34,7 @@ export function SystemOverview(props: SystemOverviewProps) {
   }
 
   return (
-    <div className="px-8 pb-10 space-y-8">
+    <div className="px-4 lg:px-8 pb-10 space-y-8">
       <Panel>
         <PrismaLadder system={system} compliance={compliance} assurance={cockpit.assurance} />
       </Panel>

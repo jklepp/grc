@@ -87,7 +87,7 @@ export function UsersTab({ signedInId }: { signedInId: string }) {
   }
 
   return (
-    <div className="px-8 pb-8 flex flex-col gap-6">
+    <div className="px-4 lg:px-8 pb-8 flex flex-col gap-6">
       {setProblems.length > 0 && (
         <Callout tone="warning" title="The roster has a problem.">
           {setProblems.map((p, i) => <div key={i}>{p.message}</div>)}

@@ -19,8 +19,8 @@ interface SystemDetailsProps {
 
 export function SystemDetails({ system, cockpit, exposure, dataTypes, onNavigate }: SystemDetailsProps) {
   return (
-    <div className="px-8 pb-10 space-y-8">
-      <div className="grid grid-cols-2 gap-8">
+    <div className="px-4 lg:px-8 pb-10 space-y-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <SystemSnapshot system={system} exposure={exposure} dataTypes={dataTypes} />
         <AttentionRequired cockpit={cockpit} onNavigate={onNavigate} />
       </div>

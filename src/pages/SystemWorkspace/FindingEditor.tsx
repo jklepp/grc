@@ -332,7 +332,7 @@ export function FindingEditorModal({
   const state = useFindingForm({ initial, controlOptions, assetOptionsFor, closureEvidence });
   if (!open) return null;
   return (
-    <Modal open onClose={onCancel} width={840} height={720}>
+    <Modal open onClose={onCancel} width={840} height={720} requiresRoom="Editing a finding">
       <WizardChrome>
         <WizardHeader
           icon={ListTodo}

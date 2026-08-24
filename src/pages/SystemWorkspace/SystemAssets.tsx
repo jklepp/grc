@@ -6,7 +6,7 @@ import { SectionHeader } from "./shared/SectionHeader";
 export function SystemAssets({ systemId }: { systemId: SystemId }) {
   return (
     <div className="pb-10">
-      <div className="px-8">
+      <div className="px-4 lg:px-8">
         <SectionHeader
           description="Resources inside this system's boundary, grouped by architecture lane with FIPS 199 impact level, verification, and inherent risk."
         />

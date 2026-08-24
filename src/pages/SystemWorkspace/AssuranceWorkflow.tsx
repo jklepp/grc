@@ -178,7 +178,7 @@ function ActionWalk({
   if (complete) {
     const paused = skippedCount > 0 || liveOutstanding > 0;
     return (
-      <Modal open onClose={onClose} width={GUIDED_WORKFLOW_MODAL.width} height={GUIDED_WORKFLOW_MODAL.height}>
+      <Modal open onClose={onClose} width={GUIDED_WORKFLOW_MODAL.width} height={GUIDED_WORKFLOW_MODAL.height} requiresRoom="The Assurance Walk">
         <WizardChrome>
           <WizardHeader
             minHeight={GUIDED_WORKFLOW_HEADER_MIN_HEIGHT}

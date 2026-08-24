@@ -101,7 +101,7 @@ export default function CommonControlFramework() {
         }
       />
 
-      <div className="px-8 grid grid-cols-3 gap-4 mb-5">
+      <div className="px-4 lg:px-8 grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
         <div className="rounded-xl p-4 flex items-center justify-between gap-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
           <div className="shrink-0">
             <div className="text-2xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{standards.length}</div>
@@ -117,8 +117,8 @@ export default function CommonControlFramework() {
         <Tile value={CONTROLS.length} label="Common controls" hint="The full in-scope common-control set, before any system-specific assessment." />
       </div>
 
-      <div className="px-8 flex gap-5 pb-12">
-        <div className="w-64 shrink-0 rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}`, height: "fit-content" }}>
+      <div className="px-4 lg:px-8 flex flex-col lg:flex-row gap-4 lg:gap-5 pb-12">
+        <div className="w-full lg:w-64 shrink-0 rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}`, height: "fit-content" }}>
           <div className="p-3 flex items-center justify-between text-xs font-medium" style={{ borderBottom: `1px solid ${C.border}`, color: C.muted }}>
             <span>CONTROL DOMAINS ({domains.length})</span><span>{CONTROLS.length}</span>
           </div>

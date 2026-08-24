@@ -9,7 +9,7 @@ import type { TopRisk } from "./types";
 // Open findings/CAPs derived from these risks live on the Actions tab.
 export function SystemRisk({ topRisks }: { topRisks: TopRisk[] }) {
   return (
-    <div className="px-8 pb-10 space-y-8">
+    <div className="px-4 lg:px-8 pb-10 space-y-8">
       <Panel>
         <SectionHeader
           icon={TrendingUp}
@@ -21,14 +21,14 @@ export function SystemRisk({ topRisks }: { topRisks: TopRisk[] }) {
         ) : topRisks.map((r, index) => (
           <div
             key={r.id}
-            className="flex items-center justify-between gap-4 py-3"
+            className="flex items-center justify-between gap-4 py-3 max-lg:flex-wrap"
             style={{ borderTop: index > 0 ? `1px solid ${C.border}` : "none" }}
           >
             <div className="min-w-0">
               <div className="text-sm font-semibold" style={{ color: C.ink }}>{r.scenario}</div>
               <div className="text-xs mt-0.5" style={{ color: C.muted }}>{r.domain} · Owner: {r.owner}</div>
             </div>
-            <div className="flex items-center gap-4 shrink-0 text-xs">
+            <div className="flex items-center gap-4 shrink-0 max-lg:shrink max-lg:flex-wrap text-xs">
               <span style={{ color: r.residual.severity === "Severe" ? C.red : C.muted }}>Residual: {r.residual.severity} / {r.residual.likelihood}</span>
               <span style={{ color: C.muted }}>Control assurance: {r.assurance.pct ?? "—"}</span>
               <span className={r.appetiteRatio > 1 ? "font-semibold" : ""} style={{ color: r.appetiteRatio > 1 ? C.red : C.green }}>

@@ -23,7 +23,7 @@ interface PageHeaderProps {
 // instead of being the title itself.
 export function PageHeader({ icon: Icon, eyebrow, title, tagline, description, descriptionClassName = "max-w-2xl", right, children }: PageHeaderProps) {
   return (
-    <div className="px-8 pt-8 pb-4">
+    <div className="px-4 lg:px-8 pt-8 pb-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           {eyebrow && <div className="mb-1.5">{eyebrow}</div>}
@@ -72,7 +72,7 @@ interface TabBarProps<T extends string> {
 export function TabBar<T extends string>({ tabs, active, onChange, variant = "primary" }: TabBarProps<T>) {
   if (variant === "secondary") {
     return (
-      <div className="px-8 pt-6">
+      <div className="px-4 lg:px-8 pt-6">
         <div className="flex items-center gap-1 flex-wrap" style={{ borderBottom: `1px solid ${C.border}` }}>
           {tabs.map((t) => {
             const isActive = active === t.id;
@@ -98,7 +98,7 @@ export function TabBar<T extends string>({ tabs, active, onChange, variant = "pr
   }
 
   return (
-    <div className="px-8 pt-8">
+    <div className="px-4 lg:px-8 pt-8">
       <div className="inline-flex items-center gap-1 p-1 rounded-xl" style={{ background: C.panel2 }}>
         {tabs.map((t) => {
           const isActive = active === t.id;

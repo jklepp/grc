@@ -128,7 +128,7 @@ export default function PolicyCenter({ onNavigate }: { onNavigate?: (target: str
         description="Plain-language policies for every ACME employee, mapped to ISO 27001 and the SCF crosswalk."
       />
 
-      <div className="px-8 grid grid-cols-4 gap-4 mb-5">
+      <div className="px-4 lg:px-8 grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
           <div className="text-2xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{POLICIES.length}</div>
           <div className="text-xs mt-1" style={{ color: C.muted }}>Published policies</div>
@@ -147,8 +147,8 @@ export default function PolicyCenter({ onNavigate }: { onNavigate?: (target: str
         </div>
       </div>
 
-      <div className="px-8 flex gap-5 pb-12">
-        <div className="w-72 shrink-0 rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}`, height: "fit-content" }}>
+      <div className="px-4 lg:px-8 flex flex-col lg:flex-row gap-4 lg:gap-5 pb-12">
+        <div className="w-full lg:w-72 shrink-0 rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}`, height: "fit-content" }}>
           <div className="p-3" style={{ borderBottom: `1px solid ${C.border}` }}>
             <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg" style={{ background: C.panel2 }}>
               <Search size={13} color={C.muted} />

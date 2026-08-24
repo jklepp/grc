@@ -1212,7 +1212,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     // 980 is a ceiling, not a fixed size: Modal clamps it with `min(h, 100%)`,
     // so the wizard takes the whole viewport on a laptop instead of stopping at
     // 720px and leaving screen unused, and stops growing on a tall monitor.
-    <Modal open={open} onClose={close} width={1120} height={980}>
+    <Modal open={open} onClose={close} width={1120} height={980} requiresRoom="Adding a system">
       <WizardChrome>
         {/* One block: the left cell names the flow over the rail it heads,
             the eyebrow places you in the run, the step names itself below it,

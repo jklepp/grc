@@ -50,7 +50,7 @@ function Splash({ children }: { children: React.ReactNode }) {
   return (
     <div
       className="flex items-center justify-center"
-      style={{ background: C.bg, minHeight: "100vh", padding: 24 }}
+      style={{ background: C.bg, minHeight: "100dvh", padding: 24 }}
     >
       <style>{FONT_IMPORT}</style>
       {children}

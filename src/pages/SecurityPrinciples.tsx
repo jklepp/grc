@@ -46,7 +46,7 @@ function StatusBadge({ status }: { status: PrincipleStatus }) {
 
 function StatSummary({ activeStatus, onToggle }: { activeStatus: PrincipleStatus | null; onToggle: (status: PrincipleStatus | null) => void }) {
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
       {STATUS_ORDER.map((s) => {
         const isActive = activeStatus === s;
         const color = STATUS_COLOR[s]();
@@ -191,7 +191,7 @@ export default function SecurityPrinciples({ onNavigate }: { onNavigate?: (targe
         description="The concrete technical requirements every procedure assumes, organized by engineering discipline."
       />
 
-      <div className="px-8 pb-6">
+      <div className="px-4 lg:px-8 pb-6">
         <SectionHeading
           icon={ShieldAlert}
           hint="click a tile to filter the principles below"
@@ -206,21 +206,21 @@ export default function SecurityPrinciples({ onNavigate }: { onNavigate?: (targe
         <StatSummary activeStatus={activeStatus} onToggle={setActiveStatus} />
       </div>
 
-      <div className="px-8 pb-4">
+      <div className="px-4 lg:px-8 pb-4">
         <SectionHeading icon={Compass}>Foundational Principles</SectionHeading>
         <FoundationalStrip />
       </div>
 
       {!activeStatus && (
-        <div className="px-8 pb-4">
+        <div className="px-4 lg:px-8 pb-4">
           <h2 className="text-2xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>{selectedDomain.title}</h2>
           <p className="text-sm mt-1" style={{ color: C.muted }}>{selectedDomain.summary}</p>
         </div>
       )}
 
-      <div className="px-8 flex gap-5 pb-12">
+      <div className="px-4 lg:px-8 flex flex-col lg:flex-row gap-4 lg:gap-5 pb-12">
         {!activeStatus && (
-          <div className="w-64 shrink-0 rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}`, height: "fit-content" }}>
+          <div className="w-full lg:w-64 shrink-0 rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}`, height: "fit-content" }}>
             {PRINCIPLE_DOMAINS.map((d) => {
               const isActive = d.id === selectedDomainId;
               const Icon = DOMAIN_ICONS[d.id] || Shield;
