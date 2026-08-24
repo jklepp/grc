@@ -47,7 +47,9 @@ import {
   type AgentAutonomyLevel, type AgentCredentialType, type AgenticIdentity, type AgentPrivilegeLevel, type AgentRevocationMechanism,
 } from "../graph/nodes/agenticIdentities";
 import { useRoster } from "../auth/useRoster";
+import { useSignedInUser } from "../auth/useUser";
 import { isActive, ROLES } from "../auth/roster";
+import type { User } from "../auth/roster";
 
 // The one declaration of the run (CONTRACT 4.1). `title`/`detail` are the
 // rail's short forms; `heading`/`lead` are the same step spelled out for the
@@ -329,6 +331,11 @@ function defaultAssessmentTarget(): string {
   return new Date(Date.now() + 90 * 24 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
+/** The signed-in user's name when they can actually be assessor of record. */
+function defaultAssessorFor(user: User | null): string {
+  return user && user.roles.includes(ROLES.ASSESSOR) ? user.name : "";
+}
+
 // Providers eligible for a given hosting type: only ones whose certification
 // coverage already spans every domain that hosting type inherits. Anything
 // else would leave the system with zero assessed controls, which the
@@ -425,7 +432,14 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
   const [sdlcApplicable, setSdlcApplicable] = useState(false);
   const [ownerOrgId, setOwnerOrgId] = useState<OrgId | "">(ORGS[0]?.id ?? "");
   const roster = useRoster();
-  const [assessor, setAssessor] = useState("");
+  // The person opening this wizard is, nine times out of ten, the person who
+  // will grade the controls — so the field arrives filled in rather than asking
+  // them to pick themselves out of a list they are standing in. An admin, who
+  // does not hold the assessor role, still chooses (CONTRACT 3.1: don't ask a
+  // human for something the app already knows).
+  const signedInUser = useSignedInUser();
+  const defaultAssessor = defaultAssessorFor(signedInUser);
+  const [assessor, setAssessor] = useState(defaultAssessor);
   const [assessmentTarget, setAssessmentTarget] = useState(defaultAssessmentTarget);
 
   const [assets, setAssets] = useState<AssetDraft[]>([blankAsset(0)]);
@@ -513,7 +527,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     setHasThirdPartyIntegration(source.onboardingProfile.hasThirdPartyIntegration);
     setSdlcApplicable(source.onboardingProfile.sdlcApplicable);
     setOwnerOrgId(source.roles.find((role) => role.role === "System Owner")?.ownerId ?? ORGS[0]?.id ?? "");
-    setAssessor(scope?.assessor ?? "");
+    setAssessor(scope?.assessor ?? defaultAssessorFor(signedInUser));
     setAssessmentTarget(scope?.periodEnd ?? defaultAssessmentTarget());
     // A clone's assets/actors/flows/agents carry every field forward but none
     // of the source's real ids — draftKey() mints a synthetic key instead, and
@@ -620,7 +634,7 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
     setSystemDataTypeIds([]); setDataSearch(""); setInternetFacing(false);
     setUsesAI(false); setAutonomousActions(false); setStandards([]);
     setIdentityTypes([]); setNetworkExposure([]); setHasThirdPartyIntegration(false); setSdlcApplicable(false);
-    setOwnerOrgId(ORGS[0]?.id ?? ""); setAssessor(""); setAssessmentTarget(defaultAssessmentTarget());
+    setOwnerOrgId(ORGS[0]?.id ?? ""); setAssessor(defaultAssessor); setAssessmentTarget(defaultAssessmentTarget());
     setAssets([blankAsset(0)]); setActorDrafts([]); setFlowDrafts([]); setAgentDrafts([]); setDryRun(null);
     setTrackBackup(false); setBackupEnabled(true); setBackupCoveragePct(100); setBackupImmutable(false);
     setBackupCrossRegion(false); setBackupRpoTargetMinutes(60); setBackupRtoTargetMinutes(240);

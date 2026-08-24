@@ -1,7 +1,8 @@
 # Wizard UI contract
 
 Applies to every wizard-like surface: Add/Edit/Duplicate System, Scope Review,
-the control assessment walk, the evaluation panel, the Finding Editor, and
+the Assurance Walk and the phase surfaces it sequences, the control assessment
+walk, the evaluation panel, the Finding Editor, Settings' User Editor, and
 anything built on `WizardUI.tsx` later. Each rule below was paid for by a real
 defect in this app; the parenthetical names it where useful.
 
@@ -193,12 +194,19 @@ inside the item in hand, and the items across the whole run. It counts the one
 its header is titled after (4.11), once. Two readings of the same run, one band
 apart, is forbidden.
 
+A run assembled out of several surfaces has one further thing to show, and it is
+not a count: which phase of the run this surface is. That is the conductor's
+stage strip (4.14). It names phases rather than counting steps, which is why it
+is not a second indicator and cannot disagree with the one beside it.
+
 **4.10 One chrome stack, in one order.** Every wizard screen — including
 completion screens and the holds between items — is a masthead, optionally one
 `WizardStrip`, then the body, then `WizardFooter`. A screen that drops the
 masthead for a floating close button, or centres its content in a div of its
 own, is not a different kind of screen; it is the same wizard mid-flow and
-reads as one.
+reads as one. A screen whose body genuinely is one centred statement — a
+completion screen, a hold between phases — reaches for `WizardOutcomePane`
+inside that stack: the pane centres, the stack stays.
 
 There is one masthead form only: the **unified masthead**.
 
@@ -206,6 +214,9 @@ There is one masthead form only: the **unified masthead**.
   declared once beside `WizardBody`, never restated in a caller).
 - Left cell: `WizardRailSummary` over the rail — the flow's mark and name.
 - Right cell: the step (or subject) in hand, flush with the pane.
+- The right cell's `aside`: the stage strip (4.14) where the surface is
+  running as a phase, and the unsaved-count pill where the footer's position
+  slot is already spent on the run (5.7). Nothing else rides there.
 - Run position rides the bottom edge as a flush `ProgressBar` when the surface
   has a multi-step run.
 - One block, one background, no banner above it.
@@ -277,6 +288,26 @@ inside the scrolling pane leaves the reader, two fields down, with no answer to
 "which step is this" — and it pushes the fields themselves below the fold on
 arrival. The kit offers no in-pane step heading; a step body starts with its
 first `Section`.
+
+**4.14 A run assembled from several surfaces keeps one shell and one strip.**
+The Assurance Walk conducts four phases — scope, assess, findings, remediate —
+each rendered by a surface that also stands alone (Scope Review, the control
+assessment walk, the evaluation panel). Two things hold that run together:
+
+- **One shell.** Every phase opens at `GUIDED_WORKFLOW_MODAL` with its masthead
+  at `GUIDED_WORKFLOW_HEADER_MIN_HEIGHT`, both declared once in `WizardUI.tsx`.
+  A phase that sizes its own modal makes the chrome jump at every hand-off, and
+  four sizes read as four modals rather than one run. A surface opened on its
+  own may size itself; the same surface opened as a phase takes the shared
+  shell.
+- **One strip.** `WizardMiniFlow` rides the header's `aside`, naming the phase
+  in hand and offering the rest. It names phases; it never counts steps, and it
+  is not the surface's progress indicator (4.9) — the rail or bar below it
+  counts the steps inside this phase. Both read one declared stage order
+  (`WizardStageNavigation`), so they cannot disagree.
+
+The strip belongs to the conductor. A surface opened outside a run renders no
+strip and invents no phases of its own.
 
 ## 5. Writes and saving
 
@@ -382,6 +413,7 @@ Walk these and each must match every other wizard:
 5. Terminology (2.2, 2.4, 2.7, 2.8)
 6. Error handling (6.3–6.4)
 7. Masthead form (4.10–4.13) — unified only; no banner
+8. Run chrome, where the surface is a phase (4.14) — shared shell, one strip
 
 A deviation is either a defect to fix or a rule to amend here — never an
 undocumented local exception.

@@ -17,7 +17,7 @@ import {
   evaluateControl, addPrismaOverride, updateEvidence, removeEvidence, addFinding, updateFinding, commitRuntimeFacts,
 } from "../../engine";
 import { upsertControlReview, addClosureEvidence } from "../../engine/runtimeMutations";
-import { FindingEditor } from "./FindingEditor";
+import { defaultFindingOwnerId, FindingEditor } from "./FindingEditor";
 import type { ClosureEvidenceRef, FindingFormState } from "./FindingEditor";
 import { buildLiveEngine } from "../../engine/liveGraph";
 import { effectiveRating, initialLaneGraderState, laneGraderBlocker, laneGrades, PrismaLaneGrader } from "./PrismaLaneGrader";
@@ -666,7 +666,7 @@ export function ControlEvaluationPanel({
   const [editingFindingId, setEditingFindingId] = useState<FindingId | null>(null);
   const [completingFindingId, setCompletingFindingId] = useState<FindingId | null>(null);
   const [saveError, setSaveError] = useState<string[] | null>(null);
-  const [gapNudge, setGapNudge] = useState<{ level: PrismaLevel; rating: ComplianceRating } | null>(null);
+  const [gapNudgeDismissed, setGapNudgeDismissed] = useState(false);
   // Scope-exclusion state: the reason disclosure is open, and whether an
   // exclusion is already staged. `excludeStaged` is not cosmetic — see
   // savingAssessment, which has to stop routing Save through the grader once
@@ -834,6 +834,29 @@ export function ControlEvaluationPanel({
   // What the grid grades against: the live preview while a control is still
   // unassessed, the control's own lanes once it is.
   const gradingLevels = previewLevels ?? assessment?.levels ?? null;
+  // The nudge that turns a weak grade into a Finding without leaving the panel.
+  //
+  // Derived from the grades ON SCREEN rather than raised after the write, which
+  // is what it used to do and why nobody ever saw it: saving either advances the
+  // walk to the next control or closes the panel, so the callout was always
+  // mounted onto a page that had just gone away. A finding staged here joins the
+  // same commit as the grade (5.6), so offering it before Save costs nothing and
+  // saves the operator hunting for the Findings step themselves.
+  //
+  // Reads the IMPLEMENTED lane only — the one call that is the assessor's to
+  // make. Judging the worst of all five would raise the callout on almost every
+  // control in the run, because Measured and Managed derive low across a boundary
+  // nobody has instrumented yet; those still get swept up by the Findings & CAPs
+  // lane, which exists for exactly that. Silent until the lane is actually
+  // graded, and silent again once an open finding tracks the gap.
+  const gapNudge = ((): { level: PrismaLevel; rating: ComplianceRating } | null => {
+    if (gapNudgeDismissed || !gradingLevels) return null;
+    if (!assessed && laneState.ratings.Implemented == null) return null;
+    if (controlFindings.some((finding) => finding.open)) return null;
+    const implemented = effectiveRating(laneState, gradingLevels, "Implemented", assessed);
+    return implemented != null && isGapRating(implemented) ? { level: "Implemented", rating: implemented } : null;
+  })();
+
   const laneBlocker = gradingLevels
     ? laneGraderBlocker({
         value: laneState, assessed,
@@ -1052,13 +1075,6 @@ export function ControlEvaluationPanel({
     setPendingChanges([]);
     setLaneDirty(false);
 
-    // Nudge off the grades just committed, not row.assessment — that prop has
-    // not caught up with this write yet. Skipped once a finding already tracks
-    // this control's gap, so re-saving the same low grade doesn't re-nag.
-    const worst = [...grades].sort((a, b) => a.rating - b.rating)[0];
-    const alreadyTracked = controlFindings.some((f) => f.open);
-    setGapNudge(worst && isGapRating(worst.rating) && !alreadyTracked ? { level: worst.level, rating: worst.rating } : null);
-
     if (walk) walk.onRecorded(implemented.rating, continueWalk);
     else onClose();
   }
@@ -1189,8 +1205,30 @@ export function ControlEvaluationPanel({
       )}
 
       <WizardBody enter={Boolean(walk) && !workflowNavigation}>
-        {/* ---- Rail: walk domains (walk mode only), then this control's steps ---- */}
+        {/* ---- Rail: this control's steps, then the walk's own queue ---- */}
+        {/* Steps first, deliberately. They are the rail of the pane in hand —
+            the four things this screen does, one of which is filing the Finding
+            the grade just earned. A run with eleven domains pushed them a full
+            screen below the fold, so the in-context act the assessment is FOR
+            could only be reached by scrolling a column nothing said scrolled.
+            The queue below is navigation across the run, which is where a jump
+            list belongs. */}
         <WizardRail label="Assessment steps">
+          <RailGroup label={walk ? "This control" : undefined}>
+            {STEPS.map((s) => {
+              const badge = s.id === "findings" ? openControlFindings.length : null;
+              return (
+                <RailItem
+                  key={s.id}
+                  icon={s.icon}
+                  title={s.label}
+                  detail={badge != null && badge > 0 ? `${badge} open` : undefined}
+                  state={s.id === activeStep ? "active" : "pending"}
+                  onClick={() => setActiveStep(s.id)}
+                />
+              );
+            })}
+          </RailGroup>
           {walk && (
             <RailGroup label={walk.groupLabel ?? "Domains"}>
               {walk.domains.map((d) => {
@@ -1209,21 +1247,6 @@ export function ControlEvaluationPanel({
               })}
             </RailGroup>
           )}
-          <RailGroup label={walk ? "This control" : undefined}>
-            {STEPS.map((s) => {
-              const badge = s.id === "findings" ? openControlFindings.length : null;
-              return (
-                <RailItem
-                  key={s.id}
-                  icon={s.icon}
-                  title={s.label}
-                  detail={badge != null && badge > 0 ? `${badge} open` : undefined}
-                  state={s.id === activeStep ? "active" : "pending"}
-                  onClick={() => setActiveStep(s.id)}
-                />
-              );
-            })}
-          </RailGroup>
         </WizardRail>
 
         {/* ---- Content pane ---- */}
@@ -1397,17 +1420,20 @@ export function ControlEvaluationPanel({
                         setActiveStep("findings");
                         setCreatingFinding(true);
                         setCreatingFindingInitial({
-                          title: `${gapNudge.level} below threshold`,
+                          // Same title shape Findings & CAPs uses when it files
+                          // against a control, so one act does not arrive named
+                          // two ways depending on where it was started (2.2).
+                          title: `${row.control.name} gap`,
                           detail: `${gapNudge.level} lane scored ${gapNudge.rating} — ${COMPLIANCE_LABELS[gapNudge.rating]}.`,
                           severity: suggestedFindingSeverity(gapNudge.rating),
                           source: "control-gap",
                         });
-                        setGapNudge(null);
+                        setGapNudgeDismissed(true);
                       }}
                     >
                       Log finding
                     </Button>
-                    <Button size="sm" onClick={() => setGapNudge(null)}>Dismiss</Button>
+                    <Button size="sm" onClick={() => setGapNudgeDismissed(true)}>Dismiss</Button>
                   </span>
                 </Callout>
               )}
@@ -1721,7 +1747,7 @@ export function ControlEvaluationPanel({
               {creatingFinding && (
                 <FindingEditor
                   blocker={permissionBlocker}
-                  initial={{ ...creatingFindingInitial, controlId: row.control.id }}
+                  initial={{ ownerId: defaultFindingOwnerId(system.roles), ...creatingFindingInitial, controlId: row.control.id }}
                   assetOptionsFor={findingAssetOptions}
                   onCancel={() => { setCreatingFinding(false); setCreatingFindingInitial(null); }}
                   onSubmit={handleCreateFinding}
@@ -1772,7 +1798,7 @@ export function ControlEvaluationPanel({
                         </div>
                         {f.remediationPlan && <div className={TX.help} style={{ color: C.ink }}>{f.remediationPlan}</div>}
                         <div className={TX.help} style={{ color: f.overdue ? C.amber : C.muted }}>
-                          {f.remediationOwnerName ?? f.ownerName} · target {f.targetDate ?? f.due}{f.overdue && " · OVERDUE"}
+                          {f.remediationOwnerName ?? f.ownerName} · due {f.due}{f.overdue && " · OVERDUE"}
                         </div>
                         {f.id.startsWith("FND-USR-") && (
                           <div className="flex items-center gap-2 flex-wrap pt-2.5" style={{ borderTop: `1px solid ${C.border}` }}>

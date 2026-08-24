@@ -29,7 +29,7 @@ import { C } from "../../theme";
 import { selectedValue } from "./formHelpers";
 import type { AssetOption } from "./formHelpers";
 import type { FindingDraft } from "../../engine";
-import type { ControlId } from "../../graph/ids";
+import type { ControlId, OrgId } from "../../graph/ids";
 import type { FindingSeverity, FindingSource, RemediationStatus } from "../../graph/nodes/findings";
 
 export interface FindingFormState {
@@ -50,6 +50,17 @@ export interface FindingFormState {
   // Free text, turned into a real Evidence record by the host's mutation.
   // Only collected when the status being saved is Complete.
   closureEvidence: string;
+}
+
+/**
+ * Who a new finding belongs to until somebody says otherwise: the system's own
+ * System Owner. The register's alphabetically-first org — which is what an
+ * untouched Select lands on — is never the right answer, and asking the
+ * operator to re-pick something the boundary already records is exactly the
+ * kind of question CONTRACT 3.1 forbids.
+ */
+export function defaultFindingOwnerId(roles: readonly { role: string; ownerId: OrgId }[] | undefined): string {
+  return roles?.find((role) => role.role === "System Owner")?.ownerId ?? ORGS[0]?.id ?? "";
 }
 
 export const EMPTY_FINDING_FORM: FindingFormState = {
@@ -198,7 +209,7 @@ export function FindingFields({ state, controlOptions }: {
             {REMEDIATION_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
           </Select>
         </Field>
-        <Field label="Due" error={form.due ? null : "Required."}>
+        <Field label="Due" note="When the finding must be closed. This is the date that makes it overdue." error={form.due ? null : "Required."}>
           <TextInput type="date" value={form.due} aria-label="Due date" onChange={(e) => setField("due", e.target.value)} />
         </Field>
         <Field label="Remediation owner" note="Optional.">
@@ -207,7 +218,7 @@ export function FindingFields({ state, controlOptions }: {
             {ORGS.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
           </Select>
         </Field>
-        <Field label="Target date" note="Optional.">
+        <Field label="Target date" note="Optional — when the CAP expects to land, if that differs from Due.">
           <TextInput type="date" value={form.targetDate} aria-label="Target date" onChange={(e) => setField("targetDate", e.target.value)} />
         </Field>
         <Field label="Remediation plan (CAP)" span2 note="What will fix this. A gap's Finding counts as recorded once it carries a plan; without one it stays open in Gaps & CAPs.">

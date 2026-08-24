@@ -34,6 +34,14 @@ interface WorkItem {
 const FINDING_GROUPS = ["Needs Finding", "Needs CAP"] as const;
 const REMEDIATION_GROUPS = ["Open remediation", "Ready to reassess"] as const;
 
+/** The `key` prefix each queue group mints, declared once beside the groups. */
+function groupKeyPrefix(group: string): string {
+  if (group === FINDING_GROUPS[0]) return "finding";
+  if (group === FINDING_GROUPS[1]) return "cap";
+  if (group === REMEDIATION_GROUPS[1]) return "reassess";
+  return "remediate";
+}
+
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -117,13 +125,22 @@ function ActionWalk({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, stage]);
 
+  // A group's population is the DISTINCT items it has held this run — the ones
+  // still queued plus the ones already worked. Summing the two double-counts an
+  // item that is both, which "Ready to reassess" produces routinely: regrading a
+  // control that is still short of full compliance leaves it in the queue it was
+  // just worked out of, and the rail then read "2 decided" for a group of one
+  // (CONTRACT 4.6). Keys are `${prefix}:${controlId}`, so a Set settles it.
   useEffect(() => {
     if (!open) return;
     setGroupTotals((current) => {
       const next = { ...current };
       groups.forEach((group) => {
-        const observed = queue.filter((item) => item.group === group).length
-          + [...handledKeys].filter((key) => key.startsWith(group === FINDING_GROUPS[0] ? "finding:" : group === FINDING_GROUPS[1] ? "cap:" : group === REMEDIATION_GROUPS[1] ? "reassess:" : "remediate:")).length;
+        const prefix = `${groupKeyPrefix(group)}:`;
+        const observed = new Set([
+          ...queue.filter((item) => item.group === group).map((item) => item.key),
+          ...[...handledKeys].filter((key) => key.startsWith(prefix)),
+        ]).size;
         next[group] = Math.max(next[group] ?? 0, observed);
       });
       return next;

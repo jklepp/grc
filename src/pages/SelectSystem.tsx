@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Server, Plus, AlertTriangle, Search, Pencil, Copy, Trash2, Download } from "lucide-react";
 import { C } from "../theme";
 import { PageHeader } from "../components/Headings";
@@ -151,6 +151,7 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
   const [deleteProblems, setDeleteProblems] = useState<string[]>([]);
   const [restoreProblems, setRestoreProblems] = useState<string[]>([]);
   const [query, setQuery] = useState("");
+  const [pendingOpenId, setPendingOpenId] = useState<SystemId | null>(null);
   const liveEngine = useLiveEngine();
   const user = useSignedInUser();
   // Hidden rather than disabled: no system a reader could click on would make
@@ -244,15 +245,22 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
   function handleWizardSaved(systemId: SystemId) {
     const created = editingSystemId === null;
     closeWizard();
-    if (created) {
-      // commitRuntimeFacts publishes the new engine in the same event as this
-      // callback. Let that external-store update render before asking Systems
-      // to validate and open the new id; otherwise the picker can evaluate the
-      // route against its previous engine snapshot and remain on screen until
-      // a reload even though the hash already names the workspace.
-      requestAnimationFrame(() => onSelectSystem(systemId, { startAssessment: true }));
-    }
+    // commitRuntimeFacts publishes the new engine in the same event as this
+    // callback, and Systems validates the route against systemRollups — so
+    // asking it to open the id right here can be answered against the previous
+    // engine snapshot, leaving the picker on screen with the hash already
+    // naming the workspace. Wait for the condition that actually matters,
+    // below, rather than for a frame: requestAnimationFrame did this job on
+    // screen but never fires in a background tab, so a wizard finished on a tab
+    // the operator had switched away from stranded them on the picker.
+    if (created) setPendingOpenId(systemId);
   }
+
+  useEffect(() => {
+    if (!pendingOpenId || !systems.some((system) => system.id === pendingOpenId)) return;
+    setPendingOpenId(null);
+    onSelectSystem(pendingOpenId, { startAssessment: true });
+  }, [onSelectSystem, pendingOpenId, systems]);
 
   return (
     <div className="w-full">

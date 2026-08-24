@@ -227,7 +227,7 @@ function FindingRow({ f, onSelectControl }: { f: EngineFinding; onSelectControl:
             {f.title}
           </div>
           <div className="text-xs mt-0.5 truncate" style={{ color: f.overdue ? C.red : C.muted }}>
-            {f.ownerName} · target {f.targetDate ?? f.due}{f.overdue ? " · overdue" : ""}
+            {f.ownerName} · due {f.due}{f.overdue ? " · overdue" : ""}
           </div>
         </div>
       )}

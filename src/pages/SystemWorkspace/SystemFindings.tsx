@@ -5,7 +5,7 @@ import { SectionHeader } from "./shared/SectionHeader";
 import { TableHeaderCell } from "./shared/TableHeaderCell";
 import type { TableSortState } from "./shared/TableHeaderCell";
 import { FilterSelect } from "./shared/FilterSelect";
-import { FindingEditorModal } from "./FindingEditor";
+import { defaultFindingOwnerId, FindingEditorModal } from "./FindingEditor";
 import { Button, SaveErrorCallout, SearchInput, StatusPill } from "../../components/wizard/WizardUI";
 import {
   addFinding, updateFinding, commitRuntimeFacts,
@@ -54,7 +54,7 @@ const THEME_COLOR: Record<string, string> = {
 // than claiming a column, exactly as CONTROL does over there.
 const FINDING_GRID = "2fr 96px 136px 150px 104px 132px";
 
-type FindingSortKey = "severity" | "status" | "owner" | "target";
+type FindingSortKey = "severity" | "status" | "owner" | "due";
 type FindingSort = TableSortState<FindingSortKey>;
 
 // Lifecycle order, not severity order: this column answers "where is it in the
@@ -80,7 +80,7 @@ function sortFindings(rows: EngineFinding[], sort: FindingSort | null): EngineFi
       case "severity": return SEVERITY_RANK[f.severity ?? ""] ?? 99;
       case "status": return REMEDIATION_RANK[f.remediationStatus] ?? 99;
       case "owner": return f.ownerName ?? "";
-      case "target": return f.due;
+      case "due": return f.due;
       default: return 0;
     }
   };
@@ -349,7 +349,7 @@ export function SystemFindings({ systemId, findings, formalAssessment }: SystemF
         <SectionHeader
           icon={ListTodo}
           title="Findings & CAPs"
-          description="Every gap recorded against this system, with its corrective action plan, responsible resource, and target date. A finding is a gap in a control; the asset, where named, is where it was observed."
+          description="Every gap recorded against this system, with its corrective action plan, responsible resource, and due date. A finding is a gap in a control; the asset, where named, is where it was observed."
           aside={(
             <div className="flex items-center gap-2">
               <StatusPill tone="neutral">{openCount} open</StatusPill>
@@ -476,7 +476,11 @@ export function SystemFindings({ systemId, findings, formalAssessment }: SystemF
             <TableHeaderCell label="SEVERITY" sortKey="severity" sort={sort} onSort={onSort} />
             <TableHeaderCell label="STATUS" sortKey="status" sort={sort} onSort={onSort} />
             <TableHeaderCell label="OWNER" sortKey="owner" sort={sort} onSort={onSort} />
-            <TableHeaderCell label="TARGET" sortKey="target" sort={sort} onSort={onSort} />
+            {/* The column is the finding's DUE date — it is what `overdue` is
+                computed from, and calling it "Target" while the editor beside
+                it also has a separate Target date field made two different
+                dates share one word (CONTRACT 2.7). */}
+            <TableHeaderCell label="DUE" sortKey="due" sort={sort} onSort={onSort} />
             <TableHeaderCell label="ACTION" />
           </div>
 
@@ -540,11 +544,14 @@ export function SystemFindings({ systemId, findings, formalAssessment }: SystemF
             remediationStatus: completingId === editing.id ? "Complete" : editing.remediationStatus, due: editing.due,
             remediationPlan: editing.remediationPlan ?? "",
             remediationOwnerId: editing.remediationOwnerId ?? "", targetDate: editing.targetDate ?? "",
-          } : creatingControl ? {
-            controlId: creatingControl.id,
-            title: `${creatingControl.name} gap`,
-            source: "control-gap",
-          } : undefined}
+          } : {
+            ownerId: defaultFindingOwnerId(liveEngine.graph.systemById[systemId]?.roles),
+            ...(creatingControl ? {
+              controlId: creatingControl.id,
+              title: `${creatingControl.name} gap`,
+              source: "control-gap" as const,
+            } : {}),
+          }}
           onCancel={() => { setCreating(false); setCreatingForControlId(null); setEditingId(null); setCompletingId(null); setSaveError(null); }}
           onSubmit={(draft, closureEvidence) => {
             const ok = commit((runtime) => {
