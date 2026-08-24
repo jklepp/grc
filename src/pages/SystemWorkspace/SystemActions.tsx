@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Calendar, Check, ChevronRight, ClipboardCheck, FileWarning, ListChecks, Wrench } from "lucide-react";
+import { Calendar, Check, ChevronRight, ClipboardCheck, FileWarning, Wrench } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { C } from "../../theme";
 import { Panel } from "./shared/Panel";
@@ -397,8 +397,6 @@ export function SystemActions({
       <Panel>
         <WizardTokens>
         <SectionHeader
-          icon={ListChecks}
-          title="Actions"
           description="Every outstanding action for this system, grouped by what it needs: scheduled work coming due, controls still unassessed, gaps with no Finding or CAP filed, and open Findings in remediation through to reassessment."
           aside={<StatusPill tone={allClear ? "success" : "neutral"}>{doneCount} of {GROUPS.length} clear</StatusPill>}
         />

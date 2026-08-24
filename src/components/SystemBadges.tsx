@@ -15,7 +15,10 @@ const BADGE_COLORS = {
   muted: { color: C.muted, bg: "transparent" },
 };
 
-function colorFor(key: string): { color: string; bg: string } {
+// Exported so a surface that shows an assurance band's word next to the ring
+// (the System workspace identity bar) colours it from the same table the ring
+// itself uses, instead of keeping a second copy of the mapping.
+export function badgeColorFor(key: string): { color: string; bg: string } {
   if (key in BADGE_COLORS) return BADGE_COLORS[key as keyof typeof BADGE_COLORS];
   return BADGE_COLORS.muted;
 }
@@ -29,7 +32,7 @@ export function AssuranceBadge({ pct, size = 34 }: { pct?: number | null; size?:
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
   const offset = circumference * (1 - pct / 100);
-  const color = colorFor(assuranceBand(pct).color).color;
+  const color = badgeColorFor(assuranceBand(pct).color).color;
   return (
     <div className="inline-flex items-center gap-1.5 shrink-0" title={`${pct}% Cyber Assurance`}>
       <div style={{ position: "relative", width: size, height: size }}>
@@ -219,7 +222,7 @@ export function SystemPicker({ systems, systemId, onSelect, width = 380 }: Syste
                 <div className="flex items-center gap-2 shrink-0">
                   {s.classification && <ClassificationTag level={s.classification} />}
                   {s.overallAssurance != null && (
-                    <span className="text-xs font-semibold w-9 text-right" style={{ color: colorFor(assuranceBand(s.overallAssurance).color).color }}>{s.overallAssurance}%</span>
+                    <span className="text-xs font-semibold w-9 text-right" style={{ color: badgeColorFor(assuranceBand(s.overallAssurance).color).color }}>{s.overallAssurance}%</span>
                   )}
                 </div>
               </button>

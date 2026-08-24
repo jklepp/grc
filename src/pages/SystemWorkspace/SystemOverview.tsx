@@ -3,13 +3,8 @@ import { FileDown } from "lucide-react";
 import { C } from "../../theme";
 import { PrismaLadder } from "./overview/PrismaLadder";
 import { AssessmentReadiness } from "./overview/AssessmentReadiness";
-import { AttentionRequired } from "./overview/AttentionRequired";
-import { SystemSnapshot } from "./overview/SystemSnapshot";
 import { Panel } from "./shared/Panel";
-import type {
-  CockpitSummary, ExposurePosture, WorkspaceDataType, WorkspaceSystem,
-} from "./types";
-import type { SystemWorkspaceTab } from "./tabs";
+import type { CockpitSummary, WorkspaceSystem } from "./types";
 import type { FormalAssessmentStatus } from "../../engine/review";
 import type { AssuranceStageId } from "./AssuranceWorkflow";
 
@@ -17,9 +12,6 @@ interface SystemOverviewProps {
   system: WorkspaceSystem;
   cockpit: CockpitSummary;
   compliance: number | null;
-  exposure: ExposurePosture;
-  dataTypes: WorkspaceDataType[];
-  onNavigate: (tab: SystemWorkspaceTab) => void;
   onOpenAssurance: (stage: AssuranceStageId) => void;
   onGenerateIsoReport: () => Promise<void>;
   formalAssessment: FormalAssessmentStatus;
@@ -27,8 +19,7 @@ interface SystemOverviewProps {
 
 export function SystemOverview(props: SystemOverviewProps) {
   const {
-    system, cockpit, compliance, exposure,
-    dataTypes, onNavigate, onOpenAssurance, onGenerateIsoReport,
+    system, cockpit, compliance, onOpenAssurance, onGenerateIsoReport,
     formalAssessment,
   } = props;
   const [generatingReport, setGeneratingReport] = useState(false);
@@ -57,11 +48,6 @@ export function SystemOverview(props: SystemOverviewProps) {
           onRemediateClick={() => onOpenAssurance("remediate")}
         />
       </Panel>
-
-      <div className="grid grid-cols-2 gap-5">
-        <SystemSnapshot system={system} exposure={exposure} dataTypes={dataTypes} />
-        <AttentionRequired cockpit={cockpit} onNavigate={onNavigate} />
-      </div>
 
       <Panel className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2 min-w-0">

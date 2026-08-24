@@ -5,6 +5,7 @@ import { SUB_TABS } from "./tabs";
 import { STATUS_ORDER } from "./controlMeta";
 import { SystemHeader } from "./SystemHeader";
 import { SystemOverview } from "./SystemOverview";
+import { SystemDetails } from "./SystemDetails";
 import { SystemArchitecture } from "./SystemArchitecture";
 import { SystemData } from "./SystemData";
 import { SystemIdentity } from "./SystemIdentity";
@@ -29,7 +30,7 @@ import type { SystemWorkspaceTab } from "./tabs";
 import type { ReviewWave } from "../../engine/review";
 import { useLiveEngine } from "../../engine/useLiveEngine";
 import { useSignedInUser } from "../../auth/useUser";
-import { canAssess, canEditSystem, allows } from "../../auth/gates";
+import { canAssess, allows } from "../../auth/gates";
 
 const SYSTEMS = getAllSystems();
 
@@ -222,32 +223,25 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
 
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <SystemHeader
-        system={system}
-        systems={systems}
-        systemId={systemId}
-        onSelectSystem={selectSystem}
-        onEdit={allows(canEditSystem(user, system)) ? () => {
-          setEditorInitialStep(1);
-          setResumeScopeAfterEdit(false);
-          setResumeAssuranceAfterEdit(false);
-          setEditorOpen(true);
-        } : undefined}
-        formallyAssessed={formalAssessment.complete}
-      />
+      <SystemHeader system={system} formallyAssessed={formalAssessment.complete}>
+        <WorkspaceTabBar tabs={SUB_TABS} active={subTab} onChange={changeSubTab} />
+      </SystemHeader>
 
-      <WorkspaceTabBar tabs={SUB_TABS} active={subTab} onChange={changeSubTab} />
-
-      <div className="pt-6" />
+      <div className="pt-5" />
 
       {subTab === "overview" && (
         <SystemOverview
           system={system} cockpit={cockpit} compliance={posture.compliance}
-          exposure={exposure}
-          dataTypes={dataTypes} onNavigate={changeSubTab}
           onOpenAssurance={openAssurance}
           onGenerateIsoReport={generateIsoReport}
           formalAssessment={formalAssessment}
+        />
+      )}
+
+      {subTab === "details" && (
+        <SystemDetails
+          system={system} cockpit={cockpit} exposure={exposure}
+          dataTypes={dataTypes} onNavigate={changeSubTab}
         />
       )}
 
