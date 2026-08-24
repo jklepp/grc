@@ -4,7 +4,8 @@ import type { SystemWorkspaceTab } from "./pages/SystemWorkspace/tabs";
 import type { SystemId } from "./graph/ids";
 
 // The URL hash is the single source of truth for where the user is:
-//   #/overview[/dashboard|risk-register|footprint]
+//   #/overview[/dashboard]        → risk-register|footprint parse, then fall
+//                                   back to dashboard while deprecated
 //   #/systems                     → system picker
 //   #/systems/<SystemId>[/<tab>]  → one system's workspace, on a tab
 //   #/governance[/ccf|policy|procedures|principles|schedule|exceptions]

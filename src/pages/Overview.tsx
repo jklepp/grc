@@ -21,6 +21,10 @@ export default function Overview({
 }) {
   const area: OverviewAreaId = initialTab ?? "dashboard";
 
+  // Risk Register and Enterprise Footprint are deprecated: `deprecated: true`
+  // in overviewAreas.ts keeps them out of the nav and stops App from ever
+  // resolving their tab, so these two branches are unreachable today. They
+  // stay wired up so that clearing the flag is the entire restore.
   if (area === "risk-register") return <RiskRegister />;
   if (area === "footprint") return <DataFootprint />;
   return <ExecutiveDashboard onNavigate={onNavigate} onOpenSystem={onOpenSystem} />;
