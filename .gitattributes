@@ -1,0 +1,4 @@
+# Keep LF in the repo regardless of a contributor's core.autocrlf setting,
+# so a commit from a Windows clone cannot introduce CRLF.
+* text=auto eol=lf
+*.pdf binary

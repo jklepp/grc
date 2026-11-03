@@ -36,7 +36,7 @@ try {
       onboardingProfile: { identityTypes: [], networkExposure: ["private-internal"], hasThirdPartyIntegration: false, sdlcApplicable: false },
     }],
     assets: [{
-      id: assetId, systemId, name: "Verification Asset", type: "server", kind: "compute-service",
+      id: assetId, systemIds: [systemId], name: "Verification Asset", type: "server", kind: "compute-service",
       provider: "AWS", code: "A1",
       impactLevel: "moderate",
       inherentLikelihood: 1,
@@ -92,7 +92,7 @@ try {
   console.log("\nPASS — evaluateControl() moves a runtime system's control from unassessed/inherited to individually assessed.");
   process.exitCode = 0;
 } catch (err) {
-  console.error("\nFAIL —", err.message);
+  console.error("\nFAIL —", err.stack);
   process.exitCode = 1;
 } finally {
   await server.close();
