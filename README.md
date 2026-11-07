@@ -60,11 +60,12 @@ npm run dev
 | --- | --- |
 | `git commit` | `.githooks/pre-commit`: gitleaks on the staged changes |
 | `git push` | `.githooks/pre-push`: refuses direct pushes to `main`, then `verify` |
-| Pull requests and pushes to `main` | `.github/workflows/verify.yml`: `npm ci` + `verify` on the self-hosted runner |
+| Pull requests | `.github/workflows/verify.yml`: `npm ci` + `verify` on the self-hosted runner |
+| Pushes to `main` | `.github/workflows/deploy.yml`: `npm ci` + `verify`, then publish `dist/` to GitHub Pages, all on the self-hosted runner |
 
 The runner is self-hosted only. `scripts/check-workflows.mjs` fails `verify` if any job could run on a GitHub-hosted runner. There is no scheduled run, so to check unchanged code against newly published advisories, run `npm run verify` by hand.
 
-Hooks can be skipped with `--no-verify`. On GitHub Free a private repo has no branch protection, so the runner's result is advisory: it records a pass or fail but does not block a merge.
+Hooks can be skipped with `--no-verify`. A push to `main` that fails `verify` is never deployed. The Pages source must be "GitHub Actions" (`deploy.yml`), not "Deploy from a branch", which builds on GitHub's hosted runners.
 
 ## Scripts
 

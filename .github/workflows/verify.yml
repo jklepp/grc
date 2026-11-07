@@ -8,9 +8,8 @@ name: verify
 
 on:
   pull_request:
-  # Catches direct pushes to main, including ones made with --no-verify.
-  push:
-    branches: [main]
+  # Pushes to main are checked by deploy.yml, which runs verify before it
+  # publishes; running it here too would check every merge twice.
   # No schedule: turned off by choice. Run it by hand from the Actions tab, or
   # `npm run verify` locally, to check unchanged code against new advisories.
   workflow_dispatch:
