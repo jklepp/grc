@@ -42,6 +42,17 @@ jobs:
       # Includes the production build, so dist/ is what verify checked.
       - run: npm run verify
 
+      # Full verify output for this deploy, kept on the runner; see verify.yml.
+      - name: Keep verify log on the runner
+        if: always()
+        run: |
+          dir="$HOME/verify-logs"
+          mkdir -p "$dir"
+          if [ -f logs/verify.log ]; then
+            cp logs/verify.log "$dir/$(date -u +%Y%m%dT%H%M%SZ)-$GITHUB_WORKFLOW-$GITHUB_RUN_ID-${GITHUB_SHA:0:7}.log"
+          fi
+          find "$dir" -name '*.log' -mtime +90 -delete
+
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: dist

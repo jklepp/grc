@@ -44,3 +44,18 @@ jobs:
 
       - run: npm ci
       - run: npm run verify
+
+      # Keep verify's full output on the runner, not on GitHub: the repo is
+      # public, and so would an uploaded artifact be. checkout wipes the
+      # workspace each run, so the copy goes outside it. always(): a failed
+      # run is the one whose log matters most. Logs older than 90 days are
+      # pruned, matching what GitHub would have kept.
+      - name: Keep verify log on the runner
+        if: always()
+        run: |
+          dir="$HOME/verify-logs"
+          mkdir -p "$dir"
+          if [ -f logs/verify.log ]; then
+            cp logs/verify.log "$dir/$(date -u +%Y%m%dT%H%M%SZ)-$GITHUB_WORKFLOW-$GITHUB_RUN_ID-${GITHUB_SHA:0:7}.log"
+          fi
+          find "$dir" -name '*.log' -mtime +90 -delete
