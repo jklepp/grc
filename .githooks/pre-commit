@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Block commits that add secrets. See scripts/scan-secrets.mjs.
+# Installed by `npm install` / `npm ci` via the "prepare" script, which points
+# git's core.hooksPath at this directory.
+
+# Git GUIs (VS Code's included) may not load nvm from the shell profile.
+# bash, not sh: nvm.sh does not support dash, Ubuntu's /bin/sh.
+# `nvm use` with no version reads .nvmrc, so the hook runs the pinned Node.
+if ! command -v node >/dev/null 2>&1; then
+  . "${NVM_DIR:-$HOME/.nvm}/nvm.sh" >/dev/null 2>&1 && nvm use --silent >/dev/null 2>&1
+fi
+
+exec node scripts/scan-secrets.mjs --staged
