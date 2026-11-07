@@ -203,7 +203,7 @@ export default function RiskRegister() {
       <PageHeader
         icon={AlertTriangle}
         title="Risk Register"
-        description="Scenario-based risk register with appetite thresholds, control linkage, treatment plans, milestones, and accountable owners."
+        description="Scenario-based risk register with appetite thresholds, control linkage, treatment plans, milestones, and owners."
         right={
           <div className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg" style={{ background: C.panel, border: `1px solid ${C.border}`, color: C.muted }}>
             <Lock size={12} /><span>Read-only</span><span style={{ color: C.border }}>|</span><RefreshCw size={12} /><span>Synced from Vanta · 8 min ago</span>
