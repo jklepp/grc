@@ -18,13 +18,20 @@ import { spawnSync } from "node:child_process";
 
 export const IMAGES = {
   gitleaks: "ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f",
+  // Not 0.69.4–0.69.6 (the March 2026 malicious releases). Must stay ≥ 0.71.1:
+  // GHSA-mcj4-mphf-j9ff let a crafted database download write anywhere on disk.
+  trivy: "ghcr.io/aquasecurity/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c",
 };
 
 // Returned when the scanner never ran. Distinct from 1, which gitleaks and
 // docker both use: without this, "no access to Docker" would read as a finding.
 export const SCANNER_UNAVAILABLE = 3;
 
-export function runScanner(image, args) {
+// The defaults are the scan: repo read-only, no network. A step that must
+// download (Trivy's database) passes network: true and repo: false, so the one
+// container that can reach the internet never sees the code. `mounts` adds
+// host directories, e.g. ["/home/me/.cache/x:/cache:ro"].
+export function runScanner(image, args, { network = false, repo = true, mounts = [] } = {}) {
   const probe = spawnSync("docker", ["version", "--format", "{{.Server.Version}}"], { encoding: "utf8" });
   if (probe.status !== 0) {
     console.error("  scanner did not run: cannot reach Docker.");
@@ -35,14 +42,14 @@ export function runScanner(image, args) {
 
   const result = spawnSync("docker", [
     "run", "--rm",
-    "--network", "none",
+    ...(network ? [] : ["--network", "none"]),
     "--read-only", "--tmpfs", "/tmp",
     "--cap-drop", "ALL",
     "--security-opt", "no-new-privileges",
     "--user", `${process.getuid()}:${process.getgid()}`,
     "-e", "HOME=/tmp",
-    "-v", `${process.cwd()}:/repo:ro`,
-    "-w", "/repo",
+    ...(repo ? ["-v", `${process.cwd()}:/repo:ro`, "-w", "/repo"] : []),
+    ...mounts.flatMap((m) => ["-v", m]),
     image,
     ...args,
   ], { stdio: "inherit" });

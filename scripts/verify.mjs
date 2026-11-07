@@ -16,6 +16,9 @@ const STAGES = [
   ["check", "npm run check"],
   // Known vulnerabilities anywhere in the locked tree, not just direct deps.
   ["audit", "npm audit"],
+  // Trivy: a second vulnerability database, plus licenses. Refreshes its
+  // database first when one is due, so this stage needs network access then.
+  ["vulns", "node scripts/scan-vulns.mjs"],
   // Registry signatures and provenance attestations: is each package really
   // what npm published, not something swapped in on the way?
   ["signatures", "npm audit signatures"],
