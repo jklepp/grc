@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Before anything leaves this machine: refuse direct pushes to main, then run
+# the same checks the self-hosted runner runs (scripts/verify.mjs).
+#
+# GitHub Free gives a private repo no branch protection, so this is the only
+# thing that stops a direct push to main. It can be skipped with --no-verify;
+# the runner's push-to-main job is the after-the-fact check for that.
+
+# git passes one line per ref being pushed: <local ref> <local sha> <remote ref> <remote sha>
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    echo "  pre-push: direct pushes to main are blocked. Push a branch and open a PR." >&2
+    exit 1
+  fi
+done
+
+# Git GUIs (VS Code's included) may not load nvm from the shell profile.
+# bash, not sh: nvm.sh does not support dash, Ubuntu's /bin/sh.
+# `nvm use` with no version reads .nvmrc, so the hook runs the pinned Node.
+if ! command -v node >/dev/null 2>&1; then
+  . "${NVM_DIR:-$HOME/.nvm}/nvm.sh" >/dev/null 2>&1 && nvm use --silent >/dev/null 2>&1
+fi
+
+exec node scripts/verify.mjs

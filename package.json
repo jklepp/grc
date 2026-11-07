@@ -17,7 +17,7 @@
     "check:bundle": "node scripts/check-bundle-budget.mjs",
     "scan:secrets": "node scripts/scan-secrets.mjs",
     "prepare": "git config core.hooksPath .githooks",
-    "verify": "npm run check && npm audit && npm audit signatures && npm install-scripts ls && npm run build && npm run check:bundle"
+    "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
