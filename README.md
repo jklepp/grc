@@ -40,8 +40,8 @@ Versions are pinned in one place each; this list says where, not what, so it can
 | Linux or WSL 2, with `git` and `bash` | — | The git hooks are bash scripts. |
 | Node.js, via [nvm](https://github.com/nvm-sh/nvm) | `.nvmrc` | `nvm use` picks it up; the hooks do the same. |
 | npm packages | `package-lock.json` | Install with `npm ci`, which installs exactly the lockfile and fails if it disagrees with `package.json`. |
-| Docker, reachable without `sudo` | — | The scanners run in containers. Your user must be in the `docker` group (log out and back in, or `wsl --shutdown`, after adding it). |
-| Scanner images: gitleaks, Trivy, Semgrep | `scripts/scanners.mjs` | Pinned by digest; Docker pulls each on first use. |
+| A container engine, reachable without `sudo` | — | The scanners run in containers. Docker by default: your user must be in the `docker` group (log out and back in, or `wsl --shutdown`, after adding it). Or rootless Podman with `CONTAINER_ENGINE=podman`, which is what the runner uses (see [The self-hosted runner](#the-self-hosted-runner)). |
+| Scanner images: gitleaks, Trivy, Semgrep | `scripts/scanners.mjs` | Pinned by digest; the engine pulls each on first use. |
 | Network access to `registry.npmjs.org`, `ghcr.io`, `docker.io` | — | For installs, first image pulls, and Trivy's daily database (about 1.7 GB, cached in `~/.cache/grc-trivy`). |
 
 ## Getting started
@@ -66,6 +66,29 @@ npm run dev
 The runner is self-hosted only. `scripts/check-workflows.mjs` fails `verify` if any job could run on a GitHub-hosted runner. There is no scheduled run, so to check unchanged code against newly published advisories, run `npm run verify` by hand.
 
 Hooks can be skipped with `--no-verify`. A push to `main` that fails `verify` is never deployed. The Pages source must be "GitHub Actions" (`deploy.yml`), not "Deploy from a branch", which builds on GitHub's hosted runners.
+
+The terminal shows one line per stage and the full output of failed stages only. Every stage's full output goes to `logs/verify.log` (gitignored). On the runner, each run's log is copied to `/home/ghrunner/verify-logs/` and kept for 90 days; it is not uploaded to GitHub, because the repo is public.
+
+### The self-hosted runner
+
+The runner runs as its own user, `ghrunner`, as a systemd service (`actions.runner.jklepp-grc.jpc-wsl`). Its scanners run under **rootless Podman**, and `ghrunner` is **not** in the `docker` group. Docker Desktop has no rootless mode, and access to its socket is root in all but name: any job could `docker run -v /home/<you>:/x` and read your files, including the `gh` CLI token. Under rootless Podman, a compromised scanner or dependency gets `ghrunner`'s files and nothing else.
+
+To set up a runner machine (after installing the runner as `ghrunner`):
+
+```sh
+sudo apt install -y podman uidmap         # uidmap applies ghrunner's /etc/subuid range
+sudo loginctl enable-linger ghrunner      # keeps /run/user/<uid> alive for a service user
+sudo -u ghrunner tee -a /home/ghrunner/actions-runner/.env <<EOF
+CONTAINER_ENGINE=podman
+XDG_RUNTIME_DIR=/run/user/$(id -u ghrunner)
+EOF
+sudo gpasswd -d ghrunner docker           # if it was ever added
+sudo systemctl restart actions.runner.jklepp-grc.jpc-wsl.service
+```
+
+The engine is set in the runner's `.env`, not in the workflows: it belongs to the machine, as Docker Desktop belongs to a workstation. Under Podman, `scripts/scanners.mjs` adds `--userns=keep-id`; without it, `git` inside the container refuses the repo and gitleaks reports 0 commits scanned with exit 0, a silent pass.
+
+To check: `id ghrunner` lists no `docker` group, and `sudo -u ghrunner docker ps` is denied on `/var/run/docker.sock`. Podman's `"/" is not a shared mount` warning in a runner log means the scans ran under Podman; on WSL it is harmless.
 
 ## Scripts
 
