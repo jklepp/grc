@@ -340,7 +340,7 @@ function AssetDetailPanel({ asset, onClose }: { asset: AssetRollup; onClose: () 
         <div className="text-[11px] mb-2" style={{ color: C.muted }}>
           Impact is fixed to this asset&apos;s FIPS 199 impact level — what happens if it is compromised, which
           does not move because controls improved. Residual risk is no longer computed per asset:
-          it needed an asset score, and it is answered properly on the Risk Register from the
+          it needed an asset score, and it is answered on the Risk Register from the
           controls actually mapped to each scenario.
         </div>
         <div className="flex gap-3">
