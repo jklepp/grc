@@ -15,10 +15,10 @@ const STAGES = [
   // Types, lint, the validators and the roster: is the code itself correct?
   ["check", "npm run check"],
   // Known vulnerabilities anywhere in the locked tree, not just direct deps.
-  ["audit", "npm audit"],
+  ["npm-audit", "npm audit"],
   // Trivy: a second vulnerability database, plus licenses. Refreshes its
   // database first when one is due, so this stage needs network access then.
-  ["vulns", "node scripts/scan-vulns.mjs"],
+  ["trivy", "node scripts/scan-vulns.mjs"],
   // Registry signatures and provenance attestations: is each package really
   // what npm published, not something swapped in on the way?
   ["signatures", "npm audit signatures"],
@@ -27,7 +27,7 @@ const STAGES = [
   ["install-scripts", "npm install-scripts ls"],
   // Secrets anywhere in history: catches commits made with --no-verify or
   // from a clone without the pre-commit hook.
-  ["secrets", "node scripts/scan-secrets.mjs"],
+  ["gitleaks", "node scripts/scan-secrets.mjs"],
   ["build", "npm run build"],
   // Runs after build: it reads the manifest the build writes.
   ["bundle", "npm run check:bundle"],
