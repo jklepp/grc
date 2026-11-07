@@ -1,0 +1,50 @@
+# Runs `npm run verify` (scripts/verify.mjs) on the self-hosted runner: the
+# same checks as the pre-push hook, but on a fresh checkout this machine's
+# working copy cannot influence, and on triggers the hook never sees.
+#
+# On GitHub Free a private repo has no branch protection, so a red run here
+# does not block a merge. It is the independent record; the hook is the gate.
+name: verify
+
+on:
+  pull_request:
+  # Catches direct pushes to main, including ones made with --no-verify.
+  push:
+    branches: [main]
+  # Nightly, with no code change: new advisories land against old code.
+  # 23:30 UTC (evening US Eastern), when the PC is likely on; the runner only
+  # takes jobs while WSL is running.
+  schedule:
+    - cron: "30 23 * * *"
+  workflow_dispatch:
+
+# The job's GITHUB_TOKEN can read the repo and nothing else, so even a
+# compromised step cannot push, tag, or touch releases.
+permissions:
+  contents: read
+
+# A newer push to the same branch supersedes a run still in progress.
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: [self-hosted, grc]
+    timeout-minutes: 20
+    steps:
+      # Actions are pinned to a commit, not a tag: in March 2026 trivy-action's
+      # tags were rewritten to point at an infostealer. The comment names the
+      # release for humans; bump both together, after a cooldown.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Default true writes the token into .git/config, where every later
+          # step — npm ci and its dependencies included — could read it.
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - run: npm ci
+      - run: npm run verify

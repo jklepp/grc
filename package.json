@@ -14,7 +14,12 @@
     "snapshot": "node scripts/snapshot-derivations.mjs",
     "prisma-report": "node scripts/prisma-report.mjs",
     "check": "npm run typecheck && npm run lint && npm run check:validators && npm run check:roster",
-    "check:bundle": "node scripts/check-bundle-budget.mjs"
+    "check:bundle": "node scripts/check-bundle-budget.mjs",
+    "scan:secrets": "node scripts/scan-secrets.mjs",
+    "scan:vulns": "node scripts/scan-vulns.mjs",
+    "scan:code": "node scripts/scan-code.mjs",
+    "prepare": "git config core.hooksPath .githooks",
+    "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
