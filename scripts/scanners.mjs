@@ -1,4 +1,5 @@
-// Security scanners, run as pinned Docker images in a locked-down container.
+// Security scanners, run as pinned container images in a locked-down container
+// (Docker by default, rootless Podman on the CI runner; see ENGINES below).
 //
 // Pinned by digest, not tag: a tag is a label the publisher (or anyone holding
 // their credentials) can move. In March 2026 trivy-action's tags were rewritten
@@ -28,21 +29,51 @@ export const IMAGES = {
 // docker both use: without this, "no access to Docker" would read as a finding.
 export const SCANNER_UNAVAILABLE = 3;
 
+// Which container engine runs the scanners. Docker by default (Docker Desktop
+// on a workstation). The CI runner sets CONTAINER_ENGINE=podman: rootless
+// Podman runs each scan as the runner's own user, with no daemon and no
+// root-equivalent socket, so a compromised scanner gets that user's files and
+// nothing else. Docker Desktop has no rootless mode, and docker-group
+// membership is root in all but name.
+const ENGINES = {
+  docker: {
+    probe: ["version", "--format", "{{.Server.Version}}"],
+    runArgs: [],
+    hint: "Is Docker Desktop running, and is this user in the docker group?",
+  },
+  podman: {
+    probe: ["version", "--format", "{{.Client.Version}}"],
+    // Rootless Podman maps the host user to root inside the container, so
+    // without keep-id `--user` below names a stranger: git then refuses the
+    // repo as "dubious ownership" and gitleaks reports 0 commits scanned,
+    // exit 0 — a silent pass. keep-id makes the uid the same on both sides.
+    runArgs: ["--userns=keep-id"],
+    hint: "Is podman installed for this user (apt install podman uidmap)?",
+  },
+};
+const ENGINE = process.env.CONTAINER_ENGINE || "docker";
+
 // The defaults are the scan: repo read-only, no network. A step that must
 // download (Trivy's database) passes network: true and repo: false, so the one
 // container that can reach the internet never sees the code. `mounts` adds
 // host directories, e.g. ["/home/me/.cache/x:/cache:ro"].
 export function runScanner(image, args, { network = false, repo = true, mounts = [] } = {}) {
-  const probe = spawnSync("docker", ["version", "--format", "{{.Server.Version}}"], { encoding: "utf8" });
+  const engine = ENGINES[ENGINE];
+  if (!engine) {
+    console.error(`  scanner did not run: unknown CONTAINER_ENGINE "${ENGINE}" (docker or podman).`);
+    return SCANNER_UNAVAILABLE;
+  }
+  const probe = spawnSync(ENGINE, engine.probe, { encoding: "utf8" });
   if (probe.status !== 0) {
-    console.error("  scanner did not run: cannot reach Docker.");
+    console.error(`  scanner did not run: cannot reach ${ENGINE}.`);
     console.error(`  ${(probe.stderr || probe.error?.message || "").trim().split("\n")[0]}`);
-    console.error("  Is Docker Desktop running, and is this user in the docker group?");
+    console.error(`  ${engine.hint}`);
     return SCANNER_UNAVAILABLE;
   }
 
-  const result = spawnSync("docker", [
+  const result = spawnSync(ENGINE, [
     "run", "--rm",
+    ...engine.runArgs,
     ...(network ? [] : ["--network", "none"]),
     "--read-only", "--tmpfs", "/tmp",
     "--cap-drop", "ALL",
@@ -56,7 +87,7 @@ export function runScanner(image, args, { network = false, repo = true, mounts =
   ], { stdio: "inherit" });
 
   if (result.error) {
-    console.error(`  could not run docker: ${result.error.message}`);
+    console.error(`  could not run ${ENGINE}: ${result.error.message}`);
     return 1;
   }
   return result.status ?? 1;
