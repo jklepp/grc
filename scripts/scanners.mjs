@@ -21,6 +21,7 @@ export const IMAGES = {
   // Not 0.69.4–0.69.6 (the March 2026 malicious releases). Must stay ≥ 0.71.1:
   // GHSA-mcj4-mphf-j9ff let a crafted database download write anywhere on disk.
   trivy: "ghcr.io/aquasecurity/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c",
+  semgrep: "docker.io/semgrep/semgrep:1.182.0@sha256:4a34048c04fef049f71665047f074cffb00cc3d89482f965a5cd151d589237af",
 };
 
 // Returned when the scanner never ran. Distinct from 1, which gitleaks and

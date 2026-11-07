@@ -17,6 +17,7 @@
     "check:bundle": "node scripts/check-bundle-budget.mjs",
     "scan:secrets": "node scripts/scan-secrets.mjs",
     "scan:vulns": "node scripts/scan-vulns.mjs",
+    "scan:code": "node scripts/scan-code.mjs",
     "prepare": "git config core.hooksPath .githooks",
     "verify": "node scripts/verify.mjs"
   },

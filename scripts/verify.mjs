@@ -28,6 +28,8 @@ const STAGES = [
   // Secrets anywhere in history: catches commits made with --no-verify or
   // from a clone without the pre-commit hook.
   ["gitleaks", "node scripts/scan-secrets.mjs"],
+  // Our own code: dangerous DOM and code-execution calls oxlint can't express.
+  ["semgrep", "node scripts/scan-code.mjs"],
   ["build", "npm run build"],
   // Runs after build: it reads the manifest the build writes.
   ["bundle", "npm run check:bundle"],

@@ -1,0 +1,41 @@
+# Our own Semgrep rules, run by scripts/scan-code.mjs.
+#
+# These cover what oxlint cannot express. dangerouslySetInnerHTML, eval and
+# new Function are banned in .oxlintrc.json instead, where they also show up
+# in the editor; they are not repeated here.
+#
+# The rules match the dangerous call itself, whatever flows into it. Semgrep's
+# free registry rules only fire when they can trace untrusted data to the call
+# within one file, and on planted code they caught 1 of 6 cases; these caught
+# all of them. None of these calls occur in the codebase today, so a finding
+# means new code. If a use is genuinely safe, suppress it on the line with the
+# reason, where a reviewer will see it:
+#   el.innerHTML = TEMPLATE; // nosemgrep: dom-html-sink -- constant, no input
+#
+# Every rule here has been seen to fire. Add a rule the same way: plant the
+# pattern, watch it fail, then remove the plant.
+rules:
+  - id: dom-html-sink
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      Writes raw HTML into the DOM. Cross-site scripting if any part of the
+      value can come from a user, a URL, or a fact file. Render through React,
+      or set textContent.
+    pattern-either:
+      - pattern: $X.innerHTML = $V
+      - pattern: $X.outerHTML = $V
+      - pattern: $X.insertAdjacentHTML($POS, $V)
+      - pattern: document.write(...)
+      - pattern: document.writeln(...)
+
+  - id: string-timer-code
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      A timer given a string runs it as code, like eval. Pass a function.
+    pattern-either:
+      - pattern: setTimeout("...", ...)
+      - pattern: setInterval("...", ...)
+      - pattern: window.setTimeout("...", ...)
+      - pattern: window.setInterval("...", ...)
