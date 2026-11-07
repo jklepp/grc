@@ -25,6 +25,9 @@ const STAGES = [
   // A dependency that gained an install script nobody has reviewed. npm blocks
   // the script; this makes the block visible instead of a warning in a log.
   ["install-scripts", "npm install-scripts ls"],
+  // Every Actions job runs on our self-hosted runner, never GitHub's hosted
+  // runners: on GitHub Free those spend a capped minute allowance.
+  ["workflows", "node scripts/check-workflows.mjs"],
   // Secrets anywhere in history: catches commits made with --no-verify or
   // from a clone without the pre-commit hook.
   ["gitleaks", "node scripts/scan-secrets.mjs"],
