@@ -11,11 +11,8 @@ on:
   # Catches direct pushes to main, including ones made with --no-verify.
   push:
     branches: [main]
-  # Nightly, with no code change: new advisories land against old code.
-  # 23:30 UTC (evening US Eastern), when the PC is likely on; the runner only
-  # takes jobs while WSL is running.
-  schedule:
-    - cron: "30 23 * * *"
+  # No schedule: turned off by choice. Run it by hand from the Actions tab, or
+  # `npm run verify` locally, to check unchanged code against new advisories.
   workflow_dispatch:
 
 # The job's GITHUB_TOKEN can read the repo and nothing else, so even a
