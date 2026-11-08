@@ -9,6 +9,15 @@
 # published when every check passes — including after a push to main made
 # with --no-verify. This is also the after-merge check of main; verify.yml
 # covers pull requests.
+#
+# Three jobs, three levels of trust:
+#   build   runs npm ci and every dependency; holds no signing or publishing
+#           permission. Produces the site and its SBOM.
+#   attest  runs no npm code at all; signs build provenance and the SBOM for
+#           the exact files Pages will receive (Sigstore, via GitHub's OIDC).
+#   deploy  publishes to Pages, and only once attest has succeeded.
+# Check a file from the live site with:
+#   gh attestation verify <file> --repo jklepp/grc
 name: deploy
 
 on:
@@ -57,8 +66,63 @@ jobs:
         with:
           path: dist
 
-  deploy:
+      # Every package in the lockfile, dev tools included (scripts/sbom.mjs).
+      # Uploaded for the attest job; it lists public lockfile data only.
+      - run: npm run sbom
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom
+          path: sbom/grc.cdx.json
+          if-no-files-found: error
+
+  # Signs what build produced. It never runs npm or checks out the repo, so no
+  # third-party package ever executes alongside the right to sign as this
+  # workflow: a malicious dependency in build cannot get a genuine signature
+  # for a file it swapped in after the fact.
+  attest:
     needs: build
+    runs-on: [self-hosted, grc]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write      # request this run's identity for Sigstore signing
+      attestations: write  # store the signed attestations on the repo
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: github-pages
+          path: ${{ runner.temp }}/pages
+
+      # The same tar deploy-pages publishes, unpacked, so each served file is
+      # its own subject. Fail on an empty site rather than sign nothing.
+      - name: Unpack the site exactly as Pages will receive it
+        run: |
+          mkdir -p "$RUNNER_TEMP/site"
+          tar -xf "$RUNNER_TEMP/pages/artifact.tar" -C "$RUNNER_TEMP/site"
+          count=$(find "$RUNNER_TEMP/site" -type f | wc -l)
+          echo "files to attest: $count"
+          test "$count" -gt 0
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sbom
+          path: ${{ runner.temp }}/sbom
+
+      # actions/attest replaces attest-build-provenance and attest-sbom, which
+      # are now wrappers around it. No sbom-path: SLSA build provenance.
+      - name: Sign build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/site/**
+
+      - name: Sign the SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/site/**
+          sbom-path: ${{ runner.temp }}/sbom/grc.cdx.json
+
+  deploy:
+    needs: [build, attest]
     runs-on: [self-hosted, grc]
     timeout-minutes: 10
     # Only this job can publish, and only to Pages: the build job, which runs
