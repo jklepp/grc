@@ -12,7 +12,9 @@
 #
 # Three jobs, three levels of trust:
 #   build   runs npm ci and every dependency; holds no signing or publishing
-#           permission. Produces the site and its SBOM.
+#           permission. Produces the site and its SBOM. The published site
+#           is rebuilt in a throwaway container and must match the runner's
+#           build byte for byte.
 #   attest  runs no npm code at all; signs build provenance and the SBOM for
 #           the exact files Pages will receive (Sigstore, via GitHub's OIDC).
 #   deploy  publishes to Pages, and only once attest has succeeded.
@@ -65,9 +67,19 @@ jobs:
           fi
           find "$dir" -name '*.log' -mtime +90 -delete
 
+      # Rebuild the same commit in a fresh, throwaway container (pinned image,
+      # only the committed source, no install scripts, no network during the
+      # build): scripts/build-in-container.mjs. That clean build is what gets
+      # published. The runner's own build above must match it byte for byte;
+      # if it does not, something on the runner or in the toolchain changed
+      # the output, and nothing is deployed.
+      - run: npm run build:container
+      - name: Runner build and container build must be identical
+        run: diff -r --exclude=.vite dist dist-container
+
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
-          path: dist
+          path: dist-container
 
       # Every package in the lockfile, dev tools included (scripts/sbom.mjs).
       # Uploaded for the attest job; it lists public lockfile data only.
