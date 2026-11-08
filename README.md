@@ -59,19 +59,21 @@ npm run dev
 | When | What runs |
 | --- | --- |
 | `git commit` | `.githooks/pre-commit`: gitleaks on the staged changes |
-| `git push` | `.githooks/pre-push`: refuses direct pushes to `main`, then `verify` |
+| `git push` | `.githooks/pre-push`: refuses direct pushes to `main` (GitHub's ruleset refuses them too), then `verify` |
 | Pull requests | `.github/workflows/verify.yml`: `npm ci` + `verify` on the self-hosted runner |
-| Pushes to `main` | `.github/workflows/deploy.yml`: `npm ci` + `verify`, then publish `dist/` to GitHub Pages, all on the self-hosted runner |
+| Pushes to `main` | `.github/workflows/deploy.yml`: `npm ci` + `verify`, sign build provenance and an SBOM, publish `dist/` to GitHub Pages, then verify the live site; all on the self-hosted runner (see [Deploys: provenance and the live check](#deploys-provenance-and-the-live-check)) |
 
 The runner is self-hosted only. `scripts/check-workflows.mjs` fails `verify` if any job could run on a GitHub-hosted runner. There is no scheduled run, so to check unchanged code against newly published advisories, run `npm run verify` by hand.
 
-Hooks can be skipped with `--no-verify`. A push to `main` that fails `verify` is never deployed. The Pages source must be "GitHub Actions" (`deploy.yml`), not "Deploy from a branch", which builds on GitHub's hosted runners.
+Hooks can be skipped with `--no-verify`; they are an early warning, not the gate. The gate is the **"Protect main" ruleset** (Settings → Rules → Rulesets), enforced by GitHub: changes reach `main` only through a pull request, the PR cannot merge until `verify` (from GitHub Actions only) passes on a branch that is up to date with `main`, and `main` cannot be force-pushed or deleted. Its bypass list is empty, admins included. Two consequences: the runner must be online to merge, and renaming the `verify` job means updating the ruleset in the same change, or every PR waits for a check that never arrives.
+
+A push to `main` that fails `verify` is never deployed. The Pages source must be "GitHub Actions" (`deploy.yml`), not "Deploy from a branch", which builds on GitHub's hosted runners.
 
 The terminal shows one line per stage and the full output of failed stages only. Every stage's full output goes to `logs/verify.log` (gitignored). On the runner, each run's log is copied to `/home/ghrunner/verify-logs/` and kept for 90 days; it is not uploaded to GitHub, because the repo is public.
 
 ### The self-hosted runner
 
-The runner runs as its own user, `ghrunner`, as a systemd service (`actions.runner.jklepp-grc.jpc-wsl`). Its scanners run under **rootless Podman**, and `ghrunner` is **not** in the `docker` group. Docker Desktop has no rootless mode, and access to its socket is root in all but name: any job could `docker run -v /home/<you>:/x` and read your files, including the `gh` CLI token. Under rootless Podman, a compromised scanner or dependency gets `ghrunner`'s files and nothing else.
+The runner runs as its own user, `ghrunner`, as a systemd service (`actions.runner.jklepp-grc.jpc-wsl`). Its scanners run under **rootless Podman**, and `ghrunner` is **not** in the `docker` group. Docker Desktop has no rootless mode, and access to its socket is root in all but name: any job could `docker run -v /home/<you>:/x` and read your files, including the `gh` CLI token. Under rootless Podman, a compromised scanner or dependency cannot use Docker to reach other users' Linux files; on WSL it can still reach Windows (see the known gap below).
 
 To set up a runner machine (after installing the runner as `ghrunner`):
 
@@ -89,6 +91,40 @@ sudo systemctl restart actions.runner.jklepp-grc.jpc-wsl.service
 The engine is set in the runner's `.env`, not in the workflows: it belongs to the machine, as Docker Desktop belongs to a workstation. Under Podman, `scripts/scanners.mjs` adds `--userns=keep-id`; without it, `git` inside the container refuses the repo and gitleaks reports 0 commits scanned with exit 0, a silent pass.
 
 To check: `id ghrunner` lists no `docker` group, and `sudo -u ghrunner docker ps` is denied on `/var/run/docker.sock`. Podman's `"/" is not a shared mount` warning in a runner log means the scans ran under Podman; on WSL it is harmless.
+
+**Known gap on WSL (open):** WSL's Windows integration reaches past `ghrunner`'s own files. Windows drives are mounted readable by every Linux user (`/mnt/c`, `/mnt/d`), and interop lets any Linux user start Windows programs, which run as the signed-in Windows user: `sudo -u ghrunner cmd.exe /c whoami` prints the Windows account. So a compromised job could read Windows files and act as the Windows user, for example to read the Windows `gh` login. Locking the drives to your Linux user (`/etc/wsl.conf` `[automount] options`) closes the reading but not interop, since a job can bring its own `.exe`; closing interop means `[interop] enabled=false`, which also stops `code .`, `explorer.exe` and browser launching from WSL, and needs `"credsStore": "desktop.exe"` removed from `~/.docker/config.json`. The full fix is a runner on its own VM or machine.
+
+## Deploys: provenance and the live check
+
+`deploy.yml` runs four jobs, each with only the permissions it needs:
+
+| Job | Does | Permissions | Runs npm packages? |
+| --- | --- | --- | --- |
+| `build` | `npm ci`, `verify`, the site, and `npm run sbom` | `contents: read` | Yes |
+| `attest` | Signs build provenance and the SBOM for each published file | `id-token: write`, `attestations: write` | No |
+| `deploy` | Publishes to Pages, only after `attest` succeeds | `pages: write`, `id-token: write` | No |
+| `check-live` | Downloads every published file from the live site and verifies it | `contents: read`, `attestations: read` | No |
+
+The job that runs third-party packages cannot sign, and the job that signs runs none, so a malicious dependency cannot get a genuine signature for a file it swapped in.
+
+**Provenance.** `attest` unpacks the exact `artifact.tar` Pages will publish and uses `actions/attest` to sign a [SLSA provenance](https://slsa.dev/provenance/v1) statement listing every file by SHA-256 (hidden files such as `.vite/manifest.json` are never published, so they are not listed), plus a second attestation for the SBOM. Signing is keyless: the action makes a key pair in memory, exchanges the run's GitHub OIDC identity for a Sigstore certificate valid for about ten minutes, signs, records the signature in Sigstore's public transparency log, and discards the key. No signing key is stored anywhere. Attestations are listed at `https://github.com/jklepp/grc/attestations`.
+
+**SBOM.** `npm run sbom` (`scripts/sbom.mjs`) writes `sbom/grc.cdx.json` (CycloneDX, gitignored) with Trivy, in the same locked-down container as the scanners. It includes dev dependencies, because build tools run during the build and could alter it; with them it covers the whole lockfile.
+
+**Verify a file by hand** (needs `gh` 2.49 or later; Ubuntu's packaged `gh` is older, so install it from [cli.github.com](https://cli.github.com)):
+
+```sh
+curl -fsSO https://jklepp.github.io/grc/index.html
+gh attestation verify index.html --repo jklepp/grc \
+  --signer-workflow jklepp/grc/.github/workflows/deploy.yml \
+  --source-ref refs/heads/main
+```
+
+The two flags require the signature to come from `deploy.yml` building `main`, not just any workflow in the repo. Without a terminal, `gh attestation verify` prints nothing on success; add `--format json` to see the result.
+
+**The live check.** `check-live` runs `scripts/check-live.mjs` against the published bundle: each file is fetched from the live URL, its bytes must equal the build's (retried for up to five minutes while the CDN catches up), and it must pass the same `gh attestation verify`. It reports `N of M live files verified` and fails on any mismatch or on an empty file list. This is detection, not prevention: Pages does not check attestations, so by then the site is live, and a failure turns the run red. Run it by hand with `node scripts/check-live.mjs --site dist --base https://jklepp.github.io/grc/`.
+
+**What this does not prove.** Provenance records which workflow and commit produced a file, and the provenance itself records `runner: self-hosted`. It does not prove the build machine was clean: a compromised runner running the real workflow gets genuine signatures. The build (`npm ci`, `vite build`) runs directly on the runner, not in a fresh container.
 
 ## Scripts
 
@@ -108,6 +144,7 @@ To check: `id ghrunner` lists no `docker` group, and `sudo -u ghrunner docker ps
 | `npm run scan:secrets` | gitleaks over the full git history |
 | `npm run scan:vulns` | Trivy: dependency vulnerabilities and licenses |
 | `npm run scan:code` | Semgrep with the rules in `.semgrep/` |
+| `npm run sbom` | CycloneDX SBOM of the whole lockfile to `sbom/grc.cdx.json` |
 
 ## Status
 
