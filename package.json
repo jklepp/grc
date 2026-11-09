@@ -21,7 +21,8 @@
     "scan:code": "node scripts/scan-code.mjs",
     "sbom": "node scripts/sbom.mjs",
     "prepare": "git config core.hooksPath .githooks",
-    "verify": "node scripts/verify.mjs"
+    "verify": "node scripts/verify.mjs",
+    "verify:container": "node scripts/verify.mjs --container"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
