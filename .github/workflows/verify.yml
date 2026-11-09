@@ -42,8 +42,10 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - run: npm ci
-      - run: npm run verify
+      # No `npm ci` here: --container installs and runs every npm and
+      # node_modules stage in a throwaway container (scripts/verify.mjs), so
+      # no dependency ever runs as the runner's user, next to its key.
+      - run: node scripts/verify.mjs --container
 
       # Keep verify's full output on the runner, not on GitHub: the repo is
       # public, and so would an uploaded artifact be. checkout wipes the

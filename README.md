@@ -60,8 +60,10 @@ npm run dev
 | --- | --- |
 | `git commit` | `.githooks/pre-commit`: gitleaks on the staged changes |
 | `git push` | `.githooks/pre-push`: refuses direct pushes to `main` (GitHub's ruleset refuses them too), then `verify` |
-| Pull requests | `.github/workflows/verify.yml`: `npm ci` + `verify` on the self-hosted runner |
-| Pushes to `main` | `.github/workflows/deploy.yml`: `npm ci` + `verify`, sign build provenance and an SBOM, publish `dist/` to GitHub Pages, then verify the live site; all on the self-hosted runner (see [Deploys: provenance and the live check](#deploys-provenance-and-the-live-check)) |
+| Pull requests | `.github/workflows/verify.yml`: `verify --container` on the self-hosted runner |
+| Pushes to `main` | `.github/workflows/deploy.yml`: `verify --container`, build again in a fresh container, sign build provenance and an SBOM, publish `dist/` to GitHub Pages, then verify the live site; all on the self-hosted runner (see [Deploys: provenance and the live check](#deploys-provenance-and-the-live-check)) |
+
+**On the runner, no npm code runs on the runner itself.** `verify --container` runs every stage that uses npm or loads code from `node_modules` (checks, `npm audit`, signatures, install scripts, workflows, build, bundle) in a throwaway container: the pinned `node` image from `scripts/scanners.mjs`, the committed source streamed in with `git archive`, `npm ci --ignore-scripts`, no network except for npm's own registry checks, unprivileged, read-only root filesystem, no capabilities. The volume is deleted afterwards, pass or fail, and `dist/` is copied out. Only our own scanner scripts run on the runner, and each starts its scanner in its own container. So a malicious dependency never runs as `ghrunner`, next to the runner's key. Locally, plain `npm run verify` still checks the working tree with your installed `node_modules`; `npm run verify:container` gives the runner's result for `HEAD`. The shared container code is `scripts/container-workspace.mjs`.
 
 The runner is self-hosted only. `scripts/check-workflows.mjs` fails `verify` if any job could run on a GitHub-hosted runner. There is no scheduled run, so to check unchanged code against newly published advisories, run `npm run verify` by hand.
 
@@ -100,12 +102,14 @@ To check: `id ghrunner` lists no `docker` group, and `sudo -u ghrunner docker ps
 
 | Job | Does | Permissions | Runs npm packages? |
 | --- | --- | --- | --- |
-| `build` | `npm ci`, `verify`, the site, and `npm run sbom` | `contents: read` | Yes |
+| `build` | `verify --container`, the site built again in a second container, and `npm run sbom` | `contents: read` | Yes, only inside throwaway containers |
 | `attest` | Signs build provenance and the SBOM for each published file | `id-token: write`, `attestations: write` | No |
 | `deploy` | Publishes to Pages, only after `attest` succeeds | `pages: write`, `id-token: write` | No |
 | `check-live` | Downloads every published file from the live site and verifies it | `contents: read`, `attestations: read` | No |
 
 The job that runs third-party packages cannot sign, and the job that signs runs none, so a malicious dependency cannot get a genuine signature for a file it swapped in.
+
+**The published build.** `npm run build:container` (`scripts/build-in-container.mjs`) builds the commit in a second fresh container that does nothing but install and build, and that output (`dist-container/`) is what gets published. It must be byte-identical to the `dist/` that `verify` checked (`diff -r`, ignoring the unpublished `.vite/` manifest), or nothing deploys. The build is reproducible, so the same commit gives the same files every time.
 
 **Provenance.** `attest` unpacks the exact `artifact.tar` Pages will publish and uses `actions/attest` to sign a [SLSA provenance](https://slsa.dev/provenance/v1) statement listing every file by SHA-256 (hidden files such as `.vite/manifest.json` are never published, so they are not listed), plus a second attestation for the SBOM. Signing is keyless: the action makes a key pair in memory, exchanges the run's GitHub OIDC identity for a Sigstore certificate valid for about ten minutes, signs, records the signature in Sigstore's public transparency log, and discards the key. No signing key is stored anywhere. Attestations are listed at `https://github.com/jklepp/grc/attestations`.
 
@@ -124,7 +128,7 @@ The two flags require the signature to come from `deploy.yml` building `main`, n
 
 **The live check.** `check-live` runs `scripts/check-live.mjs` against the published bundle: each file is fetched from the live URL, its bytes must equal the build's (retried for up to five minutes while the CDN catches up), and it must pass the same `gh attestation verify`. It reports `N of M live files verified` and fails on any mismatch or on an empty file list. This is detection, not prevention: Pages does not check attestations, so by then the site is live, and a failure turns the run red. Run it by hand with `node scripts/check-live.mjs --site dist --base https://jklepp.github.io/grc/`.
 
-**What this does not prove.** Provenance records which workflow and commit produced a file, and the provenance itself records `runner: self-hosted`. It does not prove the build machine was clean: a compromised runner running the real workflow gets genuine signatures. The build (`npm ci`, `vite build`) runs directly on the runner, not in a fresh container.
+**What this does not prove.** Provenance records which workflow and commit produced a file, and the provenance itself records `runner: self-hosted`. It does not prove the build machine was clean: a compromised runner running the real workflow gets genuine signatures. Dependencies run only in throwaway containers, which keeps them away from the runner's key, but the runner itself (and the container engine on it) is still trusted.
 
 ## Scripts
 
@@ -140,7 +144,9 @@ The two flags require the signature to come from `deploy.yml` building `main`, n
 | `npm run prisma-report` | Generate a PRISMA scoring report |
 | `npm run check` | typecheck + lint + validators + roster |
 | `npm run check:bundle` | Bundle size against its budget (after a build) |
-| `npm run verify` | All CI stages; see Local CI |
+| `npm run verify` | All CI stages on this machine; see Local CI |
+| `npm run verify:container` | All CI stages as the runner runs them: npm stages in a throwaway container, on `HEAD` |
+| `npm run build:container` | Build `HEAD` in a throwaway container into `dist-container/` |
 | `npm run scan:secrets` | gitleaks over the full git history |
 | `npm run scan:vulns` | Trivy: dependency vulnerabilities and licenses |
 | `npm run scan:code` | Semgrep with the rules in `.semgrep/` |
