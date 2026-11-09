@@ -2,8 +2,10 @@
 # same checks as the pre-push hook, but on a fresh checkout this machine's
 # working copy cannot influence, and on triggers the hook never sees.
 #
-# On GitHub Free a private repo has no branch protection, so a red run here
-# does not block a merge. It is the independent record; the hook is the gate.
+# This is the merge gate: the "Protect main" ruleset requires this `verify`
+# check, reported by GitHub Actions, to pass on an up-to-date branch before a
+# PR can merge. The pre-push hook is the early, local warning; this is the
+# check main enforces.
 name: verify
 
 on:
