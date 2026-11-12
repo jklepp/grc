@@ -24,9 +24,8 @@ export const IMAGES = {
   trivy: "ghcr.io/aquasecurity/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c",
   semgrep: "docker.io/semgrep/semgrep:1.182.0@sha256:4a34048c04fef049f71665047f074cffb00cc3d89482f965a5cd151d589237af",
   // Not a scanner: the clean environment scripts/build-in-container.mjs builds
-  // the site in. Exact Node version (.nvmrc only says 24), Debian slim, the
-  // index digest. Built 2026-10-28 from nodejs/docker-node@80f02a5.
-  node: "docker.io/library/node:24.22.1-bookworm-slim@sha256:be8204d4bd327363357f532187b752ff62759c31bedf98e9e18fc08c9cbd605c",
+  // the site in. Same Node version as .nvmrc, Debian slim, the index digest.
+  node: "docker.io/library/node:24.22.3-bookworm-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54",
 };
 
 // Returned when the scanner never ran. Distinct from 1, which gitleaks and
