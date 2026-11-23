@@ -110,7 +110,7 @@ function AgenticIdentityCard({ agent }: { agent: AgenticIdentity }) {
             <IdentificationField label="Last Activity" value={agent.lastUsedAt ?? "None recorded"} />
             <IdentificationField label="Revocation" value={<span className="capitalize">{agent.revocationMechanism}</span>} />
             <div className="col-span-2">
-              <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Tools & Resources</div>
+              <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>Tools &amp; Resources</div>
               <div className="flex flex-wrap gap-1.5">
                 {agent.tools.map((tool) => <span key={tool} className="rounded px-1.5 py-0.5 text-[11px]" style={{ background: C.accentBg, color: C.accent }}>{tool}</span>)}
               </div>
