@@ -58,6 +58,7 @@ import { EGRESS_POSTURE, ADMIN_POSTURE, API_POSTURE, EXTERNAL_SERVICE_KINDS, DAN
 import { SECURITY_TEST_TYPES } from "./nodes/securityTests";
 import { IR_FUNCTIONS } from "./nodes/irExercises";
 import { VENDOR_CATEGORIES, VENDOR_CRITICALITY } from "./nodes/vendors";
+import { PARAMETER_UNITS, OBLIGATION_PARTY_KINDS, isClockUnit } from "./nodes/externalObligations";
 import type { Graph } from "./types";
 
 export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean } = {}): string[] {
@@ -932,6 +933,57 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
   graph.sdlcPostures.forEach((p) => {
     check(!sdlcSystems.has(p.systemId), `SDLC posture: more than one row for system ${p.systemId}`);
     sdlcSystems.add(p.systemId);
+  });
+
+  // ---- External obligations ----------------------------------------------
+  // The register only holds terms STRICTER than ACME's default. The stricter
+  // check below is what keeps it from filling up with terms the controls
+  // already meet (see nodes/externalObligations.ts).
+  check(new Set(graph.controlDefaults.map((d) => d.id)).size === graph.controlDefaults.length, `control defaults: duplicate id`);
+  const defaultedParameters = new Set<string>();
+  graph.controlDefaults.forEach((d) => {
+    check(has(graph.controlById, d.controlId), `control default ${d.id}: controlId "${d.controlId}" is not a control`);
+    check(PARAMETER_UNITS.includes(d.unit), `control default ${d.id}: unit "${d.unit}" is not one of ${PARAMETER_UNITS.join(", ")}`);
+    check(has(graph.orgById, d.ownerId), `control default ${d.id}: ownerId "${d.ownerId}" is not an org`);
+    check(Boolean(d.parameter?.trim()) && Boolean(d.source?.trim()), `control default ${d.id}: parameter and source are both required`);
+    if (isClockUnit(d.unit)) {
+      check(typeof d.value === "number" && d.value > 0, `control default ${d.id}: a ${d.unit} default must be a positive number`);
+    } else {
+      check(typeof d.value === "string" && Boolean(d.value.trim()), `control default ${d.id}: a text default must be a non-empty string`);
+    }
+    const key = `${d.controlId}::${d.parameter}`;
+    check(!defaultedParameters.has(key), `control default ${d.id}: ${d.controlId} already has a default for "${d.parameter}"`);
+    defaultedParameters.add(key);
+  });
+
+  check(new Set(graph.externalObligations.map((o) => o.id)).size === graph.externalObligations.length, `external obligations: duplicate id`);
+  graph.externalObligations.forEach((o) => {
+    const def = graph.controlDefaultById[o.defaultId];
+    check(Boolean(def), `external obligation ${o.id}: defaultId "${o.defaultId}" is not a control default`);
+    check(Boolean(o.party?.trim()), `external obligation ${o.id}: party is required`);
+    check(OBLIGATION_PARTY_KINDS.includes(o.partyKind), `external obligation ${o.id}: partyKind "${o.partyKind}" is not one of ${OBLIGATION_PARTY_KINDS.join(", ")}`);
+    check(o.dataTypeIds.length > 0, `external obligation ${o.id}: dataTypeIds is empty — scope is derived from them, so an obligation with none reaches no system`);
+    o.dataTypeIds.forEach((id) => check(has(graph.dataTypeById, id), `external obligation ${o.id}: dataTypeId "${id}" is not a data type`));
+    check(o.effectiveAt === undefined || !Number.isNaN(Date.parse(o.effectiveAt)), `external obligation ${o.id}: effectiveAt "${o.effectiveAt}" is not a parseable date`);
+    if (def) {
+      if (isClockUnit(def.unit)) {
+        check(typeof o.value === "number" && o.value > 0, `external obligation ${o.id}: value must be a positive number of ${def.unit}`);
+        check(typeof o.value !== "number" || typeof def.value !== "number" || o.value < def.value,
+          `external obligation ${o.id}: ${o.value} ${def.unit} is not stricter than ACME's default of ${def.value} — a term the default already meets is not an external obligation`);
+      } else {
+        check(typeof o.value === "string" && Boolean(o.value.trim()) && o.value !== def.value,
+          `external obligation ${o.id}: a text value must differ from ACME's default "${def.value}" — a term the default already meets is not an external obligation`);
+        check(Boolean(o.detail?.trim()), `external obligation ${o.id}: a text obligation needs a detail saying what it adds to the default`);
+      }
+    }
+    o.proof.forEach((p, i) => {
+      const bases = [p.evidenceIds !== undefined, p.tabletopFunction !== undefined].filter(Boolean).length;
+      check(bases === 1, `external obligation ${o.id}: proof ${i + 1} ("${p.title}") needs exactly one basis — evidenceIds or tabletopFunction`);
+      check(p.evidenceIds === undefined || p.evidenceIds.length > 0, `external obligation ${o.id}: proof ${i + 1} has an empty evidenceIds list`);
+      (p.evidenceIds ?? []).forEach((id) => check(has(graph.evidenceById, id), `external obligation ${o.id}: proof evidenceId "${id}" is not an evidence record`));
+      check(p.tabletopFunction === undefined || IR_FUNCTIONS.includes(p.tabletopFunction),
+        `external obligation ${o.id}: proof tabletopFunction "${p.tabletopFunction}" is not one of ${IR_FUNCTIONS.join(", ")}`);
+    });
   });
 
   if (problems.length > 0 && throwOnFailure) {

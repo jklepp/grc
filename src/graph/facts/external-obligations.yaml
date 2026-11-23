@@ -1,0 +1,103 @@
+# Security and data terms owed to outside parties that are stricter than ACME's
+# default (control-defaults.yaml). A term that matches or is looser than the
+# default is already met by the control and does not belong here; the
+# validator refuses it. See src/graph/nodes/externalObligations.ts.
+#
+# Scope is NOT listed: the systems an obligation reaches are derived from
+# dataTypeIds. Status is NOT listed either: each proof is checked against the
+# evidence or tabletop facts it names.
+#
+# Authored directly; there is no generating TypeScript source. Customers are
+# bracketed placeholders, and all terms are illustrative demo data.
+
+# ---- IRO-10 customer breach notice ------------------------------------------
+
+- id: "OBL-001"
+  defaultId: "DEF-IRO-10"
+  party: "[CLIENT D]"
+  partyKind: "customer"
+  value: 24
+  detail: "By phone and email to the customer's named security contact."
+  dataTypeIds: ["DT-001", "DT-002", "DT-003"]
+  proof:
+    - title: "Customer notice has been exercised in a tabletop"
+      tabletopFunction: "customer-comms"
+    - title: "Affected customers can be identified from audit logs"
+      evidenceIds: ["EV-9140"]
+
+- id: "OBL-002"
+  defaultId: "DEF-IRO-10"
+  party: "[CLIENT F]"
+  partyKind: "customer"
+  value: 48
+  detail: "By email to the customer's security contact."
+  dataTypeIds: ["DT-001", "DT-002", "DT-003"]
+  proof:
+    - title: "Customer notice has been exercised in a tabletop"
+      tabletopFunction: "customer-comms"
+    - title: "Affected customers can be identified from audit logs"
+      evidenceIds: ["EV-9140"]
+
+# ---- DCH-18 deletion after termination --------------------------------------
+
+- id: "OBL-003"
+  defaultId: "DEF-DCH-18"
+  party: "[CLIENT A]"
+  partyKind: "customer"
+  value: 30
+  detail: "Includes backups, embeddings and other derived data."
+  dataTypeIds: ["DT-001", "DT-002", "DT-003", "DT-005"]
+  effectiveAt: "2027-02-01"
+  proof:
+    - title: "Raw document store deletes on schedule"
+      evidenceIds: ["EV-9106"]
+    - title: "Embeddings have a disposal schedule"
+      evidenceIds: ["EV-9107"]
+    - title: "Database backups expire within the window"
+      evidenceIds: ["EV-9113"]
+
+- id: "OBL-004"
+  defaultId: "DEF-DCH-18"
+  party: "[CLIENT C]"
+  partyKind: "customer"
+  value: 30
+  detail: "Primary stores only."
+  dataTypeIds: ["DT-001", "DT-002"]
+  proof:
+    - title: "Raw document store deletes on schedule"
+      evidenceIds: ["EV-9106"]
+    - title: "Database backups expire within the window"
+      evidenceIds: ["EV-9113"]
+
+- id: "OBL-005"
+  defaultId: "DEF-DCH-18"
+  party: "[CLIENT B]"
+  partyKind: "customer"
+  value: 60
+  detail: "Primary stores only."
+  dataTypeIds: ["DT-001", "DT-002"]
+  proof:
+    - title: "Raw document store deletes on schedule"
+      evidenceIds: ["EV-9106"]
+
+# ---- DCH-19 data residency --------------------------------------------------
+
+- id: "OBL-006"
+  defaultId: "DEF-DCH-19"
+  party: "[CLIENT D]"
+  partyKind: "customer"
+  value: "United States, including support access"
+  detail: "Support staff outside the United States may not access the customer's data."
+  dataTypeIds: ["DT-001", "DT-002"]
+  proof: []
+
+# ---- CRY-05 who controls the key --------------------------------------------
+
+- id: "OBL-007"
+  defaultId: "DEF-CRY-05"
+  party: "[CLIENT G]"
+  partyKind: "customer"
+  value: "Customer-managed key"
+  detail: "The customer holds the KMS key for their data and can revoke it."
+  dataTypeIds: ["DT-001", "DT-002"]
+  proof: []

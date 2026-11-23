@@ -8,7 +8,7 @@ import type { SystemId } from "./graph/ids";
 //                                   back to dashboard while deprecated
 //   #/systems                     → system picker
 //   #/systems/<SystemId>[/<tab>]  → one system's workspace, on a tab
-//   #/governance[/ccf|policy|procedures|principles|schedule|exceptions]
+//   #/governance[/ccf|obligations|policy|procedures|principles|schedule|exceptions]
 //   #/graph
 //   #/settings[/users]            → admin only, reached from the user menu
 // App owns parsing/serializing; pages keep navigating through onNavigate ids.

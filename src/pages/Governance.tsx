@@ -5,6 +5,7 @@ import ProcedureLibrary from "./ProcedureLibrary";
 import SecurityPrinciples from "./SecurityPrinciples";
 import ScheduledActivities from "./ScheduledActivities";
 import ExceptionRegister from "./ExceptionRegister";
+import ExternalObligations from "./ExternalObligations";
 import { GovernanceLanding } from "./GovernanceLanding";
 import type { GovernanceAreaId } from "./governanceAreas";
 
@@ -17,6 +18,7 @@ import type { GovernanceAreaId } from "./governanceAreas";
 // Data Estate now, not here.
 const PAGE_BY_AREA = {
   ccf: CommonControlFramework,
+  obligations: ExternalObligations,
   policy: PolicyCenter,
   procedures: ProcedureLibrary,
   principles: SecurityPrinciples,
@@ -34,6 +36,7 @@ type GovernanceTab = GovernanceAreaId;
 // onNavigate so App.jsx's LEGACY_ROUTES can send them there.
 const INTERNAL_TABS: Record<string, GovernanceTab> = {
   ccf: "ccf",
+  "external-obligations": "obligations",
   "policy-center": "policy",
   "procedure-library": "procedures",
   "security-principles": "principles",

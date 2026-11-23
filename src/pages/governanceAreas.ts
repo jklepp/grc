@@ -1,4 +1,4 @@
-import { CalendarClock, FileText, LayoutGrid, ListChecks, Shield, ShieldAlert } from "lucide-react";
+import { CalendarClock, FileText, Handshake, LayoutGrid, ListChecks, Shield, ShieldAlert } from "lucide-react";
 
 export const GOVERNANCE_AREAS = [
   {
@@ -7,6 +7,13 @@ export const GOVERNANCE_AREAS = [
     shortLabel: "Common Controls",
     icon: LayoutGrid,
     description: "Browse the common control catalog, its domains, and the framework clauses each control satisfies.",
+  },
+  {
+    id: "obligations",
+    label: "External Obligations",
+    shortLabel: "Obligations",
+    icon: Handshake,
+    description: "Track security and data terms owed to customers and other outside parties that are stricter than ACME's defaults, and whether evidence shows they're met.",
   },
   {
     id: "policy",

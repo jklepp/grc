@@ -57,6 +57,7 @@ import type { BackupConfig, DrTest } from "./nodes/resilience";
 import type { IrPlanCurrency, TabletopExercise, ProductionIncident } from "./nodes/irExercises";
 import type { Vendor, VendorAssurance, SystemVendor } from "./nodes/vendors";
 import type { SdlcPosture } from "./nodes/sdlc";
+import type { ControlDefault, ExternalObligation } from "./nodes/externalObligations";
 import type {
   AssetId, SystemId, ControlId, OrgId, RiskId, DataTypeId, EvidenceId,
   EvidenceSourceId, EvidenceArtifactId, EvidenceReviewId, ActorId, SystemScope,
@@ -196,6 +197,11 @@ export interface GraphFacts {
   vendorAssurance: VendorAssurance[];
   systemVendors: SystemVendor[];
   sdlcPostures: SdlcPosture[];
+
+  // External obligations: ACME's default per negotiable control parameter, and
+  // the outside parties' stricter values. See nodes/externalObligations.ts.
+  controlDefaults: ControlDefault[];
+  externalObligations: ExternalObligation[];
 }
 
 // ---- Control profile ---------------------------------------------------------
@@ -393,6 +399,8 @@ export interface Graph {
   readonly vendorAssurance: readonly VendorAssurance[];
   readonly systemVendors: readonly SystemVendor[];
   readonly sdlcPostures: readonly SdlcPosture[];
+  readonly controlDefaults: readonly ControlDefault[];
+  readonly externalObligations: readonly ExternalObligation[];
 
   readonly identityPopulationsBySystem: Readonly<Record<SystemId, readonly IdentityPopulation[]>>;
   readonly accessReviewsBySystem: Readonly<Record<SystemId, readonly AccessReview[]>>;
@@ -411,6 +419,8 @@ export interface Graph {
   readonly vendorAssuranceByVendor: Readonly<Record<string, readonly VendorAssurance[]>>;
   readonly systemVendorsBySystem: Readonly<Record<SystemId, readonly SystemVendor[]>>;
   readonly sdlcPostureBySystem: Readonly<Record<SystemId, SdlcPosture>>;
+  readonly controlDefaultById: Readonly<Record<string, ControlDefault>>;
+  readonly externalObligationsByDefault: Readonly<Record<string, readonly ExternalObligation[]>>;
 }
 
 // The category-weight lookup, threaded rather than imported so a graph can

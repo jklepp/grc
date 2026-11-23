@@ -230,6 +230,8 @@ export let exposureForSystem: Engine["exposure"]["exposureForSystem"];
 export let EXCEPTION_REGISTER: Exc["exceptionRegister"];
 export let EXCEPTION_SUMMARY: Exc["exceptionSummary"];
 export let exceptionsForSystem: Exc["exceptionsForSystem"];
+export let OBLIGATION_PARAMETERS: Engine["obligations"]["parameters"];
+export let OBLIGATION_SUMMARY: Engine["obligations"]["summary"];
 export let vulnerabilitiesForSystem: Engine["vulnerabilities"]["vulnerabilitiesForSystem"];
 export let securityTestsForSystem: Engine["securityTesting"]["securityTestsForSystem"];
 export let resilienceForSystem: Engine["resilience"]["resilienceForSystem"];
@@ -304,6 +306,7 @@ function publish(next: Engine): void {
     exceptionSummary: EXCEPTION_SUMMARY,
     exceptionsForSystem,
   } = next.exceptions);
+  ({ parameters: OBLIGATION_PARAMETERS, summary: OBLIGATION_SUMMARY } = next.obligations);
   ({ vulnerabilitiesForSystem } = next.vulnerabilities);
   ({ securityTestsForSystem } = next.securityTesting);
   ({ resilienceForSystem } = next.resilience);
@@ -397,6 +400,7 @@ export type { LevelRating } from "./levels";
 export type { ControlCoverage } from "./compliance";
 export type { EngineFinding } from "./findings";
 export type { ManagedException, ExceptionLifecycleStatus, ExceptionReviewStatus } from "./exceptions";
+export type { ObligationParameter, EvaluatedObligation, EvaluatedProof, ObligationStatus } from "./obligations";
 
 // ---- Hot module replacement ---------------------------------------------------
 // Dev-only, and load-bearing. This module holds app-global state that exists
