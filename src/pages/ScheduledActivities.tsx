@@ -61,7 +61,7 @@ const activityAnchor = (id: string) => `schedule-activity-${id}`;
 
 export default function ScheduledActivities({ onNavigate }: { onNavigate?: (target: string) => void }) {
   const [frequency, setFrequency] = useState<ActivityFrequency>("Quarterly");
-  const [view, setView] = useState<ScheduleView>("table");
+  const [view, setView] = useState<ScheduleView>("year");
   const [calendarMonth, setCalendarMonth] = useState(initialCalendarMonth);
   // The activity a calendar entry asked to open; its table row is scrolled
   // to and marked once the table has rendered it.
