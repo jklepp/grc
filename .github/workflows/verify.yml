@@ -1,23 +1,21 @@
-# Runs `npm run verify` (scripts/verify.mjs) on the self-hosted runner: the
-# same checks as the pre-push hook, but on a fresh checkout this machine's
-# working copy cannot influence, and on triggers the hook never sees.
+# The pr tier on every pull request, on the self-hosted runner, run by the shared CI engine
+# (jklepp/ci) from the stages in ci.toml. Run it by hand (Actions → verify → Run workflow) with
+# `full` ticked for the full tier: the pr tier, with gitleaks over all history.
 #
-# This is the merge gate: the "Protect main" ruleset requires this `verify`
-# check, reported by GitHub Actions, to pass on an up-to-date branch before a
-# PR can merge. The pre-push hook is the early, local warning; this is the
-# check main enforces.
+# The merge gate: the "Protect main" ruleset requires this `verify` check to pass on an
+# up-to-date branch. Pushes to main are checked by deploy.yml before it publishes.
 name: verify
 
 on:
   pull_request:
-  # Pushes to main are checked by deploy.yml, which runs verify before it
-  # publishes; running it here too would check every merge twice.
-  # No schedule: turned off by choice. Run it by hand from the Actions tab, or
-  # `npm run verify` locally, to check unchanged code against new advisories.
   workflow_dispatch:
+    inputs:
+      full:
+        description: Full tier (gitleaks over all history, and the full-tier stages)
+        type: boolean
+        default: false
 
-# The job's GITHUB_TOKEN can read the repo and nothing else, so even a
-# compromised step cannot push, tag, or touch releases.
+# The job's token can read the repository and nothing else.
 permissions:
   contents: read
 
@@ -28,38 +26,30 @@ concurrency:
 
 jobs:
   verify:
+    # Never a fork's code on this runner (a public repository): it runs host scripts as the
+    # runner user. The repository's fork-PR approval setting is the other half.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, grc]
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
-      # Actions are pinned to a commit, not a tag: in March 2026 trivy-action's
-      # tags were rewritten to point at an infostealer. The comment names the
-      # release for humans; bump both together, after a cooldown.
+      # Every action is pinned to a commit, not a tag: tags can be repointed. The engine's
+      # `workflows` stage fails CI otherwise, and fails if the jklepp/ci pins differ.
+      # fetch-depth 0: gitleaks and the signatures skip compare against the base.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Default true writes the token into .git/config, where every later
-          # step — npm ci and its dependencies included — could read it.
           persist-credentials: false
+          fetch-depth: 0
 
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      # Sweeps leftovers, then verifies this commit. The PR's base, not origin/main, so a stale
+      # branch is checked against what it will merge into.
+      - uses: jklepp/ci@9a3bd9205b41e70f7ed457734e571472b13c47d0
         with:
-          node-version-file: .nvmrc
+          command: verify
+          full: ${{ inputs.full && 'true' || 'false' }}
+          base: origin/${{ github.base_ref || 'main' }}
 
-      # No `npm ci` here: --container installs and runs every npm and
-      # node_modules stage in a throwaway container (scripts/verify.mjs), so
-      # no dependency ever runs as the runner's user, next to its key.
-      - run: node scripts/verify.mjs --container
-
-      # Keep verify's full output on the runner, not on GitHub: the repo is
-      # public, and so would an uploaded artifact be. checkout wipes the
-      # workspace each run, so the copy goes outside it. always(): a failed
-      # run is the one whose log matters most. Logs older than 90 days are
-      # pruned, matching what GitHub would have kept.
-      - name: Keep verify log on the runner
-        if: always()
-        run: |
-          dir="$HOME/verify-logs"
-          mkdir -p "$dir"
-          if [ -f logs/verify.log ]; then
-            cp logs/verify.log "$dir/$(date -u +%Y%m%dT%H%M%SZ)-$GITHUB_WORKFLOW-$GITHUB_RUN_ID-${GITHUB_SHA:0:7}.log"
-          fi
-          find "$dir" -name '*.log' -mtime +90 -delete
+      # A cancelled or timed-out job never reaches verify's own cleanup.
+      - if: always()
+        uses: jklepp/ci@9a3bd9205b41e70f7ed457734e571472b13c47d0
+        with:
+          command: sweep
