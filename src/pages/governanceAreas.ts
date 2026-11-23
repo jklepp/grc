@@ -1,4 +1,4 @@
-import { CalendarClock, FileText, Handshake, LayoutGrid, ListChecks, Shield, ShieldAlert } from "lucide-react";
+import { BookOpen, CalendarClock, FileText, Handshake, LayoutGrid, ListChecks, Shield, ShieldAlert } from "lucide-react";
 
 export const GOVERNANCE_AREAS = [
   {
@@ -7,6 +7,13 @@ export const GOVERNANCE_AREAS = [
     shortLabel: "Common Controls",
     icon: LayoutGrid,
     description: "Browse the common control catalog, its domains, and the framework clauses each control satisfies.",
+  },
+  {
+    id: "frameworks",
+    label: "Compliance Frameworks",
+    shortLabel: "Frameworks",
+    icon: BookOpen,
+    description: "Read each framework's requirements in its own words, and see which common controls map to each one.",
   },
   {
     id: "obligations",

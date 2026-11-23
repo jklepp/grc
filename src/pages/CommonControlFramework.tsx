@@ -1,13 +1,15 @@
 import React, { useState, useMemo, useRef, useEffect, useLayoutEffect } from "react";
 import type { ReactNode } from "react";
-import { Search, RefreshCw, LayoutGrid, ArrowLeft } from "lucide-react";
+import { Search, RefreshCw, LayoutGrid, ArrowLeft, Columns2 } from "lucide-react";
 import { C } from "../theme";
 import { useLiveEngine } from "../engine/useLiveEngine";
 import { PageHeader } from "../components/Headings";
+import { CrossCheckPane } from "../components/CrossCheckPane";
 import { CONSOLIDATED_CONTROLS } from "../data/consolidatedControls";
 import { STANDARD_ABBR } from "../data/policies";
 import { IN_SCOPE_CONTROLS, getAllSystems } from "../engine";
 import { controlLensView, type ControlLensView, type LensRequirement } from "../engine/frameworkLens";
+import { hasSourceText, paragraphMarker, sourceClause, SOURCE_DOCUMENTS } from "../engine/sourceText";
 import type { Control, ControlFramework } from "../graph/nodes/controls";
 
 // The catalog side of the control model: every common control ACME has in scope,
@@ -84,6 +86,40 @@ function RequirementRow({ r }: { r: LensRequirement }) {
   );
 }
 
+// A clause in the standard's own words, opened from its chip under Framework
+// Mappings. Enclosing paragraphs come first so an implementation specification
+// reads under the Standard it implements.
+function ClauseText({ standard, clause, onClose }: { standard: string; clause: string; onClose: () => void }) {
+  const hit = sourceClause(standard, clause);
+  if (!hit) return null;
+  const doc = SOURCE_DOCUMENTS[standard];
+  const lines = [...hit.ancestors, hit.paragraph];
+  return (
+    <div className="mt-2 rounded-lg p-3" style={{ background: C.bg, border: `1px solid ${C.border}` }}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-[11px]" style={{ color: C.accent, fontFamily: MONO }}>45 CFR {clause}</div>
+          <div className="text-[11px]" style={{ color: C.muted }}>§ {hit.section.id} {hit.section.title}</div>
+        </div>
+        <button type="button" onClick={onClose} className="text-[11px] underline shrink-0" style={{ color: C.accent }}>Close</button>
+      </div>
+      {lines.map((p) => {
+        const target = p === hit.paragraph;
+        return (
+          <div key={p.id} className="mt-2 text-xs leading-relaxed" style={{ color: target ? C.ink : C.muted }}>
+            <span style={{ fontFamily: MONO }}>{paragraphMarker(p)} </span>
+            {p.heading && <span className="italic font-semibold">{p.heading} </span>}
+            {p.text}
+          </div>
+        );
+      })}
+      <a href={doc.source} target="_blank" rel="noreferrer" className="inline-block mt-2 text-[10px] underline" style={{ color: C.muted }}>
+        eCFR, as of {doc.asOf}
+      </a>
+    </div>
+  );
+}
+
 // One control, opened in the frame the control list occupies. Reading on the
 // left (statement, requirements, what other frameworks would add); reference
 // on the right (clause mappings, the SCF source text).
@@ -98,7 +134,9 @@ function ControlDetail({ control, view, lensActive, lensName, backLabel, onBack,
 }) {
   const consolidated = CONSOLIDATED_CONTROLS[control.id];
   const backRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => { backRef.current?.focus(); }, [control.id]);
+  const [openClause, setOpenClause] = useState<{ standard: string; clause: string } | null>(null);
+  const [crossCheckStd, setCrossCheckStd] = useState<string | null>(null);
+  useEffect(() => { backRef.current?.focus(); setOpenClause(null); setCrossCheckStd(null); }, [control.id]);
 
   return (
     <section aria-labelledby="control-detail-title" className="rounded-xl" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
@@ -206,18 +244,56 @@ function ControlDetail({ control, view, lensActive, lensName, backLabel, onBack,
               <p className="mt-2 text-xs" style={{ color: C.muted }}>No {lensName} clause maps to this control.</p>
             ) : view.mappings.map((f) => (
               <div key={f.standard} className="py-3 mt-1" style={{ borderTop: `1px solid ${C.border}` }}>
-                <div className="flex justify-between gap-2 mb-2">
+                <div className="flex items-center justify-between gap-2 mb-2">
                   <span className="text-[13px] font-semibold" style={{ color: C.ink }}>{f.standard}</span>
-                  <span className="text-[11px]" style={{ color: C.muted }}>{f.clauses.length} clause{f.clauses.length === 1 ? "" : "s"}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-[11px]" style={{ color: C.muted }}>{f.clauses.length} clause{f.clauses.length === 1 ? "" : "s"}</span>
+                    {hasSourceText(f.standard) && (
+                      <button
+                        type="button"
+                        onClick={() => setCrossCheckStd(f.standard)}
+                        className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-md"
+                        style={{ color: C.accent, border: `1px solid ${C.accent}` }}
+                      >
+                        <Columns2 size={12} aria-hidden="true" /> Cross-check
+                      </button>
+                    )}
+                  </span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {f.clauses.map((code) => (
-                    <span key={code} className="text-[11px] px-2 py-1 rounded" style={{ background: C.bg, color: C.ink, fontFamily: MONO }}>{code}</span>
-                  ))}
+                  {f.clauses.map((code) => {
+                    if (!hasSourceText(f.standard)) {
+                      return <span key={code} className="text-[11px] px-2 py-1 rounded" style={{ background: C.bg, color: C.ink, fontFamily: MONO }}>{code}</span>;
+                    }
+                    const on = openClause?.standard === f.standard && openClause.clause === code;
+                    return (
+                      <button
+                        key={code}
+                        type="button"
+                        aria-expanded={on}
+                        title="Read the source text"
+                        onClick={() => setOpenClause(on ? null : { standard: f.standard, clause: code })}
+                        className="text-[11px] px-2 py-1 rounded underline decoration-dotted underline-offset-2"
+                        style={{ background: on ? C.accentStrong : C.bg, color: on ? "#FFFFFF" : C.accent, fontFamily: MONO }}
+                      >
+                        {code}
+                      </button>
+                    );
+                  })}
                 </div>
+                {hasSourceText(f.standard) && openClause?.standard === f.standard && (
+                  <ClauseText standard={f.standard} clause={openClause.clause} onClose={() => setOpenClause(null)} />
+                )}
+                {hasSourceText(f.standard) && openClause?.standard !== f.standard && (
+                  <div className="text-[10px] mt-1.5" style={{ color: C.muted }}>Select a clause to read the source text.</div>
+                )}
               </div>
             ))}
           </section>
+
+          {crossCheckStd && (
+            <CrossCheckPane control={control} standard={crossCheckStd} onClose={() => setCrossCheckStd(null)} />
+          )}
 
           {consolidated && (
             <section className="rounded-xl p-4" style={{ background: C.panel2 }}>
