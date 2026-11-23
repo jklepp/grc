@@ -47,6 +47,7 @@ import { createSdlc } from "./sdlc";
 import { createCockpit } from "./cockpit";
 import { createExceptions } from "./exceptions";
 import { createReview } from "./review";
+import { createObligations } from "./obligations";
 
 export interface EngineOptions {
   ctx?: EngineContext;
@@ -91,13 +92,14 @@ export function createEngine(graph: Graph, options: EngineOptions = {}) {
     identity, exposure, securityTesting, resilience, incidentResponse, vendors
   );
   const review = createReview(graph, applicability, assessment, compliance, findings);
+  const obligations = createObligations(graph, ctx, evidence, incidentResponse, findings);
 
   const engine = {
     graph, ctx,
     classification, applicability, findings, evidence, assessment,
     rollups, risk, compliance, profile, selectors,
     identity, exposure, exceptions, vulnerabilities, securityTesting, resilience,
-    incidentResponse, vendors, sdlc, cockpit, review,
+    incidentResponse, vendors, sdlc, cockpit, review, obligations,
   };
 
   // Structural integrity was already proved by loadGraph. This is the other

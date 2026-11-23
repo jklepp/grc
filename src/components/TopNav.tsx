@@ -34,6 +34,7 @@ export type NavigationPageId = "overview" | "data-estate" | "governance" | "grap
 // avoids re-deriving them from the area id text.
 const GOVERNANCE_LEGACY_ID: Record<GovernanceAreaId, string> = {
   ccf: "ccf",
+  obligations: "external-obligations",
   policy: "policy-center",
   procedures: "procedure-library",
   principles: "security-principles",

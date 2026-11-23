@@ -268,6 +268,28 @@ try {
     ["an SCF domain no policy claims", (f) => {
       f.policies[0].domains = [];
     }, /is claimed by no policy/],
+
+    // ---- External obligations ----------------------------------------------
+    ["control default on a control that doesn't exist", (f) => {
+      f.controlDefaults[0].controlId = "NOPE-99";
+    }, /control default .*: controlId "NOPE-99" is not a control/],
+    ["external obligation no stricter than the default", (f) => {
+      const o = f.externalObligations.find((x) => x.defaultId === "DEF-IRO-10");
+      o.value = 72;
+    }, /is not stricter than ACME's default/],
+    ["text obligation that repeats the default", (f) => {
+      const o = f.externalObligations.find((x) => x.defaultId === "DEF-DCH-19");
+      o.value = f.controlDefaults.find((d) => d.id === "DEF-DCH-19").value;
+    }, /must differ from ACME's default/],
+    ["external obligation covering no data", (f) => {
+      f.externalObligations[0].dataTypeIds = [];
+    }, /dataTypeIds is empty/],
+    ["obligation proof with no basis", (f) => {
+      f.externalObligations[0].proof = [{ title: "Trust us" }];
+    }, /needs exactly one basis/],
+    ["obligation proof naming missing evidence", (f) => {
+      f.externalObligations[0].proof = [{ title: "Logs", evidenceIds: ["EV-NOPE"] }];
+    }, /proof evidenceId "EV-NOPE" is not an evidence record/],
   ];
 
   console.log("\nStructural checks (validateGraph, via loadGraph)");

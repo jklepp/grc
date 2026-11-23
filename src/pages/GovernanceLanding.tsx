@@ -7,7 +7,7 @@ import { POLICIES, POLICY_TIERS } from "../data/policies";
 import { PROCEDURES } from "../data/procedures";
 import { PRINCIPLE_STATUS_COUNTS } from "../data/securityPrinciples";
 import { FREQUENCIES, currentPeriod, statusCountsForPeriod } from "../data/scheduledActivities";
-import { EXCEPTION_SUMMARY, IN_SCOPE_CONTROLS } from "../engine";
+import { EXCEPTION_SUMMARY, IN_SCOPE_CONTROLS, OBLIGATION_SUMMARY } from "../engine";
 import { GOVERNANCE_AREAS } from "./governanceAreas";
 import type { GovernanceAreaId } from "./governanceAreas";
 
@@ -40,6 +40,15 @@ const AREA_SUMMARIES: Record<GovernanceAreaId, AreaSummary> = {
     ],
     attention: 0,
     attentionLabel: "Browse the control catalog",
+  },
+  obligations: {
+    metrics: [
+      { value: OBLIGATION_SUMMARY.total, label: "Obligations" },
+      { value: OBLIGATION_SUMMARY.proven, label: "Proven", tone: "good" },
+      { value: OBLIGATION_SUMMARY.notProven + OBLIGATION_SUMMARY.noProof, label: "Not proven", tone: "attention" },
+    ],
+    attention: OBLIGATION_SUMMARY.notProven + OBLIGATION_SUMMARY.noProof,
+    attentionLabel: "external obligations not yet proven",
   },
   policy: {
     metrics: [
@@ -90,6 +99,7 @@ const AREA_SUMMARIES: Record<GovernanceAreaId, AreaSummary> = {
 
 const AREA_GROUPS: Partial<Record<GovernanceAreaId, string>> = {
   ccf: "Controls",
+  obligations: "Controls",
   policy: "Policies and Procedures",
   procedures: "Policies and Procedures",
   principles: "Operations",

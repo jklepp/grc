@@ -185,4 +185,8 @@ export const YAML_FACTS: GraphFacts = {
   vendorAssurance: read("vendor-assurance"),
   systemVendors: read("system-vendors"),
   sdlcPostures: read("sdlc-posture"),
+
+  // External obligations
+  controlDefaults: read("control-defaults"),
+  externalObligations: read("external-obligations"),
 };

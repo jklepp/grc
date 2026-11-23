@@ -383,6 +383,8 @@ export function assembleGraph(facts: GraphFacts): Graph {
     vendorAssurance: facts.vendorAssurance,
     systemVendors: facts.systemVendors,
     sdlcPostures: facts.sdlcPostures,
+    controlDefaults: facts.controlDefaults,
+    externalObligations: facts.externalObligations,
 
     identityPopulationsBySystem: groupBy(facts.identityPopulations, (p) => p.systemId),
     accessReviewsBySystem: groupBy(facts.accessReviews, (r) => r.systemId),
@@ -401,5 +403,7 @@ export function assembleGraph(facts: GraphFacts): Graph {
     vendorAssuranceByVendor: groupBy(facts.vendorAssurance, (a) => a.vendorId),
     systemVendorsBySystem: groupBy(facts.systemVendors, (v) => v.systemId),
     sdlcPostureBySystem: keyBy(facts.sdlcPostures, (p) => p.systemId),
+    controlDefaultById: byId(facts.controlDefaults),
+    externalObligationsByDefault: groupBy(facts.externalObligations, (o) => o.defaultId),
   };
 }

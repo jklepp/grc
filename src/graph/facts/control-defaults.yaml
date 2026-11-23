@@ -1,0 +1,51 @@
+# ACME's own value for each control parameter that outside parties negotiate.
+# An external obligation (external-obligations.yaml) is recorded only when it
+# is stricter than the default here. See src/graph/nodes/externalObligations.ts.
+#
+# Authored directly; there is no generating TypeScript source. Values are
+# illustrative demo data.
+
+- id: "DEF-IRO-10"
+  controlId: "IRO-10"
+  parameter: "Customer breach notice"
+  description: "Hours from confirming an incident that involves a customer's data to notifying that customer."
+  unit: "hours"
+  value: 72
+  source: "Incident Response Policy"
+  ownerId: "it-security"
+
+- id: "DEF-DCH-18"
+  controlId: "DCH-18"
+  parameter: "Deletion after termination"
+  description: "Days from contract termination until the customer's data is deleted."
+  unit: "days"
+  value: 90
+  source: "Data Classification & Handling Policy"
+  ownerId: "data-platform"
+
+- id: "DEF-DCH-19"
+  controlId: "DCH-19"
+  parameter: "Data residency"
+  description: "Where customer data is stored and processed."
+  unit: "text"
+  value: "United States"
+  source: "Production AI Platform boundary (us-east-1, us-west-2)"
+  ownerId: "cloud-security"
+
+- id: "DEF-CRY-05"
+  controlId: "CRY-05"
+  parameter: "Who controls the encryption key"
+  description: "Who holds, and can revoke, the key that encrypts the customer's data at rest."
+  unit: "text"
+  value: "ACME-managed KMS key"
+  source: "Encryption & Data Classification Procedure"
+  ownerId: "cloud-security"
+
+- id: "DEF-IAC-17"
+  controlId: "IAC-17"
+  parameter: "Staff access to customer data reviewed"
+  description: "Days between reviews of which staff can reach customer data."
+  unit: "days"
+  value: 90
+  source: "Identity & Access Management Procedure"
+  ownerId: "it-security"
