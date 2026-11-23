@@ -19,6 +19,8 @@
 // only function meant to be called directly for that reason: it always pairs
 // the scope entry with at least one supporting fact in the same call.
 import type { RuntimeFacts } from "./liveGraph";
+import type { CommonControlRecord, SystemControlRecord } from "../graph/nodes/controlRecords";
+import type { Certification, Engagement, EngagementControl, EngagementDraft, EngagementSnapshot } from "../graph/nodes/engagements";
 import { baseFacts } from "./baseFacts";
 import type { AssetId, ControlId, EvidenceArtifactId, EvidenceId, SystemId } from "../graph/ids";
 import type { ImplementationMechanism, NotImplemented, Responsibility } from "../graph/edges/controlImplementations";
@@ -70,6 +72,12 @@ export function removeRuntimeSystem(runtime: RuntimeFacts, systemId: SystemId): 
     notImplemented: runtime.notImplemented.filter((entry) => !assetIds.has(entry.assetId)),
     prismaOverrides: runtime.prismaOverrides.filter((override) => override.systemId !== systemId),
     controlReviews: runtime.controlReviews.filter((review) => review.systemId !== systemId),
+    systemControlRecords: runtime.systemControlRecords.filter((record) => record.systemId !== systemId),
+    // A runtime engagement keeps running without the deleted system; its rows
+    // and drafts for that system go with it.
+    engagements: runtime.engagements.map((e) => (e.systemIds.includes(systemId) ? { ...e, systemIds: e.systemIds.filter((id) => id !== systemId) } : e)),
+    engagementControls: runtime.engagementControls.filter((row) => row.systemId !== systemId),
+    engagementDrafts: runtime.engagementDrafts.filter((draft) => draft.systemId !== systemId),
     findings: runtime.findings.filter((finding) => finding.systemId !== systemId),
     // System Register cockpit domains are keyed by system id alone, not by
     // asset — without these the rows outlive the system and the graph
@@ -224,6 +232,71 @@ export function upsertControlReview(runtime: RuntimeFacts, review: ControlReview
     (r) => !(r.systemId === review.systemId && r.controlId === review.controlId)
   );
   return { ...runtime, controlReviews: [...withoutExisting, review] };
+}
+
+// Framework baseline records. A save APPENDS a version rather than replacing
+// the record: the graph reads the latest as current and keeps every earlier
+// one, so "what did we say on this date" stays answerable. The caller stamps
+// recordedAt (and recordedBy) so ordering is by when the save happened.
+export function saveSystemControlRecord(runtime: RuntimeFacts, record: SystemControlRecord): RuntimeFacts {
+  return { ...runtime, systemControlRecords: [...runtime.systemControlRecords, record] };
+}
+
+export function saveCommonControlRecord(runtime: RuntimeFacts, record: CommonControlRecord): RuntimeFacts {
+  return { ...runtime, commonControlRecords: [...runtime.commonControlRecords, record] };
+}
+
+// ---- Engagements -------------------------------------------------------------
+// Engagements, their control rows and drafts are upserted by key. Snapshots,
+// certifications and published record versions only ever append.
+
+const engagementKey = (r: { engagementId: string; systemId: string; controlId: string }) =>
+  `${r.engagementId}::${r.systemId}::${r.controlId}`;
+
+export function saveEngagement(runtime: RuntimeFacts, engagement: Engagement): RuntimeFacts {
+  return { ...runtime, engagements: [...runtime.engagements.filter((e) => e.id !== engagement.id), engagement] };
+}
+
+export function nextEngagementId(existing: readonly { id: string }[], year: number): string {
+  const taken = new Set(existing.map((e) => e.id));
+  let n = 1;
+  while (taken.has(`ENG-USR-${year}-${String(n).padStart(2, "0")}`)) n += 1;
+  return `ENG-USR-${year}-${String(n).padStart(2, "0")}`;
+}
+
+export function saveEngagementControl(runtime: RuntimeFacts, row: EngagementControl): RuntimeFacts {
+  const k = engagementKey(row);
+  return { ...runtime, engagementControls: [...runtime.engagementControls.filter((r) => engagementKey(r) !== k), row] };
+}
+
+export function saveEngagementDraft(runtime: RuntimeFacts, draft: EngagementDraft): RuntimeFacts {
+  const k = engagementKey(draft);
+  return { ...runtime, engagementDrafts: [...runtime.engagementDrafts.filter((r) => engagementKey(r) !== k), draft] };
+}
+
+/** Drop a draft so the engagement reads the system of record again. Only runtime drafts can be dropped. */
+export function discardEngagementDraft(runtime: RuntimeFacts, key: { engagementId: string; systemId: string; controlId: string }): RuntimeFacts {
+  const k = engagementKey(key);
+  return { ...runtime, engagementDrafts: runtime.engagementDrafts.filter((r) => engagementKey(r) !== k) };
+}
+
+/**
+ * Apply a close computed by engine/engagements.ts: the engagement marked
+ * closed, the accepted drafts published as new record versions, the frozen
+ * snapshot, and the certificate or report if one was issued. Drafts are kept
+ * as the engagement's history of what it changed.
+ */
+export function applyEngagementClose(
+  runtime: RuntimeFacts,
+  close: { engagement: Engagement; published: SystemControlRecord[]; snapshot: EngagementSnapshot; certification: Certification | null },
+): RuntimeFacts {
+  const next = saveEngagement(runtime, close.engagement);
+  return {
+    ...next,
+    systemControlRecords: [...next.systemControlRecords, ...close.published],
+    engagementSnapshots: [...next.engagementSnapshots.filter((x) => x.engagementId !== close.snapshot.engagementId), close.snapshot],
+    certifications: close.certification ? [...next.certifications, close.certification] : next.certifications,
+  };
 }
 
 // Same replace-by-pair semantics as upsertImplementationMechanism — a pair is

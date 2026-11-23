@@ -126,6 +126,28 @@ export function canAssess(user: User | null, system: OwnableSystem): Permission 
   return ALLOWED;
 }
 
+/**
+ * Writing a control record in the system of record — management's statement of
+ * how a control is met. System Owners write their own systems' records; that
+ * is who the statement belongs to. It is not an assessment, so the
+ * separation-of-duties rule in canAssess does not apply.
+ */
+export function canEditControlRecord(user: User | null, system: OwnableSystem): Permission {
+  if (isAdmin(user) || isAssessor(user)) return ALLOWED;
+  if (isOwner(user) && ownsSystem(user, system)) return ALLOWED;
+  return UNAVAILABLE;
+}
+
+/** Central common and hybrid records: the program's half, written by GRC. */
+export function canEditCommonRecord(user: User | null): Permission {
+  return isAdmin(user) || isAssessor(user) ? ALLOWED : UNAVAILABLE;
+}
+
+/** Running an engagement: creating it, scoping, recording the auditor's results, closing and publishing. */
+export function canManageEngagement(user: User | null): Permission {
+  return isAdmin(user) || isAssessor(user) ? ALLOWED : UNAVAILABLE;
+}
+
 export function canEditFinding(user: User | null, finding: Finding): Permission {
   if (isAdmin(user) || isAssessor(user)) return ALLOWED;
   if (isOwner(user) && ownsFinding(user, finding)) return ALLOWED;
@@ -182,6 +204,9 @@ export const ROLE_CAPABILITIES: readonly RoleCapability[] = [
   { act: "Delete a system, restore the demo set", roles: [ROLES.ADMIN] },
   { act: "Record scope decisions", roles: [ROLES.ADMIN, ROLES.ASSESSOR] },
   { act: "Assess a control — grade, evidence, PRISMA levels", roles: [ROLES.ADMIN, ROLES.ASSESSOR], qualifier: "not on a system the assessor is accountable for" },
+  { act: "Write a system's control records", roles: [ROLES.ADMIN, ROLES.ASSESSOR, ROLES.OWNER], qualifier: "System Owners, only systems they are accountable for" },
+  { act: "Write central common and hybrid records", roles: [ROLES.ADMIN, ROLES.ASSESSOR] },
+  { act: "Run an audit — scope, auditor results, close and publish", roles: [ROLES.ADMIN, ROLES.ASSESSOR] },
   { act: "Raise a finding", roles: [ROLES.ADMIN, ROLES.ASSESSOR, ROLES.OWNER] },
   { act: "Change a finding", roles: [ROLES.ADMIN, ROLES.ASSESSOR, ROLES.OWNER], qualifier: "System Owners, only their own findings" },
   { act: "Run a procedure", roles: [ROLES.ADMIN, ROLES.ASSESSOR, ROLES.OWNER] },

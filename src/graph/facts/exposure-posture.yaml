@@ -14,3 +14,9 @@
   egressPosture: "default-deny"
   adminPosture: "vpn-required"
   apiPosture: "gateway-enforced"
+- systemId: "SYS-058"
+  inboundIntegrationCount: 3
+  outboundIntegrationCount: 3
+  egressPosture: "default-deny"
+  adminPosture: "vpn-required"
+  apiPosture: "gateway-enforced"

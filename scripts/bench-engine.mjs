@@ -226,9 +226,9 @@ try {
   const fnd = run("findings", () => mods.findings.createFindings(bigGraph, ctx));
   const evi = run("evidence", () => mods.evidence.createEvidence(bigGraph, ctx));
   const asm2 = run("assessment", () => mods.assessment.createAssessment(bigGraph, app, evi, fnd, ctx));
-  const rol = run("rollups", () => mods.rollups.createRollups(bigGraph, cls, app, asm2, fnd));
+  const cmp = run("compliance", () => mods.compliance.createCompliance(bigGraph, asm2, app));
+  const rol = run("rollups", () => mods.rollups.createRollups(bigGraph, cls, app, asm2, fnd, cmp));
   run("risk", () => mods.risk.createRisk(bigGraph, rol, asm2));
-  run("compliance", () => mods.compliance.createCompliance(bigGraph, asm2, app));
   run("profile", () => mods.profile.createProfile(bigGraph, rol));
 
   stage.sort((a, b) => b.each - a.each);

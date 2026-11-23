@@ -21,3 +21,21 @@
   exceptionsIdentified: 1
   exceptionsOpen: 1
   reviewerOrgId: "it-security-saas-admin"
+- id: "ACR-SYS-058-2026Q2"
+  systemId: "SYS-058"
+  reviewedAt: "2026-06-15"
+  cadenceDays: 90
+  reviewedCount: 54
+  totalCount: 56
+  exceptionsIdentified: 2
+  exceptionsOpen: 0
+  reviewerOrgId: "platform-eng"
+- id: "ACR-SYS-058-2026Q3"
+  systemId: "SYS-058"
+  reviewedAt: "2026-09-12"
+  cadenceDays: 90
+  reviewedCount: 56
+  totalCount: 56
+  exceptionsIdentified: 1
+  exceptionsOpen: 1
+  reviewerOrgId: "platform-eng"

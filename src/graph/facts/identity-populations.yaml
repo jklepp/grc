@@ -140,3 +140,47 @@
   localBypassCount: 3
   sharedCount: 0
   awaitingTerminationCount: 0
+- id: "IDPOP-SYS-058-employee"
+  systemId: "SYS-058"
+  identityType: "employee"
+  totalCount: 38
+  ssoEnforcedCount: 38
+  mfaEnforcedCount: 38
+  strongMfaCount: 12
+  dormantCount: 3
+  localBypassCount: 0
+  sharedCount: 0
+  awaitingTerminationCount: 1
+- id: "IDPOP-SYS-058-privileged"
+  systemId: "SYS-058"
+  identityType: "privileged"
+  totalCount: 7
+  ssoEnforcedCount: 7
+  mfaEnforcedCount: 7
+  strongMfaCount: 7
+  dormantCount: 0
+  localBypassCount: 0
+  sharedCount: 0
+  awaitingTerminationCount: 0
+- id: "IDPOP-SYS-058-service-account"
+  systemId: "SYS-058"
+  identityType: "service-account"
+  totalCount: 9
+  ssoEnforcedCount: 0
+  mfaEnforcedCount: 0
+  strongMfaCount: 0
+  dormantCount: 0
+  localBypassCount: 9
+  sharedCount: 0
+  awaitingTerminationCount: 0
+- id: "IDPOP-SYS-058-break-glass"
+  systemId: "SYS-058"
+  identityType: "break-glass"
+  totalCount: 2
+  ssoEnforcedCount: 0
+  mfaEnforcedCount: 2
+  strongMfaCount: 2
+  dormantCount: 0
+  localBypassCount: 2
+  sharedCount: 0
+  awaitingTerminationCount: 0

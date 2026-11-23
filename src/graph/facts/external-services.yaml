@@ -35,3 +35,27 @@
   externallyReachable: true
   authRequired: true
   wafProtected: true
+- id: "EXT-SYS-058-01"
+  systemId: "SYS-058"
+  name: "Patient Portal"
+  kind: "web-app"
+  internetFacing: true
+  externallyReachable: true
+  authRequired: true
+  wafProtected: true
+- id: "EXT-SYS-058-02"
+  systemId: "SYS-058"
+  name: "Clinician Web App"
+  kind: "web-app"
+  internetFacing: true
+  externallyReachable: true
+  authRequired: true
+  wafProtected: true
+- id: "EXT-SYS-058-03"
+  systemId: "SYS-058"
+  name: "FHIR Partner API"
+  kind: "public-api"
+  internetFacing: true
+  externallyReachable: true
+  authRequired: true
+  wafProtected: true

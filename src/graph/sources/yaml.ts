@@ -165,6 +165,13 @@ export const YAML_FACTS: GraphFacts = {
   assessmentScopes: read("assessment-scope"),
   providerCertifications: read("provider-certifications"),
   enterpriseAttestations: read("enterprise-attestations"),
+  commonControlRecords: read("common-controls"),
+  systemControlRecords: read("control-records"),
+  engagements: read("engagements"),
+  engagementControls: read("engagement-controls"),
+  engagementDrafts: read("engagement-drafts"),
+  engagementSnapshots: read("engagement-snapshots"),
+  certifications: read("certifications"),
   pendingApplicability: read("applicability-pending"),
 
   // System Register cockpit domains

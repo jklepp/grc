@@ -365,9 +365,23 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
   // that shape is silence: a category with nothing in it contributes no entry,
   // and if every category emptied the mean would be null rather than an error.
   rollups.systemRollups.forEach((s) => {
+    // Cyber Assurance exists only where HITRUST is in scope. There it must
+    // resolve; everywhere else it must be absent, not quietly zero — and the
+    // compliance score is the number that has to resolve instead.
+    if (s.requiresCyberAssurance) {
+      check(
+        Number.isFinite(s.rawAssurance),
+        `system ${s.id}: assurance did not resolve to a number — every assurance category is empty, which means nothing was assessed`
+      );
+    } else {
+      check(
+        s.rawAssurance === null,
+        `system ${s.id}: has no HITRUST in scope but carries a Cyber Assurance score of ${s.rawAssurance}`
+      );
+    }
     check(
-      Number.isFinite(s.rawAssurance),
-      `system ${s.id}: assurance did not resolve to a number — every assurance category is empty, which means nothing was assessed`
+      Number.isFinite(s.complianceScore),
+      `system ${s.id}: compliance score did not resolve to a number — no applicable control is assessed, inherited, or recorded`
     );
     check(
       Boolean(s.overallImpactBand?.label),
@@ -391,9 +405,30 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
   });
 
   check(
-    Number.isFinite(rollups.enterprise.rawAssurance),
+    rollups.enterprise.cyberAssuranceSystemCount === 0 || Number.isFinite(rollups.enterprise.rawAssurance),
     `enterprise assurance did not resolve to a number`
   );
+  check(
+    Number.isFinite(rollups.enterprise.rawCompliance),
+    `enterprise compliance score did not resolve to a number`
+  );
+
+  // ---- Framework baseline records ----------------------------------------------
+  // The structural half is in graph/validate.ts. This half needs applicability
+  // and responsibility: a record has to describe a control that applies to its
+  // system and that the system actually runs some part of.
+  graph.systemControlRecords.forEach((r) => {
+    const applicable = applicability.applicableControlsForSystem(r.systemId).some((c) => c.id === r.controlId);
+    check(
+      applicable,
+      `control record ${r.systemId}/${r.controlId}: ${r.controlId} does not apply to ${r.systemId}, so there is nothing to record`
+    );
+    if (!applicable) return;
+    check(
+      compliance.resolveBaseline(r.systemId, r.controlId).source !== "provider",
+      `control record ${r.systemId}/${r.controlId}: the provider runs ${r.controlId} on ${r.systemId} under its own certification — a system record would contradict that inheritance`
+    );
+  });
 
   // ---- Assessor overrides -----------------------------------------------------
   // Same contract as an applicability exception: an override that agrees with

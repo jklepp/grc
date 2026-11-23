@@ -18,6 +18,7 @@
 //      and source ids are filled in here so no downstream caller has to
 //      remember to, which is the bug that made `sourceId` unreliable when it
 //      was computed at three separate call sites.
+import { commonRecordKey, latestVersions, systemRecordKey } from "./nodes/controlRecords";
 import type { Graph, GraphFacts, ControlProfileDefinition } from "./types";
 import { DEFAULT_VALIDITY_DAYS, sourceIdFromName, type Evidence } from "./nodes/evidence";
 import type { EvidenceSource } from "./nodes/evidenceSources";
@@ -142,6 +143,11 @@ function resolveControlProfiles(
 
 // ---- Assembly ----------------------------------------------------------------
 export function assembleGraph(facts: GraphFacts): Graph {
+  // Records are versioned: facts carry every version, the graph's main lists
+  // carry the latest of each.
+  const currentCommon = latestVersions(facts.commonControlRecords, commonRecordKey);
+  const currentSystem = latestVersions(facts.systemControlRecords, systemRecordKey);
+
   const evidence = normalizeEvidence(facts);
   const { sources: evidenceSources, conflicts: sourceConflicts } = deriveEvidenceSources(evidence);
 
@@ -270,6 +276,15 @@ export function assembleGraph(facts: GraphFacts): Graph {
     assessmentScopes: facts.assessmentScopes,
     providerCertifications: facts.providerCertifications,
     enterpriseAttestations: facts.enterpriseAttestations,
+    commonControlRecords: currentCommon,
+    systemControlRecords: currentSystem,
+    commonControlRecordVersions: facts.commonControlRecords,
+    systemControlRecordVersions: facts.systemControlRecords,
+    engagements: facts.engagements,
+    engagementControls: facts.engagementControls,
+    engagementDrafts: facts.engagementDrafts,
+    engagementSnapshots: facts.engagementSnapshots,
+    certifications: facts.certifications,
     pendingApplicability: facts.pendingApplicability,
     riskAssets: facts.riskAssets,
     riskControls: facts.riskControls,
@@ -340,6 +355,12 @@ export function assembleGraph(facts: GraphFacts): Graph {
     pendingByPair: keyBy(facts.pendingApplicability, (p) => pair(p.systemId, p.controlId)),
     prismaOverrideByKey: keyBy(facts.prismaOverrides, (o) => `${o.systemId}::${o.controlId}::${o.level}`),
     controlReviewByKey: keyBy(facts.controlReviews, (o) => `${o.systemId}::${o.controlId}`),
+    commonRecordByControl: keyBy(currentCommon, commonRecordKey),
+    systemRecordByPair: keyBy(currentSystem, systemRecordKey),
+    engagementById: keyBy(facts.engagements, (e) => e.id),
+    engagementControlByKey: keyBy(facts.engagementControls, (c) => `${c.engagementId}::${c.systemId}::${c.controlId}`),
+    engagementDraftByKey: keyBy(facts.engagementDrafts, (d) => `${d.engagementId}::${d.systemId}::${d.controlId}`),
+    snapshotByEngagement: keyBy(facts.engagementSnapshots, (s) => s.engagementId),
     activitiesByControl: (() => {
       const byControl: Record<string, (typeof facts.scheduledActivities)[number][]> = {};
       facts.scheduledActivities.forEach((a) => {

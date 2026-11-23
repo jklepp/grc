@@ -3,6 +3,8 @@ import { FileDown } from "lucide-react";
 import { C } from "../../theme";
 import { PrismaLadder } from "./overview/PrismaLadder";
 import { AssessmentReadiness } from "./overview/AssessmentReadiness";
+import { BaselinePostureLadder, BaselineReadiness } from "./overview/BaselinePosture";
+import { FrameworksInScope } from "./overview/FrameworksInScope";
 import { Panel } from "./shared/Panel";
 import type { CockpitSummary, WorkspaceSystem } from "./types";
 import type { FormalAssessmentStatus } from "../../engine/review";
@@ -15,12 +17,14 @@ interface SystemOverviewProps {
   onOpenAssurance: (stage: AssuranceStageId) => void;
   onGenerateIsoReport: () => Promise<void>;
   formalAssessment: FormalAssessmentStatus;
+  /** Open the Controls tab — where a system without HITRUST does its readiness work. */
+  onOpenControls?: () => void;
 }
 
 export function SystemOverview(props: SystemOverviewProps) {
   const {
     system, cockpit, compliance, onOpenAssurance, onGenerateIsoReport,
-    formalAssessment,
+    formalAssessment, onOpenControls,
   } = props;
   const [generatingReport, setGeneratingReport] = useState(false);
 
@@ -35,10 +39,29 @@ export function SystemOverview(props: SystemOverviewProps) {
 
   return (
     <div className="px-4 lg:px-8 pb-10 space-y-8">
-      <Panel>
-        <PrismaLadder system={system} compliance={compliance} assurance={cockpit.assurance} />
-      </Panel>
+      {!system.requiresCyberAssurance && (
+        <>
+          <Panel>
+            <BaselinePostureLadder system={system} />
+          </Panel>
+          <Panel>
+            <BaselineReadiness system={system} onScopeClick={() => onOpenAssurance("scope")} onControlsClick={() => onOpenControls?.()} />
+          </Panel>
+          <Panel>
+            <FrameworksInScope system={system} />
+          </Panel>
+        </>
+      )}
 
+      {system.requiresCyberAssurance && (
+        <>
+          <Panel>
+            <PrismaLadder system={system} compliance={compliance} assurance={cockpit.assurance} />
+          </Panel>
+        </>
+      )}
+
+      {system.requiresCyberAssurance && (
       <Panel>
         <AssessmentReadiness
           formalAssessment={formalAssessment}
@@ -48,6 +71,13 @@ export function SystemOverview(props: SystemOverviewProps) {
           onRemediateClick={() => onOpenAssurance("remediate")}
         />
       </Panel>
+      )}
+
+      {system.requiresCyberAssurance && (
+        <Panel>
+          <FrameworksInScope system={system} />
+        </Panel>
+      )}
 
       <Panel className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2 min-w-0">

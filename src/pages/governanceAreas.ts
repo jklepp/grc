@@ -1,4 +1,4 @@
-import { BookOpen, CalendarClock, FileText, Handshake, LayoutGrid, ListChecks, Shield, ShieldAlert } from "lucide-react";
+import { BookOpen, CalendarClock, ClipboardCheck, FileText, Handshake, LayoutGrid, ListChecks, Shield, ShieldAlert } from "lucide-react";
 
 export const GOVERNANCE_AREAS = [
   {
@@ -14,6 +14,13 @@ export const GOVERNANCE_AREAS = [
     shortLabel: "Frameworks",
     icon: BookOpen,
     description: "Read each framework's requirements in its own words, and see which common controls map to each one.",
+  },
+  {
+    id: "audits",
+    label: "Audits",
+    shortLabel: "Audits",
+    icon: ClipboardCheck,
+    description: "Run audits against the system of record — scope, auditor results, requests and populations — and publish what changed when each one closes.",
   },
   {
     id: "obligations",

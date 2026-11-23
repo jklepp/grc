@@ -30,3 +30,17 @@
   iacScanningEnabled: false
   cicdIdentityHardened: false
   deployApprovalRequired: false
+- systemId: "SYS-058"
+  applicable: true
+  repoBranchProtection: true
+  prReviewRequired: true
+  sastEnabled: true
+  scaEnabled: true
+  # No DAST against the patient portal yet; tracked by product security.
+  dastEnabled: false
+  containerScanningEnabled: true
+  secretScanningEnabled: true
+  iacScanningEnabled: true
+  cicdIdentityHardened: true
+  deployApprovalRequired: true
+  lastThreatModelAt: "2025-10-02"

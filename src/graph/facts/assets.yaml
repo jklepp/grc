@@ -410,3 +410,113 @@
   code: "ADM"
   impactLevel: "high"
   inherentLikelihood: 4
+
+# ---- SYS-058: ACME Health Hub Product -------------------------------------------------
+- id: "AST-058-01"
+  systemIds: ["SYS-058"]
+  name: "Patient Portal"
+  type: "React SPA (CloudFront / S3)"
+  kind: "web-app"
+  provider: "AWS"
+  code: "WEB"
+  impactLevel: "high"
+  inherentLikelihood: 4
+- id: "AST-058-02"
+  systemIds: ["SYS-058"]
+  name: "Clinician Web App"
+  type: "React SPA (CloudFront / S3)"
+  kind: "web-app"
+  provider: "AWS"
+  code: "CLN"
+  impactLevel: "high"
+  inherentLikelihood: 3
+- id: "AST-058-03"
+  systemIds: ["SYS-058"]
+  name: "API Gateway"
+  type: "AWS API Gateway"
+  kind: "api-gateway"
+  provider: "AWS"
+  code: "API"
+  impactLevel: "high"
+  inherentLikelihood: 4
+- id: "AST-058-04"
+  systemIds: ["SYS-058"]
+  name: "FHIR API Service"
+  type: "AWS ECS Service (Fargate)"
+  kind: "compute-service"
+  provider: "AWS"
+  code: "FHIR"
+  impactLevel: "high"
+  inherentLikelihood: 3
+- id: "AST-058-05"
+  systemIds: ["SYS-058"]
+  name: "Patient Identity Pool"
+  type: "AWS Cognito User Pool"
+  kind: "identity-provider"
+  provider: "AWS"
+  code: "IDP"
+  impactLevel: "high"
+  inherentLikelihood: 4
+- id: "AST-058-06"
+  systemIds: ["SYS-058"]
+  name: "Clinical Records Database"
+  type: "AWS Aurora PostgreSQL"
+  kind: "relational-db"
+  provider: "AWS"
+  code: "EHR"
+  impactLevel: "high"
+  inherentLikelihood: 3
+- id: "AST-058-07"
+  systemIds: ["SYS-058"]
+  name: "Clinical Document Store"
+  type: "AWS S3 Bucket"
+  kind: "object-storage"
+  provider: "AWS"
+  code: "DOC"
+  impactLevel: "high"
+  inherentLikelihood: 3
+- id: "AST-058-08"
+  systemIds: ["SYS-058"]
+  name: "HL7/FHIR Integration Engine"
+  type: "AWS ECS Service (Fargate)"
+  kind: "integration-endpoint"
+  provider: "AWS"
+  code: "HL7"
+  impactLevel: "high"
+  inherentLikelihood: 4
+- id: "AST-058-09"
+  systemIds: ["SYS-058"]
+  name: "Notification Queue"
+  type: "AWS SQS Queue"
+  kind: "message-queue"
+  provider: "AWS"
+  code: "MSG"
+  impactLevel: "moderate"
+  inherentLikelihood: 2
+- id: "AST-058-10"
+  systemIds: ["SYS-058"]
+  name: "PHI Encryption Key"
+  type: "AWS KMS Customer-Managed Key"
+  kind: "key-management"
+  provider: "AWS"
+  code: "KMS"
+  impactLevel: "high"
+  inherentLikelihood: 2
+- id: "AST-058-11"
+  systemIds: ["SYS-058"]
+  name: "Immutable Backup Vault"
+  type: "AWS Backup Vault (Cross-Region Copy)"
+  kind: "backup-vault"
+  provider: "AWS"
+  code: "BAK"
+  impactLevel: "high"
+  inherentLikelihood: 2
+- id: "AST-058-12"
+  systemIds: ["SYS-058"]
+  name: "Audit Log Feed"
+  type: "CloudTrail + Application Audit Export"
+  kind: "log-feed"
+  provider: "AWS"
+  code: "LOG"
+  impactLevel: "high"
+  inherentLikelihood: 3

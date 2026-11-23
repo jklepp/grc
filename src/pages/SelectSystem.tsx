@@ -5,7 +5,7 @@ import { PageHeader } from "../components/Headings";
 import { ClassificationTag, badgeColorFor } from "../components/SystemBadges";
 import AddSystemWizard from "../components/AddSystemWizard";
 import Modal, { ModalCloseButton } from "../components/Modal";
-import { assuranceBand, baseFacts, commitRuntimeFacts, removeRuntimeSystem, restoreBaselineSystems } from "../engine";
+import { assuranceBand, complianceBand, baseFacts, commitRuntimeFacts, removeRuntimeSystem, restoreBaselineSystems } from "../engine";
 import { loadRuntimeFacts, hasRuntimeFacts } from "../engine/runtimeFactsStore";
 import { useLiveEngine } from "../engine/useLiveEngine";
 import type { SystemId } from "../graph/ids";
@@ -49,6 +49,8 @@ interface SystemRowProps {
 function SystemRow({ system, onSelect, onEdit, onDuplicate, onDelete }: SystemRowProps) {
   const openFindings = system.findings.filter((f) => f.open).length;
   const assurance = system.overallAssurance;
+  const compliance = system.complianceScore;
+  const coveragePct = system.complianceCoverage?.assessedPct ?? 0;
   return (
     <tr
       className="transition-colors wz-hover"
@@ -78,17 +80,22 @@ function SystemRow({ system, onSelect, onEdit, onDuplicate, onDelete }: SystemRo
         </div>
       </td>
       <td className="px-3 py-2.5 truncate" style={{ color: C.muted }}>{system.env}</td>
-      {/* Assurance and coverage read as one aligned numeric block; an
-          unassessed system has no assurance figure at all, and shows an em
-          dash rather than a zero. */}
+      {/* Compliance and coverage read as one aligned numeric block; a system
+          with nothing assessed shows an em dash rather than a zero. Cyber
+          Assurance rides underneath only where HITRUST is in scope. */}
       <td
         className="px-3 py-2.5 text-right tabular-nums font-semibold"
-        style={{ color: assurance == null ? C.muted : badgeColorFor(assuranceBand(assurance).color).color }}
+        style={{ color: compliance == null ? C.muted : badgeColorFor(complianceBand(compliance).color).color }}
       >
-        {assurance == null ? "—" : `${assurance}%`}
+        {compliance == null ? "—" : `${compliance}%`}
+        {assurance != null && (
+          <div className="text-[10px] font-normal whitespace-nowrap" title="Cyber Assurance (HITRUST)" style={{ color: badgeColorFor(assuranceBand(assurance).color).color }}>
+            CA {assurance}%
+          </div>
+        )}
       </td>
-      <td className="px-3 py-2.5 text-right tabular-nums font-semibold" style={{ color: coverageColor(system.coverage.assessedPct) }}>
-        {system.coverage.assessedPct}%
+      <td className="px-3 py-2.5 text-right tabular-nums font-semibold" style={{ color: coverageColor(coveragePct) }}>
+        {coveragePct}%
       </td>
       <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: C.muted }}>{system.assetCount}</td>
       <td className="px-3 py-2.5">
@@ -162,7 +169,8 @@ function CardStat({ label, value, color }: { label: string; value: React.ReactNo
 // table's own cluster keeps its gates.ts checks exactly as they are.
 function SystemCard({ system, onSelect }: { system: SystemRollup; onSelect: (id: SystemId) => void }) {
   const openFindings = system.findings.filter((f) => f.open).length;
-  const assurance = system.overallAssurance;
+  const compliance = system.complianceScore;
+  const coveragePct = system.complianceCoverage?.assessedPct ?? 0;
   return (
     <button
       type="button"
@@ -186,14 +194,13 @@ function SystemCard({ system, onSelect }: { system: SystemRollup; onSelect: (id:
         )}
       </div>
       <div className="grid grid-cols-4 gap-2 mt-3">
-        {/* An unassessed system has no assurance figure at all, and shows an
-            em dash rather than a zero. */}
+        {/* A system with nothing assessed shows an em dash rather than a zero. */}
         <CardStat
-          label="Assurance"
-          value={assurance == null ? "—" : `${assurance}%`}
-          color={assurance == null ? C.muted : badgeColorFor(assuranceBand(assurance).color).color}
+          label="Compliance"
+          value={compliance == null ? "—" : `${compliance}%`}
+          color={compliance == null ? C.muted : badgeColorFor(complianceBand(compliance).color).color}
         />
-        <CardStat label="Coverage" value={`${system.coverage.assessedPct}%`} color={coverageColor(system.coverage.assessedPct)} />
+        <CardStat label="Coverage" value={`${coveragePct}%`} color={coverageColor(coveragePct)} />
         <CardStat label="Assets" value={system.assetCount} color={C.ink} />
         <CardStat
           label={openFindings === 1 ? "Open finding" : "Open findings"}
@@ -414,7 +421,7 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
                   <th className="px-4 py-2 font-semibold">System ID</th>
                   <th className="px-3 py-2 font-semibold">System</th>
                   <th className="px-3 py-2 font-semibold">Env</th>
-                  <th className="px-3 py-2 text-right font-semibold">Assurance</th>
+                  <th className="px-3 py-2 text-right font-semibold">Compliance</th>
                   <th className="px-3 py-2 text-right font-semibold">Coverage</th>
                   <th className="px-3 py-2 text-right font-semibold">Assets</th>
                   <th className="px-3 py-2 font-semibold">Findings</th>

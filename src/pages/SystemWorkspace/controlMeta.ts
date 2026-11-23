@@ -59,6 +59,29 @@ export const RESPONSIBILITY_META = {
   [RESPONSIBILITIES.VENDOR]: meta({ label: "External Inherited", Icon: Cloud }, "accent", "accentBg"),
 };
 
+// Where a framework-baseline control's answer comes from — the baseline's
+// counterpart to RESPONSIBILITY_META, drawn with the same icons so the two
+// kinds of Controls tab read alike: the system's own work, a shared method,
+// a central program, a provider.
+export const SOURCE_META = {
+  system: meta({ label: "System-specific", Icon: User }, "ink", "panel2"),
+  none: meta({ label: "System-specific", Icon: User }, "ink", "panel2"),
+  hybrid: meta({ label: "Hybrid", Icon: Users }, "amber", "amberBg"),
+  common: meta({ label: "Common", Icon: Building2 }, "green", "greenBg"),
+  "enterprise-attestation": meta({ label: "Enterprise program", Icon: Building2 }, "green", "greenBg"),
+  provider: meta({ label: "Provider", Icon: Cloud }, "accent", "accentBg"),
+  prisma: meta({ label: "Cyber Assurance", Icon: ShieldCheck }, "accent", "accentBg"),
+} as const;
+export const sourceMeta = (source: string) => SOURCE_META[source as keyof typeof SOURCE_META] ?? SOURCE_META.system;
+
+// The auditor's conclusion, in the same chip as a control's status.
+export const AUDITOR_RESULT_BADGE = {
+  "not-assessed": meta({ label: "Not Assessed", Icon: ScrollText }, "ink", "panel2"),
+  "in-place": meta({ label: "In Place", Icon: CheckCircle2 }, "green", "greenBg"),
+  partial: meta({ label: "Partial", Icon: MinusCircle }, "amber", "amberBg"),
+  "not-in-place": meta({ label: "Not In Place", Icon: Circle }, "red", "redBg"),
+} as const;
+
 // Applicability, as opposed to implementation status — whether a control was
 // ever in play for this system at all. Kept out of STATUS_META on purpose:
 // mixing "not applicable" into the same ordinal scale as "deficient" would

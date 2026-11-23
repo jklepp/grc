@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Plug, Search, ChevronDown, ShieldCheck } from "lucide-react";
 import { C, CLASS_META } from "../theme";
 import { TouchHint } from "./TouchHint";
-import { assuranceBand } from "../engine";
+import { assuranceBand, complianceBand } from "../engine";
 import type { DataType } from "../graph/nodes/dataTypes";
 import type { ClassificationTier } from "../graph/nodes/taxonomy";
 import type { SystemId } from "../graph/ids";
@@ -27,15 +27,16 @@ export function badgeColorFor(key: string): { color: string; bg: string } {
 // Small ring badge for showing a system's overall assurance % inline next to
 // its name/classification (title bars, picker rows) — a compact cousin of the
 // larger AssuranceRing used on the Executive Overview's hero stat.
-export function AssuranceBadge({ pct, size = 34 }: { pct?: number | null; size?: number }) {
+export function AssuranceBadge({ pct, size = 34, kind = "assurance" }: { pct?: number | null; size?: number; kind?: "assurance" | "compliance" }) {
   if (pct == null) return null;
+  const band = kind === "compliance" ? complianceBand(pct) : assuranceBand(pct);
   const stroke = 4;
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
   const offset = circumference * (1 - pct / 100);
-  const color = badgeColorFor(assuranceBand(pct).color).color;
+  const color = badgeColorFor(band.color).color;
   return (
-    <div className="inline-flex items-center gap-1.5 shrink-0" title={`${pct}% Cyber Assurance`}>
+    <div className="inline-flex items-center gap-1.5 shrink-0" title={kind === "compliance" ? `${pct}% compliance` : `${pct}% Cyber Assurance`}>
       <div style={{ position: "relative", width: size, height: size }}>
         <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={C.panel2} strokeWidth={stroke} />
@@ -228,8 +229,8 @@ export function SystemPicker({ systems, systemId, onSelect, width = 380 }: Syste
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {s.classification && <ClassificationTag level={s.classification} />}
-                  {s.overallAssurance != null && (
-                    <span className="text-xs font-semibold w-9 text-right" style={{ color: badgeColorFor(assuranceBand(s.overallAssurance).color).color }}>{s.overallAssurance}%</span>
+                  {s.complianceScore != null && (
+                    <span className="text-xs font-semibold w-9 text-right" title="Compliance score" style={{ color: badgeColorFor(complianceBand(s.complianceScore).color).color }}>{s.complianceScore}%</span>
                   )}
                 </div>
               </button>

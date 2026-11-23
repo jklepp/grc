@@ -49,9 +49,9 @@ const COMPLIANCE_RAIL_X = 18;
 // Compliance and Assurance stay visually distinct from each other no matter
 // what the numbers do. Both tiles are the same fixed height (half the ladder)
 // so the pair reads as one stack and each leader has a fixed target.
-function ScoreTile({ label, sub, value, pct, gradient }: { label: string; sub: string; value: ReactNode; pct: number | null; gradient: string }) {
+export function ScoreTile({ label, sub, value, pct, gradient, height = TILE_H }: { label: string; sub: string; value: ReactNode; pct: number | null; gradient: string; height?: number }) {
   return (
-    <div className="rounded-xl px-4 py-3 w-full min-w-0 flex items-center justify-between gap-3" style={{ background: gradient, height: TILE_H }}>
+    <div className="rounded-xl px-4 py-3 w-full min-w-0 flex items-center justify-between gap-3" style={{ background: gradient, height }}>
       <div className="min-w-0">
         <div className="text-2xl font-semibold text-white" style={{ fontFamily: "'Source Serif 4', serif" }}>{value}</div>
         <div className="text-xs mt-1 text-white/85">{label}</div>
@@ -65,7 +65,7 @@ function ScoreTile({ label, sub, value, pct, gradient }: { label: string; sub: s
 // Functions rather than constants: C is mutated in place by applyTheme, so
 // module-scope gradients froze against the theme active at import time.
 const assuranceGradient = () => `linear-gradient(135deg, ${C.accent} 0%, ${C.accentStrong} 100%)`;
-const complianceGradient = () => `linear-gradient(135deg, ${C.amber} 0%, #2C4A78 100%)`;
+export const complianceGradient = () => `linear-gradient(135deg, ${C.amber} 0%, #2C4A78 100%)`;
 
 // A span rail: a rounded vertical line marking which rungs a tile reads, end
 // ticks fixing where that span starts and stops, and a leader running left
@@ -73,7 +73,7 @@ const complianceGradient = () => `linear-gradient(135deg, ${C.amber} 0%, #2C4A78
 // tile's center rather than at the rail's own midpoint — a straight rail
 // carries an off-center exit without looking lopsided, which is exactly what
 // a curly brace could not do once both tiles stacked into one column.
-function SpanRail({ height, railX, leaderY, color }: { height: number; railX: number; leaderY: number; color: string }) {
+export function SpanRail({ height, railX, leaderY, color }: { height: number; railX: number; leaderY: number; color: string }) {
   const bar = (style: React.CSSProperties) => (
     <div className="absolute rounded-full" style={{ background: color, ...style }} />
   );

@@ -7,6 +7,7 @@ import SecurityPrinciples from "./SecurityPrinciples";
 import ScheduledActivities from "./ScheduledActivities";
 import ExceptionRegister from "./ExceptionRegister";
 import ExternalObligations from "./ExternalObligations";
+import Audits from "./Audits/Audits";
 import { GovernanceLanding } from "./GovernanceLanding";
 import type { GovernanceAreaId } from "./governanceAreas";
 
@@ -20,6 +21,7 @@ import type { GovernanceAreaId } from "./governanceAreas";
 const PAGE_BY_AREA = {
   ccf: CommonControlFramework,
   frameworks: ComplianceFrameworks,
+  audits: Audits,
   obligations: ExternalObligations,
   policy: PolicyCenter,
   procedures: ProcedureLibrary,
@@ -39,6 +41,7 @@ type GovernanceTab = GovernanceAreaId;
 const INTERNAL_TABS: Record<string, GovernanceTab> = {
   ccf: "ccf",
   "compliance-frameworks": "frameworks",
+  audits: "audits",
   "external-obligations": "obligations",
   "policy-center": "policy",
   "procedure-library": "procedures",

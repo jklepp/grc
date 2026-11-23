@@ -1,0 +1,41 @@
+# Engagements — audits, external or internal (src/graph/nodes/engagements.ts).
+# Each reads the system of record, keeps drafts of what it changes, records the
+# auditor's result per control, and publishes back through a reviewed diff when
+# it closes. Dates follow the compliance calendar (src/data/complianceMilestones.ts).
+
+- id: "ENG-2026-ISO-RECERT"
+  name: "ISO 27001 Recertification 2026"
+  focus: "external"
+  auditType: "recertification"
+  status: "in-audit"
+  frameworks:
+    - "ISO 27001"
+  # The Health Hub joins the certificate's scope with this audit; the 2024
+  # certificate covered the AI platform only.
+  systemIds:
+    - "SYS-003"
+    - "SYS-058"
+  periodStart: "2026-12-01"
+  periodEnd: "2026-12-11"
+  dueDate: "2026-12-11"
+  auditFirm: "Northgate Certification Ltd."
+  ownerId: "grc"
+  startedAt: "2026-11-02T09:00:00Z"
+
+- id: "ENG-2026-SOC2-T2"
+  name: "SOC 2 Type II FY2026"
+  focus: "external"
+  auditType: "type-2"
+  status: "preparing"
+  frameworks:
+    - "SOC 2"
+  systemIds:
+    - "SYS-003"
+    - "SYS-042"
+    - "SYS-058"
+  periodStart: "2026-01-01"
+  periodEnd: "2026-12-31"
+  dueDate: "2027-02-26"
+  auditFirm: "Halden & Pryce LLP"
+  ownerId: "grc"
+  startedAt: "2026-11-16T09:00:00Z"

@@ -44,6 +44,7 @@ interface DisplayNode {
   clauses?: unknown[];
   dataTypeIds?: string[];
   overallAssurance?: number | null;
+  complianceScore?: number | null;
   assurance?: { pct?: number | null };
   confidence?: number;
 }
@@ -115,7 +116,9 @@ function nodeScore(type: string, node: DisplayNode | null): number | null {
   // An asset deliberately returns nothing. It is a diagnostic now — it carries
   // a list of control instances and a FIPS 199 impact level, and inventing a
   // headline number for it here would put back the score the model just removed.
-  if (type === "system") return node.overallAssurance ?? null;
+  // A system's headline is its compliance score; Cyber Assurance only exists
+  // on HITRUST systems.
+  if (type === "system") return node.complianceScore ?? null;
   if (type === "risk") return node.assurance?.pct ?? null;
   if (type === "evidence") return node.confidence ?? null;
   return null;
@@ -175,7 +178,8 @@ function factsFor(type: NodeType, id: string): FactRow[] {
       return [
         { label: "Classification", value: node.classification },
         { label: "Hosting", value: node.hostingType },
-        { label: "Assurance", value: `${node.overallAssurance} (${node.assuranceBand.label})` },
+        { label: "Compliance", value: node.complianceScore == null ? "Unassessed" : `${node.complianceScore}%` },
+        { label: "Cyber Assurance", value: node.overallAssurance == null ? "Not scored (no HITRUST in scope)" : `${node.overallAssurance} (${node.assuranceBand.label})` },
         { label: "Assessment coverage", value: `${node.coverage.assessed} of ${node.coverage.applicable} controls (${node.coverage.assessedPct}%)` },
         { label: "Inherited", value: `${node.coverage.inherited} from ${node.provider}` },
         { label: "Assets", value: node.assetCount },
@@ -431,7 +435,8 @@ function ModelHealth({ onSelect }: { onSelect: (type: NodeType, id: string) => v
       <div>
         <SectionHeading icon={Activity} hint="what the model is standing on">Coverage</SectionHeading>
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
-          <HealthStat label="Enterprise assurance" value={enterprise.assurance} hint={`Criticality-weighted across both systems, from ${health.coverage.assessed} of ${health.coverage.applicable} applicable controls.`} />
+          <HealthStat label="Enterprise compliance" value={enterprise.compliance == null ? "—" : `${enterprise.compliance}%`} hint="Each system's share of assessed controls that are met, weighted by FIPS 199 impact." />
+          <HealthStat label="Cyber Assurance" value={enterprise.assurance ?? "—"} hint={`PRISMA score across the ${enterprise.cyberAssuranceSystemCount} system(s) with HITRUST in scope.`} />
           <HealthStat label="Assessment coverage" value={`${health.coverage.assessedPct}%`} hint={`${health.coverage.assessed} of ${health.coverage.applicable} applicable controls were assessed, ${health.coverage.inherited} of them inherited from a provider. The rest are reported as unassessed, never scored as zero.`} />
           <HealthStat label="Evidence-backed" value={`${health.coverage.evidenceBackedPct}%`} hint="Share of the controls required on assets that carry a real evidence record." />
           <HealthStat label="Assessments" value={`${health.counts.scoredAssessments} / ${health.counts.assessments}`} hint={`Scored of applicable, across ${health.counts.sampledInstances} sampled asset instances.`} />

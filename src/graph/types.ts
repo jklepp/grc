@@ -46,6 +46,8 @@ import type { PendingApplicability } from "./nodes/pendingApplicability";
 import type { ScheduledActivityRecord } from "./nodes/scheduledActivities";
 import type { PrismaLevelOverride } from "./edges/prismaOverrides";
 import type { ControlReview } from "./edges/controlReviews";
+import type { CommonControlRecord, SystemControlRecord } from "./nodes/controlRecords";
+import type { Certification, Engagement, EngagementControl, EngagementDraft, EngagementSnapshot } from "./nodes/engagements";
 import type { RiskAsset, RiskControl } from "./edges/riskContributors";
 import type { AssuranceCategory, ClassificationTier, PrismaLevel, EvidenceType } from "./nodes/taxonomy";
 import type { IdentityPopulation, AccessReview } from "./nodes/identity";
@@ -173,6 +175,22 @@ export interface GraphFacts {
   // decided-and-required (everything else).
   pendingApplicability: PendingApplicability[];
 
+  // The framework baseline (nodes/controlRecords.ts): how systems without
+  // HITRUST in scope are assessed. Central records for common and hybrid
+  // controls, and each system's own records.
+  // Every VERSION of each record; the graph exposes the latest as current.
+  commonControlRecords: CommonControlRecord[];
+  systemControlRecords: SystemControlRecord[];
+
+  // Engagements (nodes/engagements.ts): audits, their per-control results and
+  // working drafts, the frozen copy each closed one left, and the certificates
+  // and reports ACME holds.
+  engagements: Engagement[];
+  engagementControls: EngagementControl[];
+  engagementDrafts: EngagementDraft[];
+  engagementSnapshots: EngagementSnapshot[];
+  certifications: Certification[];
+
   // ---- System Register cockpit domains -----------------------------------
   // Eight new fact domains backing the assurance-cockpit rework: identity
   // population/coverage, attack surface, vulnerability posture, security
@@ -272,6 +290,17 @@ export interface Graph {
   readonly providerCertifications: readonly ProviderCertification[];
   readonly enterpriseAttestations: readonly EnterpriseAttestation[];
   readonly pendingApplicability: readonly PendingApplicability[];
+  /** Current records: the latest version of each. */
+  readonly commonControlRecords: readonly CommonControlRecord[];
+  readonly systemControlRecords: readonly SystemControlRecord[];
+  /** Every version ever saved, for history and point-in-time reads. */
+  readonly commonControlRecordVersions: readonly CommonControlRecord[];
+  readonly systemControlRecordVersions: readonly SystemControlRecord[];
+  readonly engagements: readonly Engagement[];
+  readonly engagementControls: readonly EngagementControl[];
+  readonly engagementDrafts: readonly EngagementDraft[];
+  readonly engagementSnapshots: readonly EngagementSnapshot[];
+  readonly certifications: readonly Certification[];
   readonly riskAssets: readonly RiskAsset[];
   readonly riskControls: readonly RiskControl[];
   readonly risksWithoutAssets: Readonly<Record<RiskId, string>>;
@@ -360,6 +389,15 @@ export interface Graph {
   readonly prismaOverrideByKey: Readonly<Record<string, PrismaLevelOverride>>;
   // `${systemId}::${controlId}`, at most one per key.
   readonly controlReviewByKey: Readonly<Record<string, ControlReview>>;
+  readonly commonRecordByControl: Readonly<Record<string, CommonControlRecord>>;
+  /** Keyed `${systemId}::${controlId}`. */
+  readonly systemRecordByPair: Readonly<Record<string, SystemControlRecord>>;
+  readonly engagementById: Readonly<Record<string, Engagement>>;
+  /** Keyed `${engagementId}::${systemId}::${controlId}`. */
+  readonly engagementControlByKey: Readonly<Record<string, EngagementControl>>;
+  /** Keyed `${engagementId}::${systemId}::${controlId}`. */
+  readonly engagementDraftByKey: Readonly<Record<string, EngagementDraft>>;
+  readonly snapshotByEngagement: Readonly<Record<string, EngagementSnapshot>>;
   readonly activitiesByControl: Readonly<Record<ControlId, readonly ScheduledActivityRecord[]>>;
   readonly activitiesByProcedure: Readonly<Record<string, readonly ScheduledActivityRecord[]>>;
 

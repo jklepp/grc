@@ -1,0 +1,494 @@
+# Each system's own control records — the framework baseline for systems without
+# HITRUST in scope (src/graph/nodes/controlRecords.ts). One row is either the whole
+# of a system-specific control or the system's part of a hybrid one (see
+# common-controls.yaml). An applicable control with no row here, no common record
+# and no inheritance is unassessed: reported, not scored as zero.
+
+
+# ---- SYS-058 ----
+- systemId: "SYS-058"
+  controlId: "BCD-08"
+  statement: >
+    Backups of the clinical records database and document store are copied to us-west-2, a
+    separate region from production.
+  status: "implemented"
+  ownerId: "infrastructure"
+  frequency: "continuous"
+  evidence:
+    - "AWS Backup cross-region copy job config"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "BCD-11"
+  statement: >
+    Aurora continuous backup and daily document store backups run to an immutable, locked vault,
+    monitored for failed jobs.
+  status: "implemented"
+  ownerId: "infrastructure"
+  frequency: "daily"
+  evidence:
+    - "AWS Backup job report 2026-11"
+    - "Vault lock config"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "BCD-12"
+  statement: >
+    The April 2026 cross-region restore succeeded but took 310 minutes against a 240-minute RTO
+    target. A runbook fix is in progress.
+  status: "partial"
+  ownerId: "infrastructure"
+  frequency: "semi-annual"
+  evidence:
+    - "DRTEST-SYS-058-2026-01"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "CAP-01"
+  statement: >
+    ECS and Aurora autoscale on load, with capacity alarms paging the platform on-call.
+  status: "implemented"
+  ownerId: "platform-eng"
+  frequency: "continuous"
+  # No evidence reference yet. SOC 2 maps CAP-01, so the record is flagged as
+  # owing evidence for the audit period.
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "CLD-01"
+  statement: >
+    The Health Hub runs in a dedicated production account built from ACME's AWS account
+    baseline.
+  status: "implemented"
+  ownerId: "platform-eng"
+  frequency: "annual"
+  evidence:
+    - "AWS account baseline v2"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "CLD-04"
+  statement: >
+    Every API call is authenticated at the gateway, and FHIR scopes restrict each client to the
+    resources its role allows.
+  status: "implemented"
+  ownerId: "platform-eng"
+  frequency: "continuous"
+  evidence:
+    - "API Gateway authorizer config"
+    - "FHIR scope matrix"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "CFG-03"
+  statement: >
+    Services run from minimal container images with unused ports and packages removed.
+  status: "implemented"
+  ownerId: "platform-eng"
+  frequency: "continuous"
+  evidence:
+    - "Container image hardening report"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "CRY-03"
+  statement: >
+    TLS 1.2+ is enforced at CloudFront and the gateway; EHR integrations use mutually
+    authenticated TLS.
+  status: "implemented"
+  ownerId: "platform-eng"
+  frequency: "continuous"
+  evidence:
+    - "TLS policy export"
+    - "Partner mTLS certificate inventory"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "CRY-05"
+  statement: >
+    The clinical records database, document store and backups are encrypted at rest under the
+    Health Hub customer-managed KMS key.
+  status: "implemented"
+  ownerId: "data-platform"
+  frequency: "continuous"
+  evidence:
+    - "Vanta test: RDS encryption at rest"
+    - "Vanta test: S3 default encryption"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "CRY-09"
+  statement: >
+    The customer-managed key rotates annually, and its key policy limits use to the Health Hub
+    service roles.
+  status: "implemented"
+  ownerId: "platform-eng"
+  frequency: "annual"
+  evidence:
+    - "KMS key policy"
+    - "Key rotation status export"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "DCH-01"
+  statement: >
+    PHI is held only in the clinical records database and document store; every other component
+    reads it through the FHIR service.
+  status: "implemented"
+  ownerId: "data-platform"
+  frequency: "continuous"
+  evidence:
+    - "Data protection design doc HH-12"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "DCH-18"
+  statement: >
+    Clinical records are retained six years after last activity per the BAAs. Document store
+    lifecycle rules are set; database purge is still a manual quarterly job.
+  status: "partial"
+  ownerId: "data-platform"
+  frequency: "annual"
+  evidence:
+    - "Retention config review 2026-08"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "DCH-19"
+  statement: >
+    An organization policy restricts the account to us-east-1 and us-west-2, so PHI cannot be
+    stored outside the United States.
+  status: "implemented"
+  ownerId: "platform-eng"
+  frequency: "continuous"
+  evidence:
+    - "SCP: region restriction"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "NET-01"
+  statement: >
+    Network access inside the VPC is limited by security groups to the flows the data map shows.
+  status: "implemented"
+  ownerId: "platform-eng"
+  frequency: "continuous"
+  evidence:
+    - "Security group baseline export"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "NET-03"
+  statement: >
+    Public traffic enters only through CloudFront, the WAF and the API gateway; nothing else in
+    the VPC is internet-reachable.
+  status: "implemented"
+  ownerId: "platform-eng"
+  frequency: "continuous"
+  evidence:
+    - "WAF and gateway config"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "NET-06"
+  statement: >
+    Databases and the integration engine sit in private subnets with no route to the internet.
+  status: "implemented"
+  ownerId: "platform-eng"
+  frequency: "continuous"
+  evidence:
+    - "VPC subnet layout HH-04"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "NET-17"
+  statement: >
+    Egress is default-deny, but DLP inspection is live only on the notification path; the
+    document export path is not yet covered.
+  status: "partial"
+  ownerId: "product-security"
+  frequency: "continuous"
+  evidence:
+    - "DLP rollout plan HH-31"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "WEB-01"
+  statement: >
+    The portal and clinician app enforce a strict content security policy and security headers.
+  status: "implemented"
+  ownerId: "product-security"
+  frequency: "continuous"
+  evidence:
+    - "CSP and header scan report"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "WEB-03"
+  statement: >
+    AWS WAF with managed and custom rules protects both web apps and the partner API.
+  status: "implemented"
+  ownerId: "product-security"
+  frequency: "continuous"
+  evidence:
+    - "WAF rule set export"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "TDA-09"
+  statement: >
+    SAST, SCA, container and secret scanning gate every build. DAST against the patient portal
+    is not yet in place.
+  status: "partial"
+  ownerId: "product-security"
+  frequency: "per-event"
+  evidence:
+    - "Pipeline security stage config"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "TDA-18"
+  statement: >
+    All inbound FHIR and HL7 payloads are validated against schema and profile before they are
+    written.
+  status: "implemented"
+  ownerId: "engineering"
+  frequency: "per-event"
+  evidence:
+    - "FHIR validation layer design"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "RSK-04"
+  statement: >
+    The Health Hub risk assessment, which doubles as its HIPAA security risk analysis, was
+    completed in May 2026 and its risks are in the register.
+  status: "implemented"
+  ownerId: "product-security"
+  frequency: "annual"
+  evidence:
+    - "HH risk assessment 2026-05"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "BCD-04"
+  statement: >
+    Restore testing follows the standard, but the 180-day cadence lapsed in October 2026 and no
+    retest is scheduled.
+  status: "partial"
+  ownerId: "infrastructure"
+  frequency: "semi-annual"
+  evidence:
+    - "DRTEST-SYS-058-2026-01"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "CHG-02"
+  statement: >
+    All Health Hub production changes deploy through the gated pipeline; console write access to
+    production is removed.
+  status: "implemented"
+  ownerId: "platform-eng"
+  frequency: "per-event"
+  evidence:
+    - "Pipeline approval log export Q3"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "CFG-02"
+  statement: >
+    Services deploy from the published baselines, and the two current drift exceptions are
+    documented.
+  status: "implemented"
+  ownerId: "platform-eng"
+  frequency: "continuous"
+  evidence:
+    - "Drift report 2026-11"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "DCH-02"
+  statement: >
+    Every Health Hub data store is classified in the register; the PHI stores are Restricted.
+  status: "implemented"
+  ownerId: "data-platform"
+  frequency: "annual"
+  evidence:
+    - "System register data classification"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "PRI-05"
+  statement: >
+    Document store lifecycle deletion is automated; database purge of expired records is a
+    manual quarterly job.
+  status: "partial"
+  ownerId: "data-platform"
+  frequency: "quarterly"
+  evidence:
+    - "Retention config review 2026-08"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "TPM-04"
+  statement: >
+    AWS and the messaging provider are both reviewed, with BAAs in place, and the messaging
+    provider receives no clinical content.
+  status: "implemented"
+  ownerId: "grc"
+  frequency: "annual"
+  evidence:
+    - "BAA: External Messaging Provider"
+    - "Vendor review VR-2026-118"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "IAC-17"
+  statement: >
+    The Q3 review covered all 56 accounts. The one open exception is a contractor account
+    scheduled for removal.
+  status: "implemented"
+  ownerId: "platform-eng"
+  frequency: "quarterly"
+  evidence:
+    - "ACR-SYS-058-2026Q3"
+  reviewedAt: "2026-10-20"
+- systemId: "SYS-058"
+  controlId: "MON-02"
+  statement: >
+    CloudTrail, gateway and application audit logs, including PHI access events, forward to the
+    SIEM.
+  status: "implemented"
+  ownerId: "platform-eng"
+  frequency: "continuous"
+  evidence:
+    - "SIEM source health: SYS-058"
+  reviewedAt: "2026-10-20"
+
+# ---- SYS-042 ----
+- systemId: "SYS-042"
+  controlId: "BCD-08"
+  statement: >
+    Tenant data is replicated to Workday's secondary data center under the vendor's own
+    continuity program; ACME confirms coverage in the annual SOC 2 review.
+  status: "implemented"
+  ownerId: "it-security-saas-admin"
+  frequency: "continuous"
+  evidence:
+    - "Workday SOC 2 report, CUEC review"
+  reviewedAt: "2026-08-30"
+- systemId: "SYS-042"
+  controlId: "BCD-11"
+  statement: >
+    Workday backs up the tenant, and ACME keeps a weekly encrypted export of core HR data as an
+    independent copy.
+  status: "implemented"
+  ownerId: "it-security-saas-admin"
+  frequency: "daily"
+  evidence:
+    - "EV-9230"
+    - "Weekly export job log"
+  reviewedAt: "2026-08-30"
+- systemId: "SYS-042"
+  controlId: "CLD-04"
+  statement: >
+    API access uses OAuth clients scoped per integration, with no shared credentials.
+  status: "implemented"
+  ownerId: "it-security-saas-admin"
+  frequency: "continuous"
+  evidence:
+    - "Integration security config"
+  reviewedAt: "2026-08-30"
+- systemId: "SYS-042"
+  controlId: "CLD-06"
+  statement: >
+    Tenant isolation is the vendor's control, confirmed each year from its SOC 2 report.
+  status: "implemented"
+  ownerId: "it-security-saas-admin"
+  frequency: "annual"
+  evidence:
+    - "Workday SOC 2 report, tenant isolation"
+  reviewedAt: "2026-08-30"
+- systemId: "SYS-042"
+  controlId: "CRY-03"
+  statement: >
+    Workday endpoints enforce TLS 1.2+. The payroll connector still accepts TLS 1.1 from the
+    processor; the processor's upgrade is due in Q1.
+  status: "partial"
+  ownerId: "it-security-saas-admin"
+  frequency: "continuous"
+  evidence:
+    - "Integration TLS inventory"
+  reviewedAt: "2026-08-30"
+- systemId: "SYS-042"
+  controlId: "DCH-18"
+  statement: >
+    Workday retention rules purge terminated-worker records seven years after termination.
+  status: "implemented"
+  ownerId: "hr-operations"
+  frequency: "annual"
+  evidence:
+    - "Retention rules export"
+  reviewedAt: "2026-08-30"
+- systemId: "SYS-042"
+  controlId: "DCH-19"
+  statement: >
+    The tenant is hosted in Workday's US data centers only.
+  status: "implemented"
+  ownerId: "it-security-saas-admin"
+  frequency: "annual"
+  evidence:
+    - "Workday data center attestation"
+  reviewedAt: "2026-08-30"
+- systemId: "SYS-042"
+  controlId: "NET-03"
+  statement: >
+    Administrator sign-in is restricted to the corporate network, but the integration endpoints
+    accept calls from any address.
+  status: "partial"
+  ownerId: "it-security-saas-admin"
+  frequency: "continuous"
+  evidence:
+    - "Tenant IP allowlist config"
+  reviewedAt: "2026-08-30"
+- systemId: "SYS-042"
+  controlId: "NET-17"
+  statement: >
+    No DLP covers report exports from the tenant. A CASB policy is planned.
+  status: "not-implemented"
+  ownerId: "it-security"
+  frequency: "continuous"
+  reviewedAt: "2026-08-30"
+- systemId: "SYS-042"
+  controlId: "RSK-04"
+  statement: >
+    Workday's annual risk assessment was completed in February 2026.
+  status: "implemented"
+  ownerId: "hr-operations"
+  frequency: "annual"
+  evidence:
+    - "Workday risk assessment 2026-02"
+  reviewedAt: "2026-08-30"
+- systemId: "SYS-042"
+  controlId: "DCH-02"
+  statement: >
+    Employee and compensation data are classified; benefits documents uploaded by employees are
+    not yet classified.
+  status: "partial"
+  ownerId: "hr-operations"
+  frequency: "annual"
+  evidence:
+    - "System register data classification"
+  reviewedAt: "2026-08-30"
+- systemId: "SYS-042"
+  controlId: "PRI-05"
+  statement: >
+    Terminated-worker purge is automated; applicant data is still kept indefinitely.
+  status: "partial"
+  ownerId: "hr-operations"
+  frequency: "annual"
+  evidence:
+    - "Retention rules export"
+  reviewedAt: "2026-08-30"
+- systemId: "SYS-042"
+  controlId: "TPM-04"
+  statement: >
+    Workday is reviewed annually; the payroll processor's reassessment is overdue.
+  status: "partial"
+  ownerId: "grc"
+  frequency: "annual"
+  evidence:
+    - "Vendor review VR-2026-044"
+  reviewedAt: "2026-08-30"
+- systemId: "SYS-042"
+  controlId: "IAC-17"
+  statement: >
+    The Q1 review covered 19 of 21 accounts and one exception is still open; the Q2 review has
+    not been completed.
+  status: "partial"
+  ownerId: "it-security-saas-admin"
+  frequency: "quarterly"
+  evidence:
+    - "ACR-SYS-042-2026Q1"
+  reviewedAt: "2026-08-30"
+- systemId: "SYS-042"
+  controlId: "MON-02"
+  statement: >
+    The Workday audit log feed forwards sign-in and admin events to the SIEM.
+  status: "implemented"
+  ownerId: "it-security-saas-admin"
+  frequency: "continuous"
+  evidence:
+    - "SIEM source health: SYS-042"
+  reviewedAt: "2026-08-30"

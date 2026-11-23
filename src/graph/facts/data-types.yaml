@@ -101,3 +101,15 @@
   description: "Build artifacts, container images, and the deploy credentials that push ACME's own
     code and infrastructure changes into a boundary. Confidential rather than Restricted: possession
     grants the ability to change what runs, not direct access to customer data."
+- id: "DT-011"
+  name: "Protected Health Information"
+  kind: "pii"
+  sensitivity: "Restricted"
+  regulatedBy:
+    - "HIPAA"
+  regulatoryFlags:
+    - "PHI"
+    - "PII"
+  description: "Patient demographics, encounters, results, medications and clinical documents the
+    Health Hub holds on behalf of its health-system customers, as their business associate. Every
+    record is individually identifiable health information, so the whole set is PHI."

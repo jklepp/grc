@@ -35,6 +35,7 @@ export type NavigationPageId = "overview" | "data-estate" | "governance" | "grap
 const GOVERNANCE_LEGACY_ID: Record<GovernanceAreaId, string> = {
   ccf: "ccf",
   frameworks: "compliance-frameworks",
+  audits: "audits",
   obligations: "external-obligations",
   policy: "policy-center",
   procedures: "procedure-library",

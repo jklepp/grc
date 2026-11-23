@@ -45,3 +45,22 @@
     - "DT-001"
     - "DT-005"
   criticality: "moderate"
+- systemId: "SYS-058"
+  vendorId: "VEND-AWS"
+  dependency: "Compute, storage, KMS, Cognito and network isolation for the entire production boundary"
+  dataAccessible:
+    - "DT-011"
+    - "DT-004"
+    - "DT-005"
+    - "DT-006"
+  criticality: "critical"
+
+- systemId: "SYS-058"
+  vendorId: "VEND-MESSAGING"
+  dependency: >
+    SMS and email delivery for appointment reminders and "new result available" notices.
+    Messages carry no clinical content by design, so the provider sees contact metadata
+    only; a BAA is still in place because the fact of a visit can itself be PHI.
+  dataAccessible:
+    - "DT-005"
+  criticality: "moderate"

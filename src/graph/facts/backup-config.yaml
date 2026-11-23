@@ -16,3 +16,10 @@
   crossRegion: false
   rpoTargetMinutes: 1440
   rtoTargetMinutes: 1440
+- systemId: "SYS-058"
+  enabled: true
+  coveragePct: 100
+  immutable: true
+  crossRegion: true
+  rpoTargetMinutes: 60
+  rtoTargetMinutes: 240

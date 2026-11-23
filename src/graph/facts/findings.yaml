@@ -63,3 +63,20 @@
     campaign and record sign-off."
   remediationOwnerId: "it-security"
   targetDate: "2026-08-22"
+- id: "SEC-2301"
+  title: "Add business-associate customer notification to the Health Hub breach playbook"
+  detail: "The playbook has no step for notifying each affected health-system customer, which ACME owes
+    them as a business associate under its BAAs. Raised during the 2026-08-12 ransomware tabletop
+    (TTX-SYS-058-2026-01), where no customer-comms function took part."
+  assetId: "AST-058-06"
+  systemId: "SYS-058"
+  controlId: "IRO-02"
+  remediationStatus: "In Progress"
+  ownerId: "product-security"
+  due: "2026-12-15"
+  severity: "medium"
+  source: "ir-tabletop"
+  remediationPlan: "Add a customer-notification step with BAA timelines and a per-customer contact
+    list to the playbook, then rerun the scenario with customer communications in the room."
+  remediationOwnerId: "grc"
+  targetDate: "2026-12-10"

@@ -46,6 +46,8 @@ import type { ClassificationApi } from "./classification";
 import type { ApplicabilityApi } from "./applicability";
 import type { AssessmentApi, ControlAssessment } from "./assessment";
 import type { FindingsApi } from "./findings";
+import type { ComplianceApi } from "./compliance";
+import { requiresCyberAssurance } from "../graph/nodes/controlRecords";
 import {
   impactLevelBand, assuranceBand,
   impactFromImpactLevel, riskScore, riskBand, mean, weightedMean, display,
@@ -89,7 +91,8 @@ export function createRollups(
   classification: ClassificationApi,
   applicability: ApplicabilityApi,
   assessment: AssessmentApi,
-  findings: FindingsApi
+  findings: FindingsApi,
+  compliance: ComplianceApi
 ) {
   // ---- An asset, as a diagnostic ------------------------------------------------
   // AN ASSET NO LONGER HAS A SCORE, AND THAT IS THE POINT.
@@ -194,7 +197,10 @@ export function createRollups(
   // does not run.
   function categoryRollupForSystem(systemId: SystemId, category: AssuranceCategory) {
     const all = assessment.assessmentsForSystem(systemId).filter((a) => a.category === category);
-    const scored = all.filter((a) => a.assessed);
+    // Cyber Assurance is only scored where HITRUST is in scope. Elsewhere the
+    // category carries no score at all — not a low one — and the system is
+    // read by its compliance score instead.
+    const scored = requiresCyberAssurance(graph.systemById[systemId]) ? all.filter((a) => a.assessed) : [];
     const raw = mean(scored.map((a) => a.rawScore as number));
 
     return {
@@ -294,8 +300,16 @@ export function createRollups(
       ])
     ) as Record<PrismaLevel, number | null>;
 
+    const complianceCoverage = compliance.SYSTEM_COVERAGE[systemId];
+
     return {
       ...system,
+      // Whether this system is assessed on the Cyber Assurance (PRISMA) levels
+      // at all. False means HITRUST is not in scope: overallAssurance is null
+      // by design, and complianceScore is the system's number.
+      requiresCyberAssurance: requiresCyberAssurance(system),
+      complianceScore: complianceCoverage?.complianceScore ?? null,
+      complianceCoverage,
       // `assignment` is a display string resolved from the stored `ownerId`, so
       // pages built against the old free-text roles[] didn't need to change.
       roles: system.roles.map((r) => ({ ...r, assignment: graph.orgById[r.ownerId]?.name ?? r.ownerId })),
@@ -357,8 +371,10 @@ export function createRollups(
   const systemRollups = graph.systems.map((s) => systemRollup(s.id));
   const systemRollupById = Object.fromEntries(systemRollups.map((s) => [s.id, s])) as Record<SystemId, (typeof systemRollups)[number]>;
 
+  // Cyber Assurance across the systems that carry it — HITRUST-scoped ones.
+  // A system with no score contributes no entry rather than a zero.
   const enterpriseRaw = weightedMean(
-    systemRollups.map((s) => ({
+    systemRollups.filter((s) => s.rawAssurance != null).map((s) => ({
       value: s.rawAssurance as number,
       // A system's weight is its FIPS 199 overall impact, so a High
       // production boundary outweighs a Low internal one without averaging
@@ -371,7 +387,19 @@ export function createRollups(
   const allAssessments = systemRollups.flatMap((s) => s.assessments);
   const allScored = systemRollups.flatMap((s) => s.scoredAssessments);
 
+  // THE ENTERPRISE ROLLUP: every system's compliance score, weighted by its
+  // FIPS 199 overall impact the same way Cyber Assurance is. Systems with
+  // nothing assessed contribute no entry.
+  const enterpriseComplianceRaw = weightedMean(
+    systemRollups
+      .filter((s) => s.complianceScore != null)
+      .map((s) => ({ value: s.complianceScore as number, weight: s.impactWeight }))
+  );
+
   const enterprise = {
+    compliance: display(enterpriseComplianceRaw),
+    rawCompliance: enterpriseComplianceRaw,
+    cyberAssuranceSystemCount: systemRollups.filter((s) => s.requiresCyberAssurance).length,
     assurance: enterpriseAssurance,
     rawAssurance: enterpriseRaw,
     assetCount: assetRollups.length,

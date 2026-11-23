@@ -1,0 +1,438 @@
+# Central records for common and hybrid controls — the framework baseline's
+# program layer (src/graph/nodes/controlRecords.ts).
+#
+#   common  written once here and inherited as-is by every system the control
+#           applies to (systems without HITRUST in scope; a HITRUST system is
+#           assessed on the Cyber Assurance levels instead).
+#   hybrid  the method is written here; `systemPart` says what each system must
+#           do, and each system records that part in control-records.yaml.
+#
+# A control not listed here is system-specific, unless its domain is covered by
+# an enterprise attestation or the provider, which the engine resolves as before.
+
+- controlId: "GOV-01"
+  type: "common"
+  ownerId: "grc"
+  statement: >
+    ACME runs one security, compliance and resilience program for every system, defined in the
+    ISMS manual and reviewed by the security steering committee each year.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "ISMS manual v4.2"
+    - "FY26 management review minutes"
+  reviewedAt: "2026-09-15"
+- controlId: "GOV-05"
+  type: "common"
+  ownerId: "grc"
+  statement: >
+    Program metrics are reported to the steering committee each quarter. Only half of the
+    defined measures have an automated source; the rest are compiled by hand and two have not
+    been reported since Q1.
+  status: "partial"
+  frequency: "quarterly"
+  evidence:
+    - "Q3 FY26 security metrics pack"
+  reviewedAt: "2026-09-15"
+- controlId: "GOV-09"
+  type: "common"
+  ownerId: "grc"
+  statement: >
+    Control objectives are defined once in ACME's common control framework, mapped to every
+    framework ACME certifies against, and re-baselined annually.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "Common Control Framework, FY26 baseline"
+  reviewedAt: "2026-09-15"
+- controlId: "CPL-01"
+  type: "common"
+  ownerId: "grc"
+  statement: >
+    Legal and GRC maintain the register of statutory, regulatory and contractual obligations,
+    including customer BAAs, and review it annually and on each new contract type.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "Obligations register export 2026-09"
+  reviewedAt: "2026-09-15"
+- controlId: "CPL-03"
+  type: "common"
+  ownerId: "grc"
+  statement: >
+    Internal audit and external auditors assess the program each year against the plan GRC
+    maintains.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "FY26 internal audit plan"
+    - "SOC 2 Type II FY26 report"
+  reviewedAt: "2026-09-15"
+- controlId: "RSK-01"
+  type: "common"
+  ownerId: "grc"
+  statement: >
+    The enterprise risk management standard defines how risks are identified, rated, accepted
+    and tracked, with board reporting of material risks.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "Risk management standard v3"
+  reviewedAt: "2026-09-15"
+- controlId: "RSK-06"
+  type: "common"
+  ownerId: "grc"
+  statement: >
+    Risk treatment plans are tracked in the risk register and reviewed monthly; overdue
+    treatments escalate to the risk owner's VP.
+  status: "implemented"
+  frequency: "monthly"
+  evidence:
+    - "Risk register remediation report 2026-10"
+  reviewedAt: "2026-09-15"
+- controlId: "PRM-07"
+  type: "common"
+  ownerId: "grc"
+  statement: >
+    Security work is resourced through the annual planning cycle, and security requirements are
+    a gate in the product SDLC.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "FY27 security budget plan"
+  reviewedAt: "2026-09-15"
+- controlId: "PRI-01"
+  type: "common"
+  ownerId: "grc"
+  statement: >
+    The privacy office runs one data privacy program covering every system that processes
+    personal data or PHI.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "Privacy program charter"
+    - "Privacy policy v5"
+  reviewedAt: "2026-09-15"
+- controlId: "PRI-02"
+  type: "common"
+  ownerId: "grc"
+  statement: >
+    Public privacy notices are owned by the privacy office and reviewed annually and on any
+    change in processing.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "Published privacy notice, rev. 2026-03"
+  reviewedAt: "2026-09-15"
+- controlId: "PRI-06"
+  type: "common"
+  ownerId: "grc"
+  statement: >
+    Data subject requests are received through one intake and fulfilled by the privacy office
+    within the statutory deadline, with system owners executing the lookups.
+  status: "implemented"
+  frequency: "per-event"
+  evidence:
+    - "DSR queue report Q3 FY26"
+  reviewedAt: "2026-09-15"
+- controlId: "TPM-01"
+  type: "common"
+  ownerId: "grc"
+  statement: >
+    Vendors are onboarded through the third-party risk program: tiering, security review, and
+    contract terms including BAAs where PHI is involved.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "Third-party risk standard v2"
+  reviewedAt: "2026-09-15"
+- controlId: "TPM-08"
+  type: "common"
+  ownerId: "grc"
+  statement: >
+    Critical and high vendors are reassessed annually. Four high-tier reassessments are overdue
+    this cycle.
+  status: "partial"
+  frequency: "annual"
+  evidence:
+    - "Vendor reassessment tracker 2026-10"
+  reviewedAt: "2026-09-15"
+- controlId: "TPM-11"
+  type: "common"
+  ownerId: "grc"
+  statement: >
+    Vendor contracts require incident notification and recovery commitments sized to the
+    vendor's tier.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "Vendor contract clause library"
+  reviewedAt: "2026-09-15"
+- controlId: "BCD-01"
+  type: "common"
+  ownerId: "infrastructure"
+  statement: >
+    The business continuity program sets recovery tiers, owns the business impact analysis, and
+    requires each system to plan and test against its tier.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "BCMS policy v3"
+    - "FY26 BIA summary"
+  reviewedAt: "2026-09-15"
+- controlId: "CHG-01"
+  type: "common"
+  ownerId: "platform-eng"
+  statement: >
+    Every production change goes through the change management standard: ticketed, peer
+    reviewed, approved and deployed by pipeline.
+  status: "implemented"
+  frequency: "continuous"
+  evidence:
+    - "Change management standard v4"
+  reviewedAt: "2026-09-15"
+- controlId: "CFG-01"
+  type: "common"
+  ownerId: "platform-eng"
+  statement: >
+    Configuration management is defined centrally: hardened baselines, drift detection and an
+    exception process.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "Configuration management standard v2"
+  reviewedAt: "2026-09-15"
+- controlId: "END-01"
+  type: "common"
+  ownerId: "it"
+  statement: >
+    Every workforce endpoint is enrolled in MDM before it can reach ACME systems; non-compliant
+    devices are blocked at sign-in.
+  status: "implemented"
+  frequency: "continuous"
+  evidence:
+    - "MDM compliance report 2026-11"
+  reviewedAt: "2026-09-15"
+- controlId: "END-02"
+  type: "common"
+  ownerId: "it"
+  statement: >
+    EDR runs on every workforce endpoint and server image, with alerts routed to the SOC.
+  status: "implemented"
+  frequency: "continuous"
+  evidence:
+    - "EDR coverage dashboard 2026-11"
+  reviewedAt: "2026-09-15"
+- controlId: "END-06"
+  type: "common"
+  ownerId: "it"
+  statement: >
+    File integrity monitoring runs through the EDR agent on server images.
+  status: "implemented"
+  frequency: "continuous"
+  evidence:
+    - "EDR FIM policy export"
+  reviewedAt: "2026-09-15"
+- controlId: "END-08"
+  type: "common"
+  ownerId: "it"
+  statement: >
+    Inbound mail passes the email security gateway for phishing and malware filtering.
+  status: "implemented"
+  frequency: "continuous"
+  evidence:
+    - "Email security gateway config"
+  reviewedAt: "2026-09-15"
+- controlId: "NET-14"
+  type: "common"
+  ownerId: "it-security"
+  statement: >
+    Remote workforce access goes through the zero-trust access broker with device posture
+    checks; there is no flat VPN.
+  status: "implemented"
+  frequency: "continuous"
+  evidence:
+    - "ZTNA policy export 2026-10"
+  reviewedAt: "2026-09-15"
+- controlId: "SEA-01"
+  type: "common"
+  ownerId: "product-security"
+  statement: >
+    Secure engineering principles are set in the product security standard and applied through
+    design review.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "Secure engineering standard v3"
+  reviewedAt: "2026-09-15"
+- controlId: "TDA-01"
+  type: "common"
+  ownerId: "product-security"
+  statement: >
+    Technology is built or bought through the SDLC standard, with security requirements set at
+    intake.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "SDLC standard v5"
+  reviewedAt: "2026-09-15"
+- controlId: "TDA-06"
+  type: "common"
+  ownerId: "product-security"
+  statement: >
+    Secure development practices (secure coding standard, training, review) are defined
+    centrally for every engineering team.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "SDLC standard v5"
+    - "Secure coding training completion FY26"
+  reviewedAt: "2026-09-15"
+- controlId: "IAO-04"
+  type: "common"
+  ownerId: "product-security"
+  statement: >
+    Threat modeling and flaw remediation during development follow the product security
+    procedure.
+  status: "implemented"
+  frequency: "per-event"
+  evidence:
+    - "Threat modeling procedure v2"
+  reviewedAt: "2026-09-15"
+- controlId: "HRS-04"
+  type: "common"
+  ownerId: "hr-operations"
+  statement: >
+    Every hire passes a background check before system access is granted.
+  status: "implemented"
+  frequency: "per-event"
+  evidence:
+    - "Background check vendor report Q3"
+  reviewedAt: "2026-09-15"
+- controlId: "SAT-02"
+  type: "common"
+  ownerId: "grc"
+  statement: >
+    All workforce complete security awareness training at hire and annually, with role-based
+    HIPAA training for anyone with PHI access.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "Training completion report FY26"
+  reviewedAt: "2026-09-15"
+- controlId: "RSK-04"
+  type: "hybrid"
+  ownerId: "grc"
+  statement: >
+    GRC owns the risk assessment method and template.
+  systemPart: >
+    Each system completes its own risk assessment with the method at least annually and on major
+    change, and files the results in the risk register.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "Risk assessment methodology v3"
+  reviewedAt: "2026-09-15"
+- controlId: "BCD-04"
+  type: "hybrid"
+  ownerId: "infrastructure"
+  statement: >
+    The continuity program defines how contingency plans are tested and at what cadence for each
+    recovery tier.
+  systemPart: >
+    Each system runs its own restore or failover test at its tier's cadence and records the
+    achieved RPO and RTO.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "Contingency testing standard v2"
+  reviewedAt: "2026-09-15"
+- controlId: "CHG-02"
+  type: "hybrid"
+  ownerId: "platform-eng"
+  statement: >
+    The change process and pipeline approval gates are run centrally.
+  systemPart: >
+    Each system's changes must actually flow through the gated pipeline, with no out-of-band
+    changes to production.
+  status: "implemented"
+  frequency: "continuous"
+  evidence:
+    - "Change management standard v4"
+  reviewedAt: "2026-09-15"
+- controlId: "CFG-02"
+  type: "hybrid"
+  ownerId: "platform-eng"
+  statement: >
+    Platform engineering publishes hardened baselines for every supported image and managed
+    service.
+  systemPart: >
+    Each system deploys from those baselines and keeps drift exceptions documented.
+  status: "implemented"
+  frequency: "continuous"
+  evidence:
+    - "Hardened baseline catalog 2026-09"
+  reviewedAt: "2026-09-15"
+- controlId: "DCH-02"
+  type: "hybrid"
+  ownerId: "grc"
+  statement: >
+    GRC owns the classification scheme and handling rules.
+  systemPart: >
+    Each system classifies the data it holds against the scheme and keeps that classification
+    current in the register.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "Data classification standard v4"
+  reviewedAt: "2026-09-15"
+- controlId: "PRI-05"
+  type: "hybrid"
+  ownerId: "grc"
+  statement: >
+    The retention schedule sets how long each record type is kept.
+  systemPart: >
+    Each system configures deletion or anonymization to meet the schedule for the data it holds.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "Records retention schedule v6"
+  reviewedAt: "2026-09-15"
+- controlId: "TPM-04"
+  type: "hybrid"
+  ownerId: "grc"
+  statement: >
+    The third-party program defines how vendors serving a system are reviewed.
+  systemPart: >
+    Each system lists its vendors, what data each can reach, and confirms the review and
+    contract terms are in place.
+  status: "implemented"
+  frequency: "annual"
+  evidence:
+    - "Third-party risk standard v2"
+  reviewedAt: "2026-09-15"
+- controlId: "IAC-17"
+  type: "hybrid"
+  ownerId: "it-security"
+  statement: >
+    IT Security defines the access review procedure and runs the review tooling.
+  systemPart: >
+    Each system's owner completes the quarterly review of its accounts and resolves every
+    exception.
+  status: "implemented"
+  frequency: "quarterly"
+  evidence:
+    - "Access review procedure v3"
+  reviewedAt: "2026-09-15"
+- controlId: "MON-02"
+  type: "hybrid"
+  ownerId: "it-security-soc"
+  statement: >
+    The SOC runs the central SIEM and its detection content.
+  systemPart: >
+    Each system forwards its security-relevant logs to the SIEM and keeps the feed healthy.
+  status: "implemented"
+  frequency: "continuous"
+  evidence:
+    - "SIEM onboarding standard v2"
+  reviewedAt: "2026-09-15"
