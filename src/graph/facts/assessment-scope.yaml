@@ -85,3 +85,23 @@
     - "PRI-05"
     - "RSK-04"
     - "TPM-04"
+
+- systemId: "SYS-058"
+  engagement: "FY27 framework baseline — ACME Health Hub Product"
+  assessor: "GRC"
+  periodStart: "2026-09-01"
+  periodEnd: "2027-08-31"
+  samplingRationale: >
+    HITRUST is not in scope for this boundary, so it is assessed at the framework
+    baseline (HIPAA, SOC 2, ISO 27001) rather than on the Cyber Assurance levels. The
+    statements listed are only the enterprise program controls whose central facts
+    reach every system that meets their premise; nothing system-specific is assessed
+    on the PRISMA levels here.
+  controlIds:
+    - "AAT-01"
+    - "AST-02"
+    - "DCH-02"
+    - "IRO-02"
+    - "PRI-05"
+    - "RSK-04"
+    - "TPM-04"

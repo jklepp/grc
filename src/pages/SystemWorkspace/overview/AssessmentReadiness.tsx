@@ -156,11 +156,94 @@ function ScaleToFit({ children }: { children: React.ReactNode }) {
   );
 }
 
+/* -------------------------------------------------------- readiness flow -- */
+// The four-stage flow, independent of what the stages are. The PRISMA
+// assessment workflow below is one use; the framework baseline's audit
+// readiness (BaselinePosture.tsx) is another, so both systems' Overviews read
+// the same way.
+
+export interface ReadinessStep {
+  id: string;
+  icon: LucideIcon;
+  title: string;
+  note: string;
+  complete: boolean;
+  count: number;
+  done: number;
+  total: number;
+  onClick: () => void;
+}
+
+const STEP_X = [120, 340, 570, 790];
+
+export function ReadinessFlow({ title, description, steps, children }: {
+  title: string;
+  description: string;
+  steps: ReadinessStep[];
+  /** Shown between the header and the flow, e.g. a completion callout. */
+  children?: React.ReactNode;
+}) {
+  const next = steps.find((st) => !st.complete);
+  const doneCount = steps.filter((st) => st.complete).length;
+  const flow = (complete: boolean) => ({ stroke: complete ? C.green : C.border, strokeDasharray: complete ? undefined : "4 5" });
+  return (
+    <WizardTokens>
+      <SectionHeader
+        icon={ShieldCheck}
+        title={title}
+        description={description}
+        aside={(
+          <div className="flex items-center gap-2">
+            <StatusPill tone={next ? "neutral" : "success"}>{doneCount} of {steps.length} complete</StatusPill>
+            {next && (
+              <Button size="sm" variant="primary" iconRight={ArrowRight} onClick={next.onClick}>
+                Continue to {next.title}
+              </Button>
+            )}
+          </div>
+        )}
+      />
+      <div className="flex flex-col gap-3">
+        {children}
+        <ScaleToFit>
+          <svg
+            width={BOARD.w} height={BOARD.h} viewBox={`0 0 ${BOARD.w} ${BOARD.h}`}
+            fill="none" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
+            className="absolute left-0 top-0 pointer-events-none" aria-hidden="true"
+          >
+            {steps.slice(0, -1).map((st, i) => (
+              <React.Fragment key={st.id}>
+                <g {...flow(st.complete)}><path d={`M${STEP_X[i] + 28} ${SPINE_Y}H${STEP_X[i + 1] - 28}`} /></g>
+                <path d={`m${STEP_X[i + 1] - 32} ${SPINE_Y - 4} 4 4-4 4`} stroke={flow(st.complete).stroke} />
+              </React.Fragment>
+            ))}
+          </svg>
+          {steps.map((st, i) => (
+            <FlowNode
+              key={st.id}
+              cx={STEP_X[i]}
+              cy={SPINE_Y}
+              icon={st.icon}
+              title={st.title}
+              figure={st.complete ? "0" : String(st.count)}
+              note={st.complete ? "Nothing outstanding" : st.note}
+              done={st.done}
+              total={st.total}
+              complete={st.complete}
+              next={st === next}
+              onClick={st.onClick}
+            />
+          ))}
+        </ScaleToFit>
+      </div>
+    </WizardTokens>
+  );
+}
+
 /* ----------------------------------------------------------------- flow -- */
 
 const CHECKS = ["scope", "assess", "record", "remediate"] as const;
 type CheckId = (typeof CHECKS)[number];
-const X: Record<CheckId, number> = { scope: 120, assess: 340, record: 570, remediate: 790 };
 // "Formally assessed" needs the first three stages — a gap may remain open as
 // long as its Finding and CAP are on record. Remediation remains the ongoing
 // stage after the assessment engagement closes.
@@ -245,98 +328,26 @@ export function AssessmentReadiness({ formalAssessment, onScopeClick, onAssessCl
     },
   };
   const nextId = CHECKS.find((id) => !checks[id].complete);
-  const doneCount = CHECKS.filter((id) => checks[id].complete).length;
   const formallyAssessed = FORMAL_ASSESSMENT_CHECKS.every((id) => checks[id].complete);
   const allClear = !nextId;
 
-  // A path is dashed until the stage behind it clears, so an untravelled route
-  // never looks like a travelled one.
-  const flow = (complete: boolean) => ({
-    stroke: complete ? C.green : C.border,
-    strokeDasharray: complete ? undefined : "4 5",
-  });
-  const node = (id: CheckId, cx: number, cy: number) => (
-    <FlowNode
-      key={id}
-      cx={cx}
-      cy={cy}
-      icon={checks[id].icon}
-      title={checks[id].title}
-      figure={checks[id].complete ? "0" : String(checks[id].count)}
-      note={checks[id].complete ? "Nothing outstanding" : checks[id].note}
-      done={checks[id].done}
-      total={checks[id].total}
-      complete={checks[id].complete}
-      next={id === nextId}
-      onClick={checks[id].onClick}
-    />
-  );
-
   return (
-    <WizardTokens>
-      <SectionHeader
-        icon={ShieldCheck}
-        title="System Readiness"
-        description="Readiness tracks whether the assurance workflow is complete; the Assurance score separately measures how strong the resulting posture is."
-        aside={(
-          <div className="flex items-center gap-2">
-            <StatusPill tone={allClear ? "success" : "neutral"}>{doneCount} of {CHECKS.length} complete</StatusPill>
-            {nextId && (
-              <Button size="sm" variant="primary" iconRight={ArrowRight} onClick={checks[nextId].onClick}>
-                Continue to {checks[nextId].title}
-              </Button>
-            )}
-          </div>
-        )}
-      />
-
-      <div className="flex flex-col gap-3">
-        {allClear ? (
-          <Callout tone="success" title="Scoped, assessed, recorded, and remediated.">
-            This system is assurance-ready. Its Assurance percentage may still be below target because readiness measures workflow completion, not control strength.
-          </Callout>
-        ) : formallyAssessed ? (
-          <Callout tone="success" title="Formally assessed.">
-            Scope is decided, every applicable key control has been evaluated, and every gap has a Finding/CAP on record.
-            {residualCount > 0 ? ` ${residualCount} remediation item${residualCount === 1 ? "" : "s"} still open.` : ""}
-            {reassessCount > 0 ? ` ${reassessCount} of them ${reassessCount === 1 ? "has" : "have"} completed remediation and await${reassessCount === 1 ? "s" : ""} reassessment.` : ""}
-          </Callout>
-        ) : null}
-
-        <ScaleToFit>
-          <svg
-            width={BOARD.w}
-            height={BOARD.h}
-            viewBox={`0 0 ${BOARD.w} ${BOARD.h}`}
-            fill="none"
-            strokeWidth={1.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="absolute left-0 top-0 pointer-events-none"
-            aria-hidden="true"
-          >
-            <g {...flow(checks.scope.complete)}>
-              <path d={`M${X.scope + 28} ${SPINE_Y}H${X.assess - 28}`} />
-            </g>
-            <path d={`m${X.assess - 32} ${SPINE_Y - 4} 4 4-4 4`} stroke={flow(checks.scope.complete).stroke} />
-
-            <g {...flow(checks.assess.complete)}>
-              <path d={`M${X.assess + 28} ${SPINE_Y}H${X.record - 28}`} />
-            </g>
-            <path d={`m${X.record - 32} ${SPINE_Y - 4} 4 4-4 4`} stroke={flow(checks.assess.complete).stroke} />
-
-            <g {...flow(checks.record.complete)}>
-              <path d={`M${X.record + 28} ${SPINE_Y}H${X.remediate - 28}`} />
-            </g>
-            <path d={`m${X.remediate - 32} ${SPINE_Y - 4} 4 4-4 4`} stroke={flow(checks.record.complete).stroke} />
-          </svg>
-
-          {node("scope", X.scope, SPINE_Y)}
-          {node("assess", X.assess, SPINE_Y)}
-          {node("record", X.record, SPINE_Y)}
-          {node("remediate", X.remediate, SPINE_Y)}
-        </ScaleToFit>
-      </div>
-    </WizardTokens>
+    <ReadinessFlow
+      title="System Readiness"
+      description="Readiness tracks whether the assurance workflow is complete; the Assurance score separately measures how strong the resulting posture is."
+      steps={CHECKS.map((id) => ({ id, ...checks[id] }))}
+    >
+      {allClear ? (
+        <Callout tone="success" title="Scoped, assessed, recorded, and remediated.">
+          This system is assurance-ready. Its Assurance percentage may still be below target because readiness measures workflow completion, not control strength.
+        </Callout>
+      ) : formallyAssessed ? (
+        <Callout tone="success" title="Formally assessed.">
+          Scope is decided, every applicable key control has been evaluated, and every gap has a Finding/CAP on record.
+          {residualCount > 0 ? ` ${residualCount} remediation item${residualCount === 1 ? "" : "s"} still open.` : ""}
+          {reassessCount > 0 ? ` ${reassessCount} of them ${reassessCount === 1 ? "has" : "have"} completed remediation and await${reassessCount === 1 ? "s" : ""} reassessment.` : ""}
+        </Callout>
+      ) : null}
+    </ReadinessFlow>
   );
 }

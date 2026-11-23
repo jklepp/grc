@@ -118,6 +118,13 @@ export function loadRuntimeFacts(): RuntimeFacts {
       notImplemented: Array.isArray(parsed.notImplemented) ? parsed.notImplemented : empty.notImplemented,
       prismaOverrides: Array.isArray(parsed.prismaOverrides) ? parsed.prismaOverrides : empty.prismaOverrides,
       controlReviews: Array.isArray(parsed.controlReviews) ? parsed.controlReviews : empty.controlReviews,
+      commonControlRecords: Array.isArray(parsed.commonControlRecords) ? parsed.commonControlRecords : empty.commonControlRecords,
+      systemControlRecords: Array.isArray(parsed.systemControlRecords) ? parsed.systemControlRecords : empty.systemControlRecords,
+      engagements: Array.isArray(parsed.engagements) ? parsed.engagements : empty.engagements,
+      engagementControls: Array.isArray(parsed.engagementControls) ? parsed.engagementControls : empty.engagementControls,
+      engagementDrafts: Array.isArray(parsed.engagementDrafts) ? parsed.engagementDrafts : empty.engagementDrafts,
+      engagementSnapshots: Array.isArray(parsed.engagementSnapshots) ? parsed.engagementSnapshots : empty.engagementSnapshots,
+      certifications: Array.isArray(parsed.certifications) ? parsed.certifications : empty.certifications,
       findings: Array.isArray(parsed.findings)
         ? migrateFindings(parsed.findings, Array.isArray(parsed.assets) ? parsed.assets.filter(hasValidSystemIds) : [])
         : empty.findings,
@@ -153,6 +160,13 @@ export function hasRuntimeFacts(facts: RuntimeFacts): boolean {
     facts.notImplemented.length > 0 ||
     facts.prismaOverrides.length > 0 ||
     facts.controlReviews.length > 0 ||
+    facts.commonControlRecords.length > 0 ||
+    facts.systemControlRecords.length > 0 ||
+    facts.engagements.length > 0 ||
+    facts.engagementControls.length > 0 ||
+    facts.engagementDrafts.length > 0 ||
+    facts.engagementSnapshots.length > 0 ||
+    facts.certifications.length > 0 ||
     facts.findings.length > 0 ||
     facts.backupConfigs.length > 0 ||
     facts.drTests.length > 0 ||

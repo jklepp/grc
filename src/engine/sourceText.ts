@@ -11,6 +11,7 @@
 import hipaa from "../data/sourceText/hipaa.json";
 import { CONSOLIDATED_CONTROLS } from "../data/consolidatedControls";
 import { REQUIREMENT_CLAUSES } from "../data/requirementClauses";
+import { controlLensView } from "./frameworkLens";
 import type { Control } from "../graph/nodes/controls";
 
 export interface SourceParagraph {
@@ -113,8 +114,14 @@ export interface CrossCheckClause {
 export interface CrossCheckView {
   standard: string;
   statement: string;
-  /** The control's itemized requirements, numbered as everywhere else. Empty when it has none. */
+  /**
+   * The itemized requirements a lens on `standard` shows (frameworkLens.ts), numbered
+   * as everywhere else, so the pane matches the control page under that lens.
+   * Empty when the control has none.
+   */
   requirements: Array<{ number: number; title: string; detail: string }>;
+  /** How many itemized requirements the control has in all; the rest fall outside `standard`. */
+  totalRequirements: number;
   /** Every clause of `standard` mapped to the control, in the standard's own order. */
   clauses: CrossCheckClause[];
 }
@@ -126,6 +133,7 @@ export interface CrossCheckView {
  */
 export function crossCheck(control: Control, standard: string): CrossCheckView {
   const consolidated = CONSOLIDATED_CONTROLS[control.id];
+  const lens = controlLensView(control, [standard]);
   const landing = REQUIREMENT_CLAUSES[control.id]?.[standard] ?? {};
   const order = ORDER.get(standard);
   const clauses = (control.frameworks.find((f) => f.standard === standard)?.clauses ?? [])
@@ -134,7 +142,8 @@ export function crossCheck(control: Control, standard: string): CrossCheckView {
   return {
     standard,
     statement: consolidated?.statement ?? control.description,
-    requirements: consolidated?.requirements.map((r, i) => ({ number: i + 1, ...r })) ?? [],
+    requirements: lens.shown.map(({ number, title, detail }) => ({ number, title, detail })),
+    totalRequirements: lens.total,
     clauses,
   };
 }

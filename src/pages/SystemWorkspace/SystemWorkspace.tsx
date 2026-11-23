@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { BaselineControls } from "./BaselineControls";
 import { WorkspaceTabBar } from "./WorkspaceTabBar";
 import { SUB_TABS } from "./tabs";
 import { STATUS_ORDER } from "./controlMeta";
@@ -228,6 +229,7 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
           onOpenAssurance={openAssurance}
           onGenerateIsoReport={generateIsoReport}
           formalAssessment={formalAssessment}
+          onOpenControls={() => changeSubTab("controls")}
         />
       )}
 
@@ -254,7 +256,11 @@ export default function SystemWorkspace({ systemId: controlledSystemId, onSelect
         <SystemTesting secTests={secTests} vuln={vuln} ir={ir} resilience={resilience} vendors={vendors} identity={identity} />
       )}
 
-      {subTab === "controls" && (
+      {subTab === "controls" && !system.requiresCyberAssurance && (
+        <BaselineControls system={system} onOpenScopeReview={openScopeReview} />
+      )}
+
+      {subTab === "controls" && system.requiresCyberAssurance && (
         <SystemControls
           matrix={matrix} statusCounts={statusCounts}
           applicabilitySummary={applicabilitySummary} posture={posture}

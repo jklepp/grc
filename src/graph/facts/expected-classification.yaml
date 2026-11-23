@@ -11,3 +11,4 @@ SYS-003: "Restricted"
 # on SYS-003, and that access is now legitimately Workday's too — a real
 # consequence of shared identity infrastructure, not a data-entry mistake.
 SYS-042: "Restricted"
+SYS-058: "Restricted"

@@ -1,0 +1,26 @@
+# ACME's own certificates and reports — the counterpart to
+# provider-certifications.yaml. Illustrative, matching the cycles in
+# src/data/complianceMilestones.ts.
+
+- id: "CERT-ACME-ISO27001-2024"
+  standard: "ISO 27001"
+  kind: "certificate"
+  systemIds:
+    - "SYS-003"
+  issuedAt: "2024-01-22"
+  validUntil: "2027-01-21"
+  auditFirm: "Northgate Certification Ltd."
+  reference: "ISO/IEC 27001:2022 certificate IS 771204, three-year cycle with two surveillance audits."
+
+- id: "CERT-ACME-SOC2-FY2025"
+  standard: "SOC 2"
+  kind: "type-2-report"
+  systemIds:
+    - "SYS-003"
+    - "SYS-042"
+  issuedAt: "2026-02-20"
+  validUntil: "2027-02-26"
+  periodStart: "2025-01-01"
+  periodEnd: "2025-12-31"
+  auditFirm: "Halden & Pryce LLP"
+  reference: "SOC 2 Type II report FY2025, Security and Availability criteria. Unqualified opinion; three exceptions noted with management responses."

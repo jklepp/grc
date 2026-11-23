@@ -12,6 +12,7 @@ import {
 } from "./controlMeta";
 import { StatRing } from "./shared/StatRing";
 import { TableHeaderCell } from "./shared/TableHeaderCell";
+import { Badge, CardAction, CELL, FilterBand, TableCard, cellDivider } from "./shared/ControlTable";
 import type { ControlMatrixRow, ApplicabilitySummary } from "./types";
 import type { ControlId } from "../../graph/ids";
 import type { Responsibility } from "../../graph/edges/controlImplementations";
@@ -48,11 +49,6 @@ type FindingsByControl = Partial<Record<ControlId, number>>;
 // The table carries a minimum width and scrolls inside its own container
 // rather than squeezing tracks to fit, so the numeric columns stay aligned.
 const CONTROL_TABLE_MIN_WIDTH = 1080;
-const CELL = "py-2.5";
-// A function, not a constant: C is mutated in place by applyTheme, so a
-// module-scope read freezes whichever theme happened to be active at import
-// and never follows the toggle.
-const cellDivider = () => ({ borderBottom: `1px solid ${C.border}` });
 
 function ControlRow({ row, onSelect, findingsCount }: { row: ControlMatrixRow; onSelect: (row: ControlMatrixRow) => void; findingsCount?: number }) {
   const meta = STATUS_META[row.status];
@@ -79,9 +75,7 @@ function ControlRow({ row, onSelect, findingsCount }: { row: ControlMatrixRow; o
       </td>
       <td className={`${CELL} px-3`} style={cellDivider()}>
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded whitespace-nowrap" style={{ background: meta.bg, color: meta.color }}>
-            <meta.Icon size={11} /> {meta.label}
-          </span>
+          <Badge meta={meta} />
           {row.keyControl && <RadioTower size={12} color={C.muted} />}
         </div>
       </td>
@@ -92,16 +86,10 @@ function ControlRow({ row, onSelect, findingsCount }: { row: ControlMatrixRow; o
         {row.score != null ? `${row.score}%` : "—"}
       </td>
       <td className={`${CELL} px-3`} style={cellDivider()}>
-        {respMeta && (
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded whitespace-nowrap" style={{ background: respMeta.bg, color: respMeta.color }}>
-            <respMeta.Icon size={11} /> {respMeta.label}
-          </span>
-        )}
+        {respMeta && <Badge meta={respMeta} />}
       </td>
       <td className={`${CELL} px-3 min-w-0`} style={cellDivider()}>
-        <div className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded whitespace-nowrap" style={{ background: evidence.bg, color: evidence.color }}>
-          <evidence.Icon size={11} /> {evidence.label}
-        </div>
+        <Badge meta={evidence} />
         {evidence.detail && <div className="text-[10px] mt-0.5" style={{ color: C.muted }}>{evidence.detail}</div>}
       </td>
       <td
@@ -157,7 +145,7 @@ interface ChipProps {
   flat?: boolean;
 }
 
-function Chip({ label, count, color, bg, active, onClick, flat = false }: ChipProps) {
+export function Chip({ label, count, color, bg, active, onClick, flat = false }: ChipProps) {
   // The neutral (panel2-backed) variants — Not Assessed, System Owned — sit
   // too close in value to the card behind them to read as a pill on their
   // own; give just those a border so they don't wash out.
@@ -271,7 +259,7 @@ interface BarRowProps {
   trailing?: ReactNode;
 }
 
-function BarRow({ label, count, applicable, fill, active, onClick, trailing }: BarRowProps) {
+export function BarRow({ label, count, applicable, fill, active, onClick, trailing }: BarRowProps) {
   const share = applicable === 0 ? 0 : (count / applicable) * 100;
   const width = `${share * BAR_SCALE}%`;
   return (
@@ -473,7 +461,7 @@ function FilterBar({ filters, onChange, domainOptions, frameworkOptions, showSta
     return null;
   };
   return (
-    <div className="flex items-center gap-4 flex-wrap px-4 py-2.5" style={{ borderBottom: `1px solid ${C.border}`, background: C.panel2 }}>
+    <FilterBand onClear={active ? () => onChange({ domain: null, framework: null, status: null, responsibility: null, evidenceHealth: null }) : null}>
       <FilterSelect label="Domain" value={filters.domain} onChange={(v) => onChange({ ...filters, domain: v })} options={domainOptions.map((d) => ({ value: d, label: d }))} />
       <FilterSelect label="Framework" value={filters.framework} onChange={(v) => onChange({ ...filters, framework: v })} options={frameworkOptions.map((f) => ({ value: f, label: f }))} />
       {showStatusFilters && (
@@ -483,12 +471,7 @@ function FilterBar({ filters, onChange, domainOptions, frameworkOptions, showSta
           <FilterSelect label="Evidence" value={filters.evidenceHealth} onChange={(v) => onChange({ ...filters, evidenceHealth: toEvidenceHealth(v) })} options={EVIDENCE_HEALTH_ORDER.map((e) => ({ value: e, label: EVIDENCE_HEALTH_META[e].label }))} />
         </>
       )}
-      {active && (
-        <button onClick={() => onChange({ domain: null, framework: null, status: null, responsibility: null, evidenceHealth: null })} className="text-[11px] font-medium ml-auto" style={{ color: C.accent }}>
-          Clear filters
-        </button>
-      )}
-    </div>
+    </FilterBand>
   );
 }
 
@@ -578,23 +561,12 @@ function SelectedControlsTable({
   const rowCount = rows.length;
 
   return (
-    <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-      <div className="flex items-center gap-3 p-4" style={{ borderBottom: `1px solid ${C.border}` }}>
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold" style={{ color: C.ink }}>{selection.label}</div>
-          <div className="text-xs mt-0.5" style={{ color: C.muted }}>{rowCount} control{rowCount !== 1 ? "s" : ""}</div>
-        </div>
-        {selection.kind !== "all" && (
-          <button onClick={onSwitchToAll} className="text-xs px-2 py-1 rounded font-medium" style={{ background: C.panel2, color: C.muted }}>
-            View all applicable controls
-          </button>
-        )}
-      </div>
-      <FilterBar filters={filters} onChange={onFilterChange} domainOptions={domainOptions} frameworkOptions={frameworkOptions} showStatusFilters />
-      {/* The 480px cap is a desktop affordance: on a phone it would trap a
-          drag inside a box the page is already scrolling, so the cap lifts and
-          the page scrolls the whole table. */}
-      <div className="overflow-auto lg:max-h-[480px]">
+    <TableCard
+      title={selection.label}
+      count={rowCount}
+      action={selection.kind !== "all" ? <CardAction onClick={onSwitchToAll}>View all applicable controls</CardAction> : undefined}
+      band={<FilterBar filters={filters} onChange={onFilterChange} domainOptions={domainOptions} frameworkOptions={frameworkOptions} showStatusFilters />}
+    >
         <table
           className="w-full text-left text-xs"
           style={{ minWidth: CONTROL_TABLE_MIN_WIDTH, borderCollapse: "separate", borderSpacing: 0 }}
@@ -624,8 +596,7 @@ function SelectedControlsTable({
             )}
           </tbody>
         </table>
-      </div>
-    </div>
+    </TableCard>
   );
 }
 

@@ -19,6 +19,9 @@
     # elsewhere reading as "not applicable," which was false — they apply,
     # nothing had named the standard that says so.
     - "ISO 42001"
+    # HITRUST r2 is what puts this boundary on the Cyber Assurance (PRISMA)
+    # path. Systems without it are assessed at the framework baseline instead.
+    - "HITRUST r2"
   mission: "ACME's core AI product platform — the model-serving, retrieval-augmented generation (RAG),
     and API layer that powers ACME's customer-facing AI features, from the public ingress point down
     through the customer data it draws on to answer queries."
@@ -164,3 +167,81 @@
     # Vendor-operated SaaS tenant — ACME writes no code into it, matching
     # sdlc-posture.yaml's applicable: false for this system.
     sdlcApplicable: false
+- id: "SYS-058"
+  name: "ACME Health Hub Product"
+  env: "Production — AWS"
+  hostingType: "cloud"
+  provider: "AWS"
+  # Assessed at the framework baseline, not PRISMA: no HITRUST in scope. HIPAA
+  # because it holds PHI as a business associate, SOC 2 because health-system
+  # customers ask for the report, ISO 27001 because the ISMS certificate covers it.
+  standards:
+    - "HIPAA"
+    - "SOC 2"
+    - "ISO 27001"
+  mission: "ACME's patient-engagement product for health-system customers: the patient portal,
+    the clinician web app, and the FHIR API and integration engine that exchange records with
+    each customer's EHR."
+  boundary: "Runs in a dedicated AWS production account. The boundary covers the public patient
+    portal and clinician app, the API gateway and FHIR service behind them, the clinical records
+    database and document store, the HL7/FHIR integration engine, and the patient identity pool;
+    the customers' own EHR systems on the far side of the integration engine are outside it."
+  connections:
+    - "Inbound: patient and clinician browser sessions via CloudFront and the API Gateway"
+    - "Inbound and outbound: HL7 v2 and FHIR R4 exchanges with customer EHRs over mutually authenticated TLS"
+    - "Outbound: appointment and results notifications through the notification queue"
+    - "Outbound: audit log export into ACME's central monitoring"
+  roles:
+    - role: "System Owner"
+      ownerId: "product-leadership"
+    - role: "Technical Administrator"
+      ownerId: "platform-eng"
+    - role: "Security Owner"
+      ownerId: "product-security"
+    - role: "Data Owner"
+      ownerId: "data-platform"
+  syncSource: "vanta"
+  lastSynced: "12 min ago"
+  oktaEnforced: "compliant"
+  mfaEnforced: "compliant"
+  internetFacing: true
+  availabilityTier: "tier-2-high"
+  securityCategory:
+    confidentiality:
+      impact: high
+      reason: "Clinical Records Database high-water mark: holds PHI for every patient of every customer health system"
+    integrity:
+      impact: high
+      reason: "FHIR API Service high-water mark: an altered medication or result record reaches a clinician as fact"
+    availability:
+      impact: moderate
+      reason: "Patient Portal high-water mark: an outage delays patient access, but customers' EHRs remain the clinical system of record"
+  userCount: 186000
+  regions:
+    - "us-east-1"
+    - "us-west-2"
+  dataProfile:
+    subjects:
+      - "end-users"
+      - "customers"
+    approxRecords: 1400000
+    retention: "6 years after last activity, per HIPAA documentation retention and customer BAAs"
+    residency:
+      - "United States"
+  aiUsage:
+    usesAI: false
+    autonomousActions: false
+  regulatoryContext: []
+  onboardingProfile:
+    identityTypes:
+      - "employee"
+      - "privileged"
+      - "service-account"
+      - "break-glass"
+    networkExposure:
+      - "public-inbound"
+      - "inbound-apis"
+      - "partner-connected"
+      - "outbound-internet"
+    hasThirdPartyIntegration: true
+    sdlcApplicable: true

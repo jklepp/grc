@@ -35,3 +35,13 @@
   criticalFindingCount: 0
   highFindingCount: 0
   reportRef: "NCC-2026-0601-WD"
+- id: "SECTEST-SYS-058-2026-01"
+  systemId: "SYS-058"
+  type: "penetration-test"
+  vendor: "Praetorian"
+  scope: "Patient portal, clinician app, FHIR partner API, patient-to-patient record isolation"
+  completedAt: "2026-03-02"
+  cadenceDays: 365
+  criticalFindingCount: 0
+  highFindingCount: 0
+  reportRef: "PRAE-2026-0302-ACME-HH"

@@ -32,6 +32,21 @@ SYS-042:
     - "grc"
   Resilience:
     - "it-security-saas-admin"
+SYS-058:
+  Data Protection:
+    - "data-platform"
+    - "product-security"
+  Configuration:
+    - "platform-eng"
+  Detection:
+    - "it-security-soc"
+  Identity & Access:
+    - "platform-eng"
+    - "it-security"
+  Governance:
+    - "grc"
+  Resilience:
+    - "infrastructure"
 program:
   Data Protection:
     - "data-platform"

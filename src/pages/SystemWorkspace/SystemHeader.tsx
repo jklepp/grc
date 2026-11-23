@@ -2,7 +2,7 @@ import React from "react";
 import type { ReactNode } from "react";
 import { C } from "../../theme";
 import { ClassificationTag, AssuranceBadge, FormallyAssessedBadge, badgeColorFor } from "../../components/SystemBadges";
-import { assuranceBand } from "../../engine";
+import { assuranceBand, complianceBand } from "../../engine";
 import type { WorkspaceSystem } from "./types";
 
 interface SystemHeaderProps {
@@ -16,10 +16,12 @@ interface SystemHeaderProps {
 // and the tab bar in the same band below. Editing a system and switching to another
 // one both belong to the system register (SelectSystem.tsx) — a system you are
 // already inside needs neither a picker repeating its own name back to you nor a
-// second copy of that name as a page title. The assurance ring carries its band
-// word ("Developing") so the number has a noun beside it.
+// second copy of that name as a page title. Each ring carries its band word so
+// the number has a noun beside it. Compliance is every system's number; Cyber
+// Assurance appears beside it only where HITRUST puts the system on PRISMA.
 export function SystemHeader({ system, formallyAssessed, children }: SystemHeaderProps) {
   const band = assuranceBand(system.overallAssurance);
+  const compliance = complianceBand(system.complianceScore);
   return (
     <div style={{ background: C.panel, borderBottom: `1px solid ${C.border}` }}>
       <div className="px-4 lg:px-8 pt-3.5 flex items-center justify-between gap-4 flex-wrap">
@@ -30,15 +32,26 @@ export function SystemHeader({ system, formallyAssessed, children }: SystemHeade
           {system.classification && <ClassificationTag level={system.classification} />}
           {formallyAssessed && <FormallyAssessedBadge />}
         </div>
-        {system.overallAssurance != null && (
-          <div className="flex items-center gap-2.5 shrink-0">
-            <div className="flex flex-col items-end leading-tight">
-              <span className="text-[11px]" style={{ color: C.muted }}>Cyber assurance</span>
-              <span className="text-[11.5px] font-semibold" style={{ color: badgeColorFor(band.color).color }}>{band.label}</span>
+        <div className="flex items-center gap-5 shrink-0">
+          {system.complianceScore != null && (
+            <div className="flex items-center gap-2.5">
+              <div className="flex flex-col items-end leading-tight">
+                <span className="text-[11px]" style={{ color: C.muted }}>Compliance</span>
+                <span className="text-[11.5px] font-semibold" style={{ color: badgeColorFor(compliance.color).color }}>{compliance.label}</span>
+              </div>
+              <AssuranceBadge pct={system.complianceScore} size={32} kind="compliance" />
             </div>
-            <AssuranceBadge pct={system.overallAssurance} size={32} />
-          </div>
-        )}
+          )}
+          {system.overallAssurance != null && (
+            <div className="flex items-center gap-2.5">
+              <div className="flex flex-col items-end leading-tight">
+                <span className="text-[11px]" style={{ color: C.muted }}>Cyber assurance</span>
+                <span className="text-[11.5px] font-semibold" style={{ color: badgeColorFor(band.color).color }}>{band.label}</span>
+              </div>
+              <AssuranceBadge pct={system.overallAssurance} size={32} />
+            </div>
+          )}
+        </div>
       </div>
       {children}
     </div>

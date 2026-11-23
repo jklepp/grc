@@ -7,7 +7,7 @@ import { POLICIES, POLICY_TIERS } from "../data/policies";
 import { PROCEDURES } from "../data/procedures";
 import { PRINCIPLE_STATUS_COUNTS } from "../data/securityPrinciples";
 import { FREQUENCIES, currentPeriod, statusCountsForPeriod } from "../data/scheduledActivities";
-import { EXCEPTION_SUMMARY, IN_SCOPE_CONTROLS, OBLIGATION_SUMMARY } from "../engine";
+import { EXCEPTION_SUMMARY, IN_SCOPE_CONTROLS, OBLIGATION_SUMMARY, getLiveEngine } from "../engine";
 import { SOURCE_DOCUMENTS, isStructural } from "../engine/sourceText";
 import { GOVERNANCE_AREAS } from "./governanceAreas";
 import type { GovernanceAreaId } from "./governanceAreas";
@@ -34,7 +34,19 @@ const STANDARD_COUNT = new Set(IN_SCOPE_CONTROLS.flatMap((control) => control.fr
 
 const SOURCE_PARAGRAPHS = Object.values(SOURCE_DOCUMENTS).flatMap((doc) => doc.sections.flatMap((s) => s.paragraphs)).filter((p) => !isStructural(p));
 
+// Read at the same moment as the barrel values above: when this chunk loads.
+const OPEN_AUDITS = getLiveEngine().graph.engagements.filter((e) => e.status !== "closed");
+const AUDITS_DUE_SOON = OPEN_AUDITS.filter((e) => Date.parse(e.dueDate) - Date.now() <= 30 * 86_400_000).length;
+
 const AREA_SUMMARIES: Record<GovernanceAreaId, AreaSummary> = {
+  audits: {
+    metrics: [
+      { value: OPEN_AUDITS.length, label: "Open audits" },
+      { value: getLiveEngine().graph.certifications.length, label: "Certificates & reports" },
+    ],
+    attention: AUDITS_DUE_SOON,
+    attentionLabel: AUDITS_DUE_SOON === 1 ? "audit due within 30 days" : "audits due within 30 days",
+  },
   ccf: {
     metrics: [
       { value: IN_SCOPE_CONTROLS.length, label: "Controls in scope" },
@@ -111,6 +123,7 @@ const AREA_SUMMARIES: Record<GovernanceAreaId, AreaSummary> = {
 const AREA_GROUPS: Partial<Record<GovernanceAreaId, string>> = {
   ccf: "Controls",
   frameworks: "Controls",
+  audits: "Controls",
   obligations: "Controls",
   policy: "Policies and Procedures",
   procedures: "Policies and Procedures",

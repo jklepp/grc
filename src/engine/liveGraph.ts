@@ -45,6 +45,8 @@ import type { RawEvidence } from "../graph/nodes/evidence";
 import type { EvidenceArtifact, EvidenceReview } from "../graph/nodes/evidenceProvenance";
 import type { PrismaLevelOverride } from "../graph/edges/prismaOverrides";
 import type { ControlReview } from "../graph/edges/controlReviews";
+import type { CommonControlRecord, SystemControlRecord } from "../graph/nodes/controlRecords";
+import type { Certification, Engagement, EngagementControl, EngagementDraft, EngagementSnapshot } from "../graph/nodes/engagements";
 import type { Finding } from "../graph/nodes/findings";
 import type { SystemId } from "../graph/ids";
 import type { ClassificationTier } from "../graph/nodes/taxonomy";
@@ -72,6 +74,19 @@ export interface RuntimeFacts {
   notImplemented: NotImplemented[];
   prismaOverrides: PrismaLevelOverride[];
   controlReviews: ControlReview[];
+  // Framework baseline records written in the app. APPENDED, never replaced:
+  // each save is a new version, and the graph reads the latest as current, so
+  // every earlier answer stays readable (nodes/controlRecords.ts).
+  commonControlRecords: CommonControlRecord[];
+  systemControlRecords: SystemControlRecord[];
+  // Engagements and what they produce. Engagements, their control rows and
+  // drafts supersede an authored row with the same key; snapshots and
+  // certifications only ever append.
+  engagements: Engagement[];
+  engagementControls: EngagementControl[];
+  engagementDrafts: EngagementDraft[];
+  engagementSnapshots: EngagementSnapshot[];
+  certifications: Certification[];
   findings: Finding[];
   // System Register cockpit posture — sparse (0-or-1 backup config / SDLC
   // posture row per system, any number of DR tests). A brand-new system has
@@ -87,7 +102,8 @@ export interface RuntimeFacts {
 export function emptyRuntimeFacts(): RuntimeFacts {
   return {
     systems: [], assets: [], assetDataTypes: [], actors: [], actorAccess: [], dataFlows: [], agenticIdentities: [], assessmentScopes: [], expectedClassification: {},
-    implementationMechanisms: [], evidence: [], evidenceArtifacts: [], evidenceReviews: [], notImplemented: [], prismaOverrides: [], controlReviews: [], findings: [],
+    implementationMechanisms: [], evidence: [], evidenceArtifacts: [], evidenceReviews: [], notImplemented: [], prismaOverrides: [], controlReviews: [], commonControlRecords: [], systemControlRecords: [],
+    engagements: [], engagementControls: [], engagementDrafts: [], engagementSnapshots: [], certifications: [], findings: [],
     backupConfigs: [], drTests: [], sdlcPostures: [],
   };
 }
@@ -188,6 +204,23 @@ export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts 
       ...base.controlReviews.filter((review) => !runtime.controlReviews.some((r) => r.systemId === review.systemId && r.controlId === review.controlId)),
       ...runtime.controlReviews,
     ],
+    commonControlRecords: [...base.commonControlRecords, ...runtime.commonControlRecords],
+    systemControlRecords: [...base.systemControlRecords, ...runtime.systemControlRecords],
+    engagements: [...base.engagements.filter((e) => !runtime.engagements.some((r) => r.id === e.id)), ...runtime.engagements],
+    engagementControls: [
+      ...base.engagementControls.filter((c) => !runtime.engagementControls.some(
+        (r) => r.engagementId === c.engagementId && r.systemId === c.systemId && r.controlId === c.controlId
+      )),
+      ...runtime.engagementControls,
+    ],
+    engagementDrafts: [
+      ...base.engagementDrafts.filter((d) => !runtime.engagementDrafts.some(
+        (r) => r.engagementId === d.engagementId && r.systemId === d.systemId && r.controlId === d.controlId
+      )),
+      ...runtime.engagementDrafts,
+    ],
+    engagementSnapshots: [...base.engagementSnapshots, ...runtime.engagementSnapshots],
+    certifications: [...base.certifications, ...runtime.certifications],
     // Supersede by id, the same discipline controlReviews and assessmentScopes
     // use. A YAML-authored finding edited in the app is copied into runtime by
     // updateFinding; without this the two copies would both survive the merge

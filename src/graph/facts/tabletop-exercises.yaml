@@ -30,3 +30,19 @@
     - "security"
     - "executive"
   issuesIdentified: 4
+# The Health Hub tabletop had no customer-comms function in the room, which matters
+# here: as a business associate, ACME must notify each health-system customer.
+- id: "TTX-SYS-058-2026-01"
+  scope: "SYS-058"
+  conductedAt: "2026-08-12"
+  cadenceDays: 365
+  scenario: "Ransomware against the clinical records database with suspected PHI exfiltration, run against the HIPAA breach-notification clock"
+  participantOrgIds:
+    - "product-security"
+    - "platform-eng"
+    - "grc"
+  participatingFunctions:
+    - "system-owner"
+    - "security"
+    - "legal"
+  issuesIdentified: 3

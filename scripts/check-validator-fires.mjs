@@ -290,6 +290,29 @@ try {
     ["obligation proof naming missing evidence", (f) => {
       f.externalObligations[0].proof = [{ title: "Logs", evidenceIds: ["EV-NOPE"] }];
     }, /proof evidenceId "EV-NOPE" is not an evidence record/],
+    ["baseline record on a HITRUST system", (f) => {
+      f.systemControlRecords.push({ ...f.systemControlRecords[0], systemId: "SYS-003", controlId: "CAP-01" });
+    }, /has HITRUST in scope, so it is assessed on the Cyber Assurance levels/],
+    ["hybrid common record with no system part", (f) => {
+      const h = f.commonControlRecords.find((r) => r.type === "hybrid");
+      delete h.systemPart;
+    }, /a hybrid control needs a systemPart/],
+    ["system record on a common control", (f) => {
+      const c = f.commonControlRecords.find((r) => r.type === "common");
+      f.systemControlRecords.push({ ...f.systemControlRecords[0], controlId: c.controlId });
+    }, /is a common control, written once centrally/],
+    ["two record versions at the same moment", (f) => {
+      f.systemControlRecords.push({ ...f.systemControlRecords[0], statement: "A second answer" });
+    }, /two versions recorded at the same moment/],
+    ["engagement exclusion with no justification", (f) => {
+      f.engagementControls[0].inScope = false;
+    }, /excluded without a justification/],
+    ["external engagement with no audit firm", (f) => {
+      delete f.engagements[0].auditFirm;
+    }, /an external engagement needs an audit firm/],
+    ["major nonconformity on a control found in place", (f) => {
+      f.engagementControls[0].nonconformity = "major";
+    }, /a major nonconformity on a control the auditor found in-place/],
   ];
 
   console.log("\nStructural checks (validateGraph, via loadGraph)");

@@ -113,6 +113,11 @@ export function CrossCheckPane({ control, standard, onClose }: { control: Contro
         <section ref={leftRef} aria-label="Common control" className="min-h-0 overflow-y-auto px-6 py-5" style={{ borderRight: `1px solid ${C.border}` }}>
           <h3 className="m-0 text-xs font-semibold tracking-wider uppercase" style={{ color: C.muted }}>ACME common control</h3>
           <p className="mt-2 mb-4 text-[13px] leading-relaxed whitespace-pre-line" style={{ color: C.ink }}>{view.statement}</p>
+          {view.requirements.length < view.totalRequirements && (
+            <p className="-mt-2 mb-4 text-xs" style={{ color: C.muted }}>
+              {view.requirements.length} of {view.totalRequirements} requirements: the parts {standard} maps to. The rest of the control falls outside {standard}.
+            </p>
+          )}
           {view.requirements.length > 0 ? (
             <div className="flex flex-col gap-2">
               {view.requirements.map((r) => {

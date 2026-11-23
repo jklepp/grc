@@ -497,7 +497,7 @@ export default function DataMap({ systemId: controlledSystemId, onSelectSystem, 
                 <span className="inline-flex items-center gap-3">
                   {system.name}
                   {system.classification && <ClassificationTag level={system.classification} />}
-                  <AssuranceBadge pct={system.overallAssurance} />
+                  <AssuranceBadge pct={system.complianceScore} kind="compliance" />
                 </span>
               ) : "Systems Data Flow"
             }

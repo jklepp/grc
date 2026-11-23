@@ -42,6 +42,9 @@ import { mean, assuranceBand, display } from "./assurance";
 import { inheritsDomain } from "../graph/nodes/systems";
 import { RESPONSIBILITIES, SHARED_RESPONSIBILITY_DOMAINS, type Responsibility } from "../graph/edges/controlImplementations";
 import { reviewFor } from "./review";
+import { createControlRecords, type BaselineResolution } from "./controlRecords";
+import { requiresCyberAssurance } from "../graph/nodes/controlRecords";
+import { HITRUST_R2_STANDARD } from "../graph/nodes/providerCertifications";
 import type { SystemId, ControlId } from "../graph/ids";
 
 export const COVERAGE_STATES = ["measured", "inherited", "assessed", "unassessed"];
@@ -97,6 +100,16 @@ export function createCompliance(
 
   const isKeyControl = (controlId: ControlId) => Object.hasOwn(graph.keyControlById, controlId);
 
+  // Systems without HITRUST in scope are assessed at the framework baseline
+  // (engine/controlRecords.ts), not on the PRISMA levels. Their rows carry a
+  // status and no PRISMA score.
+  const records = createControlRecords(graph, responsibilityForControl);
+  const isBaselineSystem = (systemId: SystemId) => {
+    const system = graph.systemById[systemId];
+    return Boolean(system) && !requiresCyberAssurance(system);
+  };
+  const isAssessed = (r: { status: string }) => r.status !== "unassessed";
+
   function assetsForSystem(systemId: SystemId) {
     return graph.assetsBySystem[systemId] ?? [];
   }
@@ -137,6 +150,22 @@ export function createCompliance(
         instances: [] as ControlAssessment["instances"],
         explanation: `${controlId} does not apply to this system.`,
         keyControl: graph.keyControlById[controlId],
+        baseline: null as BaselineResolution | null,
+      };
+    }
+
+    if (isBaselineSystem(systemId)) {
+      const b = records.resolve(systemId, controlId);
+      return {
+        controlId, control, systemId,
+        status: b.status as CoverageStatus,
+        basis: b.status === "inherited" ? BASIS.INHERITED : b.status === "unassessed" ? BASIS.UNASSESSED : BASIS.ASSESSED,
+        score: null as number | null,
+        assessment: null as ControlAssessment | null,
+        instances: [] as ControlAssessment["instances"],
+        explanation: b.explanation,
+        keyControl: graph.keyControlById[controlId],
+        baseline: b as BaselineResolution | null,
       };
     }
 
@@ -151,6 +180,7 @@ export function createCompliance(
         ? `${a.levels.Implemented.rationale}`
         : `Applicable to this system and outside the declared assessment scope — reported as unassessed rather than scored.`,
       keyControl: graph.keyControlById[controlId],
+      baseline: null as BaselineResolution | null,
     };
   }
 
@@ -175,7 +205,10 @@ export function createCompliance(
   function systemCoverageBreakdown(systemId: SystemId) {
     const rows = systemControlMatrix(systemId);
     const count = (...statuses: string[]) => rows.filter((r) => statuses.includes(r.status)).length;
-    const scored = rows.filter((r) => r.score != null).length;
+    // Assessed by status, not by the presence of a PRISMA score: a baseline
+    // system's rows are assessed without ever carrying one.
+    const scored = rows.filter(isAssessed).length;
+    const met = count("inherited", "satisfied");
     return {
       required: rows.length,
       inherited: count("inherited"),
@@ -195,8 +228,16 @@ export function createCompliance(
       // honesty check on the first number. It is low, and it is supposed to be:
       // a real engagement covers a chosen set of requirement statements, and
       // saying so is the difference between a gap map and a claim.
-      coveredPct: scored === 0 ? 0 : Math.round(((count("inherited") + count("satisfied")) / scored) * 100),
+      coveredPct: scored === 0 ? 0 : Math.round((met / scored) * 100),
       assessedPct: rows.length === 0 ? 0 : Math.round((scored / rows.length) * 100),
+      // THE COMPLIANCE SCORE: of the applicable controls assessed, the share
+      // that is met (implemented, or inherited from a provider or a central
+      // program). Partial earns nothing, the way ISO 27001 treats a partially
+      // implemented control as a nonconformity rather than half a conformity.
+      // Null rather than 0 when nothing is assessed. Every system has one,
+      // whether or not it is also scored on Cyber Assurance.
+      complianceScore: scored === 0 ? null : Math.round((met / scored) * 100),
+      cyberAssurance: !isBaselineSystem(systemId),
     };
   }
 
@@ -320,6 +361,10 @@ export function createCompliance(
       weakest: worst,
       satisfiedCount: rows.filter((r) => r.status === "satisfied" || r.status === "inherited").length,
       totalCount: rows.length,
+      assessedCount: rows.filter(isAssessed).length,
+      compliancePct: rows.filter(isAssessed).length === 0 ? null : Math.round(
+        (rows.filter((r) => r.status === "satisfied" || r.status === "inherited").length / rows.filter(isAssessed).length) * 100
+      ),
       // The score above covers only the rows that were actually assessed, and
       // never blends an unassessed control in as a zero. Reported so a reader
       // can see how much of the clause the number is speaking for.
@@ -342,8 +387,13 @@ export function createCompliance(
     // would put a number on work nobody did, which is the one thing the scope
     // model exists to prevent. A posture over 44 rows honestly labelled beats a
     // posture over 271 rows that is mostly fiction.
-    const scored = controlRows.filter((r) => r.score != null);
-    const score = display(mean(scored.map((r) => r.score as number)));
+    // Two numbers, kept apart. The compliance figures are over every ASSESSED
+    // row, baseline or PRISMA. The Cyber Assurance score is the PRISMA mean,
+    // and only HITRUST systems' rows carry one.
+    const scored = controlRows.filter(isAssessed);
+    const prismaScored = controlRows.filter((r) => r.score != null);
+    const score = display(mean(prismaScored.map((r) => r.score as number)));
+    const met = controlRows.filter((r) => r.status === "satisfied" || r.status === "inherited").length;
 
     return {
       standard,
@@ -355,9 +405,9 @@ export function createCompliance(
       assessedPct: controlRows.length === 0 ? 0 : Math.round((scored.length / controlRows.length) * 100),
       score,
       band: assuranceBand(score),
-      satisfiedPct: scored.length === 0 ? 0 : Math.round(
-        (controlRows.filter((r) => r.status === "satisfied" || r.status === "inherited").length / scored.length) * 100
-      ),
+      satisfiedPct: scored.length === 0 ? 0 : Math.round((met / scored.length) * 100),
+      compliancePct: scored.length === 0 ? null : Math.round((met / scored.length) * 100),
+      prismaScoredCount: prismaScored.length,
       measuredPct: scored.length === 0 ? 0 : Math.round(
         (controlRows.filter((r) => r.basis === BASIS.MEASURED).length / scored.length) * 100
       ),
@@ -428,12 +478,17 @@ export function createCompliance(
     return rows.sort((a, b) => a.confidence - b.confidence);
   }
 
-  // Which frameworks any system is actually in scope for.
-  const inScopeFrameworks = [...new Set(graph.systems.flatMap((s) => s.standards))].sort();
+  // Which frameworks any system is actually in scope for. HITRUST r2 is left
+  // out: on a system it is a depth setting (it puts the system on the Cyber
+  // Assurance levels), not a framework the crosswalk maps controls to, so it
+  // has no posture of its own to show.
+  const inScopeFrameworks = [...new Set(graph.systems.flatMap((s) => s.standards))]
+    .filter((std) => std !== HITRUST_R2_STANDARD)
+    .sort();
 
   // Enterprise-wide control coverage.
   const allRows = graph.systems.flatMap((s) => systemControlMatrix(s.id));
-  const allScored = allRows.filter((r) => r.score != null);
+  const allScored = allRows.filter(isAssessed);
   const COVERED_STATUSES = ["satisfied", "inherited"];
 
   return {
@@ -452,6 +507,8 @@ export function createCompliance(
     clauseCoverage,
     frameworkPosture,
     systemStandardMappings,
+    resolveBaseline: records.resolve,
+    isBaselineSystem,
     IN_SCOPE_FRAMEWORKS: inScopeFrameworks,
     FRAMEWORK_POSTURE: inScopeFrameworks.map(frameworkPosture),
     ENTERPRISE_COVERAGE: {

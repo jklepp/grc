@@ -33,6 +33,7 @@ import { createAssessment } from "./assessment";
 import { createRollups } from "./rollups";
 import { createRisk } from "./risk";
 import { createCompliance } from "./compliance";
+import { createEngagements } from "./engagements";
 import { createProfile } from "./profile";
 import { createSelectors } from "./selectors";
 import { validateDerivations } from "./validateDerivations";
@@ -68,9 +69,10 @@ export function createEngine(graph: Graph, options: EngineOptions = {}) {
   // not yet exported from engine/index.ts and not yet read by any rollup —
   // flipping the consumers is a separate change from proving the derivation.
   const assessment = createAssessment(graph, applicability, evidence, findings, ctx);
-  const rollups = createRollups(graph, classification, applicability, assessment, findings);
-  const risk = createRisk(graph, rollups, assessment);
+  // Compliance first: the rollups carry each system's compliance score.
   const compliance = createCompliance(graph, assessment, applicability);
+  const rollups = createRollups(graph, classification, applicability, assessment, findings, compliance);
+  const risk = createRisk(graph, rollups, assessment);
   const profile = createProfile(graph, rollups);
   const selectors = createSelectors(
     graph, classification, applicability, assessment, evidence, rollups, risk, compliance
@@ -93,13 +95,14 @@ export function createEngine(graph: Graph, options: EngineOptions = {}) {
   );
   const review = createReview(graph, applicability, assessment, compliance, findings);
   const obligations = createObligations(graph, ctx, evidence, incidentResponse, findings);
+  const engagements = createEngagements(graph, ctx, applicability, compliance);
 
   const engine = {
     graph, ctx,
     classification, applicability, findings, evidence, assessment,
     rollups, risk, compliance, profile, selectors,
     identity, exposure, exceptions, vulnerabilities, securityTesting, resilience,
-    incidentResponse, vendors, sdlc, cockpit, review, obligations,
+    incidentResponse, vendors, sdlc, cockpit, review, obligations, engagements,
   };
 
   // Structural integrity was already proved by loadGraph. This is the other

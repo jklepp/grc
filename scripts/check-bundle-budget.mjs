@@ -76,7 +76,9 @@ const initialBytes = jsFiles.reduce((sum, f) => sum + bytes(f), 0);
 // Measured 2026-08-24, after route splitting and deferring the PDF path.
 // Entry is React + react-dom + the login screen, and there is little in it to
 // cut; initial is everything the browser must parse before the login form.
-const ENTRY_BUDGET = 480_000;    // measured 451,644
+// Raised 2026-11-23 to 490,000 (measured 481,360): the framework baseline and
+// engagement engine modules joined the engine the entry chunk carries.
+const ENTRY_BUDGET = 490_000;    // measured 481,360
 const LANDING_BUDGET = 1_850_000; // measured ~1,760,000
 
 // These must stay OUT of the static closure. Each one is a deferral this repo

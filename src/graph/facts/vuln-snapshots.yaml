@@ -20,3 +20,12 @@
   unsupportedComponentCount: 0
   internetFacingCriticalCount: 0
   patchSlaCompliancePct: 100
+- systemId: "SYS-058"
+  asOf: "2026-11-18"
+  criticalCount: 0
+  highCount: 3
+  pastSlaCount: 1
+  configFindingCount: 4
+  unsupportedComponentCount: 1
+  internetFacingCriticalCount: 0
+  patchSlaCompliancePct: 92

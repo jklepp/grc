@@ -182,6 +182,20 @@ export const IMMATURE_LEVEL_CAP: ComplianceRating = 50;
 export const ASSURANCE_TARGET = 90;
 export const ADEQUATE_THRESHOLD = 75;
 
+// The compliance score's target: the share of assessed controls that must be
+// met. A separate constant from ASSURANCE_TARGET because it is a separate
+// claim — a count of controls in place, not a PRISMA maturity score — even
+// though both currently sit at 90.
+export const COMPLIANCE_TARGET = 90;
+export const COMPLIANCE_NEAR_THRESHOLD = 75;
+
+export function complianceBand(score: number | null | undefined): Band & { label: string } {
+  if (score == null) return { label: "Unassessed", color: "muted" };
+  if (score >= COMPLIANCE_TARGET) return { label: "On target", color: "green" };
+  if (score >= COMPLIANCE_NEAR_THRESHOLD) return { label: "Near target", color: "amber" };
+  return { label: "Below target", color: "red" };
+}
+
 export function assuranceBand(score: number | null | undefined): Band & { label: string } {
   if (score == null) return { label: "Unassessed", color: "muted" };
   if (score >= ASSURANCE_TARGET) return { label: "Strong", color: "green" };

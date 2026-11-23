@@ -1,0 +1,52 @@
+# Per-control engagement rows: scoping, the auditor's result, and whether the
+# evidence request was accepted. Sparse — a control nobody has touched in an
+# engagement has no row and reads as in scope, not assessed.
+
+# ---- ENG-2026-ISO-RECERT: Stage 2 fieldwork under way --------------------------
+- engagementId: "ENG-2026-ISO-RECERT"
+  systemId: "SYS-058"
+  controlId: "CRY-05"
+  inScope: true
+  result: "in-place"
+  requestAccepted: true
+  updatedAt: "2026-11-18T15:10:00Z"
+- engagementId: "ENG-2026-ISO-RECERT"
+  systemId: "SYS-058"
+  controlId: "CRY-03"
+  inScope: true
+  result: "in-place"
+  requestAccepted: true
+  updatedAt: "2026-11-18T15:20:00Z"
+- engagementId: "ENG-2026-ISO-RECERT"
+  systemId: "SYS-058"
+  controlId: "BCD-04"
+  inScope: true
+  result: "partial"
+  nonconformity: "minor"
+  resultNote: "Contingency test cadence lapsed in October 2026 and the last test missed its RTO. Corrective action required before certification."
+  requestAccepted: true
+  updatedAt: "2026-11-19T10:05:00Z"
+- engagementId: "ENG-2026-ISO-RECERT"
+  systemId: "SYS-058"
+  controlId: "TDA-09"
+  inScope: true
+  result: "partial"
+  nonconformity: "ofi"
+  resultNote: "Dynamic testing of the patient portal is planned but not in place."
+  updatedAt: "2026-11-19T10:40:00Z"
+- engagementId: "ENG-2026-ISO-RECERT"
+  systemId: "SYS-003"
+  controlId: "CRY-05"
+  inScope: true
+  result: "in-place"
+  requestAccepted: true
+  updatedAt: "2026-11-17T14:00:00Z"
+- engagementId: "ENG-2026-ISO-RECERT"
+  systemId: "SYS-003"
+  controlId: "IAC-21"
+  inScope: true
+  result: "partial"
+  nonconformity: "minor"
+  resultNote: "RAG service role still holds broad read access (SEC-2260)."
+  requestAccepted: true
+  updatedAt: "2026-11-17T16:30:00Z"

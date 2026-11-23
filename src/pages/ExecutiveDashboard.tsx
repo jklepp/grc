@@ -10,8 +10,8 @@ import { PageHeader } from "../components/Headings";
 import { useLiveEngine } from "../engine/useLiveEngine";
 import type { SystemId } from "../graph/ids";
 import {
-  ALL_FINDINGS, ASSURANCE_TARGET, MATERIAL_RISKS, cockpitSummary,
-  getAllSystems, getEnterprise, profileSummary,
+  ALL_FINDINGS, COMPLIANCE_TARGET, MATERIAL_RISKS, cockpitSummary,
+  getAllSystems, getEnterprise,
 } from "../engine";
 
 
@@ -55,16 +55,25 @@ function useDashboardData() {
   return useMemo(() => {
     const enterprise = getEnterprise();
     const systems = getAllSystems();
-    const enterpriseAssurance = enterprise.assurance ?? 0;
+    // The headline is the compliance score: every system has one. Cyber
+    // Assurance is reported beside it for the HITRUST systems that carry it.
+    const enterpriseCompliance = enterprise.compliance ?? 0;
+    const complianceCoverage = systems.reduce(
+      (acc, s) => ({
+        assessed: acc.assessed + (s.complianceCoverage?.scored ?? 0),
+        applicable: acc.applicable + (s.complianceCoverage?.required ?? 0),
+      }),
+      { assessed: 0, applicable: 0 }
+    );
     const materialRiskIds = new Set(MATERIAL_RISKS.map((risk) => risk.id));
 
     // "Important" is a visible, deterministic FIPS 199 rule rather than a
     // hand-maintained dashboard flag. A High-impact boundary belongs here;
     // lower impact systems remain available in the System Register.
     const importantSystems = systems
-      .map((system) => ({ system, profile: profileSummary(system.id) }))
-      .filter(({ system }) => system.overallImpact === "high")
-      .sort((a, b) => (a.system.overallAssurance ?? -1) - (b.system.overallAssurance ?? -1));
+      .filter((system) => system.overallImpact === "high")
+      .map((system) => ({ system }))
+      .sort((a, b) => (a.system.complianceScore ?? -1) - (b.system.complianceScore ?? -1));
 
     const findingAttention: AttentionItem[] = ALL_FINDINGS.map((finding) => {
       const material = finding.riskIds.some((id) => materialRiskIds.has(id));
@@ -105,8 +114,9 @@ function useDashboardData() {
     return {
       enterprise,
       systems,
-      enterpriseAssurance,
-      assuranceGap: enterpriseAssurance - ASSURANCE_TARGET,
+      enterpriseCompliance,
+      complianceGap: enterpriseCompliance - COMPLIANCE_TARGET,
+      complianceCoverage,
       importantSystems,
       attentionItems,
       complianceDates,
@@ -234,14 +244,18 @@ export default function ExecutiveDashboard({
   const {
     enterprise: ENTERPRISE,
     systems: SYSTEMS,
-    enterpriseAssurance: ENTERPRISE_ASSURANCE,
-    assuranceGap: ASSURANCE_GAP,
+    enterpriseCompliance: ENTERPRISE_COMPLIANCE,
+    complianceGap: COMPLIANCE_GAP,
+    complianceCoverage: COMPLIANCE_COVERAGE,
     importantSystems: IMPORTANT_SYSTEMS,
     attentionItems: ATTENTION_ITEMS,
     complianceDates: COMPLIANCE_DATES,
   } = useDashboardData();
 
-  const coverage = ENTERPRISE.coverage;
+  const coverage = {
+    ...COMPLIANCE_COVERAGE,
+    assessedPct: COMPLIANCE_COVERAGE.applicable === 0 ? 0 : Math.round((COMPLIANCE_COVERAGE.assessed / COMPLIANCE_COVERAGE.applicable) * 100),
+  };
   const shownAttention = ATTENTION_ITEMS.slice(0, 5);
   const remainingAttention = Math.max(0, ATTENTION_ITEMS.length - shownAttention.length);
   const lastSynced = SYSTEMS[0]?.lastSynced ?? "live";
@@ -264,32 +278,32 @@ export default function ExecutiveDashboard({
         <section
           className="rounded-2xl p-7 grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-8 items-center"
           style={{ background: C.panel, color: C.ink, border: `1px solid ${C.border}` }}
-          aria-labelledby="enterprise-assurance-title"
+          aria-labelledby="enterprise-compliance-title"
         >
           <div>
-            <div className="text-[11px] uppercase tracking-[0.08em] font-semibold" style={{ color: C.accent }} id="enterprise-assurance-title">
-              Enterprise Assurance
+            <div className="text-[11px] uppercase tracking-[0.08em] font-semibold" style={{ color: C.accent }} id="enterprise-compliance-title">
+              Enterprise Compliance
             </div>
             <div className="text-5xl font-semibold mt-1" style={{ fontFamily: "'Source Serif 4', serif" }}>
-              {ENTERPRISE_ASSURANCE}%
+              {ENTERPRISE_COMPLIANCE}%
             </div>
             <div className="text-sm mt-2" style={{ color: C.muted }}>
-              {ASSURANCE_GAP >= 0
-                ? `${ASSURANCE_GAP} points above the ${ASSURANCE_TARGET}% target`
-                : `${Math.abs(ASSURANCE_GAP)} points below the ${ASSURANCE_TARGET}% target`}
+              {COMPLIANCE_GAP >= 0
+                ? `${COMPLIANCE_GAP} points above the ${COMPLIANCE_TARGET}% target`
+                : `${Math.abs(COMPLIANCE_GAP)} points below the ${COMPLIANCE_TARGET}% target`}
             </div>
           </div>
 
           <div>
             <div className="flex items-center justify-between text-xs mb-2" style={{ color: C.muted }}>
-              <span>Current assurance</span>
-              <span>Target {ASSURANCE_TARGET}%</span>
+              <span>Assessed controls met, weighted by system impact</span>
+              <span>Target {COMPLIANCE_TARGET}%</span>
             </div>
             <div className="h-2.5 rounded-full relative" style={{ background: C.panel2 }}>
-              <div className="h-full rounded-full" style={{ width: `${ENTERPRISE_ASSURANCE}%`, background: C.accent }} />
+              <div className="h-full rounded-full" style={{ width: `${ENTERPRISE_COMPLIANCE}%`, background: C.accent }} />
               <span
                 className="absolute w-0.5 h-5 -top-[5px]"
-                style={{ left: `${ASSURANCE_TARGET}%`, background: C.ink }}
+                style={{ left: `${COMPLIANCE_TARGET}%`, background: C.ink }}
                 aria-hidden="true"
               />
             </div>
@@ -298,10 +312,18 @@ export default function ExecutiveDashboard({
                 <div className="text-xl font-semibold">{coverage.assessedPct}%</div>
                 <div className="text-xs" style={{ color: C.muted }}>Assessment coverage · {coverage.assessed} of {coverage.applicable}</div>
               </div>
-              <div>
+              <div className="pr-8" style={{ borderRight: `1px solid ${C.border}` }}>
                 <div className="text-xl font-semibold">{MATERIAL_RISKS.length}</div>
                 <div className="text-xs" style={{ color: C.muted }}>Material risks above appetite</div>
               </div>
+              {ENTERPRISE.assurance != null && (
+                <div>
+                  <div className="text-xl font-semibold">{ENTERPRISE.assurance}%</div>
+                  <div className="text-xs" style={{ color: C.muted }}>
+                    Cyber Assurance · {ENTERPRISE.cyberAssuranceSystemCount} HITRUST system{ENTERPRISE.cyberAssuranceSystemCount === 1 ? "" : "s"}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -316,7 +338,7 @@ export default function ExecutiveDashboard({
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
               <h2 id="important-systems-title" className="text-xl font-semibold" style={{ color: C.ink }}>Important systems</h2>
-              <p className="text-xs mt-1" style={{ color: C.muted }}>High FIPS-impact boundaries, ordered by lowest assurance.</p>
+              <p className="text-xs mt-1" style={{ color: C.muted }}>High FIPS-impact boundaries, ordered by lowest compliance.</p>
             </div>
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ color: C.accent, background: C.accentBg }}>
               {IMPORTANT_SYSTEMS.length} high impact
@@ -328,11 +350,10 @@ export default function ExecutiveDashboard({
               <div className="py-8 text-sm" style={{ color: C.muted, borderTop: `1px solid ${C.border}` }}>
                 No High-impact systems are currently registered.
               </div>
-            ) : IMPORTANT_SYSTEMS.map(({ system, profile }) => {
-              const score = system.overallAssurance;
-              const target = profile?.target ?? null;
-              const gap = score == null || target == null ? null : score - target;
-              const clears = Boolean(profile?.clears);
+            ) : IMPORTANT_SYSTEMS.map(({ system }) => {
+              const score = system.complianceScore;
+              const gap = score == null ? null : score - COMPLIANCE_TARGET;
+              const clears = score != null && score >= COMPLIANCE_TARGET;
               const status = systemStatusColor(clears);
               const SystemIcon = system.hostingType === "cloud" ? Cloud : Building2;
               return (
@@ -349,7 +370,10 @@ export default function ExecutiveDashboard({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="text-sm font-semibold block" style={{ color: C.ink }}>{system.name}</span>
-                    <span className="text-xs block mt-0.5" style={{ color: C.muted }}>{system.classification} · {system.provider}</span>
+                    <span className="text-xs block mt-0.5" style={{ color: C.muted }}>
+                      {system.classification} · {system.provider}
+                      {system.overallAssurance != null && ` · Cyber Assurance ${system.overallAssurance}%`}
+                    </span>
                   </span>
                   <span className="hidden sm:flex items-center gap-2 w-36 shrink-0">
                     <span className="h-2 rounded-full overflow-hidden flex-1" style={{ background: C.panel2 }}>

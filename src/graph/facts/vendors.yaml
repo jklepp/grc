@@ -20,3 +20,6 @@
 - id: "VEND-ANALYTICS"
   name: "External Product Analytics"
   category: "subprocessor"
+- id: "VEND-MESSAGING"
+  name: "External Messaging Provider"
+  category: "subprocessor"

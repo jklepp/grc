@@ -18,3 +18,13 @@
   restoreSuccessful: true
   actualRpoMinutes: 1200
   actualRtoMinutes: 1300
+# SYS-058's last restore test overran its RTO target (310 min against 240), and the
+# 180-day cadence lapsed in October 2026 with no retest on record.
+- id: "DRTEST-SYS-058-2026-01"
+  systemId: "SYS-058"
+  conductedAt: "2026-04-20"
+  cadenceDays: 180
+  scope: "Cross-region restore of the clinical records database and document store into us-west-2"
+  restoreSuccessful: true
+  actualRpoMinutes: 45
+  actualRtoMinutes: 310

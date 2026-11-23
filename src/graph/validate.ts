@@ -34,6 +34,10 @@ import { ASSET_KINDS, IMPACT_LEVELS } from "./nodes/assets";
 import { REGULATORY_FLAGS } from "./nodes/dataTypes";
 import { DOMAINS, FRAMEWORKS } from "./nodes/controls";
 import { CERTIFICATION_REPORT_TYPES, HITRUST_R2_STANDARD } from "./nodes/providerCertifications";
+import { COMMON_CONTROL_TYPES, CONTROL_FREQUENCIES, CONTROL_RECORD_STATUSES, requiresCyberAssurance } from "./nodes/controlRecords";
+import {
+  AUDIT_TYPES, AUDITOR_RESULTS, CERTIFICATION_KINDS, ENGAGEMENT_FOCUS, ENGAGEMENT_STATUSES, NONCONFORMITY_GRADES,
+} from "./nodes/engagements";
 import { SHARED_RESPONSIBILITY_DOMAINS } from "./edges/controlImplementations";
 import { REVIEW_BUCKETS, REVIEW_STANCES } from "./edges/controlReviews";
 import { ACTIVITY_FREQUENCIES, PERIODS_PER_YEAR } from "./nodes/scheduledActivities";
@@ -627,6 +631,129 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
     check(a.reference.trim().length > 0, `enterprise attestation ${a.id}: needs a reference naming the actual review`);
     check(a.domains.length > 0, `enterprise attestation ${a.id}: names no domains — an attestation covering nothing inherits nothing`);
     a.domains.forEach((d) => check(DOMAINS.includes(d), `enterprise attestation ${a.id}: domain "${d}" is not an SCF domain`));
+  });
+
+  // ---- Framework baseline records ------------------------------------------------
+  // Structural only. Whether a system record sits on a control that actually
+  // applies to its system needs applicability, so that half lives in
+  // engine/validateDerivations.ts.
+  const recordBody = (label: string, r: { statement: string; status: string; ownerId: string; frequency?: string; evidence?: string[]; reviewedAt: string }) => {
+    check(r.statement?.trim().length > 0, `${label}: needs a statement saying how the control is met`);
+    check(CONTROL_RECORD_STATUSES.includes(r.status as never), `${label}: status "${r.status}" is not one of ${CONTROL_RECORD_STATUSES.join(", ")}`);
+    check(has(graph.orgById, r.ownerId), `${label}: ownerId "${r.ownerId}" is not an org`);
+    check(r.frequency === undefined || CONTROL_FREQUENCIES.includes(r.frequency as never), `${label}: frequency "${r.frequency}" is not one of ${CONTROL_FREQUENCIES.join(", ")}`);
+    check(r.evidence === undefined || (Array.isArray(r.evidence) && r.evidence.every((e) => typeof e === "string" && e.trim().length > 0)), `${label}: evidence must be a list of non-empty references`);
+    check(!Number.isNaN(Date.parse(r.reviewedAt)), `${label}: reviewedAt "${r.reviewedAt}" is not a parseable date`);
+  };
+  // Every version is checked structurally; two versions of one record saved at
+  // the same instant would make "which is current" ambiguous.
+  const versionSeen = new Set<string>();
+  const versionOnce = (label: string, key: string, r: { recordedAt?: string; reviewedAt: string }) => {
+    const k = `${key}@${r.recordedAt ?? r.reviewedAt}`;
+    check(!versionSeen.has(k), `${label}: two versions recorded at the same moment (${r.recordedAt ?? r.reviewedAt}) — the current one would be ambiguous`);
+    versionSeen.add(k);
+    check(r.recordedAt === undefined || !Number.isNaN(Date.parse(r.recordedAt)), `${label}: recordedAt "${r.recordedAt}" is not a parseable timestamp`);
+  };
+  graph.commonControlRecordVersions.forEach((r) => {
+    const label = `common control record ${r.controlId}`;
+    check(has(graph.controlById, r.controlId), `${label}: "${r.controlId}" is not a real control`);
+    versionOnce(label, `common::${r.controlId}`, r);
+    check(COMMON_CONTROL_TYPES.includes(r.type), `${label}: type "${r.type}" is not one of ${COMMON_CONTROL_TYPES.join(", ")}`);
+    check(
+      r.type !== "hybrid" || Boolean(r.systemPart?.trim()),
+      `${label}: a hybrid control needs a systemPart saying what each system must do itself`
+    );
+    check(r.type !== "common" || !r.systemPart, `${label}: a common control has no system part; make it hybrid if systems do part of the work`);
+    recordBody(label, r);
+  });
+  graph.systemControlRecordVersions.forEach((r) => {
+    const label = `control record ${r.systemId}/${r.controlId}`;
+    check(has(graph.systemById, r.systemId), `${label}: "${r.systemId}" is not a system`);
+    check(has(graph.controlById, r.controlId), `${label}: "${r.controlId}" is not a real control`);
+    versionOnce(label, `system::${r.systemId}::${r.controlId}`, r);
+    check(r.engagementId === undefined || has(graph.engagementById, r.engagementId), `${label}: engagementId "${r.engagementId}" is not an engagement`);
+    recordBody(label, r);
+  });
+  // Rules about what a record may say hold for the CURRENT version: history is
+  // allowed to describe a system as it used to be.
+  graph.systemControlRecords.forEach((r) => {
+    const label = `control record ${r.systemId}/${r.controlId}`;
+    const system = graph.systemById[r.systemId];
+    if (system) {
+      check(
+        !requiresCyberAssurance(system),
+        `${label}: ${r.systemId} has HITRUST in scope, so it is assessed on the Cyber Assurance levels, not with baseline records`
+      );
+    }
+    check(
+      graph.commonRecordByControl[r.controlId]?.type !== "common",
+      `${label}: ${r.controlId} is a common control, written once centrally — a system record would contradict it. Make it hybrid if systems do part of the work.`
+    );
+  });
+
+  // ---- Engagements ----------------------------------------------------------------
+  const seenEngagements = new Set<string>();
+  graph.engagements.forEach((e) => {
+    const label = `engagement ${e.id}`;
+    check(!seenEngagements.has(e.id), `${label}: duplicate id`);
+    seenEngagements.add(e.id);
+    check(e.name?.trim().length > 0, `${label}: needs a name`);
+    check(ENGAGEMENT_FOCUS.includes(e.focus), `${label}: focus "${e.focus}" is not one of ${ENGAGEMENT_FOCUS.join(", ")}`);
+    check(AUDIT_TYPES.includes(e.auditType), `${label}: auditType "${e.auditType}" is not one of ${AUDIT_TYPES.join(", ")}`);
+    check(ENGAGEMENT_STATUSES.includes(e.status), `${label}: status "${e.status}" is not one of ${ENGAGEMENT_STATUSES.join(", ")}`);
+    check(e.frameworks.length > 0, `${label}: names no framework — an audit against nothing`);
+    e.frameworks.forEach((f) => check(
+      FRAMEWORKS.includes(f) || f === HITRUST_R2_STANDARD,
+      `${label}: framework "${f}" is not one of ${[...FRAMEWORKS, HITRUST_R2_STANDARD].join(", ")}`
+    ));
+    check(e.systemIds.length > 0 || e.status === "closed", `${label}: names no system in scope`);
+    e.systemIds.forEach((sid) => check(has(graph.systemById, sid), `${label}: systemId "${sid}" is not a system`));
+    check(has(graph.orgById, e.ownerId), `${label}: ownerId "${e.ownerId}" is not an org`);
+    ["periodStart", "periodEnd", "dueDate", "startedAt"].forEach((field) =>
+      check(!Number.isNaN(Date.parse((e as unknown as Record<string, string>)[field])), `${label}: ${field} is not a parseable date`)
+    );
+    check(Date.parse(e.periodEnd) >= Date.parse(e.periodStart), `${label}: periodEnd is before periodStart`);
+    check(e.focus === "internal" || Boolean(e.auditFirm?.trim()), `${label}: an external engagement needs an audit firm`);
+    check(e.status !== "closed" || Boolean(e.closedAt), `${label}: closed without a closedAt`);
+  });
+  graph.engagementControls.forEach((c) => {
+    const label = `engagement control ${c.engagementId}/${c.systemId}/${c.controlId}`;
+    const e = graph.engagementById[c.engagementId];
+    check(Boolean(e), `${label}: "${c.engagementId}" is not an engagement`);
+    check(!e || e.systemIds.includes(c.systemId) || e.status === "closed", `${label}: ${c.systemId} is not in the engagement's scope`);
+    check(has(graph.controlById, c.controlId), `${label}: "${c.controlId}" is not a real control`);
+    check(AUDITOR_RESULTS.includes(c.result), `${label}: result "${c.result}" is not one of ${AUDITOR_RESULTS.join(", ")}`);
+    check(c.inScope || Boolean(c.justification?.trim()), `${label}: excluded without a justification — an SoA exclusion has to say why`);
+    check(c.nonconformity === undefined || NONCONFORMITY_GRADES.includes(c.nonconformity), `${label}: nonconformity "${c.nonconformity}" is not one of ${NONCONFORMITY_GRADES.join(", ")}`);
+    check(
+      c.nonconformity === undefined || c.nonconformity === "ofi" || c.result === "partial" || c.result === "not-in-place",
+      `${label}: a ${c.nonconformity} nonconformity on a control the auditor found ${c.result}`
+    );
+  });
+  graph.engagementDrafts.forEach((d) => {
+    const label = `engagement draft ${d.engagementId}/${d.systemId}/${d.controlId}`;
+    const e = graph.engagementById[d.engagementId];
+    check(Boolean(e), `${label}: "${d.engagementId}" is not an engagement`);
+    check(!e || e.systemIds.includes(d.systemId) || e.status === "closed", `${label}: ${d.systemId} is not in the engagement's scope`);
+    const system = graph.systemById[d.systemId];
+    check(!system || !requiresCyberAssurance(system), `${label}: ${d.systemId} has HITRUST in scope and is graded on the Cyber Assurance levels, not with records`);
+    check(has(graph.controlById, d.controlId), `${label}: "${d.controlId}" is not a real control`);
+    recordBody(label, d);
+  });
+  graph.engagementSnapshots.forEach((snap) => {
+    const e = graph.engagementById[snap.engagementId];
+    check(Boolean(e), `engagement snapshot ${snap.engagementId}: not an engagement`);
+    check(!e || e.status === "closed", `engagement snapshot ${snap.engagementId}: the engagement is not closed`);
+  });
+  graph.certifications.forEach((c) => {
+    const label = `certification ${c.id}`;
+    check(CERTIFICATION_KINDS.includes(c.kind), `${label}: kind "${c.kind}" is not one of ${CERTIFICATION_KINDS.join(", ")}`);
+    check(FRAMEWORKS.includes(c.standard) || c.standard === HITRUST_R2_STANDARD, `${label}: standard "${c.standard}" is not a framework`);
+    c.systemIds.forEach((sid) => check(has(graph.systemById, sid), `${label}: systemId "${sid}" is not a system`));
+    check(!Number.isNaN(Date.parse(c.issuedAt)) && !Number.isNaN(Date.parse(c.validUntil)), `${label}: issuedAt and validUntil must be dates`);
+    check(Date.parse(c.validUntil) > Date.parse(c.issuedAt), `${label}: validUntil is not after issuedAt`);
+    check(c.engagementId === undefined || has(graph.engagementById, c.engagementId), `${label}: engagementId "${c.engagementId}" is not an engagement`);
+    check(c.auditFirm?.trim().length > 0 && c.reference?.trim().length > 0, `${label}: needs an audit firm and a reference`);
   });
 
   // ---- Shared-responsibility domains -------------------------------------------
