@@ -1,0 +1,53 @@
+# GRC's CI, run by the shared engine (jklepp/ci): `ci verify` for the pr tier,
+# `ci verify --full` for the full tier. `ci stages` lists what runs.
+#
+# The engine adds its own stages around these on every verify and a ci.toml cannot leave one
+# out (jklepp/ci engine/config.py: REQUIRED): the workflows rule, the secret-scanner canary,
+# gitleaks, Semgrep (the engine's baseline rules and .semgrep/) and Trivy misconfig; source,
+# install (npm ci) and seccomp; then Trivy over the lockfile and the SBOMs. Those replace
+# scripts/verify.mjs's trivy, gitleaks, semgrep and workflows stages.
+#
+# A development project: no deploy stage, so no xBOM. deploy.yml still publishes to Pages
+# with its own build.
+
+[project]
+name = "grc"
+runner = "[self-hosted, grc]"
+
+[workspace]
+image = "node"
+
+[[stage]]
+name = "typecheck"
+run = "node node_modules/typescript/bin/tsc --noEmit"
+
+[[stage]]
+name = "lint"
+run = "node node_modules/oxlint/bin/oxlint"
+
+# Fault injection: each validator must still refuse a corrupted graph.
+[[stage]]
+name = "validators"
+run = "node scripts/check-validator-fires.mjs"
+
+[[stage]]
+name = "roster"
+run = "node scripts/check-roster.mjs"
+
+# The build, then the bundle budget over dist/ (it reads the build's manifest).
+[[stage]]
+name = "build"
+run = "node node_modules/vite/bin/vite.js build && node scripts/check-bundle-budget.mjs"
+
+[[stage]]
+name = "npm-audit"
+run = "npm audit --no-update-notifier"
+network = "registry"
+
+[[stage]]
+name = "signatures"
+uses = "npm-signatures"
+
+[[stage]]
+name = "install-scripts"
+uses = "npm-install-scripts"
