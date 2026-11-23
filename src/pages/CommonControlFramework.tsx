@@ -1,13 +1,13 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect, useLayoutEffect } from "react";
 import type { ReactNode } from "react";
-import { Search, X, ChevronDown, ChevronRight, RefreshCw, LayoutGrid } from "lucide-react";
+import { Search, RefreshCw, LayoutGrid, ArrowLeft } from "lucide-react";
 import { C } from "../theme";
 import { useLiveEngine } from "../engine/useLiveEngine";
 import { PageHeader } from "../components/Headings";
 import { CONSOLIDATED_CONTROLS } from "../data/consolidatedControls";
 import { STANDARD_ABBR } from "../data/policies";
 import { IN_SCOPE_CONTROLS, getAllSystems } from "../engine";
-import { controlLensView, type LensRequirement } from "../engine/frameworkLens";
+import { controlLensView, type ControlLensView, type LensRequirement } from "../engine/frameworkLens";
 import type { Control, ControlFramework } from "../graph/nodes/controls";
 
 // The catalog side of the control model: every common control ACME has in scope,
@@ -16,26 +16,17 @@ import type { Control, ControlFramework } from "../graph/nodes/controls";
 // system's own Security Profile; this page answers "what do we have," not
 // "how is any one boundary doing against it."
 //
-// The Framework Lens narrows what the page shows to what chosen frameworks ask
+// The framework bar narrows what the page shows to what chosen frameworks ask
 // for. It is off by default: a common control is the aggregation of every
 // framework, so every control opens with all of its requirements.
 const LIST_HEIGHT = 640;
+const MONO = "'IBM Plex Mono', monospace";
+const SERIF = "'Source Serif 4', serif";
 
 function joinNames(names: readonly string[]): string {
   if (names.length <= 1) return names.join("");
   if (names.length === 2) return `${names[0]} or ${names[1]}`;
   return `${names.slice(0, -1).join(", ")}, or ${names[names.length - 1]}`;
-}
-
-function FrameworkMappingLine({ f }: { f: ControlFramework }) {
-  return (
-    <div className="flex items-center gap-2 py-1 text-[11px]">
-      <span className="w-12 shrink-0 font-semibold" style={{ color: C.accent }}>{STANDARD_ABBR[f.standard] ?? f.standard}</span>
-      <span className="flex-1 min-w-0 truncate" style={{ color: C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>
-        {f.clauses.join(", ")}
-      </span>
-    </div>
-  );
 }
 
 // Chips keep their place whatever the lens says; only their color changes, so
@@ -60,34 +51,183 @@ function StandardChips({ frameworks, lens }: { frameworks: ControlFramework[]; l
   );
 }
 
-function Tile({ value, label, hint, children }: { value: ReactNode; label: ReactNode; hint?: ReactNode; children?: ReactNode }) {
+// The catalog at a glance. Compact on purpose: the framework bar and the
+// control list below are what the page is for.
+function SummaryTile({ value, label, hint, children }: { value: ReactNode; label: ReactNode; hint?: ReactNode; children?: ReactNode }) {
   return (
-    <div className="rounded-xl p-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-      <div className="text-2xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{value}</div>
-      <div className="text-xs mt-1" style={{ color: C.muted }}>{label}</div>
-      {hint && <div className="text-[10px] mt-1 leading-relaxed" style={{ color: C.muted }}>{hint}</div>}
+    <div className="rounded-xl px-4 py-3 flex items-center justify-between gap-4 min-w-0" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+      <div className="min-w-0">
+        <div className="flex items-baseline gap-2">
+          <span className="text-xl font-semibold" style={{ color: C.ink, fontFamily: SERIF }}>{value}</span>
+          <span className="text-xs" style={{ color: C.muted }}>{label}</span>
+        </div>
+        {hint && <div className="text-[10px] mt-0.5 leading-snug" style={{ color: C.muted }}>{hint}</div>}
+      </div>
       {children}
     </div>
   );
 }
 
-function StandardCard({ label }: { label: string }) {
-  return (
-    <span className="text-[10px] font-semibold px-2 py-1 rounded-lg text-center" style={{ background: C.greenBg, color: C.green }}>
-      {label}
-    </span>
-  );
+function SectionLabel({ children }: { children: ReactNode }) {
+  return <h3 className="m-0 text-xs font-semibold tracking-wider uppercase" style={{ color: C.muted }}>{children}</h3>;
 }
 
 function RequirementRow({ r }: { r: LensRequirement }) {
   return (
-    <div className="flex gap-2.5">
-      <span className="text-xs font-semibold shrink-0 w-5 text-right" style={{ color: C.accent }}>{r.number}.</span>
-      <div>
-        <div className="text-xs font-semibold" style={{ color: C.ink }}>{r.title}</div>
+    <div className="flex gap-3.5 py-3.5" style={{ borderTop: `1px solid ${C.border}` }}>
+      <span className="w-6 shrink-0 text-right text-[13px] font-semibold leading-snug" style={{ color: C.accent, fontFamily: MONO }}>{r.number}</span>
+      <div className="min-w-0">
+        <div className="text-[13px] font-semibold leading-snug" style={{ color: C.ink }}>{r.title}</div>
         <div className="text-xs mt-0.5 leading-relaxed" style={{ color: C.muted }}>{r.detail}</div>
       </div>
     </div>
+  );
+}
+
+// One control, opened in the frame the control list occupies. Reading on the
+// left (statement, requirements, what other frameworks would add); reference
+// on the right (clause mappings, the SCF source text).
+function ControlDetail({ control, view, lensActive, lensName, backLabel, onBack, onClearLens }: {
+  control: Control;
+  view: ControlLensView;
+  lensActive: boolean;
+  lensName: string;
+  backLabel: string;
+  onBack: () => void;
+  onClearLens: () => void;
+}) {
+  const consolidated = CONSOLIDATED_CONTROLS[control.id];
+  const backRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => { backRef.current?.focus(); }, [control.id]);
+
+  return (
+    <section aria-labelledby="control-detail-title" className="rounded-xl" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+      <div className="px-6 pt-4 pb-5" style={{ borderBottom: `1px solid ${C.border}` }}>
+        <button
+          ref={backRef}
+          type="button"
+          onClick={onBack}
+          className="inline-flex items-center gap-1.5 text-xs font-medium rounded-lg px-2 -ml-2 mb-3"
+          style={{ minHeight: 32, color: C.accent }}
+        >
+          <ArrowLeft size={14} aria-hidden="true" /> {backLabel}
+        </button>
+        <div className="text-xs tracking-wide" style={{ color: C.accent, fontFamily: MONO }}>{control.id} · {control.domain}</div>
+        <h2 id="control-detail-title" className="mt-1 text-[22px]" style={{ color: C.ink, fontFamily: SERIF, fontWeight: 600 }}>{control.name}</h2>
+      </div>
+
+      <div className="flex flex-wrap gap-6 px-6 py-5 items-start">
+        <div className="flex flex-col gap-5 min-w-0" style={{ flex: "999 1 520px" }}>
+          {lensActive ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl px-3.5 py-2.5" style={{ background: C.accentBg, border: `1px solid ${C.accent}` }}>
+              <div className="text-[13px]">
+                <span className="font-semibold" style={{ color: C.ink }}>{lensName}</span>
+                <span style={{ color: C.muted }}>
+                  {" · "}
+                  {view.total > 0
+                    ? `${view.shown.length} of ${view.total} requirements`
+                    : view.reached ? "maps to this control" : "doesn't map to this control"}
+                </span>
+              </div>
+              <button type="button" onClick={onClearLens} className="text-xs font-medium underline" style={{ color: C.accent }}>
+                {view.total > 0 ? `Show all ${view.total}` : "Show all frameworks"}
+              </button>
+            </div>
+          ) : null}
+
+          {/* ACME's own statement of the control — the rubric a per-system
+              assessment is judged against, shown here at the definition
+              level rather than tied to any one boundary. */}
+          <section>
+            <SectionLabel>{consolidated ? "ACME Consolidated Control" : "Control description"}</SectionLabel>
+            <div className="mt-1 py-3.5" style={{ borderTop: `1px solid ${C.border}` }}>
+              <p className="m-0 text-[13px] leading-relaxed whitespace-pre-line" style={{ color: C.ink }}>{consolidated ? consolidated.statement : control.description}</p>
+              {consolidated && lensActive && view.reached && (
+                <p className="mt-2 mb-0 text-xs leading-relaxed" style={{ color: C.muted }}>
+                  The statement describes the whole control. The requirements below are the parts {lensName} maps to.
+                </p>
+              )}
+            </div>
+          </section>
+
+          {consolidated && (
+            <section>
+              <SectionLabel>Requirements</SectionLabel>
+              <div className="mt-1">
+                {view.shown.length > 0 ? (
+                  view.shown.map((r) => <RequirementRow key={r.number} r={r} />)
+                ) : (
+                  <div className="rounded-lg p-4 mt-2 text-[13px] leading-relaxed" style={{ background: C.panel2 }}>
+                    <div className="font-semibold" style={{ color: C.ink }}>{lensName} doesn't require anything from this control</div>
+                    <div className="mt-1" style={{ color: C.muted }}>Clear the lens to see all {view.total} requirements.</div>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {view.outside.length > 0 && (
+            <section className="rounded-xl px-4 py-4" style={{ border: `1px solid ${C.border}` }}>
+              <SectionLabel>Outside {lensName}</SectionLabel>
+              <p className="mt-1 mb-0 text-xs" style={{ color: C.muted }}>The rest of this control, grouped by the frameworks that would add it.</p>
+              <div className="grid gap-4 mt-3.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}>
+                {view.outside.map((g) => (
+                  <div key={g.standard ?? "none"}>
+                    <div className="text-[13px] font-semibold mb-1" style={{ color: C.ink }}>{g.standard ?? "No framework clause"}</div>
+                    {g.requirements.map((r) => (
+                      <div key={r.number} className="flex gap-2.5 py-1 text-xs leading-snug" style={{ color: C.muted }}>
+                        <span className="w-6 shrink-0 text-right" style={{ fontFamily: MONO }}>{r.number}</span>
+                        <span>{r.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+
+        <aside className="flex flex-col gap-5 min-w-0" style={{ flex: "1 1 280px", maxWidth: 400 }}>
+          {view.total > 0 && (
+            <section>
+              <SectionLabel>Coverage</SectionLabel>
+              <div className="mt-1 py-3 flex items-baseline gap-2" style={{ borderTop: `1px solid ${C.border}` }}>
+                <span className="text-xl font-semibold" style={{ color: C.ink, fontFamily: SERIF }}>{view.total}</span>
+                <span className="text-xs" style={{ color: C.muted }}>
+                  requirements, mapped from {control.frameworks.length} framework{control.frameworks.length === 1 ? "" : "s"}
+                </span>
+              </div>
+            </section>
+          )}
+
+          <section>
+            <SectionLabel>Framework Mappings</SectionLabel>
+            {view.mappings.length === 0 ? (
+              <p className="mt-2 text-xs" style={{ color: C.muted }}>No {lensName} clause maps to this control.</p>
+            ) : view.mappings.map((f) => (
+              <div key={f.standard} className="py-3 mt-1" style={{ borderTop: `1px solid ${C.border}` }}>
+                <div className="flex justify-between gap-2 mb-2">
+                  <span className="text-[13px] font-semibold" style={{ color: C.ink }}>{f.standard}</span>
+                  <span className="text-[11px]" style={{ color: C.muted }}>{f.clauses.length} clause{f.clauses.length === 1 ? "" : "s"}</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {f.clauses.map((code) => (
+                    <span key={code} className="text-[11px] px-2 py-1 rounded" style={{ background: C.bg, color: C.ink, fontFamily: MONO }}>{code}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </section>
+
+          {consolidated && (
+            <section className="rounded-xl p-4" style={{ background: C.panel2 }}>
+              <div className="text-[10px] font-semibold tracking-wider uppercase mb-1.5" style={{ color: C.muted }}>Original catalog description</div>
+              <p className="m-0 text-xs leading-relaxed whitespace-pre-line" style={{ color: C.ink }}>{control.description}</p>
+            </section>
+          )}
+        </aside>
+      </div>
+    </section>
   );
 }
 
@@ -102,16 +242,27 @@ export default function CommonControlFramework() {
   const SYSTEMS = useMemo(() => getAllSystems(), [liveEngine]);
   const [query, setQuery] = useState("");
   const [domainFilter, setDomainFilter] = useState("All");
-  const [selected, setSelected] = useState<Control | null>(null);
-  const [openFramework, setOpenFramework] = useState<number | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [lens, setLens] = useState<string[]>([]);
   const [systemId, setSystemId] = useState("");
 
+  // The list stays mounted (hidden) while a control is open, so search and
+  // domain survive the round trip; scroll position is saved and put back.
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  const savedScroll = useRef(0);
+
+  // Each domain with the SCF id prefixes it holds (some hold several, e.g.
+  // Governance: CPL/GOV/IAO/PRM) and its control count.
   const domains = useMemo(() => {
-    const counts: Record<string, number> = {};
-    CONTROLS.forEach((c) => { counts[c.domain] = (counts[c.domain] || 0) + 1; });
-    return Object.entries(counts)
-      .map(([name, total]) => ({ name, total }))
+    const byDomain = new Map<string, { prefixes: Set<string>; count: number }>();
+    for (const c of CONTROLS) {
+      const d = byDomain.get(c.domain) ?? { prefixes: new Set<string>(), count: 0 };
+      d.prefixes.add(c.id.split("-")[0]);
+      d.count++;
+      byDomain.set(c.domain, d);
+    }
+    return [...byDomain.entries()]
+      .map(([name, d]) => ({ name, prefixes: [...d.prefixes].sort().join("/"), count: d.count }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [CONTROLS]);
 
@@ -120,24 +271,52 @@ export default function CommonControlFramework() {
     return [...set].sort();
   }, [CONTROLS]);
 
-  const filtered = useMemo(
-    () =>
-      CONTROLS.filter(
-        (c) =>
-          (domainFilter === "All" || c.domain === domainFilter) &&
-          (c.name?.toLowerCase().includes(query.toLowerCase()) || c.id?.toLowerCase().includes(query.toLowerCase()))
-      ),
-    [query, domainFilter, CONTROLS]
-  );
-
   const views = useMemo(() => new Map(CONTROLS.map((c) => [c.id, controlLensView(c, lens)])), [CONTROLS, lens]);
   const lensActive = lens.length > 0;
   const lensName = joinNames(lens);
 
+  // Under a lens the sidebar keeps only domains the lens reaches, counting the
+  // reached controls in each. A picked domain the lens hides falls back to All.
+  const domainsInView = useMemo(() => {
+    if (!lensActive) return domains;
+    const reached = new Map<string, number>();
+    for (const c of CONTROLS) if (views.get(c.id)?.reached) reached.set(c.domain, (reached.get(c.domain) ?? 0) + 1);
+    return domains.filter((d) => reached.has(d.name)).map((d) => ({ ...d, count: reached.get(d.name) ?? 0 }));
+  }, [domains, lensActive, CONTROLS, views]);
+  const domainsInViewTotal = domainsInView.reduce((sum, d) => sum + d.count, 0);
+  const activeDomain = domainFilter === "All" || domainsInView.some((d) => d.name === domainFilter) ? domainFilter : "All";
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase();
+    return CONTROLS.filter(
+      (c) =>
+        (activeDomain === "All" || c.domain === activeDomain) &&
+        (c.name?.toLowerCase().includes(q) || c.id?.toLowerCase().includes(q))
+    );
+  }, [query, activeDomain, CONTROLS]);
+  const reachedCount = filtered.filter((c) => views.get(c.id)?.reached).length;
+
+  const open = openId ? CONTROLS.find((c) => c.id === openId) ?? null : null;
+  const openView = open ? views.get(open.id) : undefined;
+
+  const openControl = (id: string) => {
+    savedScroll.current = listScrollRef.current?.scrollTop ?? 0;
+    setOpenId(id);
+  };
+  const backToList = () => setOpenId(null);
+  useLayoutEffect(() => {
+    if (!open && listScrollRef.current) listScrollRef.current.scrollTop = savedScroll.current;
+  }, [open]);
+
+  const pickDomain = (name: string) => {
+    setDomainFilter(name);
+    setOpenId(null);
+    savedScroll.current = 0;
+  };
+
   const applyLens = (next: string[], fromSystem = "") => {
     setLens(next);
     setSystemId(fromSystem);
-    setOpenFramework(null);
   };
   const toggleStandard = (std: string) =>
     applyLens(lens.includes(std) ? lens.filter((s) => s !== std) : [...lens, std]);
@@ -148,7 +327,19 @@ export default function CommonControlFramework() {
     applyLens(system ? system.standards.filter((s) => standards.includes(s)) : [], system ? id : "");
   };
 
-  const view = selected ? views.get(selected.id) : undefined;
+  const domainButton = (key: string, label: ReactNode, count: number, active: boolean, onClick: () => void, first = false) => (
+    <button
+      key={key}
+      type="button"
+      aria-current={active ? "true" : undefined}
+      onClick={onClick}
+      className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs"
+      style={{ background: active ? C.panel2 : "transparent", color: active ? C.accent : C.ink, borderTop: first ? "none" : `1px solid ${C.border}` }}
+    >
+      <span className="flex-1 min-w-0 truncate">{label}</span>
+      <span className="shrink-0" style={{ color: C.muted, fontFamily: MONO }}>{count}</span>
+    </button>
+  );
 
   return (
     <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -162,29 +353,27 @@ export default function CommonControlFramework() {
         }
       />
 
-      <div className="px-4 lg:px-8 grid grid-cols-1 lg:grid-cols-3 gap-4 mb-5">
-        <div className="rounded-xl p-4 flex items-center justify-between gap-4" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-          <div className="shrink-0">
-            <div className="text-2xl font-semibold" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif" }}>{standards.length}</div>
-            <div className="text-xs mt-1" style={{ color: C.muted }}>Standards mapped</div>
-          </div>
-          <div className="grid grid-cols-4 gap-1.5">
-            {standards.map((s) => (
-              <StandardCard key={s} label={STANDARD_ABBR[s] ?? s} />
-            ))}
-          </div>
+      <div className="px-4 lg:px-8 pb-12 flex flex-col gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          <SummaryTile value={standards.length} label="Standards mapped">
+            <div className="flex flex-wrap justify-end gap-1 max-w-[220px]">
+              {standards.map((s) => (
+                <span key={s} className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: C.greenBg, color: C.green }}>
+                  {STANDARD_ABBR[s] ?? s}
+                </span>
+              ))}
+            </div>
+          </SummaryTile>
+          <SummaryTile value={domains.length} label="Control domains" hint="Every control domain with at least one control in ACME's scope." />
+          <SummaryTile value={CONTROLS.length} label="Common controls" hint="The full in-scope common-control set, before any system-specific assessment." />
         </div>
-        <Tile value={domains.length} label="Control domains" hint="Every control domain with at least one control in ACME's scope." />
-        <Tile value={CONTROLS.length} label="Common controls" hint="The full in-scope common-control set, before any system-specific assessment." />
-      </div>
 
-      <div className="px-4 lg:px-8 mb-4">
         <section
           aria-label="Framework lens"
           className="rounded-xl flex flex-wrap items-center gap-1.5 py-2 pl-3.5 pr-2.5"
           style={{ background: C.panel, border: `1px solid ${C.border}` }}
         >
-          <span className="text-xs font-semibold mr-1.5" style={{ color: C.muted }}>Lens</span>
+          <span className="text-xs font-semibold mr-1.5" style={{ color: C.muted }}>Framework</span>
           <div role="group" aria-label="Frameworks" className="flex flex-wrap gap-1.5 flex-1 min-w-0">
             {standards.map((s) => {
               const on = lens.includes(s);
@@ -225,223 +414,103 @@ export default function CommonControlFramework() {
             </select>
           </div>
         </section>
-      </div>
 
-      <div className="px-4 lg:px-8 flex flex-col lg:flex-row gap-4 lg:gap-5 pb-12">
-        <div className="w-full lg:w-64 shrink-0 rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}`, height: "fit-content" }}>
-          <div className="p-3 flex items-center justify-between text-xs font-medium" style={{ borderBottom: `1px solid ${C.border}`, color: C.muted }}>
-            <span>CONTROL DOMAINS ({domains.length})</span><span>{CONTROLS.length}</span>
-          </div>
-          <button
-            onClick={() => setDomainFilter("All")}
-            className="w-full flex items-center justify-between px-3 py-2 text-sm"
-            style={{ background: domainFilter === "All" ? C.panel2 : "transparent", color: domainFilter === "All" ? C.accent : C.ink }}
-          >
-            <span>Show All Domains</span>
-            <span className="text-xs" style={{ color: C.muted }}>{CONTROLS.length}</span>
-          </button>
-          <div style={{ maxHeight: 520, overflowY: "auto" }}>
-            {domains.map((d) => (
-              <button
-                key={d.name}
-                onClick={() => setDomainFilter(d.name)}
-                className="w-full flex items-center justify-between px-3 py-2 text-left text-xs"
-                style={{ background: domainFilter === d.name ? C.panel2 : "transparent", color: domainFilter === d.name ? C.accent : C.muted, borderTop: `1px solid ${C.border}` }}
-              >
-                <span className="truncate pr-2">{d.name}</span>
-                <span className="shrink-0" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{d.total}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 mb-3 flex-wrap">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1 min-w-[200px]" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-              <Search size={14} color={C.muted} />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search controls or SCF #" className="bg-transparent text-sm outline-none w-full" style={{ color: C.ink }} />
+        <div className="flex flex-col lg:flex-row gap-4 lg:gap-5">
+          <nav aria-label="Control domains" className="w-full lg:w-72 shrink-0 rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}`, height: "fit-content" }}>
+            <div className="p-3 flex items-center justify-between text-xs font-medium" style={{ borderBottom: `1px solid ${C.border}`, color: C.muted }}>
+              <span>CONTROL DOMAINS</span><span style={{ fontFamily: MONO }}>{lensActive ? `${domainsInView.length} of ${domains.length}` : domains.length}</span>
             </div>
-            <span className="text-xs px-3 py-2 rounded-full" style={{ background: C.panel2, color: C.muted }}>
-              Showing {filtered.length.toLocaleString()} of {CONTROLS.length.toLocaleString()}
-            </span>
-          </div>
-
-          <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
-            <div className="grid text-[11px] font-medium px-4 py-2.5" style={{ gridTemplateColumns: "90px 2fr 1.4fr", borderBottom: `1px solid ${C.border}`, color: C.muted }}>
-              <div>SCF #</div>
-              <div style={{ borderLeft: `1px solid ${C.border}`, paddingLeft: 12 }}>CONTROL</div>
-              <div style={{ borderLeft: `1px solid ${C.border}`, paddingLeft: 12 }}>STANDARDS MAPPED</div>
-            </div>
-            <div style={{ maxHeight: LIST_HEIGHT, overflowY: "auto" }}>
-              {filtered.map((control) => {
-                const v = views.get(control.id);
-                const reached = v?.reached ?? true;
-                const total = v?.total ?? 0;
-                // Always one line, so toggling the lens never changes row height.
-                const countText = !lensActive
-                  ? (total > 0 ? `${total} requirements` : "No itemized requirements")
-                  : !reached
-                    ? `Not required by ${lensName}`
-                    : total > 0 ? `${v?.shown.length ?? 0} of ${total} requirements` : "Whole control";
-                return (
-                  <button
-                    key={control.id}
-                    onClick={() => { setSelected(control); setOpenFramework(null); }}
-                    className="grid px-4 w-full text-left"
-                    style={{ gridTemplateColumns: "90px 2fr 1.4fr", borderBottom: `1px solid ${C.border}` }}
-                  >
-                    <div className="pt-3 pb-3">
-                      <div className="text-xs" style={{ color: reached ? C.accent : C.muted, fontFamily: "'IBM Plex Mono', monospace" }}>{control.id}</div>
-                    </div>
-                    <div className="pt-3 pb-3 pl-3 pr-2 min-w-0" style={{ borderLeft: `1px solid ${C.border}` }}>
-                      <div className="text-sm leading-snug" style={{ color: reached ? C.ink : C.muted }}>{control.name}</div>
-                      <div className="text-[10px] mt-1" style={{ color: C.muted }}>{control.domain}</div>
-                      <div className="text-[10px] mt-1" style={{ color: C.muted, fontStyle: reached ? "normal" : "italic" }}>{countText}</div>
-                    </div>
-                    <div className="flex items-center pl-3 pr-3 min-w-0" style={{ borderLeft: `1px solid ${C.border}` }}>
-                      <StandardChips frameworks={control.frameworks} lens={lens} />
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {selected && view && (
-        <div className="fixed inset-0 z-20 flex justify-end">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setSelected(null)} />
-          <div className="relative w-[640px] h-full overflow-y-auto shadow-2xl" style={{ background: C.panel }}>
-            <div className="p-6" style={{ borderBottom: `1px solid ${C.border}` }}>
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="text-xs uppercase tracking-wide mb-1" style={{ color: C.accent, fontFamily: "'IBM Plex Mono', monospace" }}>
-                    {selected.id} · {selected.domain}
-                  </div>
-                  <h2 className="text-xl" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>{selected.name}</h2>
-                </div>
-                <button onClick={() => setSelected(null)} aria-label="Close"><X size={18} color={C.muted} /></button>
-              </div>
-            </div>
-
-            <div className="p-6">
-              {lensActive ? (
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg px-3.5 py-2.5 mb-6" style={{ background: C.accentBg, border: `1px solid ${C.accent}` }}>
-                  <div className="text-sm">
-                    <span className="font-semibold" style={{ color: C.ink }}>{lensName}</span>
-                    <span style={{ color: C.muted }}>
-                      {" · "}
-                      {view.total > 0
-                        ? `${view.shown.length} of ${view.total} requirements`
-                        : view.reached ? "maps to this control" : "doesn't map to this control"}
-                    </span>
-                  </div>
-                  <button type="button" onClick={() => applyLens([])} className="text-xs font-medium underline" style={{ color: C.accent }}>
-                    {view.total > 0 ? `Show all ${view.total}` : "Show all"}
-                  </button>
-                </div>
-              ) : view.total > 0 && (
-                <div className="text-xs mb-4" style={{ color: C.muted }}>
-                  {view.total} requirements, consolidated from {selected.frameworks.length} framework{selected.frameworks.length === 1 ? "" : "s"}
-                </div>
+            {domainButton("All", <span className="font-medium">All domains</span>, domainsInViewTotal, activeDomain === "All", () => pickDomain("All"), true)}
+            <div style={{ maxHeight: 560, overflowY: "auto" }}>
+              {domainsInView.map((d) =>
+                domainButton(
+                  d.name,
+                  <span className="flex items-baseline gap-2 min-w-0">
+                    <span className="shrink-0 text-[10px]" style={{ color: activeDomain === d.name ? C.accent : C.muted, fontFamily: MONO }}>{d.prefixes}</span>
+                    <span className="truncate">{d.name}</span>
+                  </span>,
+                  d.count,
+                  activeDomain === d.name,
+                  () => pickDomain(d.name),
+                )
               )}
+            </div>
+          </nav>
 
-              {/* ACME's own statement of the control — the rubric a per-system
-                  assessment is judged against, shown here at the definition
-                  level rather than tied to any one boundary. */}
-              {CONSOLIDATED_CONTROLS[selected.id] && (
-                <div className="rounded-lg p-4 mb-6" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                  <div className="text-[10px] uppercase tracking-wide mb-2 font-semibold" style={{ color: C.accent }}>
-                    ACME Consolidated Control
-                  </div>
-                  <div className="text-sm leading-relaxed mb-4" style={{ color: C.ink }}>{CONSOLIDATED_CONTROLS[selected.id].statement}</div>
-                  {lensActive && view.reached && (
-                    <div className="text-[11px] leading-relaxed mb-4" style={{ color: C.muted }}>
-                      The statement describes the whole control. The requirements below are the ones {lensName} maps to, plus any no framework clause reaches.
-                    </div>
-                  )}
-                  {view.shown.length > 0 ? (
-                    <div className="space-y-2.5">
-                      {view.shown.map((r) => <RequirementRow key={r.number} r={r} />)}
-                    </div>
-                  ) : (
-                    <div className="rounded p-3 text-xs leading-relaxed" style={{ background: C.bg, color: C.muted }}>
-                      <div className="font-semibold mb-1" style={{ color: C.ink }}>{lensName} doesn't require anything from this control</div>
-                      Clear the lens to see all {view.total} requirements.
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {view.outside.length > 0 && (
-                <div className="rounded-lg p-4 mb-6" style={{ border: `1px solid ${C.border}` }}>
-                  <div className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: C.muted }}>Outside {lensName}</div>
-                  <div className="text-[11px] mt-1 mb-3" style={{ color: C.muted }}>The rest of this control, grouped by the frameworks that would add it.</div>
-                  <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}>
-                    {view.outside.map((g) => (
-                      <div key={g.standard ?? "none"}>
-                        <div className="text-xs font-semibold mb-1" style={{ color: C.ink }}>{g.standard ?? "No framework clause"}</div>
-                        {g.requirements.map((r) => (
-                          <div key={r.number} className="flex gap-2.5 py-1 text-xs leading-snug" style={{ color: C.muted }}>
-                            <span className="w-5 shrink-0 text-right" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{r.number}</span>
-                            <span>{r.title}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="rounded-lg p-3 mb-6" style={{ background: C.panel2 }}>
-                <div className="text-[10px] uppercase tracking-wide mb-1" style={{ color: C.muted }}>
-                  {CONSOLIDATED_CONTROLS[selected.id] ? "Original catalog description" : "Control description"}
-                </div>
-                <div className="text-sm leading-relaxed" style={{ color: C.ink }}>{selected.description}</div>
+          <div className="flex-1 min-w-0">
+            <div hidden={!!open}>
+              <div className="flex items-center gap-3 mb-3 flex-wrap">
+                <label className="flex items-center gap-2 px-3 py-2 rounded-lg flex-1 min-w-[200px]" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+                  <Search size={14} color={C.muted} aria-hidden="true" />
+                  <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search controls or SCF #" aria-label="Search controls" className="bg-transparent text-sm outline-none w-full" style={{ color: C.ink }} />
+                </label>
+                <span className="text-xs px-3 py-2 rounded-full" style={{ background: C.panel2, color: C.muted }}>
+                  {lensActive
+                    ? `${reachedCount} of ${filtered.length} reached by ${lensName}`
+                    : `Showing ${filtered.length.toLocaleString()} of ${CONTROLS.length.toLocaleString()}`}
+                </span>
               </div>
 
-              <div className="text-xs uppercase tracking-wide mb-3" style={{ color: C.muted }}>Framework Mappings</div>
-              {view.mappings.length === 0 ? (
-                <div className="text-xs mb-2" style={{ color: C.muted }}>No {lensName} clause maps to this control.</div>
-              ) : (
-                <div className="rounded-lg mb-2" style={{ background: C.panel2, border: `1px solid ${C.border}` }}>
-                  <div className="px-3">
-                    {view.mappings.map((f, i) => {
-                      const isOpen = openFramework === i;
-                      return (
-                        <div key={f.standard} style={{ borderBottom: i < view.mappings.length - 1 ? `1px solid ${C.border}` : "none" }}>
-                          <button onClick={() => setOpenFramework(isOpen ? null : i)} className="w-full flex items-center gap-3 py-2.5 text-left">
-                            {isOpen ? <ChevronDown size={13} color={C.muted} /> : <ChevronRight size={13} color={C.muted} />}
-                            <div className="w-24 shrink-0 text-xs font-medium" style={{ color: C.ink }}>{f.standard}</div>
-                            <div className="flex-1 text-[11px]" style={{ color: C.muted }}>{f.clauses.length} clause{f.clauses.length !== 1 ? "s" : ""} mapped</div>
-                          </button>
-                          {isOpen && (
-                            <div className="pb-3 pl-7 pr-2 space-y-1.5">
-                              {f.clauses.map((code, ci) => (
-                                <div key={ci} className="flex items-center justify-between rounded p-2" style={{ background: C.bg }}>
-                                  <span className="text-xs" style={{ color: C.ink, fontFamily: "'IBM Plex Mono', monospace" }}>{code}</span>
-                                  <span className="text-[10px]" style={{ color: C.muted }}>Mapped</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+              <div className="rounded-xl overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.border}` }}>
+                <div className="grid text-[11px] font-medium px-4 py-2.5" style={{ gridTemplateColumns: "90px 2fr 1.4fr", borderBottom: `1px solid ${C.border}`, color: C.muted }}>
+                  <div>SCF #</div>
+                  <div style={{ borderLeft: `1px solid ${C.border}`, paddingLeft: 12 }}>CONTROL</div>
+                  <div style={{ borderLeft: `1px solid ${C.border}`, paddingLeft: 12 }}>STANDARDS MAPPED</div>
+                </div>
+                <div ref={listScrollRef} style={{ maxHeight: LIST_HEIGHT, overflowY: "auto" }}>
+                  {filtered.map((control) => {
+                    const v = views.get(control.id);
+                    const reached = v?.reached ?? true;
+                    const total = v?.total ?? 0;
+                    // Always one line, so toggling the lens never changes row height.
+                    const countText = !lensActive
+                      ? (total > 0 ? `${total} requirements` : "No itemized requirements")
+                      : !reached
+                        ? `Not required by ${lensName}`
+                        : total > 0 ? `${v?.shown.length ?? 0} of ${total} requirements` : "Whole control";
+                    return (
+                      <button
+                        key={control.id}
+                        type="button"
+                        onClick={() => openControl(control.id)}
+                        className="grid px-4 w-full text-left"
+                        style={{ gridTemplateColumns: "90px 2fr 1.4fr", borderBottom: `1px solid ${C.border}` }}
+                      >
+                        <div className="pt-3 pb-3">
+                          <div className="text-xs" style={{ color: reached ? C.accent : C.muted, fontFamily: MONO }}>{control.id}</div>
                         </div>
-                      );
-                    })}
-                  </div>
+                        <div className="pt-3 pb-3 pl-3 pr-2 min-w-0" style={{ borderLeft: `1px solid ${C.border}` }}>
+                          <div className="text-sm leading-snug" style={{ color: reached ? C.ink : C.muted }}>{control.name}</div>
+                          <div className="text-[10px] mt-1" style={{ color: C.muted }}>{control.domain}</div>
+                          <div className="text-[10px] mt-1" style={{ color: C.muted, fontStyle: reached ? "normal" : "italic" }}>{countText}</div>
+                        </div>
+                        <div className="flex items-center pl-3 pr-3 min-w-0" style={{ borderLeft: `1px solid ${C.border}` }}>
+                          <StandardChips frameworks={control.frameworks} lens={lens} />
+                        </div>
+                      </button>
+                    );
+                  })}
+                  {filtered.length === 0 && (
+                    <div className="px-4 py-6 text-xs" style={{ color: C.muted }}>No controls match.</div>
+                  )}
                 </div>
-              )}
-
-              {view.mappings.length > 0 && (
-                <div className="text-[11px] leading-relaxed" style={{ color: C.muted }}>
-                  <FrameworkMappingLine f={view.mappings[0]} />
-                </div>
-              )}
+              </div>
             </div>
+
+            {open && openView && (
+              <ControlDetail
+                control={open}
+                view={openView}
+                lensActive={lensActive}
+                lensName={lensName}
+                backLabel={activeDomain === "All" ? "Back to controls" : `Back to ${activeDomain}`}
+                onBack={backToList}
+                onClearLens={() => applyLens([])}
+              />
+            )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
