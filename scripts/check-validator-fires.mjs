@@ -546,6 +546,40 @@ try {
     });
   }
 
+  // Source text: every crosswalk clause for a standard with source text must
+  // name a real paragraph (engine/sourceText.ts).
+  console.log("\nSource text (validateSourceText)");
+  {
+    const { validateSourceText, SOURCE_DOCUMENTS } = await server.ssrLoadModule("/src/engine/sourceText.ts");
+    const { CONTROLS } = await server.ssrLoadModule("/src/graph/nodes/controls.ts");
+    const baseline = validateSourceText(CONTROLS, SOURCE_DOCUMENTS);
+    if (baseline.length === 0) {
+      console.log("  ok    baseline source text validates clean");
+      passed++;
+    } else {
+      console.log(`  FAIL  baseline source text: ${baseline.slice(0, 3).join("; ")}`);
+      failed++;
+    }
+    const paragraphs = (docs) => docs.HIPAA.sections.find((s) => s.id === "164.312").paragraphs;
+    const sourceCases = [
+      ["crosswalk clause with no paragraph", (d) => { const ps = paragraphs(d); ps.splice(ps.findIndex((p) => p.id === "164.312(b)"), 1); }, /164\.312\(b\): crosswalk clause with no source text/],
+      ["duplicate paragraph id", (d) => { const ps = paragraphs(d); ps.push({ ...ps[0] }); }, /duplicate paragraph id/],
+      ["paragraph filed under the wrong section", (d) => { paragraphs(d)[0].id = "164.999(a)"; }, /not under its section 164\.312/],
+    ];
+    sourceCases.forEach(([label, corrupt, expected]) => {
+      const docs = structuredClone(SOURCE_DOCUMENTS);
+      corrupt(docs);
+      const problems = validateSourceText(CONTROLS, docs);
+      if (problems.some((p) => expected.test(p))) {
+        console.log(`  ok    ${label}`);
+        passed++;
+      } else {
+        console.log(`  FAIL  ${label} — not caught (${problems.length} problems: ${problems.slice(0, 2).join("; ")})`);
+        failed++;
+      }
+    });
+  }
+
   console.log(`\n${passed} passed, ${failed} failed\n`);
   process.exitCode = failed === 0 ? 0 : 1;
 } finally {

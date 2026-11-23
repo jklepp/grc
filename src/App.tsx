@@ -28,7 +28,7 @@ type GovernanceTab = NonNullable<ComponentProps<typeof Governance>["initialTab"]
 type OverviewTab = NonNullable<ComponentProps<typeof Overview>["initialTab"]>;
 
 function governanceTab(tab?: string): GovernanceTab | undefined {
-  return tab === "ccf" || tab === "obligations" || tab === "policy" || tab === "procedures" || tab === "principles" || tab === "schedule" || tab === "exceptions" ? tab : undefined;
+  return tab === "ccf" || tab === "frameworks" || tab === "obligations" || tab === "policy" || tab === "procedures" || tab === "principles" || tab === "schedule" || tab === "exceptions" ? tab : undefined;
 }
 
 // Only areas the nav still offers resolve; a route to a deprecated one (an old
@@ -56,6 +56,7 @@ const LEGACY_ROUTES = {
   "gap-matrix": { page: "data-estate", tab: "profile" },
   "asset-register": { page: "data-estate", tab: "assets" },
   ccf: { page: "governance", tab: "ccf" },
+  "compliance-frameworks": { page: "governance", tab: "frameworks" },
   "external-obligations": { page: "governance", tab: "obligations" },
   "policy-center": { page: "governance", tab: "policy" },
   "procedure-library": { page: "governance", tab: "procedures" },

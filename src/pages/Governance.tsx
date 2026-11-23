@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import CommonControlFramework from "./CommonControlFramework";
+import ComplianceFrameworks from "./ComplianceFrameworks";
 import PolicyCenter from "./PolicyCenter";
 import ProcedureLibrary from "./ProcedureLibrary";
 import SecurityPrinciples from "./SecurityPrinciples";
@@ -18,6 +19,7 @@ import type { GovernanceAreaId } from "./governanceAreas";
 // Data Estate now, not here.
 const PAGE_BY_AREA = {
   ccf: CommonControlFramework,
+  frameworks: ComplianceFrameworks,
   obligations: ExternalObligations,
   policy: PolicyCenter,
   procedures: ProcedureLibrary,
@@ -36,6 +38,7 @@ type GovernanceTab = GovernanceAreaId;
 // onNavigate so App.jsx's LEGACY_ROUTES can send them there.
 const INTERNAL_TABS: Record<string, GovernanceTab> = {
   ccf: "ccf",
+  "compliance-frameworks": "frameworks",
   "external-obligations": "obligations",
   "policy-center": "policy",
   "procedure-library": "procedures",

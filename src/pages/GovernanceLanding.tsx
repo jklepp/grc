@@ -8,6 +8,7 @@ import { PROCEDURES } from "../data/procedures";
 import { PRINCIPLE_STATUS_COUNTS } from "../data/securityPrinciples";
 import { FREQUENCIES, currentPeriod, statusCountsForPeriod } from "../data/scheduledActivities";
 import { EXCEPTION_SUMMARY, IN_SCOPE_CONTROLS, OBLIGATION_SUMMARY } from "../engine";
+import { SOURCE_DOCUMENTS, isStructural } from "../engine/sourceText";
 import { GOVERNANCE_AREAS } from "./governanceAreas";
 import type { GovernanceAreaId } from "./governanceAreas";
 
@@ -31,6 +32,8 @@ const scheduleCounts = FREQUENCIES.reduce(
 const DOMAIN_COUNT = new Set(IN_SCOPE_CONTROLS.map((control) => control.domain)).size;
 const STANDARD_COUNT = new Set(IN_SCOPE_CONTROLS.flatMap((control) => control.frameworks.map((f) => f.standard))).size;
 
+const SOURCE_PARAGRAPHS = Object.values(SOURCE_DOCUMENTS).flatMap((doc) => doc.sections.flatMap((s) => s.paragraphs)).filter((p) => !isStructural(p));
+
 const AREA_SUMMARIES: Record<GovernanceAreaId, AreaSummary> = {
   ccf: {
     metrics: [
@@ -40,6 +43,14 @@ const AREA_SUMMARIES: Record<GovernanceAreaId, AreaSummary> = {
     ],
     attention: 0,
     attentionLabel: "Browse the control catalog",
+  },
+  frameworks: {
+    metrics: [
+      { value: Object.keys(SOURCE_DOCUMENTS).length, label: "Frameworks with source text" },
+      { value: SOURCE_PARAGRAPHS.length, label: "Requirement paragraphs" },
+    ],
+    attention: 0,
+    attentionLabel: "Read the source requirements",
   },
   obligations: {
     metrics: [
@@ -99,6 +110,7 @@ const AREA_SUMMARIES: Record<GovernanceAreaId, AreaSummary> = {
 
 const AREA_GROUPS: Partial<Record<GovernanceAreaId, string>> = {
   ccf: "Controls",
+  frameworks: "Controls",
   obligations: "Controls",
   policy: "Policies and Procedures",
   procedures: "Policies and Procedures",

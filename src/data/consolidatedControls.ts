@@ -42,6 +42,19 @@ export const CONSOLIDATED_CONTROLS: Record<string, ConsolidatedControl> = {
     sourceControls: ["GOV-05", "GOV-05.1", "GOV-05.2", "GOV-17"],
   },
 
+  "GOV-09": {
+    statement:
+      "ACME establishes control objectives as the basis for selecting, implementing, and managing its security, compliance, and resilience controls — aligning them to internal and external obligations, governing sensitive/regulated data, and monitoring mission-critical TAAS to confirm they are used for their intended purpose.",
+    requirements: [
+      { title: "Defined Control Objectives", detail: "Control objectives are established as the basis for selecting, implementing, and managing the internal control system." },
+      { title: "Context & Obligations", detail: "Control objectives reflect internal and external issues and the requirements of interested parties, including statutory, regulatory, and contractual obligations." },
+      { title: "Measurable Objectives", detail: "Objectives are consistent with policy, measurable, monitored, communicated, and updated, with plans defining actions, resources, ownership, timing, and evaluation of results." },
+      { title: "Data Governance", detail: "Data governance oversees policies, standards, and procedures so sensitive/regulated data is managed per applicable obligations." },
+      { title: "Purpose Validation", detail: "Mission/business-critical TAAS are monitored to confirm they are used consistent with their intended purpose." }
+    ],
+    sourceControls: ["GOV-09", "GOV-10", "GOV-11"],
+  },
+
   "CPL-01": {
     statement:
       "ACME identifies and implements the statutory, regulatory, and contractual controls it is obligated to meet, formally scoping compliance obligations, tracking and remediating instances of non-compliance, and maintaining the ability to demonstrate conformity through qualified assessments and signed declarations.",
@@ -173,6 +186,30 @@ export const CONSOLIDATED_CONTROLS: Record<string, ConsolidatedControl> = {
     sourceControls: ["AAT-01", "AAT-01.1", "AAT-01.2", "AAT-01.3", "AAT-01.4", "AAT-03", "AAT-04", "AAT-08", "AAT-14"],
   },
 
+  "AAT-07": {
+    statement:
+      "ACME manages AI and Autonomous Technologies risk with decision makers drawn from diverse disciplines and backgrounds — documenting the risks and potential impacts of AAT as they are designed, developed, deployed, evaluated, and used, treating those risks, and tracking risks that current measurement techniques cannot yet assess.",
+    requirements: [
+      { title: "Diverse Risk Decision Makers", detail: "Decision makers from diverse demographics, disciplines, experience, and expertise map, measure, and manage AI/AAT-related risks." },
+      { title: "AI Risk & Impact Profiling", detail: "Risks and potential impacts of AI/AAT are documented as they are designed, developed, deployed, evaluated, and used." },
+      { title: "AI Risk Treatment", detail: "AI/AAT risks are evaluated, prioritized, and treated, with treatment options and controls selected and approved by accountable decision makers." },
+      { title: "Hard-to-Measure Risk Tracking", detail: "AI/AAT risks that are difficult to assess with available measurement techniques or metrics are tracked." },
+      { title: "Risk Decisions Revisited", detail: "AI/AAT risk decisions are revisited as nonconformities or new information arise, with corrective actions tracked to closure." }
+    ],
+    sourceControls: ["AAT-07", "AAT-09", "AAT-18"],
+  },
+
+  "AAT-10": {
+    statement:
+      "ACME applies AI Test, Evaluation, Validation & Verification (TEVV) practices throughout the AI and Autonomous Technologies lifecycle — testing security, resilience, and compliance conformity against defined criteria for whether the AAT achieves its intended purpose, and using the results to decide whether development or deployment proceeds.",
+    requirements: [
+      { title: "Lifecycle TEVV", detail: "AI TEVV practices enable security, resilience, and compliance conformity testing throughout the AAT lifecycle." },
+      { title: "Viability Criteria", detail: "Criteria define whether AAT achieves its intended purposes and stated objectives." },
+      { title: "Proceed Decisions", detail: "TEVV results against viability criteria determine whether AAT development or deployment proceeds." }
+    ],
+    sourceControls: ["AAT-10", "AAT-15"],
+  },
+
   "AAT-16": {
     statement:
       "ACME maintains ongoing engagement with AI/AAT stakeholders — including independent assessors, end users, and impacted communities — to surface and act on feedback about the positive, negative, and unanticipated impacts of deployed systems.",
@@ -248,6 +285,18 @@ export const CONSOLIDATED_CONTROLS: Record<string, ConsolidatedControl> = {
       { title: "Technology Asset Inspections", detail: "Critical technology assets are physically and logically inspected for evidence of tampering." }
     ],
     sourceControls: ["AST-05", "AST-05.1", "AST-06", "AST-06.1", "AST-15", "AST-15.1", "AST-07", "AST-08", "AST-12"],
+  },
+
+  "AST-09": {
+    statement:
+      "ACME securely disposes of, destroys, or repurposes system components so information cannot be recovered from them — authorizing, controlling, and tracking technology assets entering and leaving its facilities, and recovering all organizational assets when employment, contracts, or agreements end.",
+    requirements: [
+      { title: "Secure Disposal & Destruction", detail: "System components and media are disposed of or destroyed using defined techniques that prevent information from being recovered." },
+      { title: "Secure Re-Use", detail: "Information is removed from system components and media before they are repurposed or made available for re-use." },
+      { title: "Controlled Asset Movement", detail: "Technology assets entering, leaving, and moving within facilities are authorized, controlled, and tracked." },
+      { title: "Return of Assets", detail: "Employees and third-party users return all organizational assets upon termination of employment, contract, or agreement." }
+    ],
+    sourceControls: ["AST-09", "AST-10", "AST-11"],
   },
 
   "IAC-01": {
@@ -365,6 +414,17 @@ export const CONSOLIDATED_CONTROLS: Record<string, ConsolidatedControl> = {
       { title: "Manual Override", detail: "Current account privileges can be manually overridden for timely response without a new session." }
     ],
     sourceControls: ["IAC-16", "IAC-16.1", "IAC-16.2", "IAC-16.3", "IAC-16.4", "IAC-16.5"],
+  },
+
+  "IAC-17": {
+    statement:
+      "ACME periodically reviews the privileges assigned to individuals and service accounts to validate that each is still needed — reassigning or removing unnecessary privileges, and documenting each review with management's acknowledgement that remaining access is appropriate.",
+    requirements: [
+      { title: "Periodic Privilege Review", detail: "Privileges assigned to individuals and service accounts are periodically reviewed to validate business need." },
+      { title: "Unnecessary Privilege Removal", detail: "Privileges found unnecessary in review are reassigned or removed." },
+      { title: "Review Acknowledgement", detail: "Reviews are documented and management acknowledges that remaining access is appropriate." }
+    ],
+    sourceControls: ["IAC-17"],
   },
 
   "IAC-20": {
@@ -512,6 +572,17 @@ export const CONSOLIDATED_CONTROLS: Record<string, ConsolidatedControl> = {
       { title: "Automated Classification Tracking", detail: "Automated tools identify information by classification type to ensure adequate controls are applied." }
     ],
     sourceControls: ["DCH-13", "DCH-13.1", "DCH-13.2", "DCH-13.3", "DCH-13.4", "DCH-24", "DCH-24.1", "DCH-19"],
+  },
+
+  "CRY-03": {
+    statement:
+      "ACME uses cryptographic mechanisms to protect the confidentiality and integrity of data in transit — including across public networks and over wireless networks, which require authentication and strong encryption.",
+    requirements: [
+      { title: "Transmission Confidentiality", detail: "Cryptographic mechanisms protect the confidentiality of data being transmitted." },
+      { title: "Transmission Integrity", detail: "Cryptographic mechanisms protect the integrity of data being transmitted." },
+      { title: "Wireless Authentication & Encryption", detail: "Wireless networks implement authentication and strong encryption to protect confidentiality and integrity." }
+    ],
+    sourceControls: ["CRY-03", "CRY-04", "CRY-07"],
   },
 
   "CRY-05": {
@@ -721,6 +792,17 @@ export const CONSOLIDATED_CONTROLS: Record<string, ConsolidatedControl> = {
       { title: "Split Tunneling Control", detail: "Split tunneling for remote devices is prevented unless securely provisioned." }
     ],
     sourceControls: ["CFG-03", "CFG-03.1", "CFG-03.2", "CFG-03.3", "CFG-03.4"],
+  },
+
+  "CHG-01": {
+    statement:
+      "ACME runs a formal change management program that governs how changes to its TAAS are identified, assessed, approved, and implemented — assessing changes that could affect the control system and making stakeholders aware of proposed changes and their impact.",
+    requirements: [
+      { title: "Change Management Program", detail: "A change management program governs changes to TAAS throughout their lifecycle." },
+      { title: "Change Impact Assessment", detail: "Business, environmental, and technology changes that could significantly affect the control system are identified and assessed." },
+      { title: "Stakeholder Notification", detail: "Stakeholders are made aware of and understand the impact of proposed changes." }
+    ],
+    sourceControls: ["CHG-01", "CHG-05"],
   },
 
   "CHG-02": {
@@ -1182,6 +1264,18 @@ export const CONSOLIDATED_CONTROLS: Record<string, ConsolidatedControl> = {
     sourceControls: ["BCD-12", "BCD-12.1", "BCD-12.2", "BCD-12.3", "BCD-12.4"],
   },
 
+  "CAP-01": {
+    statement:
+      "ACME manages capacity and performance so systems meet current and anticipated demand — planning the capacity needed during contingency operations, prioritizing resources on TAAS susceptible to Denial of Service attacks, and centrally monitoring and alerting on the health of critical TAAS.",
+    requirements: [
+      { title: "Capacity Management", detail: "Capacity management controls ensure systems meet expected and anticipated future capacity requirements." },
+      { title: "Resource Priority", detail: "Resource use on TAAS susceptible to Denial of Service attacks is controlled, limited, and prioritized." },
+      { title: "Contingency Capacity Planning", detail: "Capacity planning ensures necessary processing, telecommunications, and environmental support exists during contingency operations." },
+      { title: "Performance Monitoring", detail: "Automated mechanisms centrally monitor and alert on the operating state and health of critical TAAS." }
+    ],
+    sourceControls: ["CAP-01", "CAP-02", "CAP-03", "CAP-04"],
+  },
+
   "PES-01": {
     statement:
       "ACME operates physical and environmental protection controls governed by a documented Physical Security Plan and a zone-based approach to physical access.",
@@ -1399,6 +1493,17 @@ export const CONSOLIDATED_CONTROLS: Record<string, ConsolidatedControl> = {
       { title: "Unauthorized Code Prevention", detail: "Technical controls prevent unauthorized code (e.g., injected scripts, unapproved third-party tags) from being present in secure pages as rendered in a client's browser." }
     ],
     sourceControls: ["WEB-01", "WEB-01.1", "WEB-02", "WEB-10", "WEB-13"],
+  },
+
+  "WEB-03": {
+    statement:
+      "ACME deploys Web Application Firewalls to give public-facing web applications defense-in-depth protection against application-specific threats, and requires Strong Customer Authentication for consumers to reasonably prove their identity.",
+    requirements: [
+      { title: "Web Application Firewalls", detail: "WAFs provide defense-in-depth protection for application-specific threats." },
+      { title: "Public-Facing Attack Prevention", detail: "An automated technical solution in front of public-facing web applications continually detects and prevents web-based attacks." },
+      { title: "Strong Customer Authentication", detail: "Consumers authenticate with Strong Customer Authentication to reasonably prove their identity." }
+    ],
+    sourceControls: ["WEB-03", "WEB-06"],
   },
 
   "SEA-01": {
@@ -1655,5 +1760,27 @@ export const CONSOLIDATED_CONTROLS: Record<string, ConsolidatedControl> = {
       { title: "Third-Party Attestation", detail: "An independent Third-Party Assessment Organization attests to conformity with specified obligations, including flow-down requirements." }
     ],
     sourceControls: ["TPM-04", "TPM-04.1", "TPM-04.2", "TPM-04.3", "TPM-04.4", "TPM-05", "TPM-05.1", "TPM-05.2", "TPM-05.3", "TPM-05.4", "TPM-05.5", "TPM-05.6", "TPM-05.7", "TPM-05.8", "TPM-06"],
+  },
+  "TPM-08": {
+    statement:
+      "ACME monitors, regularly reviews, and assesses External Service Providers for compliance with their contractual security, compliance, and resilience requirements — watching for unauthorized disclosure of ACME information, remediating supply chain deficiencies that assessments find, and controlling changes to supplier services based on the criticality of the TAASD in scope.",
+    requirements: [
+      { title: "ESP Monitoring & Review", detail: "ESPs are monitored, regularly reviewed, and assessed for compliance with contractual security, compliance, and resilience requirements." },
+      { title: "Third-Party Disclosure Monitoring", detail: "Evidence of unauthorized exfiltration or disclosure of organizational information by third parties is monitored." },
+      { title: "Deficiency Remediation", detail: "Supply chain weaknesses or deficiencies identified during assessments are addressed." },
+      { title: "Supplier Change Control", detail: "Changes to supplier services are controlled, considering the criticality of in-scope TAASD." }
+    ],
+    sourceControls: ["TPM-07", "TPM-08", "TPM-09", "TPM-10"],
+  },
+
+  "TPM-11": {
+    statement:
+      "ACME conducts incident response and recovery planning and testing with its critical suppliers and providers — so incidents and control failures involving a third party are reported promptly and handled jointly.",
+    requirements: [
+      { title: "Joint Response & Recovery Planning", detail: "Incident response and recovery plans are coordinated with critical suppliers and providers." },
+      { title: "Joint Testing", detail: "Response and recovery plans are tested with critical suppliers and providers." },
+      { title: "Supplier Incident Notification", detail: "Critical suppliers and providers promptly report incidents and control failures that affect ACME, with responsibilities defined in agreements." }
+    ],
+    sourceControls: ["TPM-11"],
   },
 };
