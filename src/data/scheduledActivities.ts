@@ -98,7 +98,7 @@ function daysBetween(from: Date, to: Date): number {
 // Completed always wins (we're not modeling "completed late" as its own
 // state); otherwise a due date in the past is always Overdue regardless of
 // an in-progress flag — being actively worked doesn't un-overdue something.
-export function deriveStatus(instance: ActivityInstanceDefinition, today = new Date(TODAY)): ActivityStatus {
+export function deriveStatus(instance: Pick<ActivityInstanceDefinition, "dueDate" | "completedAt" | "inProgress">, today = new Date(TODAY)): ActivityStatus {
   if (instance.completedAt) return "completed";
   const due = parseLocalDate(instance.dueDate);
   const daysUntilDue = daysBetween(new Date(today), due);
@@ -323,6 +323,54 @@ export const SCHEDULED_ACTIVITIES = ACTIVITY_DEFS.map((a) => {
 export function activitiesForFrequency(frequency: ActivityFrequency) {
   return SCHEDULED_ACTIVITIES.filter((a) => a.frequency === frequency);
 }
+
+// One dated item on the Governance Schedule's calendar: either an instance
+// of a recurring activity above, or a compliance milestone (an ISO 27001
+// audit, a vendor report expiring — see complianceMilestones.ts). Each sits on
+// its due date, completed or not: "was it done on time" is the governance
+// question, so the due date stays the anchor and the completion date rides
+// along beside it.
+export interface ScheduleCalendarEntry {
+  key: string;
+  kind: "activity" | "milestone";
+  // Set for activities only: what the table view opens to.
+  activityId?: string;
+  frequency?: ActivityFrequency;
+  title: string;
+  type: string;
+  // "Quarterly · Q3", "3-year cycle · ACME-wide", "AWS · SOC 2 Type II"
+  cadence: string;
+  owner: string;
+  dueDate: string;
+  completedAt?: string;
+  status: ActivityStatus;
+  note?: string;
+}
+
+// Every recurring-activity instance, in due-date order.
+export const ACTIVITY_CALENDAR_ENTRIES: ScheduleCalendarEntry[] = SCHEDULED_ACTIVITIES.flatMap((a) =>
+  a.instances.map((inst) => ({
+    key: `${a.id}:${inst.period}`,
+    kind: "activity" as const,
+    activityId: a.id,
+    frequency: a.frequency,
+    title: a.title,
+    type: a.type,
+    cadence: a.frequency === "Annual" ? "Annual" : `${a.frequency} · ${PERIOD_LABELS[a.frequency][inst.period - 1]}`,
+    owner: a.owner,
+    dueDate: inst.dueDate,
+    completedAt: inst.completedAt,
+    status: inst.status,
+    note: inst.note,
+  })),
+).sort((x, y) => x.dueDate.localeCompare(y.dueDate) || x.title.localeCompare(y.title));
+
+// The years recurring activities are scheduled for. Activities carry fixed
+// instances rather than a recurrence rule, so outside these years the
+// calendar can only show compliance milestones — and says so.
+const ACTIVITY_YEARS = ACTIVITY_CALENDAR_ENTRIES.map((e) => Number(e.dueDate.slice(0, 4)));
+export const ACTIVITY_FIRST_YEAR = Math.min(...ACTIVITY_YEARS);
+export const ACTIVITY_LAST_YEAR = Math.max(...ACTIVITY_YEARS);
 
 export function statusCountsForPeriod(frequency: ActivityFrequency, period: number): Record<ActivityStatus, number> {
   const counts: Record<ActivityStatus, number> = { completed: 0, in_progress: 0, upcoming: 0, at_risk: 0, overdue: 0 };

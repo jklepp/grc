@@ -1,21 +1,22 @@
-import React, { useState } from "react";
-import { CalendarClock, Layers, Info } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { CalendarClock, CalendarDays, CalendarRange, Layers, Info, ShieldCheck, Table2 } from "lucide-react";
 import { C } from "../theme";
 import { PageHeader, SectionHeading } from "../components/Headings";
 import { useIsNarrow } from "../components/useIsNarrow";
 import {
   FREQUENCIES, PERIODS_PER_YEAR, PERIOD_LABELS, ACTIVITY_TYPES, STATUS_META, CURRENT_YEAR,
-  ACTIVITY_STATUSES, SCHEDULED_ACTIVITIES, activitiesForFrequency, currentPeriod, statusCountsForPeriod, parseLocalDate,
+  ACTIVITY_STATUSES, ACTIVITY_CALENDAR_ENTRIES, SCHEDULED_ACTIVITIES, activitiesForFrequency, currentPeriod, statusCountsForPeriod, parseLocalDate,
 } from "../data/scheduledActivities";
-import type { ActivityStatusColor } from "../data/scheduledActivities";
+import type { ScheduleCalendarEntry } from "../data/scheduledActivities";
 import type { ActivityFrequency } from "../graph/nodes/scheduledActivities";
 import { STANDARD_ABBR } from "../data/policies";
+import ScheduleCalendar from "./ScheduleCalendar";
+import { complianceCalendarEntries } from "../data/complianceMilestones";
+import { useLiveEngine } from "../engine/useLiveEngine";
+import { activityColor, initialCalendarMonth } from "./scheduleView";
+import type { ScheduleView } from "./scheduleView";
 
 type ActivityInstance = (typeof SCHEDULED_ACTIVITIES)[number]["instances"][number];
-
-function activityColor(color: ActivityStatusColor): string {
-  return { green: C.green, accent: C.accent, muted: C.muted, amber: C.amber, red: C.red }[color];
-}
 
 function formatShortDate(iso: string): string {
   return parseLocalDate(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -50,8 +51,47 @@ const SCOPE_NOTE: Record<ActivityFrequency, string> = {
   Annual: "Penetration testing, IR plan testing, Tier 1 restore testing, security awareness training, and critical-vendor reassessment. Standard-tier vendor reassessment (every 2 years) and standard access recertification (semi-annual) don't fit any of these three tabs — they're not shown anywhere yet.",
 };
 
+const VIEWS: { id: ScheduleView; label: string; icon: typeof Table2 }[] = [
+  { id: "table", label: "Table", icon: Table2 },
+  { id: "month", label: "Month", icon: CalendarDays },
+  { id: "year", label: "Year", icon: CalendarRange },
+];
+
+const activityAnchor = (id: string) => `schedule-activity-${id}`;
+
 export default function ScheduledActivities({ onNavigate }: { onNavigate?: (target: string) => void }) {
   const [frequency, setFrequency] = useState<ActivityFrequency>("Quarterly");
+  const [view, setView] = useState<ScheduleView>("table");
+  const [calendarMonth, setCalendarMonth] = useState(initialCalendarMonth);
+  // The activity a calendar entry asked to open; its table row is scrolled
+  // to and marked once the table has rendered it.
+  const [focused, setFocused] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (view !== "table" || !focused) return;
+    document.getElementById(activityAnchor(focused))?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  }, [view, focused]);
+
+  // Compliance milestones read the live graph — the systems in ISO 27001
+  // scope and the vendor reports — so a wizard-added system or report shows
+  // up here without a reload.
+  const liveEngine = useLiveEngine();
+  const calendarEntries = useMemo(
+    () => [...ACTIVITY_CALENDAR_ENTRIES, ...complianceCalendarEntries(liveEngine.graph.systems, liveEngine.graph.providerCertifications)]
+      // Within a day, milestones lead: a busy day's "N more" never hides a renewal date.
+      .sort((x, y) =>
+        x.dueDate.localeCompare(y.dueDate)
+        || Number(y.kind === "milestone") - Number(x.kind === "milestone")
+        || x.title.localeCompare(y.title)),
+    [liveEngine],
+  );
+
+  const openInTable = (entry: ScheduleCalendarEntry) => {
+    if (!entry.frequency || !entry.activityId) return;
+    setFrequency(entry.frequency);
+    setView("table");
+    setFocused(entry.activityId);
+  };
 
   const items = activitiesForFrequency(frequency);
   const periodCount = PERIODS_PER_YEAR[frequency];
@@ -79,14 +119,44 @@ export default function ScheduledActivities({ onNavigate }: { onNavigate?: (targ
         title="Governance Schedule"
         description="Every control that runs on a fixed cadence, grouped by activity type and tracked against its real due date."
         descriptionClassName="max-w-none lg:whitespace-nowrap"
+        right={
+          <div className="inline-flex items-center gap-1 rounded-xl p-1" style={{ background: C.panel2 }} role="group" aria-label="Schedule view">
+            {VIEWS.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setView(id)}
+                aria-pressed={view === id}
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors"
+                style={{ background: view === id ? C.ink : "transparent", color: view === id ? C.bg : C.muted }}
+              >
+                <Icon size={13} /> {label}
+              </button>
+            ))}
+          </div>
+        }
       />
+
+      {view !== "table" && (
+        <div className="px-4 lg:px-8 pb-6">
+          <ScheduleCalendar
+            entries={calendarEntries}
+            view={view}
+            month={calendarMonth}
+            onViewChange={setView}
+            onMonthChange={setCalendarMonth}
+            onOpen={openInTable}
+          />
+        </div>
+      )}
+
+      {view === "table" && (<>
 
       <div className="px-4 lg:px-8 pb-5">
         <div className="inline-flex items-center gap-1 rounded-xl p-1" style={{ background: C.panel2 }}>
           {FREQUENCIES.map((f) => (
             <button
               key={f}
-              onClick={() => setFrequency(f)}
+              onClick={() => { setFrequency(f); setFocused(null); }}
               className="text-xs font-semibold px-4 py-2 rounded-lg transition-colors"
               style={{ background: frequency === f ? C.ink : "transparent", color: frequency === f ? C.bg : C.muted }}
             >
@@ -164,7 +234,12 @@ export default function ScheduledActivities({ onNavigate }: { onNavigate?: (targ
                   </thead>
                   <tbody>
                     {typeItems.map((a) => (
-                      <tr key={a.id} style={{ borderTop: `1px solid ${C.border}` }}>
+                      <tr
+                        key={a.id}
+                        id={activityAnchor(a.id)}
+                        className="scroll-mt-24"
+                        style={{ borderTop: `1px solid ${C.border}`, background: a.id === focused ? C.accentBg : undefined }}
+                      >
                         <td className="px-3 py-3 align-top">
                           <div className="text-sm font-semibold" style={{ color: C.ink }}>{a.title}</div>
                           <div className="text-xs mt-0.5 leading-relaxed" style={{ color: C.muted }}>{a.description}</div>
@@ -211,7 +286,10 @@ export default function ScheduledActivities({ onNavigate }: { onNavigate?: (targ
             </div>
           );
         })}
+      </div>
+      </>)}
 
+      <div className="px-4 lg:px-8 pb-12 space-y-6">
         <div className="flex items-start gap-2 text-[11px] leading-relaxed rounded-lg p-3" style={{ background: C.panel2, color: C.muted }}>
           <Info size={13} className="shrink-0 mt-0.5" />
           <span>
@@ -230,6 +308,12 @@ export default function ScheduledActivities({ onNavigate }: { onNavigate?: (targ
             </div>
             );
           })}
+          {view !== "table" && (
+            <div className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md" style={{ background: `${C.accent}33`, boxShadow: `inset 0 0 0 1px ${C.accent}` }}>
+              <ShieldCheck size={12} color={C.accent} />
+              <span style={{ color: C.ink }}>Compliance milestone — ISO 27001, SOC 2, or vendor report</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

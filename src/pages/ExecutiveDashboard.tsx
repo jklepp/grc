@@ -2,6 +2,9 @@ import React, { useMemo } from "react";
 import {
   AlertTriangle, ArrowRight, Building2, Cloud, LayoutDashboard, Server, ShieldCheck,
 } from "lucide-react";
+import { upcomingComplianceDates } from "../data/complianceMilestones";
+import type { UpcomingComplianceDate } from "../data/complianceMilestones";
+import { parseLocalDate } from "../data/scheduledActivities";
 import { C } from "../theme";
 import { PageHeader } from "../components/Headings";
 import { useLiveEngine } from "../engine/useLiveEngine";
@@ -95,6 +98,10 @@ function useDashboardData() {
     const attentionItems = [...findingAttention, ...operationalAttention]
       .sort((a, b) => a.priority - b.priority || a.title.localeCompare(b.title));
 
+    // The same milestones the Governance Schedule's calendar draws — ISO
+    // 27001, SOC 2, and vendor report dates — so the two never disagree.
+    const complianceDates = upcomingComplianceDates(liveEngine.graph.systems, liveEngine.graph.providerCertifications);
+
     return {
       enterprise,
       systems,
@@ -102,6 +109,7 @@ function useDashboardData() {
       assuranceGap: enterpriseAssurance - ASSURANCE_TARGET,
       importantSystems,
       attentionItems,
+      complianceDates,
     };
   }, [liveEngine]);
 }
@@ -116,6 +124,97 @@ function systemStatusColor(clears: boolean): { color: string; background: string
   return clears
     ? { color: C.green, background: C.greenBg }
     : { color: C.red, background: C.redBg };
+}
+
+// How many compliance dates the Overview shows; the rest are on the
+// Governance Schedule.
+const SHOWN_COMPLIANCE_DATES = 4;
+// A date this close reads as "act now" rather than "on the horizon".
+const COMPLIANCE_SOON_DAYS = 30;
+
+function countdown(daysUntil: number): string {
+  if (daysUntil < 0) return `Overdue by ${-daysUntil} day${daysUntil === -1 ? "" : "s"}`;
+  if (daysUntil === 0) return "Today";
+  if (daysUntil === 1) return "Tomorrow";
+  if (daysUntil < 60) return `In ${daysUntil} days`;
+  return `In ${Math.round(daysUntil / 30)} months`;
+}
+
+function countdownColors(daysUntil: number): { color: string; background: string } {
+  if (daysUntil < 0) return { color: C.red, background: C.redBg };
+  if (daysUntil <= COMPLIANCE_SOON_DAYS) return { color: C.amber, background: C.amberBg };
+  return { color: C.accent, background: C.accentBg };
+}
+
+// The next few ISO 27001, SOC 2, and vendor report dates, soonest first:
+// a date tile, what it is, and how long is left. Deliberately small — the
+// full cycle lives on the Governance Schedule, one click away.
+function ComplianceDates({ dates, onNavigate }: {
+  dates: UpcomingComplianceDate[]; onNavigate?: (pageId: string) => void;
+}) {
+  const shown = dates.slice(0, SHOWN_COMPLIANCE_DATES);
+  const remaining = dates.length - shown.length;
+  return (
+    <section
+      className="rounded-2xl p-5"
+      style={{ background: C.panel, border: `1px solid ${C.border}` }}
+      aria-labelledby="compliance-dates-title"
+    >
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={17} color={C.accent} />
+            <h2 id="compliance-dates-title" className="text-xl font-semibold" style={{ color: C.ink }}>Upcoming compliance dates</h2>
+          </div>
+          <p className="text-xs mt-1" style={{ color: C.muted }}>ISO 27001, SOC 2, and vendor report deadlines, soonest first.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onNavigate?.("activity-timeliness")}
+          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg wz-hover"
+          style={{ color: C.accent }}
+        >
+          {remaining > 0 ? `${remaining} more on the Governance Schedule` : "Governance Schedule"} <ArrowRight size={13} />
+        </button>
+      </div>
+
+      {shown.length === 0 ? (
+        <div className="py-6 text-sm" style={{ color: C.muted }}>No compliance dates are coming up.</div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mt-4">
+          {shown.map(({ entry, daysUntil }) => {
+            const due = parseLocalDate(entry.dueDate);
+            const tone = countdownColors(daysUntil);
+            return (
+              <div
+                key={entry.key}
+                className="flex items-start gap-3 rounded-xl p-3"
+                style={{ background: C.accentBg, boxShadow: `inset 0 0 0 1px ${C.accent}66` }}
+                title={entry.note}
+              >
+                <div className="w-12 shrink-0 rounded-lg text-center py-1.5" style={{ background: C.panel, border: `1px solid ${C.accent}66` }}>
+                  <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.accent }}>
+                    {due.toLocaleDateString(undefined, { month: "short" })}
+                  </div>
+                  <div className="text-xl leading-tight" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>
+                    {due.getDate()}
+                  </div>
+                  <div className="text-[9px]" style={{ color: C.muted }}>{due.getFullYear()}</div>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold leading-snug" style={{ color: C.ink }}>{entry.title}</div>
+                  <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{entry.type}</div>
+                  <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full mt-2" style={tone}>
+                    {countdown(daysUntil)}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
 }
 
 function formatGap(gap: number | null): string {
@@ -139,6 +238,7 @@ export default function ExecutiveDashboard({
     assuranceGap: ASSURANCE_GAP,
     importantSystems: IMPORTANT_SYSTEMS,
     attentionItems: ATTENTION_ITEMS,
+    complianceDates: COMPLIANCE_DATES,
   } = useDashboardData();
 
   const coverage = ENTERPRISE.coverage;
@@ -328,6 +428,10 @@ export default function ExecutiveDashboard({
             </div>
           )}
         </section>
+      </div>
+
+      <div className="px-4 lg:px-8 pb-8">
+        <ComplianceDates dates={COMPLIANCE_DATES} onNavigate={onNavigate} />
       </div>
 
       <div className="mx-4 lg:mx-8 mb-8 px-4 py-3 rounded-lg flex items-start gap-2 text-[11px]" style={{ color: C.muted, background: C.panel2 }}>
