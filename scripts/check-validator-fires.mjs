@@ -507,6 +507,45 @@ try {
     }
   }
 
+  // Framework Lens: which requirement each crosswalk clause lands on. Catalog
+  // data rather than graph facts, so it has its own validator; same rule
+  // applies — clean data passes, and each single corruption is named.
+  console.log("\nRequirement clauses (validateRequirementClauses)");
+  {
+    const { validateRequirementClauses } = await server.ssrLoadModule("/src/engine/frameworkLens.ts");
+    const { CONTROLS } = await server.ssrLoadModule("/src/graph/nodes/controls.ts");
+    const { CONSOLIDATED_CONTROLS } = await server.ssrLoadModule("/src/data/consolidatedControls.ts");
+    const { REQUIREMENT_CLAUSES } = await server.ssrLoadModule("/src/data/requirementClauses.ts");
+    const baseline = validateRequirementClauses(CONTROLS, CONSOLIDATED_CONTROLS, REQUIREMENT_CLAUSES);
+    if (baseline.length === 0) {
+      console.log("  ok    baseline requirement clauses validate clean");
+      passed++;
+    } else {
+      console.log(`  FAIL  baseline requirement clauses: ${baseline.slice(0, 3).join("; ")}`);
+      failed++;
+    }
+    const clauseCases = [
+      ["crosswalk clause dropped", (c) => { delete c["CRY-05"]["ISO 27001"]["8.24"]; }, /crosswalk clause with no requirement/],
+      ["clause not in the crosswalk", (c) => { c["CRY-05"]["ISO 27001"]["9.99"] = [1]; }, /not in the control's crosswalk/],
+      ["clause landing on nothing", (c) => { c["CRY-05"]["ISO 27001"]["8.24"] = []; }, /lands on no requirement/],
+      ["requirement number out of range", (c) => { c["CRY-05"]["ISO 27001"]["8.24"] = [99]; }, /requirement 99 is not 1\.\.10/],
+      ["control missing entirely", (c) => { delete c["BCD-11"]; }, /no requirement clauses/],
+      ["control not in the catalog", (c) => { c["ZZZ-01"] = {}; }, /not in the catalog/],
+    ];
+    clauseCases.forEach(([label, corrupt, expected]) => {
+      const clauses = structuredClone(REQUIREMENT_CLAUSES);
+      corrupt(clauses);
+      const problems = validateRequirementClauses(CONTROLS, CONSOLIDATED_CONTROLS, clauses);
+      if (problems.some((p) => expected.test(p))) {
+        console.log(`  ok    ${label}`);
+        passed++;
+      } else {
+        console.log(`  FAIL  ${label} — not caught (${problems.length} problems: ${problems.slice(0, 2).join("; ")})`);
+        failed++;
+      }
+    });
+  }
+
   console.log(`\n${passed} passed, ${failed} failed\n`);
   process.exitCode = failed === 0 ? 0 : 1;
 } finally {
