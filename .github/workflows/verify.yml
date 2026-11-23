@@ -39,6 +39,9 @@ jobs:
           # Default true writes the token into .git/config, where every later
           # step — npm ci and its dependencies included — could read it.
           persist-credentials: false
+          # All history: gitleaks scans every commit, and refuses a shallow
+          # clone (the default, one commit) rather than scan a slice of it.
+          fetch-depth: 0
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
