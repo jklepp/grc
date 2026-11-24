@@ -8,6 +8,16 @@ After every run, including failed or canceled runs, remove temporary resources c
 
 Check worktrees for uncommitted changes and untracked files before removal. Preserve user work, shared resources, and logs or artifacts needed to diagnose failures. Never run a host-wide prune.
 
+## Merged branch cleanup
+
+Merge without `--delete-branch`. Once the PR is merged, delete the local and remote branches you created for that task without asking. Verify the source repository and branch name. Preserve default, protected, and shared branches.
+
+Check each copy independently against the PR’s head commit at merge time. For remote deletion, use an explicit `--force-with-lease=<full-branch-ref>:<pr-head-sha>`. If the lease fails, keep the branch.
+
+Before deleting the local branch, check its tip and whether a worktree has it checked out. Preserve worktrees containing user work, including uncommitted changes and untracked files. For a clean worktree, switch the main worktree to the default branch or remove a temporary worktree you created for the task.
+
+If a branch is already gone, cleanup for that copy is complete. If ownership, the expected commit, or safe removal is uncertain, keep the affected copy and report why.
+
 ## Code comments
 Write code without comments by default. Add a comment only for:
 
