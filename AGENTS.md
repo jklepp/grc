@@ -1,6 +1,22 @@
 # Owner Instructions
-- In all interactions and commit messages, be extremely concise and sacrifice grammar for the sake of concision.
-- After each CI/CD run, including failed or canceled runs, remove temporary resources created for that run. These include Git worktrees, containers, networks, volumes, and temporary files. Preserve uncommitted work, shared resources, and any logs or artifacts needed to diagnose failures. Scope cleanup to the run’s resource IDs or labels. Avoid host-wide prune commands.
+
+## Communication
+Keep replies and commit messages brief. Omit preambles and recaps. State failures and unverified results plainly. For technical explanations and procedures, use ASD-STE100 guidelines and the repo’s own terminology.
+
+## CI/CD cleanup
+After every run, including failed or canceled runs, remove temporary resources created for that run. These include Git worktrees, containers, networks, volumes, and temporary files. Identify them by run-specific IDs, labels, or paths.
+
+Check worktrees for uncommitted changes and untracked files before removal. Preserve user work, shared resources, and logs or artifacts needed to diagnose failures. Never run a host-wide prune.
+
+## Code comments
+Write code without comments by default. Add a comment only for:
+
+- A non-obvious reason or invariant.
+- A legal or license header.
+- A public API contract.
+- A verified quirk imposed by a dependency, platform, vendor, or protocol.
+- An issue or RFC link explaining a constraint the code cannot express.
+- A `prettier-ignore` directive or a lint suppression for a faulty or style-only rule.
 
 # ACME ASSURE project instructions
 
@@ -17,7 +33,7 @@ All systems, controls, and related records are fictional demo data.
 
 ## Vocabulary
 Use the app's own words in code, UI, and discussion; do not invent shorthand for concepts that already have names.
-- **Enterprise**: the all-systems rollup. The rename from "portfolio" is complete; never reintroduce the old word for this figure.
+- **Enterprise**: the all-systems rollup.
 - **Ladder** / **rung**: the PRISMA maturity ladder only (Policy → Managed). Never say "ladder" about tiers.
 - **Tier baseline**: the control set a classification tier puts in scope (`control-baselines.yaml`, `baselineForSystem`). Tiers select baselines; they do not have rungs.
 - **External Inheritance**: provider-run domains, backed by a report or certification. Say "report", never a generic "attestation" (SOC 2 is specifically an attestation engagement).
@@ -33,30 +49,21 @@ Use the app's own words in code, UI, and discussion; do not invent shorthand for
 - Not app words, do not use: "thin system", "corpus", "portfolio", "baseline ladder". A standard's own control text keeps its own wording (PRM-07 really does say "portfolio"); the ban is on the app's voice.
 
 ## Code map
-- Graph: `src/graph/` is the source of truth for facts and edges, including `Finding`, `Org` (team/user/business unit), and `Evidence Source` entities.
-- Engine: `src/engine/` holds the derivations (assessment, levels, assurance, rollups, profile, applicability, evidence, cockpit, findings, review) and the write path (`runtimeMutations.ts`, `liveGraph.ts`, `runtimeFactsStore.ts`, `promote.ts`). Pages and components consume engine results; they never recreate business logic or hand-assemble fact records.
-- Auth: `src/auth/` holds session, roster, and `gates.ts`. Every permission decision and every signature comes from here; a surface never decides policy locally.
-- Pages: `src/pages/`; `src/pages/SystemWorkspace/` is where most system-level work lands.
-- UI: `src/components/`.
-- Canvas: `src/components/canvas/`: `SystemCanvas.tsx` with `canvasLayout.ts` (bands, swimlanes, edge kinds), `CanvasNodes.tsx`, `assetKindMeta.ts`. `DataMap` renders it; `FlowDiagramSVG`/`FlowMatrixSVG` are the older diagram views on the same page.
-- Wizard kit: `src/components/wizard/WizardUI.tsx` is the only source of wizard/walk chrome (shell, steps, fields, buttons, status pills). Every wizard-like surface (Add/Edit System, Scope Review, the Assurance Walk, the control assessment walk, the evaluation panel, the Finding Editor, Settings' User Editor) composes these primitives; extend `WizardUI.tsx` rather than styling a step in place.
-- Wizard rules: `src/components/wizard/CONTRACT.md` covers composition, naming, what to ask a human, navigation/state, and write discipline. Read it before changing any wizard surface.
+- Graph: `src/graph/` is the source of truth for facts and edges.
+- Engine: `src/engine/` holds the derivations and the write path (`runtimeMutations.ts`, `liveGraph.ts`, `runtimeFactsStore.ts`, `promote.ts`). Pages and components consume engine results; they never recreate business logic or hand-assemble fact records.
+- Auth: every permission decision and every signature comes from `src/auth/` (`gates.ts`); a surface never decides policy locally.
+- Wizard kit: `src/components/wizard/WizardUI.tsx` is the only source of wizard/walk chrome; extend it rather than styling a step in place. Before changing any wizard surface, read `src/components/wizard/CONTRACT.md`.
 - Control assessment: `src/pages/SystemWorkspace/ControlEvaluationPanel.tsx` is the single assessment UI (direct edit and the guided walk both render it). Do not add a parallel assessment modal or scoring surface.
 - Framework baseline: `src/graph/nodes/controlRecords.ts` (records, versions, `requiresCyberAssurance`), `src/engine/controlRecords.ts` (resolution), `src/pages/SystemWorkspace/BaselineControls.tsx` (the Controls tab for systems without HITRUST). `ControlEvaluationPanel` and the PRISMA walk are for HITRUST systems only.
-- Audits: `src/graph/nodes/engagements.ts`, `src/engine/engagements.ts` (rows, requests, populations, close plan), `src/pages/Audits/`.
 - Reuse these paths; do not create parallel scoring, applicability, or evidence implementations.
 
 ## Development
-- Match existing React and repository patterns; keep diffs narrow; no drive-by refactors unless necessary.
-- Start with the files the task names, the Code map, and their direct dependencies; widen the search only when the task requires it.
 - Do not add or upgrade dependencies without asking first.
-- Preserve existing behavior and visual design unless the task explicitly asks for a change.
 - Do not modify demo data unless the task requires it.
 
 ## Change control
 - Before non-trivial edits, summarize the intended change and list the files expected to be modified.
 - Trivial single-file copy or styling fixes may proceed with a minimal diff.
-- Preserve unrelated user changes in the working tree.
 
 ## Verification
 Run checks proportionate to the files and behavior changed:
@@ -66,9 +73,7 @@ Run checks proportionate to the files and behavior changed:
 - `npm run build` when changes could affect production bundling.
 - `npm run check` for broad or cross-cutting changes (typecheck, lint, `check:validators`, `check:roster`).
 
-Report which checks were run and any that could not be completed.
-
-## graphify
+# graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
 
@@ -77,4 +82,5 @@ Rules:
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- When the user types `/graphify`, follow `.claude/skills/graphify/SKILL.md` before doing anything else.
 - A committed graphify-out/graph.json is rewritten whole on every build, so a large diff to it in a pull request is expected. Do not flag it as churn or suggest skipping the graph rebuild or its hooks.

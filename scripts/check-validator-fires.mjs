@@ -75,8 +75,7 @@ try {
       const w = f.controlProfile.categoryWeights.Internal;
       w.Detection = 0; w.Governance += 0; // leave the sum wrong too; both should fire
     }, /no positive weight/],
-    // Every in-scope control is a key control now, so there's no longer a real
-    // one to pick as the fault — the case has to fabricate a control that
+    // Every in-scope control is a key control, so the case has to fabricate a control that
     // exists (passes "is not a real control") but was never added to
     // key-controls.yaml (fails the check actually under test).
     ["evidence against a non-key control", (f) => {
@@ -92,11 +91,6 @@ try {
       const e = f.evidence.find((x) => x.population !== undefined && x.exceptions > 0);
       if (e) e.result = "pass";
     }, /did not pass/],
-    // "missing category assessment" lived here. The 156 per-asset category
-    // assessments it guarded are gone, and so is the fallback they fed — a
-    // control nobody assessed is reported as unassessed rather than inheriting
-    // its category's number. The equivalent guard now is the assessment-scope
-    // parity pair in the derivational suite below.
 
     ["control baseline naming a non-control", (f) => { f.controlBaselines.Restricted.push("CTL-NOPE"); }, /is not a control/],
     ["control baseline listing a control twice", (f) => { f.controlBaselines.Restricted.push(f.controlBaselines.Restricted[0]); }, /listed twice/],
@@ -148,9 +142,7 @@ try {
       f.agenticIdentities[0].ownerOrgId = "nobody";
     }, /ownerOrgId .* is not an org/],
 
-    // ---- Program artifacts. These three checks used to live in procedures.js as
-    // a module-load side effect and could not be fault-injected at all, because
-    // there was one fact set and importing it either worked or crashed the app.
+    // ---- Program artifacts.
     ["SOP step citing a control its own SOP doesn't own", (f) => {
       const sop = f.procedures.find((p) => p.steps.some((s) => s.controls?.length));
       const step = sop.steps.find((s) => s.controls?.length);

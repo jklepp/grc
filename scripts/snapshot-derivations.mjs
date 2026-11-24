@@ -1,4 +1,4 @@
-// Golden master for the engine/graph refactor.
+// Golden master for refactors.
 //
 // Dumps every derived number the engine produces to a JSON file, loaded through
 // Vite's SSR pipeline so module resolution matches the real app exactly. Run it
@@ -64,11 +64,8 @@ try {
 
   // Per-entity derivations, keyed by id so a rename shows up as a diff too.
   //
-  // The id lists come off the engine's own graph rather than from the graph
-  // modules. Those modules used to export the fact arrays; now they hold only
-  // types and vocabularies, and the facts live in src/graph/facts/*.yaml — so
-  // asking the engine what it loaded is both the only way and the right way:
-  // it snapshots what the app actually rendered from, not a parallel list.
+  // The id lists come off the engine's own graph (the graph modules hold only
+  // types), so this snapshots what the app actually rendered from.
   const { graph } = engine.getLiveEngine();
 
   const call = (fn, arg) => {

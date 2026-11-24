@@ -1,29 +1,14 @@
 // Classification, derived bottom-up from the data itself.
 //
-// Previously a system carried a hand-typed `classification` and every asset
-// inside it inherited that value wholesale. That made an asset's tier
-// unfalsifiable: it was correct by construction and told you nothing you didn't
-// already know from the system.
-//
-// Now it's a two-step high-water mark — an asset is as sensitive as the most
+// A two-step high-water mark — an asset is as sensitive as the most
 // sensitive data it touches, and a system is as sensitive as its most sensitive
 // asset. Every data-type role counts, including `accesses`: a service account
 // holds no data at all, but compromising it reaches all of it, and a model that
 // let it sit at a lower tier than the records it can read would be wrong in the
 // direction that matters.
 //
-// A note on what this does and doesn't prove. The derived tiers land on exactly
-// the values the register previously carried by hand, and the graph's
-// expectedClassification asserts that. That agreement is the point: the rollup
-// has to reproduce the human answer before it's trustworthy enough to replace
-// it. What's gained isn't a different answer today — it's that the answer now
-// moves on its own when the data edges change, instead of waiting for someone to
-// remember to retype it.
-//
-// FACTORY NOTE: this module used to read ASSETS and friends from module scope
-// and precompute ASSET_CLASSIFICATION beside them. It now takes a graph, which
-// is what allows a second fact set — a synthetic one in a test, a prior
-// revision to diff against — to be classified by the same code.
+// The graph's expectedClassification asserts the derived tiers reproduce the
+// human answer.
 import type { Graph } from "../graph/types";
 import type { Asset } from "../graph/nodes/assets";
 import type { DataType } from "../graph/nodes/dataTypes";
@@ -88,9 +73,7 @@ export function createClassification(graph: Graph) {
     };
   }
 
-  // Every data type flowing through a system, deduped — what `dataElements`
-  // used to assert directly, now reachable from the asset edges instead of
-  // maintained alongside them.
+  // Every data type flowing through a system, deduped, read off the asset edges.
   function dataTypesForSystem(systemId: SystemId): DataType[] {
     const seen = new Map<DataTypeId, DataType>();
     assetsForSystem(systemId).forEach((asset) => {

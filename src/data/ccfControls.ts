@@ -24,20 +24,8 @@ const SCF_SOURCE = scf as ScfSource;
 // same matched-control pool (read CCF_VISIBLE_CONTROLS.length rather than a
 // hardcoded count).
 //
-// WHAT USED TO BE HERE, AND WHY IT ISN'T
-// ---------------------------------------
-// Each control carried an `overall` status of "matched" or "unscored", and the
-// Unified Compliance Matrix rendered "unscored" as a **Needs Review** badge with its
-// own filter. That status was computed as `Math.abs(hashStr(c.id)) % 3 === 0` — a hash
-// of the control's ID STRING. 109 of the 323 controls displayed as needing review, and
-// which 109 was decided entirely by how the id happened to be spelled. Renaming a
-// control flipped its review status; reviewing one changed nothing.
-//
-// So the page showed what read as a real assessment backlog and was decoration. The
-// honest statement this data can make is the one the crosswalk actually supports:
-// a control either maps to an in-scope framework clause or it doesn't. Anything about
-// how well a control is *doing* comes from the engine, which computes real coverage
-// states (measured / inherited / assessed / unassessed) with a basis behind each.
+// No status here: a control either maps to an in-scope framework clause or it
+// doesn't. How well a control is *doing* comes from the engine.
 export const CCF_CONTROLS = SCF_SOURCE.controls.map((c) => {
   const frameworks = SCF_SOURCE.standards
     .map((std) => ({ standard: std, clauses: c.frameworks[std] || [] }))

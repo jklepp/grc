@@ -1,11 +1,7 @@
 // The page-facing API. Pages import from here and nowhere else in the model.
 //
-// The rule the whole refactor rests on: there is exactly one function that
-// answers any given question, so there can be exactly one answer. Three pages
-// used to show prod-vector-db and each computed its own view of it; now all
-// three call getAsset("AST-003-04") and there can only be one 74.
-//
-// explain() is the other half. Every derived number can name what produced it,
+// Exactly one function answers any given question, so there can be exactly one
+// answer. explain() is the other half. Every derived number can name what produced it,
 // hop by hop, down to an evidence record with a collection date. A GRC tool
 // that can't answer "why does it say that" is asking to be trusted, and this
 // one shouldn't have to be.
@@ -73,10 +69,8 @@ export function createSelectors(
   const getEvidenceReviews = (id: EvidenceId) => graph.evidenceReviewsByEvidence[id] ?? [];
 
   // ---- Relationship traversal ------------------------------------------------
-  // These used to return per-(asset, control) implementations, each with its own
-  // score. They now return CONTROL INSTANCES — the same pairs, carrying a status
-  // and the evidence behind it but no number, because the number for a control
-  // exists once, at the system boundary.
+  // Control instances: (asset, control) pairs with a status and evidence but no
+  // number, because a control's number exists once, at the system boundary.
   function getInstancesForAsset(assetId: AssetId) {
     return assessment.instancesForAsset(assetId);
   }
@@ -211,9 +205,8 @@ export function createSelectors(
     if (nodeType === "asset" && metric === "assurance") {
       const asset = getAsset(id);
       if (!asset) return null;
-      // An asset has no assurance score to explain any more. What it can
-      // explain is which controls it was sampled for and what each one showed —
-      // the diagnostic that replaced the score.
+      // An asset has no score; it explains which controls it was sampled for
+      // and what each showed.
       return {
         label: `${asset.name} — control instances`,
         value: null,

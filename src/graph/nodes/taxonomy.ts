@@ -7,14 +7,7 @@
 // stay a pure function library with no data of its own, and it keeps the graph
 // free of anything that could be recomputed.
 //
-// Everything here was previously spread across assuranceModel.js and
-// systemRegister.js. The domain-level maps in particular were sitting in
-// systemRegister.js purely because that's where the first consumer happened to
-// live, even though they describe SCF domains and have nothing to do with any
-// one system.
-//
-// The same caveat those files carried still applies and is worth restating:
-// mapping a control domain to an assurance category, an implementation type, or a
+// Mapping a control domain to an assurance category, an implementation type, or a
 // tool is a judgment call about how ACME chooses to report, not a fact carried
 // in the catalog source data.
 
@@ -41,12 +34,6 @@ export function highestTier(tiers: readonly string[]): ClassificationTier | null
 // ---- Evidence vocabulary --------------------------------------------------------
 // Ordered weakest to strongest, so a comparison against a required minimum is an
 // index comparison rather than a lookup table.
-//
-// MATURITY_STAGES used to sit here alongside it: one value naming where a
-// control had reached. It is gone. A control is not AT a stage any more — it is
-// rated at all five PRISMA levels independently and its score is the weighted
-// sum, which is a different claim and needed a different vocabulary. See
-// PRISMA_LEVELS below.
 export const EVIDENCE_TYPES = [
   "Self-attestation",
   "Document",
@@ -60,18 +47,10 @@ export type EvidenceType = (typeof EVIDENCE_TYPES)[number];
 
 // ---- The PRISMA ladder -----------------------------------------------------------
 // The five maturity levels a control is rated at, from HITRUST's PRISMA-derived
-// scoring model. These are the same five rungs MATURITY_STAGES named, with
-// "Monitored" written as "Measured" so the vocabulary matches the framework it
-// implements — HITRUST's fourth rung asks whether the control's operation is
-// being measured, which is a different question from whether it is being
-// watched.
-//
-// The important difference from the old MATURITY_STAGES is not the spelling: a
-// maturity STAGE was one value describing where a control had reached, so a
-// control was at Procedure or at Managed but never both. A PRISMA LEVEL is a
-// dimension — a control is rated separately at all five, and the score is a
-// weighted sum across them. That is why this replaced the old vocabulary rather
-// than renaming it.
+// scoring model. "Measured", not "Monitored": HITRUST's fourth rung asks
+// whether operation is measured, not watched. A level is a dimension, not a
+// stage: a control is rated separately at all five, and the score is a
+// weighted sum.
 //
 // Ordered weakest to strongest, so "at least Implemented" stays index arithmetic.
 export const PRISMA_LEVELS = ["Policy", "Procedure", "Implemented", "Measured", "Managed"] as const;
@@ -192,9 +171,8 @@ export function getToolHint(domain: string): string | null {
 
 // ---- Basis ---------------------------------------------------------------------
 // Every derived number in the engine carries one of these, so a reader can tell
-// what a score is actually standing on. This is the mechanism that replaces
-// fabricated per-control status: where there's nothing to compute from, the
-// answer is "unassessed" rather than a plausible-looking number.
+// what a score is actually standing on. Where there's nothing to compute from,
+// the answer is "unassessed" rather than a plausible-looking number.
 export const BASIS = {
   MEASURED: "measured", // backed by control implementations with real evidence
   ASSESSED: "assessed", // backed only by a category-level judgment

@@ -21,9 +21,8 @@ import type { ImpactLevel } from "../graph/nodes/assets";
 // ---- Evidence confidence ------------------------------------------------------
 // How much an assertion can be trusted, from "we say so" to "the system proves
 // it continuously." This is the base rate for a TYPE of evidence;
-// engine/implementation.ts then adjusts it by the coverage and freshness of the
-// specific collection, which is the part the old string-enum average could not
-// express.
+// engine/evidence.ts adjusts it by the coverage and freshness of the specific
+// collection.
 export const EVIDENCE_CONFIDENCE: Record<EvidenceType, number> = {
   "Self-attestation": 40,
   Document: 55,
@@ -48,12 +47,6 @@ export function meetsEvidence(actual: EvidenceType, required: EvidenceType): boo
 // is the whole argument: a control that is written down and operating is worth
 // far more than one that is only written down, so Implemented alone carries 40%
 // while the two documentation rungs together carry 35%.
-//
-// This replaces blendAssurance's maturity/evidence/effectiveness split. The old
-// blend asked three questions about a control and averaged the answers. PRISMA
-// asks the same question five times at increasing standards of proof and adds
-// up the credit, which is both the more defensible reading and the one an
-// assessor can argue with a line at a time.
 export const PRISMA_LEVEL_WEIGHTS: Record<PrismaLevel, number> = {
   Policy: 0.15,
   Procedure: 0.2,
@@ -93,7 +86,7 @@ export function complianceForConfidence(confidence: number): ComplianceRating {
 // The ceiling on any level of a control ACME inherits from its provider.
 //
 // A vendor's SOC 2 is an "Auditor examination" (75), which sits below the
-// "API configuration observation" grade that engine/implementation.ts already
+// "API configuration observation" grade that engine/evidence.ts already
 // treats as the floor for calling something verified. A level ACME cannot
 // itself verify therefore cannot be rated Fully Compliant — not as a penalty
 // for using a vendor, but because the strongest thing ACME can say is what the

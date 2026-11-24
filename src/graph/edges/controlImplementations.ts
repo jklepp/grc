@@ -43,16 +43,14 @@
 //                          "we haven't built this" and "nobody has looked" stay
 //                          distinguishable
 //
-// engine/implementation.ts does the composing.
+// engine/assessment.ts does the composing.
 import type { PrismaLevel } from "../nodes/taxonomy";
 import type { AssetId, ControlId, OrgId, FindingId, SystemId } from "../ids";
 
 // ---- Who operates the control ------------------------------------------------
 // A control ACME requires but doesn't run itself is not "not applicable" — it's
-// implemented by someone else. Before this, inheritance was expressed as an
-// applicability EXCEPTION, so an auditor asking how CFG-02 is satisfied on the
-// KMS key was told "not required here," which isn't true: it is required, and
-// AWS satisfies it.
+// implemented by someone else (CFG-02 on the KMS key is required, and AWS
+// satisfies it).
 //
 // Modelling it as responsibility rather than as a scope keeps the scope
 // vocabulary at two values and lets an inherited control score on the same
@@ -122,13 +120,9 @@ export interface ControlOperatingHistory {
 
 // ---- Program controls, per system ---------------------------------------------
 // Seven key controls are marked scope: "program" because asking each asset
-// whether ACME runs a risk-assessment process would be theatre. But they were
-// scored and then never consumed by any rollup, so the program layer reached the
-// hero number not at all.
-//
-// They now score from the bottom like everything else: one implementation per
-// (system, control) that a rule confirms, rolled up through the system. What
-// they are NOT is blanket-inherited — four of the seven hold everywhere, three
+// whether ACME runs a risk-assessment process would be theatre. They score
+// from the bottom like everything else: one implementation per (system,
+// control) that a rule confirms. They are NOT blanket-inherited — four of the seven hold everywhere, three
 // depend on what a system contains, and one of those three would be wrong
 // today. AAT-01 (AI governance) blanket-applied to the Workday boundary would
 // assert AI governance coverage for a system with no AI asset in it.

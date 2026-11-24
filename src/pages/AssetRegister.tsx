@@ -197,10 +197,6 @@ function verificationBand(asset: AssetRollup): DisplayBand {
   return { label: "Sparse", color: "red" };
 }
 
-// CategoryBar is gone with the per-asset category rollups it drew. Categories
-// are still scored, once per system, and the bars for them live on the pages
-// that show a system.
-//
 // Worst first — an asset's problems should be at the top of its own list.
 const INSTANCE_ORDER = ["not-implemented", "partial", "undetermined", "implemented", "not-applicable"];
 

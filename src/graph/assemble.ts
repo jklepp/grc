@@ -1,12 +1,7 @@
 // Facts in, traversable Graph out.
 //
-// Every index built here previously lived as a module-level const inside the
-// node or edge file it indexed — BY_PAIR in evidence.ts, BY_ASSET in
-// categoryAssessments.ts, INBOUND/OUTBOUND in dataFlows.ts, and so on. That
-// worked exactly as long as there was one fact set in the process, because each
-// index was welded to the module-scope collection above it. Gathering them into
-// one function is what lets a second graph exist: a synthetic one for tests, a
-// second tenant's, or a prior revision to diff today's posture against.
+// Indexes live here, not as module-scope consts beside their collections, so a
+// second graph (tests, another tenant, a prior revision) can exist.
 //
 // Two rules this file holds to:
 //
@@ -16,8 +11,7 @@
 //
 //   2. Normalization is explicit and happens once. Evidence validity windows
 //      and source ids are filled in here so no downstream caller has to
-//      remember to, which is the bug that made `sourceId` unreliable when it
-//      was computed at three separate call sites.
+//      remember to.
 import { commonRecordKey, latestVersions, systemRecordKey } from "./nodes/controlRecords";
 import type { Graph, GraphFacts, ControlProfileDefinition } from "./types";
 import { DEFAULT_VALIDITY_DAYS, sourceIdFromName, type Evidence } from "./nodes/evidence";
@@ -30,9 +24,7 @@ import {
 import type { AssetId, ControlId, RiskId, SystemId, DataTypeId, EvidenceSourceId } from "./ids";
 
 // ---- Small index helpers -----------------------------------------------------
-// byId and groupBy exist so the twenty-odd indexes below read as declarations
-// rather than twenty slightly-different reduce calls, which is how two of them
-// previously ended up with subtly different missing-key behaviour.
+// byId and groupBy keep the indexes below on one missing-key behaviour.
 function byId<T extends { id: string }>(rows: readonly T[]): Record<string, T> {
   return Object.fromEntries(rows.map((r) => [r.id, r]));
 }

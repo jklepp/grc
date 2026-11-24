@@ -1,7 +1,6 @@
 // The boot sequence: load the dataset, then mount the app.
 //
-// This component exists because engine/index.ts stopped building itself at
-// import time. Nothing that imports the engine barrel may be evaluated until
+// Nothing that imports the engine barrel may be evaluated until
 // initEngine() has resolved, and App.tsx statically imports every page — so App
 // itself is loaded lazily, and that import is only reached once the engine is
 // ready. Getting this wrong is not subtle: a page module evaluating early
@@ -13,10 +12,8 @@
 // loading and failed states are already rendered, so no page has to grow a
 // spinner or an error branch later.
 //
-// One behaviour worth knowing about: createEngine() runs validateDerivations(),
-// which throws when the dataset's derived integrity checks fail. That used to
-// happen during module evaluation and showed up as a blank page with a console
-// trace. It now lands in the failed state below, which says what broke.
+// createEngine() runs validateDerivations(), which throws when the dataset's
+// derived integrity checks fail; that lands in the failed state below.
 //
 // The order is sign in -> load facts -> app. Authentication comes first because
 // a real API cannot answer for a tenant it has not authenticated, and that is

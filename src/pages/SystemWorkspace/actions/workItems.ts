@@ -14,7 +14,7 @@ import { FINDING_REMEDIATION_STATUS_META } from "../../../engine";
 //
 // Every Finding lands in exactly one group: without a CAP it is filing work
 // (gaps), with one it is remediation work. The two lanes never show the same
-// finding twice, which the separate group lists used to do.
+// finding twice.
 
 export const WORK_GROUPS = ["due", "assess", "gaps", "remediate"] as const;
 export type WorkGroupId = (typeof WORK_GROUPS)[number];

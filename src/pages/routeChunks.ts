@@ -1,12 +1,6 @@
 import type { NavigationPageId } from "../components/TopNav";
 
-// One chunk per top-level page.
-//
-// Landing on a system's workspace used to download Governance's control
-// catalogue, the Graph Explorer and Settings too, because App's switch only
-// ever picked between modules that were already loaded.
-//
-// These live in their own module rather than beside the `lazy()` calls in
+// One chunk per top-level page. These live in their own module rather than beside the `lazy()` calls in
 // App.tsx so that App keeps exporting only its component — a module that
 // exports both a component and a constant loses fast refresh.
 //

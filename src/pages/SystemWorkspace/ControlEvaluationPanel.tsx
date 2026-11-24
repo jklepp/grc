@@ -290,10 +290,8 @@ interface EvidenceFormState {
   artifactStorageRef: string;
   artifactSha256: string;
   artifactSensitivity: ArtifactSensitivity;
-  // Whether to record a review at all. The reviewer used to be a name typed
-  // into a box, and its presence was what decided whether a review record got
-  // written; the reviewer is now whoever is signed in, so the decision to
-  // review has to be said out loud instead of inferred from a filled field.
+  // Whether to record a review at all. The reviewer is whoever is signed in,
+  // so this must be said explicitly rather than inferred from a filled field.
   reviewRecorded: boolean;
   reviewDecision: EvidenceReviewDecision;
   reviewComments: string;
@@ -649,7 +647,7 @@ interface ControlEvaluationPanelProps {
 export function ControlEvaluationPanel({
   row: committedRow, system, onClose, walk, initialStep, workflowNavigation,
 }: ControlEvaluationPanelProps) {
-  // Lands on Control Scoring — the operator's stated job, and now the first
+  // Lands on Control Scoring — the operator's stated job, and the first
   // step in the rail, so the landing place and the declared order agree —
   // unless a caller asked to land somewhere else (initialStep).
   const [activeStep, setActiveStep] = useState<EvaluationStep>(initialStep ?? "scoring");
@@ -840,10 +838,9 @@ export function ControlEvaluationPanel({
   const gradingLevels = previewLevels ?? assessment?.levels ?? null;
   // The nudge that turns a weak grade into a Finding without leaving the panel.
   //
-  // Derived from the grades ON SCREEN rather than raised after the write, which
-  // is what it used to do and why nobody ever saw it: saving either advances the
-  // walk to the next control or closes the panel, so the callout was always
-  // mounted onto a page that had just gone away. A finding staged here joins the
+  // Derived from the grades ON SCREEN rather than raised after the write:
+  // saving advances the walk or closes the panel, so a post-save callout would
+  // mount onto a page that had just gone away. A finding staged here joins the
   // same commit as the grade (5.6), so offering it before Save costs nothing and
   // saves the operator hunting for the Findings step themselves.
   //
@@ -890,8 +887,7 @@ export function ControlEvaluationPanel({
   const unsavedCount = pendingChanges.length + (laneDirty ? 1 : 0);
   // Two acts, two labels, and no more: in the walk the primary commits *and*
   // advances, so it names both; in the editor it is the one final commit, so
-  // it carries one label whatever happens to be staged behind it. The three
-  // variants this used to cycle through read as three different buttons (2.6).
+  // it carries one label whatever happens to be staged behind it (2.6).
   const saveLabel = walk
     ? walkRemaining === 1 ? "Save and finish" : "Save and continue"
     : "Save changes";
@@ -1089,9 +1085,8 @@ export function ControlEvaluationPanel({
   // this control goes out as a single write: the Implemented fact that puts it
   // in assessment scope, a PRISMA override for every lane they moved off its
   // derived rating, the control review that signs the lot, and whatever else
-  // was already staged in the draft. Nothing commits behind the footer's back
-  // any more — recording a first assessment used to, which is why the "N
-  // unsaved" count could reset without the operator pressing Save.
+  // was already staged in the draft. Nothing commits behind the footer's back,
+  // or the "N unsaved" count resets without the operator pressing Save.
   function commitAssessment(continueWalk: boolean) {
     if (!gradingLevels || laneBlocker) return;
     setSaveError(null);
@@ -1185,7 +1180,7 @@ export function ControlEvaluationPanel({
   // Scope's other direction, recorded where the operator already is. The three
   // Scope Review sections only ask about controls the engine surfaced — a
   // control that simply applies and was never questioned is reachable from none
-  // of them, which is what the All Controls browser used to cover. It belongs on
+  // of them. It belongs on
   // the control rather than in a catalog list: this is the screen someone is
   // reading when they work out the premise does not hold here.
   //

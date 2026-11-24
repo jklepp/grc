@@ -49,19 +49,9 @@ interface AttentionItem {
   systemId?: SystemId;
 }
 
-// Everything this page derives, in one pass, keyed on the live engine.
-//
-// All of it used to sit at module scope, which cost twice over. It ran when
-// the App chunk evaluated — cockpitSummary fans out to ten uncached domain
-// calls per system, paid for before anyone had opened the dashboard — and it
-// captured the engine's `export let` bindings at import time. publish()
-// reassigns those on every commit, so a module-level snapshot kept answering
-// from the first engine forever: a save would update the workspace and leave
-// this page quietly stale.
-//
-// Escalated risks used to appear here, linking into the Risk Register. That
-// page is deprecated and no longer navigable, so the rows are gone rather
-// than left pointing at somewhere the user can't reach.
+// Everything this page derives, in one pass, keyed on the live engine. Keep it
+// out of module scope: cockpitSummary is expensive, and a module-level read
+// captures the first engine and goes stale after a save.
 function useDashboardData() {
   const liveEngine = useLiveEngine();
   // liveEngine is the cache key, not an input: the barrel functions below read
@@ -285,8 +275,6 @@ export default function ExecutiveDashboard({
   onOpenSystem?: (systemId: SystemId) => void;
   onOpenEngagement?: (engagementId: string, tab?: string) => void;
 }) {
-  // Destructured to the names the markup below already uses, so this change
-  // is where the values come from and nothing else.
   const {
     enterprise: ENTERPRISE,
     systems: SYSTEMS,

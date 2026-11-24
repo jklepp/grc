@@ -1,14 +1,5 @@
 // RISK —[carried by]→ ASSET   and   RISK —[held down by]→ CONTROL
 //
-// What replaces `linkedControl`, the free-text string that used to be a risk's
-// only connection to the rest of the model. That string was routed through a
-// hand-typed map to an assurance category, and the category's ENTERPRISE-WIDE
-// average was then reported as the risk's control assurance — so RISK-001,
-// a cross-tenant defect in the retrieval path, reported a number computed
-// across all fifteen assets including the payroll connector and the audit log
-// feed. It could not move when the RAG service moved, because it was never
-// reading the RAG service.
-//
 // With these edges, engine/risk.ts reads assurance from the assets that
 // actually carry the scenario and the controls that actually hold it down. The
 // consequence is the traceability the whole exercise is for: RISK-001's number

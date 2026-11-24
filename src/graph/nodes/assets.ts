@@ -1,20 +1,9 @@
 // Asset — a specific resource inside a system's boundary. Facts only.
 //
-// Two fields left this file since the pre-graph version:
+// Classification is not stored here: it is derived from the data the asset
+// holds (engine/classification.ts).
 //
-//   categories{}  -> edges/categoryAssessments.ts. A maturity/evidence/
-//                    effectiveness judgment about one assurance category is an
-//                    assertion ABOUT an asset, not an attribute OF one, and
-//                    modelling it as an edge is what lets a number carry the
-//                    "assessed at category level" basis instead of passing
-//                    itself off as control-level fact.
-//   classification -> DERIVED from the data the asset actually holds
-//                    (engine/rollups.ts). It used to be inherited wholesale
-//                    from the parent system, which meant all eight Production
-//                    AI Platform assets were "Restricted" and all seven Workday
-//                    assets "Confidential" regardless of what they carried.
-//
-// `kind` is new and load-bearing: it's the normalized machine-readable form of
+// `kind` is load-bearing: it's the normalized machine-readable form of
 // the free-text `type` string, and it's what edges/applicabilityRules.ts keys
 // on to decide which controls a given asset is on the hook for. `type` stays as
 // the display label. Keeping both means "AWS ECS Service (Fargate)" can be
@@ -147,7 +136,7 @@ export const BOUNDARY_INGRESS_KINDS: AssetKind[] = ["waf", "api-gateway", "saas-
 export const BOUNDARY_EGRESS_KINDS: AssetKind[] = ["egress-gateway", "export-endpoint", "integration-endpoint"];
 
 // The kinds that are primarily data stores — where data actually lands at
-// rest — rather than compute or transport. Used to pull these out of the
+// rest — rather than compute or transport. Pulled out of the
 // request-path stage sequence and into their own Data Plane section on the
 // flow diagram: where the data actually lands is a distinct fact from how
 // many hops it took to get there. A cache still counts: a session or

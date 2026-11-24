@@ -7,11 +7,8 @@
 // doesn't apply, or a bottom-up classification rollup that no longer reproduces
 // the answer a human reached top-down.
 //
-// This used to run at module load, as a side effect of importing the engine.
-// It now takes an engine, because a check that needs derived values needs
-// something to have derived them — and because a test that WANTS a broken graph
-// (to assert these checks actually fire) has to be able to build one without
-// the import itself exploding.
+// Takes an engine rather than running at import, so a test can build a broken
+// graph and assert these checks fire.
 import { CLASS_ORDER } from "../theme";
 import { CLASSIFICATION_TIERS, ASSURANCE_CATEGORIES } from "../graph/nodes/taxonomy";
 import { isForcedNotApplicable } from "./review";
@@ -163,11 +160,9 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
     });
   });
 
-  // An asset no longer has an assurance score or category scores to check —
-  // it is a diagnostic now, not a scoring subject. What still has to resolve is
-  // everything derived from the asset's OWN facts: FIPS 199 impact level (the
-  // inventory tag) and classification (which still decides which controls apply).
-  // The system's FIPS 199 overall impact, not the asset's, is the enterprise-hop weight.
+  // An asset has no score; what must still resolve is what derives from its own
+  // facts: FIPS 199 impact level and classification (which decides which
+  // controls apply).
   rollups.assetRollups.forEach((a) => {
     check(Boolean(a.impactLevelBand?.label), `asset ${a.id}: impactLevel did not resolve to a FIPS 199 band`);
     check(Boolean(a.classification), `asset ${a.id}: classification did not derive — check its data-type edges`);
@@ -360,7 +355,7 @@ export function validateDerivations(engine: Engine, options: { throwOnFailure?: 
   });
 
   // ---- The system score itself -------------------------------------------------
-  // The hero number on every page. It is now a weighted mean over categories
+  // The hero number on every page: a weighted mean over categories
   // that each renormalize over whatever was assessed, and the failure mode of
   // that shape is silence: a category with nothing in it contributes no entry,
   // and if every category emptied the mean would be null rather than an error.

@@ -1,7 +1,6 @@
 // Identity & Access — who can authenticate into a system, how, and where the
-// exceptions are. Replaces the crude oktaEnforced/mfaEnforced strings on
-// System with a real population breakdown: "MFA = compliant" answers nothing
-// next to "3 of 31 privileged users lack phishing-resistant MFA."
+// exceptions are, as a population breakdown: "3 of 31 privileged users lack
+// phishing-resistant MFA."
 //
 // A population row is an aggregate observation, not one row per real human —
 // consistent with how the system's FIPS 199 security category is scored at

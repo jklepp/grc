@@ -605,11 +605,8 @@ export const PROCEDURES: AuthoredProcedure[] = PROCEDURE_DEFS.map((p) => {
   const controlIds = CCF_VISIBLE_CONTROLS.filter((c) => p.domains.includes(c.domain)).map((c) => c.id);
   const citedIds = new Set();
 
-  // The "a step may only cite its own SOP's controls" check moved to
-  // graph/validate.ts when SOPs became facts. It ran here as a module-load side
-  // effect, which meant it fired on page import rather than graph construction,
-  // and could never be exercised against a deliberately broken fact set —
-  // scripts/check-validator-fires.mjs now does exactly that.
+  // The "a step may only cite its own SOP's controls" check lives in
+  // graph/validate.ts, not here.
   p.steps.forEach((s) => {
     (s.controls || []).forEach((id) => citedIds.add(id));
   });

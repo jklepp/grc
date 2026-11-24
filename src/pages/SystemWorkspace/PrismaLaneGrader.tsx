@@ -143,11 +143,8 @@ export function laneGraderBlocker(args: {
   if (!assessed && !isProgramScoped && assetOptions.length === 0) {
     return "No registered asset requires this asset-scoped control. Update asset attributes or mark it Not In Scope.";
   }
-  // No gate on the signature any more. It used to name where a missing one
-  // would have to come from, because the operator had no box to fix it in; the
-  // assessment is signed with whoever is signed in now, so there is no state in
-  // which it can be absent. 5.1 is satisfied by construction rather than by a
-  // check that could never pass its own failure.
+  // No signature gate: the assessment is signed by whoever is signed in, so it
+  // cannot be absent (5.1).
   if (!assessed) {
     if (implemented == null) return "Pick where the Implemented lane stands.";
     if (implemented === 0) {

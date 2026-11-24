@@ -1,6 +1,5 @@
 // The three card types the canvas draws, plus the invisible handle set they
-// share. Ported from the OneShotSec prototype's node card and re-themed onto
-// the app's tokens: fixed-size card, four-pixel posture strip along the top,
+// share: fixed-size card, four-pixel posture strip along the top,
 // icon, name, type sub-label, one badge.
 //
 // ONE badge, deliberately. The asset rollup carries impact, findings, evidence

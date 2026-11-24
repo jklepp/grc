@@ -296,9 +296,8 @@ export function BarRow({ label, count, applicable, fill, active, onClick, traili
 // One card: the assurance anchor, then a bar per status ranked largest-first,
 // then Responsibility as a quiet footer.
 //
-// This replaces a single segmented bar whose segments shared no baseline —
-// only the leftmost one started at zero, so comparing the middle segments was
-// guesswork. Ranked bars make the comparison a length. Ranking also puts
+// Ranked bars make the comparison a length (a segmented bar's middle segments
+// share no baseline). Ranking also puts
 // whatever is largest at the top without anyone deciding it belongs there,
 // which on a partly-assessed system is Not Assessed, i.e. the thing most
 // worth seeing first.
@@ -310,9 +309,7 @@ export function BarRow({ label, count, applicable, fill, active, onClick, traili
 // that gives up a little ordering purity.
 //
 // Neither group is titled. The hatched fill already says which row is the
-// unexamined one, and a gap does the dividing — two eyebrow labels and a
-// summary sentence were three pieces of chrome to separate five bars. The
-// gap is what keeps the fixed order legible: when Not Assessed is small it
+// unexamined one, and a gap does the dividing. The gap is what keeps the fixed order legible: when Not Assessed is small it
 // still sits above longer bars, and without the break that reads as a
 // sorting bug rather than as a group.
 function StatusChart({

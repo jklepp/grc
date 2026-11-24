@@ -3,12 +3,9 @@
 // This exists as its own module for one reason: engine/index.ts loads the facts
 // and re-exports the page-facing surface, while runtimeMutations.ts needs the
 // same facts to answer "what did the authored dataset say about this system
-// before anyone edited it". Having runtimeMutations reach back into
-// engine/index.ts would be a cycle, and having it import the YAML source
-// directly is what this change exists to stop — a static import of
-// graph/sources/yaml anywhere in the tree pulls every fact file into the
-// initial bundle and evaluates it at import time, which is exactly the
-// synchronous coupling an eventual API-backed source cannot satisfy.
+// before anyone edited it". Reaching back into engine/index.ts would be a
+// cycle, and a static import of graph/sources/yaml anywhere in the tree pulls
+// every fact file into the initial bundle.
 //
 // So the facts are set once, by whoever loaded them, and read from here.
 import type { GraphFacts } from "../graph/types";

@@ -1,12 +1,5 @@
-// Risk scoring, and the part that finally connects: a risk's control assurance
-// now comes from the assets and controls that actually carry it.
-//
-// The old assuranceForRisk() mapped a risk's free-text linkedControl to one of
-// six assurance categories through a hand-typed table, then read that
-// category's average across all fifteen assets. Every risk in a category
-// reported the same number, and none of them could move when the thing the risk
-// was about moved. RISK-001 is a defect in retrieval scoping; it reported an
-// Identity & Access average that included the payroll connector.
+// Risk scoring: a risk's control assurance comes from the controls mapped to
+// it, so it moves when the thing the risk is about moves.
 import type { Graph } from "../graph/types";
 import {
   SEVERITY_LEVELS, LIKELIHOOD_LEVELS,
@@ -136,9 +129,8 @@ export function createRisk(
     const assetEdges = graph.assetsByRisk[riskId] ?? [];
     const controlPosture = controlPostureForRisk(riskId);
 
-    // Assets are still named — which components carry this risk, and in what
-    // role, is a real fact worth showing. What they no longer do is carry a
-    // score into the number.
+    // Assets are named (which components carry this risk, in what role) but
+    // carry no score into the number.
     const assetEntries = assetEdges
       .map((e) => ({ edge: e, rollup: rollups.assetRollupById[e.assetId] }))
       .filter((x) => x.rollup)
@@ -151,16 +143,8 @@ export function createRisk(
 
     const controlScores = controlPosture.filter((c) => c.rawScore != null);
 
-    // ENTIRELY FROM THE CONTROLS NOW.
-    //
-    // This used to blend the mapped controls' scores 60/40 with the
-    // criticality-weighted assurance of the assets carrying the risk. The asset
-    // half was always the weaker argument — it answered "how healthy is the
-    // neighbourhood" rather than "what is holding this specific scenario down" —
-    // and it is unavailable anyway now that an asset has no score. Dropping it
-    // makes the risk-to-control mapping load-bearing: the 28 edges in
-    // risk-controls.yaml are the entire input, and a risk whose controls are
-    // failing has nowhere to hide behind a healthy estate.
+    // Entirely from the controls: risk-controls.yaml is the whole input, so a
+    // risk whose controls are failing cannot hide behind a healthy estate.
     const raw = controlScores.length ? mean(controlScores.map((c) => c.rawScore as number)) : null;
     const pct = display(raw);
 

@@ -1,17 +1,9 @@
 // One control, assessed against one system, across the five PRISMA levels.
 //
-// This is the unit the model is built on now. It used to be the (asset,
-// control) pair: every asset was scored against every control that applied to
-// it, and a system was the criticality-weighted average of its assets. That
-// asserted something false about how assurance is actually established —
-// nobody assesses twenty-six assets one at a time, let alone two thousand six
-// hundred. A real assessment rates a requirement statement against a boundary
-// ONCE and samples assets to decide whether it holds.
-//
-// So assets did not disappear; they moved. They are the sampling population for
-// the Implemented level and the drill-down beneath it, which is what lets the
-// model answer "was this S3 bucket shown compliant against encryption at rest"
-// without ever giving the bucket a score of its own.
+// A real assessment rates a requirement statement against a boundary once and
+// samples assets to decide whether it holds. Assets are the sampling
+// population for the Implemented level and the drill-down beneath it; they
+// never get a score of their own.
 //
 // SCORED, INHERITED, OR NEITHER
 // ------------------------------
@@ -166,9 +158,8 @@ export function createAssessment(
     activities.map((activity) => ({ activity, overdue: activityOverdue(activity) }));
 
   // ---- Operating history, resolved against ctx.now ----------------------------
-  // Same idiom as activityOverdue/certificationExpired above: the graph carries
-  // only the go-live date, "how many days has that been" is re-answered here so
-  // it moves with ctx.now instead of the date the graph was built.
+  // The graph carries only the go-live date; elapsed days are computed against
+  // ctx.now so they move with it, not with the build date.
   function operatingDaysSince(dateStr: string): number {
     return Math.floor((ctx.now.getTime() - Date.parse(dateStr)) / DAY_MS);
   }
@@ -277,8 +268,8 @@ export function createAssessment(
   //
   // A program-scoped control is tested once for the boundary rather than asset
   // by asset — asking nineteen assets whether ACME runs a risk-assessment
-  // process tests nothing nineteen times. `scope` on a key control stopped being
-  // the scoring axis in this change and became exactly this: the sampling axis.
+  // process tests nothing nineteen times. `scope` on a key control is this
+  // sampling axis.
   function populationFor(systemId: SystemId, controlId: ControlId): AssetId[] {
     const keyControl = graph.keyControlById[controlId];
     if (keyControl?.scope === "program") return [];

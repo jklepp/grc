@@ -19,10 +19,8 @@
 // controlBackedPct per asset, so "how much of this score rests on control-level
 // evidence" is itself a visible number rather than an assumption.
 //
-// The six controls systemRegister.js previously tracked by array index
-// (TRACKED_CONTROL_SCF_IDS, paired positionally with a CONTROLS name array)
-// are all here, keeping continuity with the figures those pages showed. They're
-// marked `legacyTracked` so the migration can be checked rather than trusted.
+// `legacyTracked` marks the six controls the pre-graph register tracked, so
+// that migration can be checked rather than trusted.
 //
 // `scope` matters more than it looks. Some controls are genuinely per-resource
 // ("is this bucket encrypted"); others are program-level and asking each asset

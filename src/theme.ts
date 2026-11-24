@@ -3,9 +3,7 @@
 // properties at render time, so calling applyTheme() updates the whole app in place
 // without needing Context or prop drilling.
 
-// The font request lives in index.html, as markup the preload scanner can
-// see. It used to be an @import injected through a React <style>, which
-// could not begin until the entry chunk had parsed and React had committed.
+// The font request lives in index.html so the preload scanner can see it.
 
 export const DARK = {
   bg: "#17161A",
@@ -21,8 +19,8 @@ export const DARK = {
   // base accent reads too light against dark ink text on top of it.
   accentStrong: "#5B3F9E",
   green: "#5FB98A",
-  // Severity escalation now runs green -> teal -> blue -> indigo instead of
-  // the traffic-light green -> amber -> red. No hue in this ramp reads as a
+  // Severity escalation runs green -> teal -> blue -> indigo, not traffic
+  // lights. No hue in this ramp reads as a
   // stop-light "warning" or "danger" color; escalation is carried by
   // increasing saturation/darkness (light teal -> deep indigo) the same way
   // the System Badges tier gradients already do. Token keys are still named

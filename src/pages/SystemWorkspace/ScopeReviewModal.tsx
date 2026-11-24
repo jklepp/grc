@@ -30,7 +30,7 @@ import { canReviewScope, allows } from "../../auth/gates";
 // programs, standing on ACME's own program-level evidence, where the question is
 // whether the program reaches this boundary — never a self-attestation.
 //
-// There is deliberately no catalog browser here any more. Excluding a control
+// There is deliberately no catalog browser here. Excluding a control
 // the rules never questioned is a judgement about that one control, so it lives
 // on the control itself — the Scope section of ControlEvaluationPanel — not in a
 // searchable list bolted to the side of a guided review.
@@ -80,8 +80,8 @@ export function ScopeReviewModal({
   const [view, setView] = useState<ScopeView>("out-of-scope");
   const [saveError, setSaveError] = useState<string[] | null>(null);
 
-  // The reviewer of record is no longer typed — it is whoever is signed in.
-  // A signature a person can edit is not a signature.
+  // The reviewer of record is whoever is signed in. A signature a person can
+  // edit is not a signature.
   const user = useSignedInUser();
   const scopePermission = canReviewScope(user);
 
@@ -111,13 +111,9 @@ export function ScopeReviewModal({
   // What the Control Assessment Wizard will ACTUALLY put in front of the
   // operator when they leave here — built the same way that wizard builds it,
   // from the same function, so this screen cannot promise a workload the next
-  // screen does not deliver.
-  //
-  // This used to read walk.waves["system-owned"].remaining.length, which is a
-  // different population: that wave drops inherited and program-scoped controls
-  // because it exists to ORDER this review's own sections, not to describe the
-  // grading queue. On a runtime-created system the two differed roughly four to
-  // one, so the rail advertised 21 and the walk opened with 90.
+  // screen does not deliver. Not walk.waves["system-owned"]: that wave drops
+  // inherited and program-scoped controls to order this review's sections, and
+  // can differ from the grading queue roughly four to one.
   // A key control still waiting on an inheritance decision here does not
   // belong in the technical queue yet — see recordAssessment.ts's
   // keyControlAssessmentQueue. Excluding it is what lets Control Assessment
@@ -167,8 +163,7 @@ export function ScopeReviewModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groups, liveEngine, systemId]);
 
-  // Same name, different question. This used to mean "has a reviewer name been
-  // typed"; it now means "may this person record a scope decision at all".
+  // Whether this person may record a scope decision at all.
   const canWrite = allows(scopePermission);
 
   // Where to land when the modal OPENS: the earliest section still holding
@@ -332,8 +327,7 @@ export function ScopeReviewModal({
   // word as the Add System wizard (4.11): the eyebrow places you, the title is
   // the step's own name exactly as the rail and the engine spell it
   // (2.2, 2.7), and the description is the one imperative instruction for
-  // doing the work here (2.5). Each section used to open with this sentence as
-  // a Callout inside the pane, where it scrolled away with the first row.
+  // doing the work here (2.5).
   //
   // The completion panel is a screen of its own, not a step, so it names
   // itself rather than borrowing whichever step the rail happens to be on.

@@ -6,9 +6,8 @@ import type { SystemWorkspaceTab } from "./tabs";
 
 // The landing page of the Details group — reached by clicking the tab bar's
 // "Details" button itself, the same way TopNav's grouped items open a landing
-// page while their dropdown jumps straight to one area. It holds what used to
-// sit below Overview's two assurance sections, so Overview stays exactly two
-// readings of this system's posture and its readiness to be assessed.
+// page while their dropdown jumps straight to one area. It keeps Overview to
+// exactly two readings of this system's posture and its readiness to be assessed.
 interface SystemDetailsProps {
   system: WorkspaceSystem;
   cockpit: CockpitSummary;

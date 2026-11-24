@@ -50,10 +50,8 @@ function impactShort(asset: DiagramNode["ref"]): string {
 function AssetNode({ node }: { node: DiagramNode }) {
   const asset = node.ref;
   if (!("impactLevel" in asset)) return null;
-  // FIPS 199 impact level, not assurance. An asset no longer has an assurance
-  // score — the control that applies to it is scored at the system boundary
-  // instead — so what a node can honestly colour by is how much its compromise
-  // would cost.
+  // FIPS 199 impact level, not assurance: an asset has no score, so a node is
+  // coloured by what its compromise would cost.
   const bandColors: Record<string, string> = { green: LIGHT.green, amber: LIGHT.amber, red: LIGHT.red, na: LIGHT.na };
   const bandColor = bandColors[asset.impactLevelBand?.color] || LIGHT.na;
   return (

@@ -51,10 +51,6 @@ function AssuranceChip({ label, value, band }: { label: string; value: ReactNode
   );
 }
 
-// AssuranceCategoryBar and PROFILE_STATUS_META are gone with the per-asset
-// category rollups and per-asset profile evaluation they drew. Categories are
-// still scored and still evaluated against the tier profile — once per system,
-// in the engine (evaluateSystemAgainstProfile).
 function AssuranceRiskCard({ title, risk }: { title: string; risk: AssetRollup["inherentRisk"] }) {
   const { color, bg } = colorFor(risk.band.color);
   return (
@@ -159,13 +155,8 @@ function joinAnd(items: string[]): string {
   return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
 }
 
-// The weakest CONTROL in the boundary, not the weakest asset.
-//
-// This banner used to name whichever asset scored lowest. That was always a
-// vaguer statement than it looked — an asset is a container, and "the vector
-// database is weakest" does not tell anybody what to go and fix. Naming the
-// requirement that is failing does, and the instances beneath it name the
-// asset anyway.
+// The weakest CONTROL in the boundary, not the weakest asset: naming the
+// failing requirement says what to fix, and its instances name the asset.
 function WeakestLinkBanner({ system }: { system: SystemRollup }) {
   const weak = system.weakestControl;
   if (!weak) return null;

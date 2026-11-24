@@ -40,11 +40,9 @@ function overviewTab(tab?: string): OverviewTab | undefined {
   return tab != null && isVisibleOverviewArea(tab) ? tab : undefined;
 }
 
-// Old top-level ids for pages that got folded into a consolidated page (e.g.
-// "asset-register" into Data Estate). Other pages still call onNavigate with
-// these ids, so this keeps those links working — landing on the consolidated
-// page, opened to the tab the old id used to mean — without having to touch
-// every caller each time another consolidation happens.
+// Old top-level ids for pages folded into a consolidated page. Other pages
+// still call onNavigate with these ids; each lands on the consolidated page,
+// opened to the tab the id meant.
 interface LegacyRoute {
   page: NavigationPageId;
   tab: string;

@@ -1,23 +1,6 @@
 // Framework posture, derived from implementations rather than asserted.
 //
-// Two things this replaces, both of which produced numbers with nothing under
-// them:
-//
-//   controlBreakdown()  split a system's required-control count into Inherited /
-//                       Satisfied / Open Gaps / Not Implemented by applying the
-//                       compliant/partial/gap ratio of six tracked controls to
-//                       the whole in-scope-control total. So a system's compliance
-//                       posture was six data points wearing a much larger
-//                       number's clothes.
-//
-//   getSystemControlMatrix()  needed a status for every control and had one for
-//                       six of them, so it ordered the rest by hashStr(systemId
-//                       + controlId) and dealt them into buckets until the
-//                       totals matched. It was deterministic and clearly
-//                       labelled, but the status on any given row was invented.
-//
-// Here every control resolves to one of these states, each meaning something
-// specific:
+// Every control resolves to one of these states:
 //
 //   inherited  the provider's certification covers this domain under the
 //              shared-responsibility split (graph/nodes/systems.ts)
@@ -27,12 +10,8 @@
 //   not-implemented  assessed, and it is absent
 //   unassessed applicable, and outside the declared assessment scope
 //
-// The matrix no longer stays fully populated with scores, and that is the
-// change. It used to fall back to "assessed at category level" for every
-// control nobody tracked, which kept every row carrying a number — but the
-// number came from a category judgment typed once per asset, not from anything
-// about the control. Now a control nobody assessed says so, and the coverage
-// figure beside the score says how many of those there are.
+// A control nobody assessed says so; the coverage figure beside the score says
+// how many there are.
 import type { Graph } from "../graph/types";
 import type { Control } from "../graph/nodes/controls";
 import { BASIS } from "../graph/nodes/taxonomy";
@@ -55,20 +34,12 @@ export const COVERAGE_STATUS_META = {
   deficient: { label: "Deficient", color: "red", basis: BASIS.MEASURED },
   "not-implemented": { label: "Not implemented", color: "red", basis: BASIS.MEASURED },
   inherited: { label: "Inherited", color: "accent", basis: BASIS.INHERITED },
-  // "Assessed at category level" is gone with the category assessments it named.
-  // A control outside the declared scope is unassessed, and saying so is the
-  // point — the old label let an unexamined control read as an examined one.
   unassessed: { label: "Not in assessment scope", color: "muted", basis: BASIS.UNASSESSED },
 };
 
 // Worst status first, for the pages that rank rows by how bad they are. A
 // control that holds on five assets and fails on a sixth is not "mostly
 // satisfied" — the sixth is the finding.
-//
-// aggregateImplementationStatus() used to live here and derive a status by
-// walking a control's per-asset implementations. It is gone: the status is now
-// read off the assessment's Implemented level, which is one named rating rather
-// than a second aggregation that could disagree with the score beside it.
 export const STATUS_RANK: Record<string, number> = {
   "not-implemented": 0, deficient: 1, partial: 2, unassessed: 3, inherited: 4, satisfied: 5,
 };
@@ -121,11 +92,6 @@ export function createCompliance(
   // it is documented, measured and managed, which is the score's job to weigh,
   // not this status's. Deriving it from one named rating also means a row's
   // status and its score can never tell different stories.
-  //
-  // "assessed" is gone from the produced set. It used to mean "not tracked
-  // individually, but its category was judged," and that fallback died with the
-  // category assessments. A control nobody assessed is now unassessed, which is
-  // the same fact stated honestly.
   function coverageStatus(a: ControlAssessment): CoverageStatus {
     if (!a.assessed) return "unassessed";
     if (a.inherited) return "inherited";
@@ -185,12 +151,9 @@ export function createCompliance(
   }
 
   // The full matrix for one system — every control that applies to it, sorted
-  // by domain then id, the same ordering the SSP page used.
-  //
-  // The row set widened here. It used to be controlsForStandards(); it is now
-  // everything applicability says applies, which additionally picks up controls
-  // a rule requires on an asset even where the system's standards do not name
-  // them. See applicability.applicableControlsForSystem for why.
+  // by domain then id. The row set is everything applicability says applies,
+  // including controls a rule requires on an asset that the system's standards
+  // do not name (see applicability.applicableControlsForSystem).
   function systemControlMatrix(systemId: SystemId) {
     return applicability
       .applicableControlsForSystem(systemId)
@@ -338,9 +301,8 @@ export function createCompliance(
 
   // ---- Framework posture ----------------------------------------------------
   // A clause is as covered as the controls that satisfy it, across every system
-  // certifying against that framework. This is the payoff the old model couldn't
-  // reach: when an S3 IAM control fails, the SOC 2 clauses citing that control
-  // move, without anyone editing a compliance page.
+  // certifying against that framework: when an S3 IAM control fails, the SOC 2
+  // clauses citing it move without anyone editing a compliance page.
   function clauseCoverage(standard: string, clause: string) {
     const controls = controlsSatisfyingClause(standard, clause);
     const systems = graph.systems.filter((s) => s.standards.includes(standard));
@@ -415,18 +377,10 @@ export function createCompliance(
     };
   }
 
-  // The per-clause detail one system shows for one standard.
-  //
-  // This is what `standardMappings` used to be: a hand-typed list per system of
-  // "CC6.1 — Encryption at Rest — 92% confident — full — <reasoning>". Every one
-  // of those four fields was written next to the others and checked by nobody.
-  // Now the clause comes from the crosswalk, the control from the crosswalk, the
-  // confidence from the implementations' real scores, the status from their real
-  // worst case, and the reasoning states which control and asset drove it.
-  //
-  // Only key controls are shown. A clause satisfied purely by category-assessed
-  // controls has nothing specific to say about itself, and listing it with a
-  // derived-looking number would be the exact overclaim this replaced.
+  // The per-clause detail one system shows for one standard, all derived from
+  // the crosswalk and the implementations. Only key controls are shown: a clause
+  // satisfied purely by category-assessed controls has nothing specific to say,
+  // and a derived-looking number beside it would overclaim.
   function systemStandardMappings(systemId: SystemId, standard: string) {
     const system = graph.systemById[systemId];
     if (!system?.standards.includes(standard)) return [];
@@ -449,10 +403,8 @@ export function createCompliance(
         if (!primary || seen.has(`${primary}::${control.id}`)) return;
         seen.add(`${primary}::${control.id}`);
 
-        // The instance that made the control what it is. Ranked by status
-        // rather than by score, because an instance no longer has one — the
-        // whole point of the change is that the asset is a sample, not a
-        // scoring subject.
+        // The instance that made the control what it is, ranked by status:
+        // an instance has no score.
         const rank: Record<string, number> = {
           "not-implemented": 0, undetermined: 1, partial: 2, implemented: 3, "not-applicable": 4,
         };
@@ -515,11 +467,8 @@ export function createCompliance(
       applicable: allRows.length,
       assessed: allScored.length,
       covered: allScored.filter((r) => COVERED_STATUSES.includes(r.status)).length,
-      // Denominated on what was assessed, not on what applies. The two used to
-      // be the same number because every control fell back to a category score;
-      // now they are different questions and both are reported, because a
-      // "covered" figure that silently counts unexamined controls is the exact
-      // overclaim this model was rebuilt to stop making.
+      // Denominated on what was assessed, not on what applies; a "covered"
+      // figure that silently counted unexamined controls would overclaim.
       coveredPct: allScored.length === 0 ? 0 : Math.round((allScored.filter((r) => COVERED_STATUSES.includes(r.status)).length / allScored.length) * 100),
       assessedPct: allRows.length === 0 ? 0 : Math.round((allScored.length / allRows.length) * 100),
       measuredPct: allScored.length === 0 ? 0 : Math.round((allScored.filter((r) => r.basis === BASIS.MEASURED).length / allScored.length) * 100),

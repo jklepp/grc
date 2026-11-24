@@ -1,16 +1,5 @@
 // What one collection actually proves, and how several combine.
 //
-// Extracted verbatim from engine/implementation.ts. Nothing here changed in the
-// move — the golden master is byte-identical across it, which is the only
-// evidence worth having that an extraction was clean.
-//
-// It comes out because the question it answers stopped being specific to one
-// caller. "How much does this record prove, given its grade, its coverage, its
-// age, and what it found?" is asked by the per-asset implementation, by the
-// per-system PRISMA assessment that replaces it, and by the Measured level in
-// between. Leaving it inside the module that used to be its only consumer would
-// have meant the new one importing from a file it is replacing.
-//
 // Freshness is measured against ctx.now rather than a module-level clock read
 // at import time. See engine/context.ts for why that mattered.
 import type { Graph } from "../graph/types";

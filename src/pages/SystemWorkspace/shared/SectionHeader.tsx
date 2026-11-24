@@ -21,9 +21,8 @@ interface SectionHeaderProps {
 //
 // One shape, set by Overview and followed by every tab: the body is a stack of
 // Panels at `px-8 pb-10 space-y-8`, and a section's header lives INSIDE its
-// Panel as the first child. A header floating on the page background above a
-// row of cards is the thing this replaced — it read as a second page title
-// under the tab that had already named the page.
+// Panel as the first child; one floating above a row of cards reads as a
+// second page title.
 //
 // Architecture and Assets are the two exceptions: their body is one full-width
 // surface (the canvas, the register) that cannot sit inside a padded Panel, so
