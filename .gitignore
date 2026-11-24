@@ -32,3 +32,5 @@ sbom
 .claude/settings.local.json
 .claude/worktrees/
 .prompts/
+# graphify knowledge graph (rebuilt locally by git hooks / `graphify update .`)
+graphify-out/

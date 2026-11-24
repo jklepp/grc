@@ -2,3 +2,4 @@
 # so a commit from a Windows clone cannot introduce CRLF.
 * text=auto eol=lf
 *.pdf binary
+graphify-out/graph.json merge=graphify

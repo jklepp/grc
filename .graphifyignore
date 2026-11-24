@@ -1,0 +1,8 @@
+# Keep generated/vendor/output dirs out of the knowledge graph
+output/
+logs/
+sbom/
+dist/
+dist-container/
+node_modules/
+package-lock.json
