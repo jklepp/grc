@@ -1,3 +1,7 @@
+# Owner Instructions
+- In all interactions and commit messages, be extremely concise and sacrifice grammar for the sake of concision.
+- After each CI/CD run, including failed or canceled runs, remove temporary resources created for that run. These include Git worktrees, containers, networks, volumes, and temporary files. Preserve uncommitted work, shared resources, and any logs or artifacts needed to diagnose failures. Scope cleanup to the run’s resource IDs or labels. Avoid host-wide prune commands.
+
 # ACME ASSURE project instructions
 
 ACME ASSURE is a security assurance and visibility platform (a prototype). It is not a compliance checklist tool. Risk supports assurance; it is not the primary product model.
@@ -63,3 +67,14 @@ Run checks proportionate to the files and behavior changed:
 - `npm run check` for broad or cross-cutting changes (typecheck, lint, `check:validators`, `check:roster`).
 
 Report which checks were run and any that could not be completed.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- When graphify-out/graph.json exists, run `graphify query "<question>"` before your first grep, search or source-file read for a codebase question, and put this rule in every subagent prompt that explores code. Read raw files only for lines the graph or an earlier read already located. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. When the answer is under a Markdown heading, `graphify section "<heading>"` prints that section's text, so the .md need not be opened. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- A committed graphify-out/graph.json is rewritten whole on every build, so a large diff to it in a pull request is expected. Do not flag it as churn or suggest skipping the graph rebuild or its hooks.
