@@ -9,6 +9,18 @@
   }
 }
 
+/* One face app-wide. Pages used to set Inter on their own root, so any page
+   that didn't (Systems list, Audits, the landing pages, the top nav) fell
+   back to the system font. Form controls don't inherit font by default. */
+@layer base {
+  html {
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  }
+  button, input, select, textarea {
+    font-family: inherit;
+  }
+}
+
 /* --- Add / Edit System wizard --------------------------------------------
    One focus, hover, and disabled treatment for every control in the flow.
    The colors come from the runtime theme through the --wz-* custom properties

@@ -30,7 +30,11 @@ const themed = (key: "accent" | "ink" | "muted" | "green" | "amber" | "red") => 
 });
 
 // "certificate" reads as a common noun mid-sentence; "Type II report" keeps its capitals.
-const kindNoun = (kind: keyof typeof CERTIFICATION_KIND_LABELS) => (kind === "certificate" ? "certificate" : CERTIFICATION_KIND_LABELS[kind]);
+const kindNoun = (kind: keyof typeof CERTIFICATION_KIND_LABELS) => (kind === "certificate" || kind === "audit-report" ? CERTIFICATION_KIND_LABELS[kind].toLowerCase() : CERTIFICATION_KIND_LABELS[kind]);
+
+// Status word for a current certificate/report. HIPAA has no certification,
+// so a completed annual audit reads "Audited", never "Certified".
+const heldLabel = (kind: keyof typeof CERTIFICATION_KIND_LABELS) => (kind === "certificate" ? "Certified" : kind === "audit-report" ? "Audited" : "Report current");
 
 interface Action { label: string; kind: string; date: string; days: number }
 
@@ -71,8 +75,8 @@ export function FrameworksInScope({ system }: { system: WorkspaceSystem }) {
     const actions: Action[] = [
       ...audits.map((e) => ({ label: `${e.name} due`, kind: `Audit · ${AUDIT_TYPE_LABELS[e.auditType].replace(/ (audit|examination|assessment)$/, "")}`, date: e.dueDate, days: daysTo(e.dueDate) })),
       ...(cert ? [{
-        label: cert.kind === "certificate" ? "Current certificate expires" : `Next ${CERTIFICATION_KIND_LABELS[cert.kind]} due`,
-        kind: cert.kind === "certificate" ? "Certificate" : "Report",
+        label: cert.kind === "certificate" ? "Current certificate expires" : cert.kind === "audit-report" ? "Next annual audit due" : `Next ${CERTIFICATION_KIND_LABELS[cert.kind]} due`,
+        kind: cert.kind === "certificate" ? "Certificate" : cert.kind === "audit-report" ? "Audit" : "Report",
         date: cert.validUntil, days: daysTo(cert.validUntil),
       }] : []),
       ...calendar
@@ -96,7 +100,7 @@ export function FrameworksInScope({ system }: { system: WorkspaceSystem }) {
     const status = hitrust
       ? { label: "Cyber Assurance", ...themed("accent"), note: "Graded on all five PRISMA levels; no validated assessment on record yet." }
       : cert
-        ? { label: CERTIFICATION_KIND_LABELS[cert.kind] === "Certificate" ? "Certified" : "Report current", ...themed("green"), note: `${CERTIFICATION_KIND_LABELS[cert.kind]} from ${cert.auditFirm}, valid until ${cert.validUntil}.` }
+        ? { label: heldLabel(cert.kind), ...themed("green"), note: `${CERTIFICATION_KIND_LABELS[cert.kind]} from ${cert.auditFirm}, valid until ${cert.validUntil}.` }
         : audits.length
           ? { label: "In audit", ...themed("accent"), note: certElsewhere ? `Not yet covered by the current ${std} ${kindNoun(certElsewhere.kind)}; joins its scope with ${audits[0].name}.` : `First audit under way: ${audits[0].name}.` }
           : std === "HIPAA"

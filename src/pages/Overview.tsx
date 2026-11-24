@@ -2,11 +2,13 @@ import React from "react";
 import ExecutiveDashboard from "./ExecutiveDashboard";
 import RiskRegister from "./RiskRegister";
 import DataFootprint from "./DataFootprint";
+import ScheduledActivities from "./ScheduledActivities";
 import type { OverviewAreaId } from "./overviewAreas";
 import type { SystemId } from "../graph/ids";
 
 // Overview merges the former "Executive Dashboard" (now "Assurance
-// Overview"), "Risk Register", and "Enterprise Footprint" top-level pages
+// Overview"), "Risk Register", and "Enterprise Footprint" top-level pages,
+// plus the Governance Schedule (moved here from Governance),
 // into one route, switched by the top nav's "Overview" dropdown (see
 // TopNav.tsx) instead of an in-page tab bar. Unlike Controls/Governance,
 // there's no landing page to pick an area from first — the bare "Overview"
@@ -27,5 +29,6 @@ export default function Overview({
   // stay wired up so that clearing the flag is the entire restore.
   if (area === "risk-register") return <RiskRegister />;
   if (area === "footprint") return <DataFootprint />;
+  if (area === "schedule") return <ScheduledActivities onNavigate={onNavigate} />;
   return <ExecutiveDashboard onNavigate={onNavigate} onOpenSystem={onOpenSystem} />;
 }

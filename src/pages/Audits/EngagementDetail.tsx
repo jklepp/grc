@@ -338,7 +338,7 @@ function CloseModal({ engagement: e, onClose }: { engagement: Engagement; onClos
   // Conflicting drafts start unticked: publishing one overrides a newer answer.
   const [publish, setPublish] = useState<Set<string>>(() => new Set(preview.diff.filter((d) => !d.conflict).map((d) => d.row.key)));
   const [issue, setIssue] = useState(e.focus === "external");
-  const [kind, setKind] = useState<CertificationKind>(e.auditType === "type-2" ? "type-2-report" : e.auditType === "type-1" ? "type-1-report" : e.auditType === "hitrust-r2" ? "validated-assessment" : "certificate");
+  const [kind, setKind] = useState<CertificationKind>(e.auditType === "type-2" ? "type-2-report" : e.auditType === "type-1" ? "type-1-report" : e.auditType === "hitrust-r2" ? "validated-assessment" : e.auditType === "annual" ? "audit-report" : "certificate");
   const [issuedAt, setIssuedAt] = useState(closedAt.slice(0, 10));
   const [validUntil, setValidUntil] = useState(() => { const d = new Date(); d.setFullYear(d.getFullYear() + (kind === "certificate" ? 3 : 1)); return d.toISOString().slice(0, 10); });
   const [reference, setReference] = useState("");

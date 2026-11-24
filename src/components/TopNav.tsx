@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Sun, Moon, LayoutDashboard, Database, Landmark, Share2, ChevronDown, LogOut, Menu, Settings, X } from "lucide-react";
+import { Sun, Moon, LayoutDashboard, Database, Landmark, ShieldCheck, Share2, ChevronDown, LogOut, Menu, Settings, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ThemeMode } from "../theme";
 import { GOVERNANCE_AREAS } from "../pages/governanceAreas";
 import type { GovernanceAreaId } from "../pages/governanceAreas";
+import { COMPLIANCE_AREAS } from "../pages/complianceAreas";
+import type { ComplianceAreaId } from "../pages/complianceAreas";
 import { VISIBLE_OVERVIEW_AREAS } from "../pages/overviewAreas";
 import type { OverviewAreaId } from "../pages/overviewAreas";
 import { ROLE_LABELS, initialsOf } from "../auth/roster";
@@ -27,27 +29,31 @@ const TB = {
 // item that is missing for four users out of five reads as a broken bar. It is
 // reached from the user menu instead, which is where the person it belongs to
 // already is.
-export type NavigationPageId = "overview" | "data-estate" | "governance" | "graph-explorer" | "settings";
+export type NavigationPageId = "overview" | "data-estate" | "compliance" | "governance" | "graph-explorer" | "settings";
 
 // Governance's sub-areas route through the same legacy ids App.jsx's
 // LEGACY_ROUTES already maps to (page: "governance", tab: <area>) — this just
 // avoids re-deriving them from the area id text.
 const GOVERNANCE_LEGACY_ID: Record<GovernanceAreaId, string> = {
+  policy: "policy-center",
+  procedures: "procedure-library",
+  principles: "security-principles",
+  exceptions: "exception-register",
+};
+
+// Compliance's sub-areas: the ids LEGACY_ROUTES maps to (page: "compliance").
+const COMPLIANCE_LEGACY_ID: Record<ComplianceAreaId, string> = {
   ccf: "ccf",
   frameworks: "compliance-frameworks",
   audits: "audits",
   obligations: "external-obligations",
-  policy: "policy-center",
-  procedures: "procedure-library",
-  principles: "security-principles",
-  schedule: "activity-timeliness",
-  exceptions: "exception-register",
 };
 
 // Same idea for Overview's sub-areas: the legacy ids App.jsx's LEGACY_ROUTES
 // already maps to (page: "overview", tab: <area>).
 const OVERVIEW_LEGACY_ID: Record<OverviewAreaId, string> = {
   dashboard: "executive-dashboard",
+  schedule: "activity-timeliness",
   "risk-register": "risk-register",
   footprint: "data-footprint",
 };
@@ -71,6 +77,10 @@ interface NavArea { id: string; label: string; icon: LucideIcon }
 
 const OVERVIEW_NAV_AREAS: NavArea[] = VISIBLE_OVERVIEW_AREAS.map((a) => ({
   id: OVERVIEW_LEGACY_ID[a.id], label: a.label, icon: a.icon,
+}));
+
+const COMPLIANCE_NAV_AREAS: NavArea[] = COMPLIANCE_AREAS.map((a) => ({
+  id: COMPLIANCE_LEGACY_ID[a.id], label: a.label, icon: a.icon,
 }));
 
 const GOVERNANCE_NAV_AREAS: NavArea[] = GOVERNANCE_AREAS.map((a) => ({
@@ -214,6 +224,15 @@ export default function TopNav({ active, onSelect, user, onSignOut, onOpenSettin
           onSelectArea={onSelect}
         />
         <NavButton item={ITEMS[0]} isActive={active === "data-estate"} onClick={() => onSelect("data-estate")} />
+        <GroupedNavButton
+          id="compliance"
+          label="Compliance"
+          icon={ShieldCheck}
+          isActive={active === "compliance"}
+          areas={COMPLIANCE_NAV_AREAS}
+          onSelect={onSelect}
+          onSelectArea={onSelect}
+        />
         <GroupedNavButton
           id="governance"
           label="Governance"
@@ -509,6 +528,11 @@ function NavDrawer({ active, user, onSelect, onSignOut, onOpenSettings, onClose 
           ))}
 
           <DrawerRow icon={SystemsIcon} label={systemsItem.label} active={active === "data-estate"} onClick={() => go(systemsItem.id)} />
+
+          <DrawerRow icon={ShieldCheck} label="Compliance" active={active === "compliance"} onClick={() => go("compliance")} />
+          {COMPLIANCE_NAV_AREAS.map((area) => (
+            <DrawerRow key={area.id} icon={area.icon} label={area.label} indent onClick={() => go(area.id)} />
+          ))}
 
           <DrawerRow icon={Landmark} label="Governance" active={active === "governance"} onClick={() => go("governance")} />
           {GOVERNANCE_NAV_AREAS.map((area) => (

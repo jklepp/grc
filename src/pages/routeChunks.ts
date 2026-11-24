@@ -15,6 +15,7 @@ import type { NavigationPageId } from "../components/TopNav";
 // request rather than two.
 export const ROUTE_CHUNKS: Record<NavigationPageId, () => Promise<unknown>> = {
   "data-estate": () => import("./Systems"),
+  compliance: () => import("./Compliance"),
   governance: () => import("./Governance"),
   overview: () => import("./Overview"),
   "graph-explorer": () => import("./GraphExplorer"),

@@ -1,4 +1,4 @@
-import { LayoutDashboard, AlertTriangle, Database } from "lucide-react";
+import { LayoutDashboard, AlertTriangle, CalendarClock, Database } from "lucide-react";
 
 // `deprecated` areas stay in this list on purpose: their ids still type-check,
 // their pages still build, and their routes still parse — they are simply not
@@ -12,6 +12,13 @@ export const OVERVIEW_AREAS = [
     shortLabel: "Assurance Overview",
     icon: LayoutDashboard,
     description: "The board-level read on enterprise assurance and operational readiness.",
+  },
+  {
+    id: "schedule",
+    label: "Governance Schedule",
+    shortLabel: "Schedule",
+    icon: CalendarClock,
+    description: "Track recurring governance activities, due dates, completion, and work at risk of becoming overdue.",
   },
   {
     id: "risk-register",

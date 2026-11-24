@@ -10,7 +10,7 @@ import { PageHeader } from "../components/Headings";
 import { useLiveEngine } from "../engine/useLiveEngine";
 import type { SystemId } from "../graph/ids";
 import {
-  ALL_FINDINGS, COMPLIANCE_TARGET, MATERIAL_RISKS, cockpitSummary,
+  ALL_FINDINGS, COMPLIANCE_TARGET, cockpitSummary,
   getAllSystems, getEnterprise,
 } from "../engine";
 
@@ -29,6 +29,11 @@ interface AttentionItem {
   status: string;
   title: string;
   detail: string;
+  /** "Finding", or the operational domain the cockpit raised it under. */
+  source: string;
+  systemName: string;
+  owner?: string;
+  due?: string;
   target: "data-estate";
   systemId?: SystemId;
 }
@@ -65,7 +70,7 @@ function useDashboardData() {
       }),
       { assessed: 0, applicable: 0 }
     );
-    const materialRiskIds = new Set(MATERIAL_RISKS.map((risk) => risk.id));
+    const systemName = (id: SystemId) => systems.find((s) => s.id === id)?.name ?? id;
 
     // "Important" is a visible, deterministic FIPS 199 rule rather than a
     // hand-maintained dashboard flag. A High-impact boundary belongs here;
@@ -76,14 +81,17 @@ function useDashboardData() {
       .sort((a, b) => (a.system.complianceScore ?? -1) - (b.system.complianceScore ?? -1));
 
     const findingAttention: AttentionItem[] = ALL_FINDINGS.map((finding) => {
-      const material = finding.riskIds.some((id) => materialRiskIds.has(id));
       return {
         id: `finding:${finding.id}`,
-        priority: finding.overdue ? 0 : material ? 1 : 3,
-        tone: finding.overdue || material ? "urgent" : "medium",
-        status: finding.overdue ? "Overdue" : material ? "Material risk" : "Finding",
+        priority: finding.overdue ? 0 : 3,
+        tone: finding.overdue ? "urgent" : "medium",
+        status: finding.overdue ? "Overdue" : "Finding",
         title: finding.title,
-        detail: `${finding.systemIds.join(", ")} · ${finding.ownerName} · due ${finding.due}`,
+        detail: finding.systemIds.length > 1 ? `Also affects ${finding.systemIds.slice(1).map(systemName).join(", ")}` : "",
+        source: "Finding",
+        systemName: systemName(finding.systemIds[0]),
+        owner: finding.ownerName,
+        due: finding.due,
         target: "data-estate",
         systemId: finding.systemIds[0],
       };
@@ -98,7 +106,9 @@ function useDashboardData() {
           tone: item.severity === "critical" || item.severity === "high" ? "high" as const : "medium" as const,
           status: item.severity === "critical" ? "Critical" : item.severity === "high" ? "High" : "Attention",
           title: item.label,
-          detail: `${system.name} · ${item.detail}`,
+          detail: item.detail,
+          source: item.domain,
+          systemName: system.name,
           target: "data-estate" as const,
           systemId: system.id,
         }))
@@ -138,7 +148,8 @@ function systemStatusColor(clears: boolean): { color: string; background: string
 
 // How many compliance dates the Overview shows; the rest are on the
 // Governance Schedule.
-const SHOWN_COMPLIANCE_DATES = 4;
+const SHOWN_COMPLIANCE_DATES = 3;
+const SHOWN_ATTENTION = 8;
 // A date this close reads as "act now" rather than "on the horizon".
 const COMPLIANCE_SOON_DAYS = 30;
 
@@ -166,63 +177,56 @@ function ComplianceDates({ dates, onNavigate }: {
   const remaining = dates.length - shown.length;
   return (
     <section
-      className="rounded-2xl p-5"
+      className="xl:col-span-2 rounded-2xl p-5 flex flex-col"
       style={{ background: C.panel, border: `1px solid ${C.border}` }}
       aria-labelledby="compliance-dates-title"
     >
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <div className="flex items-center gap-2">
-            <ShieldCheck size={17} color={C.accent} />
-            <h2 id="compliance-dates-title" className="text-xl font-semibold" style={{ color: C.ink }}>Upcoming compliance dates</h2>
-          </div>
-          <p className="text-xs mt-1" style={{ color: C.muted }}>ISO 27001, SOC 2, and vendor report deadlines, soonest first.</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => onNavigate?.("activity-timeliness")}
-          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg wz-hover"
-          style={{ color: C.accent }}
-        >
-          {remaining > 0 ? `${remaining} more on the Governance Schedule` : "Governance Schedule"} <ArrowRight size={13} />
-        </button>
+      <div className="flex items-center gap-2">
+        <ShieldCheck size={17} color={C.accent} />
+        <h2 id="compliance-dates-title" className="text-xl font-semibold" style={{ color: C.ink }}>Upcoming compliance dates</h2>
       </div>
+      <p className="text-xs mt-1 mb-3" style={{ color: C.muted }}>ISO 27001, SOC 2, and vendor report deadlines, soonest first.</p>
 
       {shown.length === 0 ? (
-        <div className="py-6 text-sm" style={{ color: C.muted }}>No compliance dates are coming up.</div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mt-4">
-          {shown.map(({ entry, daysUntil }) => {
-            const due = parseLocalDate(entry.dueDate);
-            const tone = countdownColors(daysUntil);
-            return (
-              <div
-                key={entry.key}
-                className="flex items-start gap-3 rounded-xl p-3"
-                style={{ background: C.accentBg, boxShadow: `inset 0 0 0 1px ${C.accent}66` }}
-                title={entry.note}
-              >
-                <div className="w-12 shrink-0 rounded-lg text-center py-1.5" style={{ background: C.panel, border: `1px solid ${C.accent}66` }}>
-                  <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.accent }}>
-                    {due.toLocaleDateString(undefined, { month: "short" })}
-                  </div>
-                  <div className="text-xl leading-tight" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>
-                    {due.getDate()}
-                  </div>
-                  <div className="text-[9px]" style={{ color: C.muted }}>{due.getFullYear()}</div>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold leading-snug" style={{ color: C.ink }}>{entry.title}</div>
-                  <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{entry.type}</div>
-                  <span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full mt-2" style={tone}>
-                    {countdown(daysUntil)}
-                  </span>
-                </div>
+        <div className="py-6 text-sm" style={{ color: C.muted, borderTop: `1px solid ${C.border}` }}>No compliance dates are coming up.</div>
+      ) : shown.map(({ entry, daysUntil }) => {
+        const due = parseLocalDate(entry.dueDate);
+        const tone = countdownColors(daysUntil);
+        return (
+          <div
+            key={entry.key}
+            className="flex items-center gap-3 py-2.5"
+            style={{ borderTop: `1px solid ${C.border}` }}
+            title={entry.note}
+          >
+            <div className="w-12 shrink-0 rounded-lg text-center py-1.5" style={{ background: C.accentBg, border: `1px solid ${C.accent}66` }}>
+              <div className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.accent }}>
+                {due.toLocaleDateString(undefined, { month: "short" })}
               </div>
-            );
-          })}
-        </div>
-      )}
+              <div className="text-xl leading-tight" style={{ color: C.ink, fontFamily: "'Source Serif 4', serif", fontWeight: 600 }}>
+                {due.getDate()}
+              </div>
+              <div className="text-[9px]" style={{ color: C.muted }}>{due.getFullYear()}</div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold leading-snug" style={{ color: C.ink }}>{entry.title}</div>
+              <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{entry.type}</div>
+            </div>
+            <span className="text-[10px] font-semibold px-2 py-1 rounded-full shrink-0" style={tone}>
+              {countdown(daysUntil)}
+            </span>
+          </div>
+        );
+      })}
+
+      <button
+        type="button"
+        onClick={() => onNavigate?.("activity-timeliness")}
+        className="self-start flex items-center gap-1.5 text-xs font-semibold mt-auto pt-3 px-3 pb-2 rounded-lg wz-hover"
+        style={{ color: C.accent }}
+      >
+        {remaining > 0 ? `${remaining} more on the Governance Schedule` : "Governance Schedule"} <ArrowRight size={13} />
+      </button>
     </section>
   );
 }
@@ -256,7 +260,12 @@ export default function ExecutiveDashboard({
     ...COMPLIANCE_COVERAGE,
     assessedPct: COMPLIANCE_COVERAGE.applicable === 0 ? 0 : Math.round((COMPLIANCE_COVERAGE.assessed / COMPLIANCE_COVERAGE.applicable) * 100),
   };
-  const shownAttention = ATTENTION_ITEMS.slice(0, 5);
+  const shownAttention = ATTENTION_ITEMS.slice(0, SHOWN_ATTENTION);
+  const attentionCounts = [
+    { label: "Overdue findings", value: ATTENTION_ITEMS.filter((i) => i.status === "Overdue").length, tone: "urgent" as const },
+    { label: "Critical / high operational", value: ATTENTION_ITEMS.filter((i) => i.tone === "high").length, tone: "high" as const },
+    { label: "Systems affected", value: new Set(ATTENTION_ITEMS.map((i) => i.systemName)).size, tone: null },
+  ];
   const remainingAttention = Math.max(0, ATTENTION_ITEMS.length - shownAttention.length);
   const lastSynced = SYSTEMS[0]?.lastSynced ?? "live";
 
@@ -308,13 +317,9 @@ export default function ExecutiveDashboard({
               />
             </div>
             <div className="flex flex-wrap gap-x-8 gap-y-3 mt-5">
-              <div className="pr-8" style={{ borderRight: `1px solid ${C.border}` }}>
+              <div className="pr-8" style={{ borderRight: ENTERPRISE.assurance != null ? `1px solid ${C.border}` : undefined }}>
                 <div className="text-xl font-semibold">{coverage.assessedPct}%</div>
                 <div className="text-xs" style={{ color: C.muted }}>Assessment coverage · {coverage.assessed} of {coverage.applicable}</div>
-              </div>
-              <div className="pr-8" style={{ borderRight: `1px solid ${C.border}` }}>
-                <div className="text-xl font-semibold">{MATERIAL_RISKS.length}</div>
-                <div className="text-xs" style={{ color: C.muted }}>Material risks above appetite</div>
               </div>
               {ENTERPRISE.assurance != null && (
                 <div>
@@ -329,9 +334,9 @@ export default function ExecutiveDashboard({
         </section>
       </div>
 
-      <div className="px-4 lg:px-8 pt-8 pb-8 grid grid-cols-1 xl:grid-cols-5 gap-8 items-start">
+      <div className="px-4 lg:px-8 pt-8 pb-8 grid grid-cols-1 xl:grid-cols-5 gap-8">
         <section
-          className="xl:col-span-3 rounded-2xl p-5"
+          className="xl:col-span-3 rounded-2xl p-5 flex flex-col"
           style={{ background: C.panel, border: `1px solid ${C.border}` }}
           aria-labelledby="important-systems-title"
         >
@@ -396,15 +401,19 @@ export default function ExecutiveDashboard({
           <button
             type="button"
             onClick={() => onNavigate?.("data-estate")}
-            className="flex items-center gap-1.5 text-xs font-semibold mt-3 px-3 py-2 rounded-lg wz-hover"
+            className="self-start flex items-center gap-1.5 text-xs font-semibold mt-auto pt-3 px-3 pb-2 rounded-lg wz-hover"
             style={{ color: C.accent }}
           >
             View all systems <ArrowRight size={13} />
           </button>
         </section>
 
+        <ComplianceDates dates={COMPLIANCE_DATES} onNavigate={onNavigate} />
+      </div>
+
+      <div className="px-4 lg:px-8 pb-8">
         <section
-          className="xl:col-span-2 rounded-2xl p-5"
+          className="rounded-2xl p-5"
           style={{ background: C.panel, border: `1px solid ${C.border}` }}
           aria-labelledby="attention-title"
         >
@@ -417,10 +426,28 @@ export default function ExecutiveDashboard({
               {ATTENTION_ITEMS.length} priority items
             </span>
           </div>
-          <p className="text-xs mt-1 mb-3" style={{ color: C.muted }}>Highest-impact work across findings and operations.</p>
+          <p className="text-xs mt-1" style={{ color: C.muted }}>Highest-impact work across findings and operations, most urgent first.</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 mb-4">
+            {attentionCounts.map((c) => {
+              const tone = c.tone ? attentionColors(c.tone) : null;
+              return (
+                <div key={c.label} className="rounded-xl px-4 py-3" style={{ background: C.panel2 }}>
+                  <div className="text-2xl font-semibold" style={{ color: c.value > 0 && tone ? tone.color : C.ink, fontFamily: "'Source Serif 4', serif" }}>{c.value}</div>
+                  <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{c.label}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {shownAttention.length > 0 && (
+            <div className="hidden lg:grid grid-cols-[110px_minmax(0,1fr)_150px_200px_150px_15px] gap-4 pb-2 text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.muted }}>
+              <span>Status</span><span>Item</span><span>Source</span><span>System</span><span>Owner · Due</span><span />
+            </div>
+          )}
 
           {shownAttention.length === 0 ? (
-            <div className="py-8 text-center">
+            <div className="py-8 text-center" style={{ borderTop: `1px solid ${C.border}` }}>
               <ShieldCheck size={22} color={C.green} className="mx-auto mb-2" />
               <div className="text-sm font-semibold" style={{ color: C.ink }}>Nothing requires immediate attention</div>
             </div>
@@ -431,17 +458,29 @@ export default function ExecutiveDashboard({
                 key={item.id}
                 type="button"
                 onClick={() => item.systemId && onOpenSystem ? onOpenSystem(item.systemId) : onNavigate?.(item.target)}
-                className="w-full text-left flex items-start gap-3 py-3.5 wz-hover transition-colors"
+                className="w-full text-left grid grid-cols-[110px_minmax(0,1fr)_15px] lg:grid-cols-[110px_minmax(0,1fr)_150px_200px_150px_15px] gap-4 items-center py-3 wz-hover transition-colors"
                 style={{ borderTop: `1px solid ${C.border}` }}
               >
-                <span className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ background: tone.color }} aria-hidden="true" />
-                <span className="flex-1 min-w-0">
-                  <span className="text-sm font-semibold leading-snug block" style={{ color: C.ink }}>{item.title}</span>
-                  <span className="text-xs mt-1 block" style={{ color: C.muted }}>{item.detail}</span>
+                <span>
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-1 rounded-full" style={{ color: tone.color, background: tone.background }}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: tone.color }} aria-hidden="true" />
+                    {item.status}
+                  </span>
                 </span>
-                <span className="text-[10px] font-semibold px-2 py-1 rounded-full shrink-0" style={{ color: tone.color, background: tone.background }}>
-                  {item.status}
+                <span className="min-w-0">
+                  <span className="text-sm font-semibold leading-snug block truncate" style={{ color: C.ink }}>{item.title}</span>
+                  {item.detail && <span className="text-xs mt-0.5 block truncate" style={{ color: C.muted }}>{item.detail}</span>}
+                  <span className="lg:hidden text-xs mt-0.5 block" style={{ color: C.muted }}>
+                    {[item.source, item.systemName, item.owner, item.due && `due ${item.due}`].filter(Boolean).join(" · ")}
+                  </span>
                 </span>
+                <span className="hidden lg:block text-xs truncate" style={{ color: C.muted }}>{item.source}</span>
+                <span className="hidden lg:block text-xs truncate" style={{ color: C.ink }}>{item.systemName}</span>
+                <span className="hidden lg:block text-xs min-w-0">
+                  <span className="block truncate" style={{ color: C.ink }}>{item.owner ?? "—"}</span>
+                  {item.due && <span className="block text-[11px]" style={{ color: C.muted }}>due {item.due}</span>}
+                </span>
+                <ArrowRight size={15} color={C.muted} />
               </button>
             );
           })}
@@ -452,10 +491,6 @@ export default function ExecutiveDashboard({
             </div>
           )}
         </section>
-      </div>
-
-      <div className="px-4 lg:px-8 pb-8">
-        <ComplianceDates dates={COMPLIANCE_DATES} onNavigate={onNavigate} />
       </div>
 
       <div className="mx-4 lg:mx-8 mb-8 px-4 py-3 rounded-lg flex items-start gap-2 text-[11px]" style={{ color: C.muted, background: C.panel2 }}>

@@ -36,7 +36,7 @@ export const ENGAGEMENT_STATUS_META: Record<EngagementStatus, { label: string; c
 };
 
 export const AUDIT_TYPES = [
-  "readiness", "certification", "surveillance", "recertification", "type-1", "type-2", "hitrust-r2",
+  "readiness", "certification", "surveillance", "recertification", "type-1", "type-2", "hitrust-r2", "annual",
 ] as const;
 export type AuditType = (typeof AUDIT_TYPES)[number];
 
@@ -48,6 +48,9 @@ export const AUDIT_TYPE_LABELS: Record<AuditType, string> = {
   "type-1": "Type I examination",
   "type-2": "Type II examination",
   "hitrust-r2": "HITRUST r2 validated assessment",
+  // Frameworks with no certificate or attestation report (HIPAA): an
+  // independent firm audits against the rule once a year.
+  annual: "Annual compliance audit",
 };
 
 export interface Engagement {
@@ -147,7 +150,7 @@ export interface EngagementSnapshot {
 // ---- ACME's own certificates and reports ----------------------------------------
 // The counterpart to provider-certifications.yaml: what ACME itself holds.
 
-export const CERTIFICATION_KINDS = ["certificate", "type-2-report", "type-1-report", "validated-assessment"] as const;
+export const CERTIFICATION_KINDS = ["certificate", "type-2-report", "type-1-report", "validated-assessment", "audit-report"] as const;
 export type CertificationKind = (typeof CERTIFICATION_KINDS)[number];
 
 export const CERTIFICATION_KIND_LABELS: Record<CertificationKind, string> = {
@@ -155,6 +158,7 @@ export const CERTIFICATION_KIND_LABELS: Record<CertificationKind, string> = {
   "type-2-report": "Type II report",
   "type-1-report": "Type I report",
   "validated-assessment": "Validated assessment",
+  "audit-report": "Audit report",
 };
 
 export interface Certification {

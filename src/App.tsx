@@ -4,10 +4,12 @@ import TopNav from "./components/TopNav";
 import type { NavigationPageId } from "./components/TopNav";
 import { DelayedSpinner } from "./components/DelayedSpinner";
 import { isVisibleOverviewArea } from "./pages/overviewAreas";
+import { isComplianceArea } from "./pages/complianceAreas";
 
 // One chunk per top-level page; the factories live in ./pages/routeChunks
 // so this module keeps exporting only its component.
 const Systems = lazy(() => import("./pages/Systems"));
+const Compliance = lazy(() => import("./pages/Compliance"));
 const Governance = lazy(() => import("./pages/Governance"));
 const Overview = lazy(() => import("./pages/Overview"));
 const GraphExplorer = lazy(() => import("./pages/GraphExplorer"));
@@ -28,7 +30,7 @@ type GovernanceTab = NonNullable<ComponentProps<typeof Governance>["initialTab"]
 type OverviewTab = NonNullable<ComponentProps<typeof Overview>["initialTab"]>;
 
 function governanceTab(tab?: string): GovernanceTab | undefined {
-  return tab === "ccf" || tab === "frameworks" || tab === "audits" || tab === "obligations" || tab === "policy" || tab === "procedures" || tab === "principles" || tab === "schedule" || tab === "exceptions" ? tab : undefined;
+  return tab === "policy" || tab === "procedures" || tab === "principles" || tab === "exceptions" ? tab : undefined;
 }
 
 // Only areas the nav still offers resolve; a route to a deprecated one (an old
@@ -52,17 +54,17 @@ const LEGACY_ROUTES = {
   "data-footprint": { page: "overview", tab: "footprint" },
   "risk-register": { page: "overview", tab: "risk-register" },
   "executive-dashboard": { page: "overview", tab: "dashboard" },
+  "activity-timeliness": { page: "overview", tab: "schedule" },
   "data-map": { page: "data-estate", tab: "map" },
   "gap-matrix": { page: "data-estate", tab: "profile" },
   "asset-register": { page: "data-estate", tab: "assets" },
-  ccf: { page: "governance", tab: "ccf" },
-  "compliance-frameworks": { page: "governance", tab: "frameworks" },
-  audits: { page: "governance", tab: "audits" },
-  "external-obligations": { page: "governance", tab: "obligations" },
+  ccf: { page: "compliance", tab: "ccf" },
+  "compliance-frameworks": { page: "compliance", tab: "frameworks" },
+  audits: { page: "compliance", tab: "audits" },
+  "external-obligations": { page: "compliance", tab: "obligations" },
   "policy-center": { page: "governance", tab: "policy" },
   "procedure-library": { page: "governance", tab: "procedures" },
   "security-principles": { page: "governance", tab: "principles" },
-  "activity-timeliness": { page: "governance", tab: "schedule" },
   "exception-register": { page: "governance", tab: "exceptions" },
   ssp: { page: "data-estate", tab: "profile" },
 } satisfies Record<string, LegacyRoute>;
@@ -79,7 +81,7 @@ function legacyRouteFor(id: string): LegacyRoute | undefined {
   return Object.entries(LEGACY_ROUTES).find(([routeId]) => routeId === id)?.[1];
 }
 
-const PAGE_IDS: NavigationPageId[] = ["overview", "data-estate", "governance", "graph-explorer", "settings"];
+const PAGE_IDS: NavigationPageId[] = ["overview", "data-estate", "compliance", "governance", "graph-explorer", "settings"];
 
 function isNavigationPageId(id: string): id is NavigationPageId {
   return (PAGE_IDS as string[]).includes(id);
@@ -167,8 +169,22 @@ export default function App() {
   // the tab forces a remount whenever the route's tab changes — otherwise
   // picking a different sub-area while already on that page would be silently
   // ignored.
+  // Bookmarks from before the split (#/governance/audits etc.) render
+  // Compliance; this effect rewrites the URL to match.
+  const legacyCompliance = route.page === "governance" && isComplianceArea(route.tab) ? route.tab : null;
+  useEffect(() => {
+    if (legacyCompliance) applyRoute({ page: "compliance", tab: legacyCompliance }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [legacyCompliance]);
+  const page = route.page === "governance" && isComplianceArea(route.tab) ? "compliance" : route.page;
+
   let activePage: React.ReactNode;
-  switch (route.page) {
+  switch (page) {
+    case "compliance": {
+      const tab = isComplianceArea(route.tab) ? route.tab : undefined;
+      activePage = <Compliance key={tab ?? "landing"} initialTab={tab} onNavigate={navigate} />;
+      break;
+    }
     case "governance": {
       const tab = governanceTab(route.tab);
       activePage = <Governance key={tab ?? "landing"} initialTab={tab} onNavigate={navigate} />;
@@ -212,7 +228,7 @@ export default function App() {
     >
 
       <TopNav
-        active={route.page}
+        active={page}
         onSelect={navigate}
         mode={mode}
         onToggleTheme={toggleTheme}
