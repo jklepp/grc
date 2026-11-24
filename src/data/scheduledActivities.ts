@@ -133,10 +133,10 @@ const ACTIVITY_DEFS: ActivityDefinition[] = [
       { period: 5, dueDate: "2026-05-31", completedAt: "2026-05-07" },
       { period: 6, dueDate: "2026-06-30", completedAt: "2026-06-09" },
       { period: 7, dueDate: "2026-07-31", completedAt: "2026-07-08" },
-      { period: 8, dueDate: "2026-08-31", inProgress: true, note: "This month's review is in progress." },
-      { period: 9, dueDate: "2026-09-30" },
-      { period: 10, dueDate: "2026-10-31" },
-      { period: 11, dueDate: "2026-11-30" },
+      { period: 8, dueDate: "2026-08-31", completedAt: "2026-08-11" },
+      { period: 9, dueDate: "2026-09-30", completedAt: "2026-09-09" },
+      { period: 10, dueDate: "2026-10-31", completedAt: "2026-10-08" },
+      { period: 11, dueDate: "2026-11-30", inProgress: true, note: "This month's review is in progress." },
       { period: 12, dueDate: "2026-12-31" },
     ],
   },
@@ -168,7 +168,7 @@ const ACTIVITY_DEFS: ActivityDefinition[] = [
     instances: [
       { period: 1, dueDate: "2026-03-31", completedAt: "2026-03-25" },
       { period: 2, dueDate: "2026-06-30", completedAt: "2026-06-28" },
-      { period: 3, dueDate: "2026-09-30", inProgress: true, note: "Facilities is mid-review against the current badge system export." },
+      { period: 3, dueDate: "2026-09-30", completedAt: "2026-09-24" },
       { period: 4, dueDate: "2026-12-31" },
     ],
   },
@@ -183,8 +183,8 @@ const ACTIVITY_DEFS: ActivityDefinition[] = [
     instances: [
       { period: 1, dueDate: "2026-02-15", completedAt: "2026-02-10" },
       { period: 2, dueDate: "2026-05-15", completedAt: "2026-05-12" },
-      { period: 3, dueDate: "2026-08-20", note: "Scheduled with the external provider; scan window opens next week." },
-      { period: 4, dueDate: "2026-11-20" },
+      { period: 3, dueDate: "2026-08-20", completedAt: "2026-08-18" },
+      { period: 4, dueDate: "2026-11-20", completedAt: "2026-11-17" },
     ],
   },
   {
@@ -198,7 +198,7 @@ const ACTIVITY_DEFS: ActivityDefinition[] = [
     instances: [
       { period: 1, dueDate: "2026-03-10", completedAt: "2026-03-08" },
       { period: 2, dueDate: "2026-06-10", completedAt: "2026-06-05" },
-      { period: 3, dueDate: "2026-09-15" },
+      { period: 3, dueDate: "2026-09-15", completedAt: "2026-09-12" },
       { period: 4, dueDate: "2026-12-15" },
     ],
   },
@@ -213,7 +213,7 @@ const ACTIVITY_DEFS: ActivityDefinition[] = [
     instances: [
       { period: 1, dueDate: "2026-03-31", completedAt: "2026-03-30" },
       { period: 2, dueDate: "2026-06-30", completedAt: "2026-06-29" },
-      { period: 3, dueDate: "2026-09-30" },
+      { period: 3, dueDate: "2026-09-30", completedAt: "2026-09-26" },
       { period: 4, dueDate: "2026-12-31" },
     ],
   },
@@ -228,7 +228,7 @@ const ACTIVITY_DEFS: ActivityDefinition[] = [
     instances: [
       { period: 1, dueDate: "2026-03-31", completedAt: "2026-03-20" },
       { period: 2, dueDate: "2026-06-30", completedAt: "2026-06-24" },
-      { period: 3, dueDate: "2026-09-30" },
+      { period: 3, dueDate: "2026-09-30", completedAt: "2026-09-23" },
       { period: 4, dueDate: "2026-12-31" },
     ],
   },
@@ -262,7 +262,7 @@ const ACTIVITY_DEFS: ActivityDefinition[] = [
     controls: ["BCD-04"],
     procedureId: "backup-recovery-continuity",
     description: "Restoration is tested at least annually for every Tier 1 asset — a backup that's never been restored isn't a proven backup, it's an assumption.",
-    instances: [{ period: 1, dueDate: "2026-08-25", note: "Test window is booked with Infrastructure; not yet run." }],
+    instances: [{ period: 1, dueDate: "2026-08-25", completedAt: "2026-08-21" }],
   },
   {
     id: "security-awareness-training",

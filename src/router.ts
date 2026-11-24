@@ -4,11 +4,13 @@ import type { SystemWorkspaceTab } from "./pages/SystemWorkspace/tabs";
 import type { SystemId } from "./graph/ids";
 
 // The URL hash is the single source of truth for where the user is:
-//   #/overview[/dashboard]        → risk-register|footprint parse, then fall
+//   #/overview[/dashboard|schedule] → risk-register|footprint parse, then fall
 //                                   back to dashboard while deprecated
 //   #/systems                     → system picker
 //   #/systems/<SystemId>[/<tab>]  → one system's workspace, on a tab
-//   #/governance[/ccf|frameworks|obligations|policy|procedures|principles|schedule|exceptions]
+//   #/compliance[/ccf|frameworks|audits|obligations]
+//   #/governance[/policy|procedures|principles|exceptions]  (old compliance
+//                                   areas here redirect to #/compliance)
 //   #/graph
 //   #/settings[/users]            → admin only, reached from the user menu
 // App owns parsing/serializing; pages keep navigating through onNavigate ids.
@@ -25,6 +27,7 @@ export interface AppRoute {
 const PAGE_BY_SLUG: Record<string, NavigationPageId> = {
   overview: "overview",
   systems: "data-estate",
+  compliance: "compliance",
   governance: "governance",
   graph: "graph-explorer",
   settings: "settings",

@@ -1,16 +1,18 @@
 import React from "react";
-import { Landmark } from "lucide-react";
+import { Landmark, ShieldCheck } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "../components/Headings";
 import { AreaSelectList } from "../components/AreaSelectList";
 import type { AreaListItem } from "../components/AreaSelectList";
 import { POLICIES, POLICY_TIERS } from "../data/policies";
 import { PROCEDURES } from "../data/procedures";
 import { PRINCIPLE_STATUS_COUNTS } from "../data/securityPrinciples";
-import { FREQUENCIES, currentPeriod, statusCountsForPeriod } from "../data/scheduledActivities";
 import { EXCEPTION_SUMMARY, IN_SCOPE_CONTROLS, OBLIGATION_SUMMARY, getLiveEngine } from "../engine";
 import { SOURCE_DOCUMENTS, isStructural } from "../engine/sourceText";
 import { GOVERNANCE_AREAS } from "./governanceAreas";
 import type { GovernanceAreaId } from "./governanceAreas";
+import { COMPLIANCE_AREAS } from "./complianceAreas";
+import type { ComplianceAreaId } from "./complianceAreas";
 
 interface AreaSummary {
   metrics: AreaListItem["metrics"];
@@ -18,16 +20,6 @@ interface AreaSummary {
   attentionLabel: string;
 }
 
-const scheduleCounts = FREQUENCIES.reduce(
-  (totals, frequency) => {
-    const counts = statusCountsForPeriod(frequency, currentPeriod(frequency));
-    totals.completed += counts.completed;
-    totals.upcoming += counts.upcoming + counts.in_progress;
-    totals.attention += counts.at_risk + counts.overdue;
-    return totals;
-  },
-  { completed: 0, upcoming: 0, attention: 0 },
-);
 
 const DOMAIN_COUNT = new Set(IN_SCOPE_CONTROLS.map((control) => control.domain)).size;
 const STANDARD_COUNT = new Set(IN_SCOPE_CONTROLS.flatMap((control) => control.frameworks.map((f) => f.standard))).size;
@@ -38,7 +30,8 @@ const SOURCE_PARAGRAPHS = Object.values(SOURCE_DOCUMENTS).flatMap((doc) => doc.s
 const OPEN_AUDITS = getLiveEngine().graph.engagements.filter((e) => e.status !== "closed");
 const AUDITS_DUE_SOON = OPEN_AUDITS.filter((e) => Date.parse(e.dueDate) - Date.now() <= 30 * 86_400_000).length;
 
-const AREA_SUMMARIES: Record<GovernanceAreaId, AreaSummary> = {
+// Both landing pages (Governance and Compliance) read from this one table.
+const AREA_SUMMARIES: Record<GovernanceAreaId | ComplianceAreaId, AreaSummary> = {
   audits: {
     metrics: [
       { value: OPEN_AUDITS.length, label: "Open audits" },
@@ -100,15 +93,6 @@ const AREA_SUMMARIES: Record<GovernanceAreaId, AreaSummary> = {
     attention: PRINCIPLE_STATUS_COUNTS.partial + PRINCIPLE_STATUS_COUNTS["not-operationalized"],
     attentionLabel: "principles need further operationalization",
   },
-  schedule: {
-    metrics: [
-      { value: scheduleCounts.completed, label: "Completed", tone: "good" },
-      { value: scheduleCounts.upcoming, label: "Open this period" },
-      { value: scheduleCounts.attention, label: "At risk / overdue", tone: "attention" },
-    ],
-    attention: scheduleCounts.attention,
-    attentionLabel: "scheduled activities require attention",
-  },
   exceptions: {
     metrics: [
       { value: EXCEPTION_SUMMARY.active, label: "Active", tone: "good" },
@@ -120,30 +104,49 @@ const AREA_SUMMARIES: Record<GovernanceAreaId, AreaSummary> = {
   },
 };
 
-const AREA_GROUPS: Partial<Record<GovernanceAreaId, string>> = {
+const AREA_GROUPS: Record<GovernanceAreaId | ComplianceAreaId, string> = {
   ccf: "Controls",
   frameworks: "Controls",
-  audits: "Controls",
-  obligations: "Controls",
+  audits: "Audits and Obligations",
+  obligations: "Audits and Obligations",
   policy: "Policies and Procedures",
   procedures: "Policies and Procedures",
   principles: "Operations",
-  schedule: "Operations",
   exceptions: "Operations",
 };
 
-const AREAS: AreaListItem<GovernanceAreaId>[] = GOVERNANCE_AREAS.map((area) => {
-  const summary = AREA_SUMMARIES[area.id];
-  return {
-    id: area.id,
-    icon: area.icon,
-    label: area.label,
-    description: area.description,
-    metrics: summary.metrics,
-    attention: { count: summary.attention, label: summary.attentionLabel },
-    group: AREA_GROUPS[area.id],
-  };
-});
+function toListItems<Id extends GovernanceAreaId | ComplianceAreaId>(
+  areas: readonly { id: Id; icon: LucideIcon; label: string; description: string }[],
+): AreaListItem<Id>[] {
+  return areas.map((area) => {
+    const summary = AREA_SUMMARIES[area.id];
+    return {
+      id: area.id,
+      icon: area.icon,
+      label: area.label,
+      description: area.description,
+      metrics: summary.metrics,
+      attention: { count: summary.attention, label: summary.attentionLabel },
+      group: AREA_GROUPS[area.id],
+    };
+  });
+}
+
+const GOVERNANCE_ITEMS = toListItems(GOVERNANCE_AREAS);
+const COMPLIANCE_ITEMS = toListItems(COMPLIANCE_AREAS);
+
+function Landing<Id extends string>({ icon, title, description, areas, onSelect }: {
+  icon: LucideIcon; title: string; description: string; areas: AreaListItem<Id>[]; onSelect: (area: Id) => void;
+}) {
+  return (
+    <div className="w-full pb-12">
+      <PageHeader icon={icon} title={title} description={description} />
+      <div className="px-4 lg:px-8">
+        <AreaSelectList areas={areas} onSelect={onSelect} />
+      </div>
+    </div>
+  );
+}
 
 // List layout matches SelectSystem's system table (bordered row list, avatar,
 // stat readouts) so this landing page and the system picker read as the same
@@ -151,16 +154,24 @@ const AREAS: AreaListItem<GovernanceAreaId>[] = GOVERNANCE_AREAS.map((area) => {
 // another.
 export function GovernanceLanding({ onSelect }: { onSelect: (area: GovernanceAreaId) => void }) {
   return (
-    <div className="w-full pb-12">
-      <PageHeader
-        icon={Landmark}
-        title="Select a Governance Area"
-        description="Choose the governance workflow you want to work in. Each area uses the same connected control, system, evidence, and accountability model."
-      />
+    <Landing
+      icon={Landmark}
+      title="Select a Governance Area"
+      description="Choose the governance workflow you want to work in. Each area uses the same connected control, system, evidence, and accountability model."
+      areas={GOVERNANCE_ITEMS}
+      onSelect={onSelect}
+    />
+  );
+}
 
-      <div className="px-4 lg:px-8">
-        <AreaSelectList areas={AREAS} onSelect={onSelect} />
-      </div>
-    </div>
+export function ComplianceLanding({ onSelect }: { onSelect: (area: ComplianceAreaId) => void }) {
+  return (
+    <Landing
+      icon={ShieldCheck}
+      title="Select a Compliance Area"
+      description="The controls ACME is held to, the frameworks behind them, and the audits and outside obligations that test them."
+      areas={COMPLIANCE_ITEMS}
+      onSelect={onSelect}
+    />
   );
 }

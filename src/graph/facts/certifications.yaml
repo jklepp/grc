@@ -24,3 +24,17 @@
   periodEnd: "2025-12-31"
   auditFirm: "Halden & Pryce LLP"
   reference: "SOC 2 Type II report FY2025, Security and Availability criteria. Unqualified opinion; three exceptions noted with management responses."
+
+# HIPAA has no certification. The Health Hub's assurance is an independent
+# annual audit against the Security, Privacy and Breach Notification Rules.
+- id: "CERT-ACME-HIPAA-FY2026"
+  standard: "HIPAA"
+  kind: "audit-report"
+  systemIds:
+    - "SYS-058"
+  issuedAt: "2026-09-18"
+  validUntil: "2027-09-17"
+  periodStart: "2025-09-01"
+  periodEnd: "2026-08-31"
+  auditFirm: "Halden & Pryce LLP"
+  reference: "Annual HIPAA compliance audit FY2026, Security, Privacy and Breach Notification Rules. No significant findings; two observations with management responses."

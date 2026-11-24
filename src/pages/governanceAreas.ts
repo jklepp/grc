@@ -1,34 +1,9 @@
-import { BookOpen, CalendarClock, ClipboardCheck, FileText, Handshake, LayoutGrid, ListChecks, Shield, ShieldAlert } from "lucide-react";
+import { FileText, ListChecks, Shield, ShieldAlert } from "lucide-react";
 
+// Policies and the program around them. The control and audit side (Common
+// Controls, Frameworks, Audits, External Obligations) moved to Compliance
+// (complianceAreas.ts).
 export const GOVERNANCE_AREAS = [
-  {
-    id: "ccf",
-    label: "Common Controls",
-    shortLabel: "Common Controls",
-    icon: LayoutGrid,
-    description: "Browse the common control catalog, its domains, and the framework clauses each control satisfies.",
-  },
-  {
-    id: "frameworks",
-    label: "Compliance Frameworks",
-    shortLabel: "Frameworks",
-    icon: BookOpen,
-    description: "Read each framework's requirements in its own words, and see which common controls map to each one.",
-  },
-  {
-    id: "audits",
-    label: "Audits",
-    shortLabel: "Audits",
-    icon: ClipboardCheck,
-    description: "Run audits against the system of record — scope, auditor results, requests and populations — and publish what changed when each one closes.",
-  },
-  {
-    id: "obligations",
-    label: "External Obligations",
-    shortLabel: "Obligations",
-    icon: Handshake,
-    description: "Track security and data terms owed to customers and other outside parties that are stricter than ACME's defaults, and whether evidence shows they're met.",
-  },
   {
     id: "policy",
     label: "Policies",
@@ -49,13 +24,6 @@ export const GOVERNANCE_AREAS = [
     shortLabel: "Principles",
     icon: Shield,
     description: "Review ACME's design principles and where they are operationalized through procedures and controls.",
-  },
-  {
-    id: "schedule",
-    label: "Governance Schedule",
-    shortLabel: "Schedule",
-    icon: CalendarClock,
-    description: "Track recurring governance activities, due dates, completion, and work at risk of becoming overdue.",
   },
   {
     id: "exceptions",

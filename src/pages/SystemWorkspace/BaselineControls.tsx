@@ -24,6 +24,7 @@ import { FRAMEWORKS } from "../../graph/nodes/controls";
 import { Callout } from "../../components/wizard/WizardUI";
 import { Panel } from "./shared/Panel";
 import { SectionHeader } from "./shared/SectionHeader";
+import { DetailsToggle } from "./shared/DetailsToggle";
 import { StatRing } from "./shared/StatRing";
 import { BarRow, Chip } from "./SystemControls";
 import { commit, domainOptions, nowIso, today, Pill, RecordStatusPill, SOURCE_LABELS, colorFor } from "../Audits/shared";
@@ -278,6 +279,9 @@ function PostureCard({ system, rows, selection, onToggle, openAudits, onOpenScop
   onOpenScopeReview?: () => void;
   asOf: string;
 }) {
+  // Collapsed by default: the score + scope line is the read; the bars and
+  // type chips are the drill-down.
+  const [open, setOpen] = useState(false);
   const engine = useLiveEngine();
   const applicability = engine.compliance.controlApplicabilitySummary(system.id as SystemId);
   const applicable = rows.length;
@@ -307,8 +311,9 @@ function PostureCard({ system, rows, selection, onToggle, openAudits, onOpenScop
         icon={Layers}
         title="Control Posture"
         description={asOf ? `This system's own records as they stood at the end of ${asOf}.` : "What is met, what is still unrecorded, and the work between the two."}
+        aside={<DetailsToggle open={open} onToggle={() => setOpen((o) => !o)} />}
       />
-      <div className="flex items-center justify-between gap-6 pb-4" style={{ borderBottom: `1px solid ${C.border}` }}>
+      <div className={`flex items-center justify-between gap-6 ${open ? "pb-4" : ""}`} style={{ borderBottom: open ? `1px solid ${C.border}` : undefined }}>
         <div className="flex items-center gap-3.5 min-w-0">
           {score != null && <StatRing pct={score} color={colorFor(band.color).color} trackColor={C.panel2} size={46} stroke={5} />}
           <div className="min-w-0">
@@ -330,6 +335,7 @@ function PostureCard({ system, rows, selection, onToggle, openAudits, onOpenScop
         </div>
       </div>
 
+      {open && (<>
       <div className="pt-4">
         {unrecorded > 0 && (
           <BarRow label={STATUS_META.unassessed.label} count={unrecorded} applicable={applicable} fill={hatch}
@@ -370,6 +376,7 @@ function PostureCard({ system, rows, selection, onToggle, openAudits, onOpenScop
           </span>
         )}
       </div>
+      </>)}
     </Panel>
   );
 }

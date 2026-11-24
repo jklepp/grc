@@ -4,6 +4,7 @@ import { RadioTower, Layers, ClipboardCheck } from "lucide-react";
 import { C } from "../../theme";
 import { Panel } from "./shared/Panel";
 import { SectionHeader } from "./shared/SectionHeader";
+import { DetailsToggle } from "./shared/DetailsToggle";
 import { FilterSelect } from "./shared/FilterSelect";
 import { GAP_CONTROL_STATUSES } from "../../engine/review";
 import {
@@ -171,7 +172,8 @@ export function Chip({ label, count, color, bg, active, onClick, flat = false }:
 // number is weighted across the controls that were actually examined, so the
 // examined count belongs next to it — see compliance.ts's note that the
 // coverage figure is "the honesty check" on any posture percentage.
-function PostureAnchor({ assurance, assessed, applicable, notApplicable, pending, onOpenScopeReview }: {
+function PostureAnchor({ assurance, assessed, applicable, notApplicable, pending, onOpenScopeReview, divided }: {
+  divided: boolean;
   assurance: number | null;
   assessed: number;
   applicable: number;
@@ -180,7 +182,7 @@ function PostureAnchor({ assurance, assessed, applicable, notApplicable, pending
   onOpenScopeReview?: (wave: ReviewWave) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-6 pb-4" style={{ borderBottom: `1px solid ${C.border}` }}>
+    <div className={`flex items-center justify-between gap-6 ${divided ? "pb-4" : ""}`} style={{ borderBottom: divided ? `1px solid ${C.border}` : undefined }}>
       <div className="flex items-center gap-3.5 min-w-0">
         {assurance != null && <StatRing pct={assurance} color={C.accent} trackColor={C.panel2} size={46} stroke={5} />}
         <div className="min-w-0">
@@ -329,6 +331,9 @@ function StatusChart({
   keyControlTotal: number;
   onStartAssessment?: () => void;
 }) {
+  // Collapsed by default: the anchor (score + scope) is the read; the bars and
+  // responsibility chips are the drill-down.
+  const [open, setOpen] = useState(false);
   const applicable = applicabilitySummary.applicable;
   const unassessed = statusCounts.unassessed ?? 0;
   const assessed = applicable - unassessed;
@@ -367,6 +372,7 @@ function StatusChart({
         icon={Layers}
         title="Control Posture"
         description="What holds, what is still unexamined, and the work between the two."
+        aside={<DetailsToggle open={open} onToggle={() => setOpen((o) => !o)} />}
       />
       <PostureAnchor
         assurance={posture.assurance}
@@ -375,8 +381,10 @@ function StatusChart({
         notApplicable={applicabilitySummary.notApplicable}
         pending={pendingCount}
         onOpenScopeReview={onOpenScopeReview}
+        divided={open}
       />
 
+      {open && (<>
       <div className="pt-4">
         {unassessed > 0 && (
           <BarRow
@@ -429,6 +437,7 @@ function StatusChart({
           />
         ))}
       </div>
+      </>)}
     </Panel>
   );
 }

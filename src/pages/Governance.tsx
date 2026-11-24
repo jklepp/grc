@@ -1,32 +1,22 @@
 import React, { useState } from "react";
-import CommonControlFramework from "./CommonControlFramework";
-import ComplianceFrameworks from "./ComplianceFrameworks";
 import PolicyCenter from "./PolicyCenter";
 import ProcedureLibrary from "./ProcedureLibrary";
 import SecurityPrinciples from "./SecurityPrinciples";
-import ScheduledActivities from "./ScheduledActivities";
 import ExceptionRegister from "./ExceptionRegister";
-import ExternalObligations from "./ExternalObligations";
-import Audits from "./Audits/Audits";
 import { GovernanceLanding } from "./GovernanceLanding";
 import type { GovernanceAreaId } from "./governanceAreas";
 
-// Governance merges the former Common Controls, Policies (formerly "Policy
-// Center"), Procedures (formerly "Procedure Library"), Security Principles,
-// and Governance Schedule (formerly "Activity Timeliness") top-level pages
-// into one, switched by an in-page tab bar instead of separate sidebar
-// entries. Each page's own content is untouched — this is purely a shell
-// around them. System Register (formerly "System Security Plan") lives on
-// Data Estate now, not here.
+// Governance merges the former Policies (formerly "Policy Center"),
+// Procedures (formerly "Procedure Library"), Security Principles, and
+// Exception Register top-level pages into one, switched by an in-page tab
+// bar instead of separate sidebar entries. Each page's own content is
+// untouched — this is purely a shell around them. System Register (formerly "System Security Plan") lives on
+// Data Estate now, not here; Common Controls, Frameworks, Audits and External
+// Obligations live on Compliance (Compliance.tsx).
 const PAGE_BY_AREA = {
-  ccf: CommonControlFramework,
-  frameworks: ComplianceFrameworks,
-  audits: Audits,
-  obligations: ExternalObligations,
   policy: PolicyCenter,
   procedures: ProcedureLibrary,
   principles: SecurityPrinciples,
-  schedule: ScheduledActivities,
   exceptions: ExceptionRegister,
 } satisfies Record<GovernanceAreaId, React.ComponentType<{ onNavigate?: (target: string) => void }>>;
 
@@ -39,14 +29,9 @@ type GovernanceTab = GovernanceAreaId;
 // a tab on a different consolidated page (e.g. "ssp") fall through to
 // onNavigate so App.jsx's LEGACY_ROUTES can send them there.
 const INTERNAL_TABS: Record<string, GovernanceTab> = {
-  ccf: "ccf",
-  "compliance-frameworks": "frameworks",
-  audits: "audits",
-  "external-obligations": "obligations",
   "policy-center": "policy",
   "procedure-library": "procedures",
   "security-principles": "principles",
-  "activity-timeliness": "schedule",
   "exception-register": "exceptions",
 };
 
