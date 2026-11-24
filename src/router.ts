@@ -9,6 +9,7 @@ import type { SystemId } from "./graph/ids";
 //   #/systems                     → system picker
 //   #/systems/<SystemId>[/<tab>]  → one system's workspace, on a tab
 //   #/compliance[/ccf|frameworks|audits|obligations]
+//   #/compliance/audits/<EngagementId>[/<tab>] → one audit, opened on a tab
 //   #/governance[/policy|procedures|principles|exceptions]  (old compliance
 //                                   areas here redirect to #/compliance)
 //   #/graph
@@ -22,6 +23,10 @@ export interface AppRoute {
   systemId?: SystemId | null;
   /** data-estate only: workspace tab within the selected system. */
   systemTab?: SystemWorkspaceTab;
+  /** compliance/audits only: the engagement opened in place. */
+  engagementId?: string;
+  /** compliance/audits only: the engagement's tab (validated by EngagementDetail). */
+  engagementTab?: string;
 }
 
 const PAGE_BY_SLUG: Record<string, NavigationPageId> = {
@@ -50,6 +55,9 @@ export function parseHash(hash: string): AppRoute | null {
     const systemTab = segments[2] && isSystemWorkspaceTab(segments[2]) ? segments[2] : undefined;
     return { page, systemId, systemTab };
   }
+  if (page === "compliance" && segments[1] === "audits" && segments[2]) {
+    return { page, tab: segments[1], engagementId: segments[2], engagementTab: segments[3] };
+  }
   return { page, tab: segments[1] };
 }
 
@@ -62,6 +70,10 @@ export function hashForRoute(route: AppRoute): string {
     }
   } else if (route.tab) {
     parts.push(encodeURIComponent(route.tab));
+    if (route.page === "compliance" && route.engagementId) {
+      parts.push(encodeURIComponent(route.engagementId));
+      if (route.engagementTab) parts.push(encodeURIComponent(route.engagementTab));
+    }
   }
   return `#/${parts.join("/")}`;
 }

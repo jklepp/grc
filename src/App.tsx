@@ -156,6 +156,10 @@ export default function App() {
     applyRoute({ page: "data-estate", systemId: id, systemTab: options?.startAssessment ? "controls" : "overview" });
   }
 
+  function openEngagement(engagementId: string, engagementTab?: string) {
+    applyRoute({ page: "compliance", tab: "audits", engagementId, engagementTab });
+  }
+
   function toggleTheme() {
     setMode((m) => {
       const next = m === "dark" ? "light" : "dark";
@@ -182,7 +186,15 @@ export default function App() {
   switch (page) {
     case "compliance": {
       const tab = isComplianceArea(route.tab) ? route.tab : undefined;
-      activePage = <Compliance key={tab ?? "landing"} initialTab={tab} onNavigate={navigate} />;
+      const engagementId = tab === "audits" ? route.engagementId : undefined;
+      activePage = (
+        <Compliance
+          key={[tab ?? "landing", engagementId, route.engagementTab].filter(Boolean).join("/")}
+          initialTab={tab}
+          initialEngagement={engagementId ? { id: engagementId, tab: route.engagementTab } : undefined}
+          onNavigate={navigate}
+        />
+      );
       break;
     }
     case "governance": {
@@ -192,7 +204,7 @@ export default function App() {
     }
     case "overview": {
       const tab = overviewTab(route.tab);
-      activePage = <Overview key={tab ?? "landing"} initialTab={tab} onNavigate={navigate} onOpenSystem={openSystem} />;
+      activePage = <Overview key={tab ?? "landing"} initialTab={tab} onNavigate={navigate} onOpenSystem={openSystem} onOpenEngagement={openEngagement} />;
       break;
     }
     case "graph-explorer":

@@ -20,12 +20,13 @@ import { AUDITOR_RESULT_BADGE, sourceMeta } from "../SystemWorkspace/controlMeta
 import { commit, downloadCsv, nowIso, Pill, ResultPill, SOURCE_LABELS } from "./shared";
 
 type Tab = "controls" | "requests" | "populations";
+const isTab = (v?: string): v is Tab => v === "controls" || v === "requests" || v === "populations";
 
-export function EngagementDetail({ engagementId, onBack }: { engagementId: string; onBack: () => void }) {
+export function EngagementDetail({ engagementId, initialTab, onBack }: { engagementId: string; initialTab?: string; onBack: () => void }) {
   const engine = useLiveEngine();
   const user = useSignedInUser();
   const canManage = allows(canManageEngagement(user));
-  const [tab, setTab] = useState<Tab>("controls");
+  const [tab, setTab] = useState<Tab>(isTab(initialTab) ? initialTab : "controls");
   const [closing, setClosing] = useState(false);
   const [filters, setFilters] = useState<EngagementFilters>(DEFAULT_ENGAGEMENT_FILTERS);
   const filterFromTracker = (next: EngagementFilters) => {

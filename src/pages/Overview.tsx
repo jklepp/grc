@@ -15,10 +15,11 @@ import type { SystemId } from "../graph/ids";
 // nav click has nowhere useful to land but Assurance Overview, so that's the
 // default whenever no area is specified.
 export default function Overview({
-  onNavigate, onOpenSystem, initialTab,
+  onNavigate, onOpenSystem, onOpenEngagement, initialTab,
 }: {
   onNavigate?: (target: string) => void;
   onOpenSystem?: (systemId: SystemId) => void;
+  onOpenEngagement?: (engagementId: string, tab?: string) => void;
   initialTab?: OverviewAreaId;
 }) {
   const area: OverviewAreaId = initialTab ?? "dashboard";
@@ -30,5 +31,5 @@ export default function Overview({
   if (area === "risk-register") return <RiskRegister />;
   if (area === "footprint") return <DataFootprint />;
   if (area === "schedule") return <ScheduledActivities onNavigate={onNavigate} />;
-  return <ExecutiveDashboard onNavigate={onNavigate} onOpenSystem={onOpenSystem} />;
+  return <ExecutiveDashboard onNavigate={onNavigate} onOpenSystem={onOpenSystem} onOpenEngagement={onOpenEngagement} />;
 }

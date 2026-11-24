@@ -22,6 +22,17 @@ const OPERATIONAL_DOMAINS = new Set([
 
 type AttentionTone = "urgent" | "high" | "medium";
 
+interface AuditWork {
+  engagementId: string;
+  /** In-scope evidence requests the auditor has not accepted yet. */
+  openRequests: number;
+  requests: number;
+  /** In-scope controls the audit has flagged (not recorded, evidence owed, ...). */
+  needsWork: number;
+}
+
+type DashboardComplianceDate = UpcomingComplianceDate & { work?: AuditWork };
+
 interface AttentionItem {
   id: string;
   priority: number;
@@ -77,7 +88,11 @@ function useDashboardData() {
     // lower impact systems remain available in the System Register.
     const importantSystems = systems
       .filter((system) => system.overallImpact === "high")
-      .map((system) => ({ system }))
+      .map((system) => ({
+        system,
+        // What the score can't say: a finding past its due date.
+        overdueFindings: ALL_FINDINGS.filter((f) => f.overdue && f.systemIds.includes(system.id)).length,
+      }))
       .sort((a, b) => (a.system.complianceScore ?? -1) - (b.system.complianceScore ?? -1));
 
     const findingAttention: AttentionItem[] = ALL_FINDINGS.map((finding) => {
@@ -119,7 +134,23 @@ function useDashboardData() {
 
     // The same milestones the Governance Schedule's calendar draws — ISO
     // 27001, SOC 2, and vendor report dates — so the two never disagree.
-    const complianceDates = upcomingComplianceDates(liveEngine.graph.systems, liveEngine.graph.providerCertifications);
+    // Each program date an open audit is working toward, with that audit's
+    // outstanding work: the open engagement for the same standard due that
+    // day (engagements.yaml follows the compliance calendar's dates).
+    const openEngagements = liveEngine.engagements.all().filter((e) => e.status !== "closed");
+    const complianceDates: DashboardComplianceDate[] = upcomingComplianceDates(liveEngine.graph.systems, liveEngine.graph.providerCertifications)
+      .map((date) => {
+        const { standard, dueDate } = date.entry;
+        const engagement = standard
+          ? openEngagements.find((e) => e.dueDate === dueDate && e.frameworks.includes(standard))
+          : undefined;
+        if (!engagement) return date;
+        const t = liveEngine.engagements.summary(engagement.id).tracker;
+        return {
+          ...date,
+          work: { engagementId: engagement.id, openRequests: t.inScope - t.requestsAccepted, requests: t.inScope, needsWork: t.flagged },
+        };
+      });
 
     return {
       enterprise,
@@ -138,12 +169,6 @@ function attentionColors(tone: AttentionTone): { color: string; background: stri
   if (tone === "urgent") return { color: C.red, background: C.redBg };
   if (tone === "high") return { color: C.amber, background: C.amberBg };
   return { color: C.accent, background: C.accentBg };
-}
-
-function systemStatusColor(clears: boolean): { color: string; background: string } {
-  return clears
-    ? { color: C.green, background: C.greenBg }
-    : { color: C.red, background: C.redBg };
 }
 
 // How many compliance dates the Overview shows; the rest are on the
@@ -170,8 +195,9 @@ function countdownColors(daysUntil: number): { color: string; background: string
 // The next few ISO 27001, SOC 2, and vendor report dates, soonest first:
 // a date tile, what it is, and how long is left. Deliberately small — the
 // full cycle lives on the Governance Schedule, one click away.
-function ComplianceDates({ dates, onNavigate }: {
-  dates: UpcomingComplianceDate[]; onNavigate?: (pageId: string) => void;
+function ComplianceDates({ dates, onNavigate, onOpenEngagement }: {
+  dates: DashboardComplianceDate[]; onNavigate?: (pageId: string) => void;
+  onOpenEngagement?: (engagementId: string, tab?: string) => void;
 }) {
   const shown = dates.slice(0, SHOWN_COMPLIANCE_DATES);
   const remaining = dates.length - shown.length;
@@ -189,7 +215,7 @@ function ComplianceDates({ dates, onNavigate }: {
 
       {shown.length === 0 ? (
         <div className="py-6 text-sm" style={{ color: C.muted, borderTop: `1px solid ${C.border}` }}>No compliance dates are coming up.</div>
-      ) : shown.map(({ entry, daysUntil }) => {
+      ) : shown.map(({ entry, daysUntil, work }) => {
         const due = parseLocalDate(entry.dueDate);
         const tone = countdownColors(daysUntil);
         return (
@@ -211,6 +237,21 @@ function ComplianceDates({ dates, onNavigate }: {
             <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold leading-snug" style={{ color: C.ink }}>{entry.title}</div>
               <div className="text-[11px] mt-0.5" style={{ color: C.muted }}>{entry.type}</div>
+              {work && (work.openRequests > 0 || work.needsWork > 0) && (
+                <button
+                  type="button"
+                  onClick={() => onOpenEngagement ? onOpenEngagement(work.engagementId, "requests") : onNavigate?.("audits")}
+                  className="flex items-center gap-1 text-[11px] font-semibold mt-1 -ml-1 px-1 rounded wz-hover"
+                  style={{ color: C.accent }}
+                  aria-label={`Open the evidence requests for ${entry.title}`}
+                >
+                  {[
+                    work.openRequests > 0 && `${work.openRequests} of ${work.requests} evidence requests open`,
+                    work.needsWork > 0 && `${work.needsWork} control${work.needsWork === 1 ? "" : "s"} need${work.needsWork === 1 ? "s" : ""} work`,
+                  ].filter(Boolean).join(" · ")}
+                  <ArrowRight size={11} />
+                </button>
+              )}
             </div>
             <span className="text-[10px] font-semibold px-2 py-1 rounded-full shrink-0" style={tone}>
               {countdown(daysUntil)}
@@ -238,10 +279,11 @@ function formatGap(gap: number | null): string {
 }
 
 export default function ExecutiveDashboard({
-  onNavigate, onOpenSystem,
+  onNavigate, onOpenSystem, onOpenEngagement,
 }: {
   onNavigate?: (pageId: string) => void;
   onOpenSystem?: (systemId: SystemId) => void;
+  onOpenEngagement?: (engagementId: string, tab?: string) => void;
 }) {
   // Destructured to the names the markup below already uses, so this change
   // is where the values come from and nothing else.
@@ -291,12 +333,16 @@ export default function ExecutiveDashboard({
         >
           <div>
             <div className="text-[11px] uppercase tracking-[0.08em] font-semibold" style={{ color: C.accent }} id="enterprise-compliance-title">
-              Enterprise Compliance
+              Assessed controls met
             </div>
             <div className="text-5xl font-semibold mt-1" style={{ fontFamily: "'Source Serif 4', serif" }}>
               {ENTERPRISE_COMPLIANCE}%
             </div>
-            <div className="text-sm mt-2" style={{ color: C.muted }}>
+            {/* The result and how much is still unknown, read together. */}
+            <div className="text-sm mt-2 font-medium" style={{ color: C.ink }}>
+              {coverage.assessed} of {coverage.applicable} assessed · {coverage.applicable - coverage.assessed} unassessed
+            </div>
+            <div className="text-xs mt-1" style={{ color: C.muted }}>
               {COMPLIANCE_GAP >= 0
                 ? `${COMPLIANCE_GAP} points above the ${COMPLIANCE_TARGET}% target`
                 : `${Math.abs(COMPLIANCE_GAP)} points below the ${COMPLIANCE_TARGET}% target`}
@@ -305,7 +351,7 @@ export default function ExecutiveDashboard({
 
           <div>
             <div className="flex items-center justify-between text-xs mb-2" style={{ color: C.muted }}>
-              <span>Assessed controls met, weighted by system impact</span>
+              <span>Enterprise compliance score, weighted by system impact</span>
               <span>Target {COMPLIANCE_TARGET}%</span>
             </div>
             <div className="h-2.5 rounded-full relative" style={{ background: C.panel2 }}>
@@ -319,7 +365,7 @@ export default function ExecutiveDashboard({
             <div className="flex flex-wrap gap-x-8 gap-y-3 mt-5">
               <div className="pr-8" style={{ borderRight: ENTERPRISE.assurance != null ? `1px solid ${C.border}` : undefined }}>
                 <div className="text-xl font-semibold">{coverage.assessedPct}%</div>
-                <div className="text-xs" style={{ color: C.muted }}>Assessment coverage · {coverage.assessed} of {coverage.applicable}</div>
+                <div className="text-xs" style={{ color: C.muted }}>Assessment coverage</div>
               </div>
               {ENTERPRISE.assurance != null && (
                 <div>
@@ -334,7 +380,7 @@ export default function ExecutiveDashboard({
         </section>
       </div>
 
-      <div className="px-4 lg:px-8 pt-8 pb-8 grid grid-cols-1 xl:grid-cols-5 gap-8">
+      <div className="px-4 lg:px-8 pt-6 pb-6 grid grid-cols-1 xl:grid-cols-5 gap-6">
         <section
           className="xl:col-span-3 rounded-2xl p-5 flex flex-col"
           style={{ background: C.panel, border: `1px solid ${C.border}` }}
@@ -350,23 +396,32 @@ export default function ExecutiveDashboard({
             </span>
           </div>
 
-          <div className="mt-3">
+          {IMPORTANT_SYSTEMS.length > 0 && (
+            <div className="hidden sm:flex items-center gap-4 mt-3 pb-2 text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.muted }}>
+              <span className="w-9 shrink-0" aria-hidden="true" />
+              <span className="flex-1">System</span>
+              <span className="w-36 shrink-0">Compliance · target {COMPLIANCE_TARGET}%</span>
+              <span className="w-32 shrink-0" />
+              <span className="w-[15px] shrink-0" />
+            </div>
+          )}
+
+          <div className="sm:mt-0 mt-3">
             {IMPORTANT_SYSTEMS.length === 0 ? (
               <div className="py-8 text-sm" style={{ color: C.muted, borderTop: `1px solid ${C.border}` }}>
                 No High-impact systems are currently registered.
               </div>
-            ) : IMPORTANT_SYSTEMS.map(({ system }) => {
+            ) : IMPORTANT_SYSTEMS.map(({ system, overdueFindings }) => {
               const score = system.complianceScore;
               const gap = score == null ? null : score - COMPLIANCE_TARGET;
               const clears = score != null && score >= COMPLIANCE_TARGET;
-              const status = systemStatusColor(clears);
               const SystemIcon = system.hostingType === "cloud" ? Cloud : Building2;
               return (
                 <button
                   key={system.id}
                   type="button"
                   onClick={() => onOpenSystem ? onOpenSystem(system.id) : onNavigate?.("data-estate")}
-                  className="w-full text-left flex items-center gap-4 py-4 wz-hover transition-colors"
+                  className="w-full text-left flex items-center gap-4 py-3 wz-hover transition-colors"
                   style={{ borderTop: `1px solid ${C.border}` }}
                   aria-label={`Open ${system.name} in Systems`}
                 >
@@ -380,17 +435,22 @@ export default function ExecutiveDashboard({
                       {system.overallAssurance != null && ` · Cyber Assurance ${system.overallAssurance}%`}
                     </span>
                   </span>
-                  <span className="hidden sm:flex items-center gap-2 w-36 shrink-0">
-                    <span className="h-2 rounded-full overflow-hidden flex-1" style={{ background: C.panel2 }}>
-                      <span className="h-full rounded-full block" style={{ width: `${score ?? 0}%`, background: C.accent }} />
+                  <span className="shrink-0 w-36">
+                    <span className="flex items-center gap-2">
+                      <span className="hidden sm:block h-2 rounded-full overflow-hidden flex-1 relative" style={{ background: C.panel2 }}>
+                        <span className="h-full rounded-full block" style={{ width: `${score ?? 0}%`, background: clears ? C.green : C.accent }} />
+                        <span className="absolute top-0 h-full w-px" style={{ left: `${COMPLIANCE_TARGET}%`, background: C.ink }} aria-hidden="true" />
+                      </span>
+                      <span className="text-sm font-semibold w-9 text-right ml-auto" style={{ color: C.ink }}>{score == null ? "—" : `${score}%`}</span>
                     </span>
-                    <span className="text-sm font-semibold w-9 text-right" style={{ color: C.ink }}>{score == null ? "—" : `${score}%`}</span>
+                    <span className="text-[10px] block mt-0.5 text-right" style={{ color: clears ? C.muted : C.red }}>{formatGap(gap)}</span>
                   </span>
-                  <span className="text-right shrink-0">
-                    <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full" style={status}>
-                      {clears ? "On target" : "Needs attention"}
-                    </span>
-                    <span className="text-[10px] block mt-1" style={{ color: C.muted }}>{formatGap(gap)}</span>
+                  <span className="w-32 shrink-0 text-right">
+                    {overdueFindings > 0 && (
+                      <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap" style={{ color: C.red, background: C.redBg }}>
+                        {overdueFindings === 1 ? "Overdue finding" : `${overdueFindings} overdue findings`}
+                      </span>
+                    )}
                   </span>
                   <ArrowRight size={15} color={C.muted} className="shrink-0" />
                 </button>
@@ -408,7 +468,7 @@ export default function ExecutiveDashboard({
           </button>
         </section>
 
-        <ComplianceDates dates={COMPLIANCE_DATES} onNavigate={onNavigate} />
+        <ComplianceDates dates={COMPLIANCE_DATES} onNavigate={onNavigate} onOpenEngagement={onOpenEngagement} />
       </div>
 
       <div className="px-4 lg:px-8 pb-8">

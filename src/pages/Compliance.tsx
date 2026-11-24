@@ -10,7 +10,10 @@ import type { ComplianceAreaId } from "./complianceAreas";
 // Controls, Compliance Frameworks, Audits, External Obligations. Same shell
 // as Governance.tsx: a landing page to pick an area, then the area's page
 // untouched.
-const PAGE_BY_AREA: Record<ComplianceAreaId, React.ComponentType<{ onNavigate?: (target: string) => void }>> = {
+/** An audit to open in place, from a deep link (#/compliance/audits/<id>[/<tab>]). */
+export interface InitialEngagement { id: string; tab?: string }
+
+const PAGE_BY_AREA: Record<ComplianceAreaId, React.ComponentType<{ onNavigate?: (target: string) => void; initialEngagement?: InitialEngagement }>> = {
   ccf: CommonControlFramework,
   frameworks: ComplianceFrameworks,
   audits: Audits,
@@ -31,7 +34,9 @@ const ROUTE_ID_BY_AREA = Object.fromEntries(
   Object.entries(INTERNAL_TABS).map(([routeId, tab]) => [tab, routeId])
 ) as Record<ComplianceAreaId, string>;
 
-export default function Compliance({ onNavigate, initialTab }: { onNavigate?: (target: string) => void; initialTab?: ComplianceAreaId }) {
+export default function Compliance({ onNavigate, initialTab, initialEngagement }: {
+  onNavigate?: (target: string) => void; initialTab?: ComplianceAreaId; initialEngagement?: InitialEngagement;
+}) {
   const [area, setArea] = useState<ComplianceAreaId | null>(initialTab ?? null);
 
   function changeArea(next: ComplianceAreaId | null) {
@@ -57,7 +62,7 @@ export default function Compliance({ onNavigate, initialTab }: { onNavigate?: (t
 
   return (
     <div className="w-full">
-      <ActiveAreaPage onNavigate={handleNavigate} />
+      <ActiveAreaPage onNavigate={handleNavigate} initialEngagement={area === "audits" ? initialEngagement : undefined} />
     </div>
   );
 }
