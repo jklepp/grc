@@ -395,9 +395,7 @@ export function SystemActions({
       if (source && (item.finding ? item.finding.source ?? "control-gap" : null) !== source) return false;
       if (domain && item.domain !== domain) return false;
       if (!q) return true;
-      // Control ids explicitly: they used to lead the detail line and were
-      // searchable through it, and now that they have their own column the
-      // detail line no longer repeats them.
+      // Control ids explicitly: they have their own column, not the detail line.
       return (
         item.title.toLowerCase().includes(q)
         || item.detail.toLowerCase().includes(q)
@@ -518,7 +516,7 @@ export function SystemActions({
 
   const tableTitle = group ? GROUP_META[group].title : "All actions";
   // The group that is showing decides which Controls view "Open in Controls"
-  // lands on — the same two selections the group lists used to offer.
+  // lands on.
   const controlsSelection = group === "assess" ? ASSESSMENT_SELECTION : group === "gaps" ? DEFAULT_SELECTION : null;
 
   return (

@@ -6,13 +6,9 @@ import ExceptionRegister from "./ExceptionRegister";
 import { GovernanceLanding } from "./GovernanceLanding";
 import type { GovernanceAreaId } from "./governanceAreas";
 
-// Governance merges the former Policies (formerly "Policy Center"),
-// Procedures (formerly "Procedure Library"), Security Principles, and
-// Exception Register top-level pages into one, switched by an in-page tab
-// bar instead of separate sidebar entries. Each page's own content is
-// untouched — this is purely a shell around them. System Register (formerly "System Security Plan") lives on
-// Data Estate now, not here; Common Controls, Frameworks, Audits and External
-// Obligations live on Compliance (Compliance.tsx).
+// Governance: Policies, Procedures, Security Principles and the Exception
+// Register, switched by an in-page tab bar. A shell only; each page's content
+// is its own.
 const PAGE_BY_AREA = {
   policy: PolicyCenter,
   procedures: ProcedureLibrary,
@@ -22,12 +18,9 @@ const PAGE_BY_AREA = {
 
 type GovernanceTab = GovernanceAreaId;
 
-// These pages cross-link each other by their old top-level ids (e.g.
-// Procedure Library's "View policy" links to "policy-center"). Map those
-// to the in-page tab they now mean instead of forwarding them up to the
-// app-level navigator, which no longer has a page for them. Ids that mean
-// a tab on a different consolidated page (e.g. "ssp") fall through to
-// onNavigate so App.jsx's LEGACY_ROUTES can send them there.
+// These pages cross-link by old top-level ids (e.g. "policy-center"); map
+// them to the in-page tab. Ids for another page (e.g. "ssp") fall through to
+// onNavigate and App.tsx's LEGACY_ROUTES.
 const INTERNAL_TABS: Record<string, GovernanceTab> = {
   "policy-center": "policy",
   "procedure-library": "procedures",

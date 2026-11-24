@@ -25,9 +25,7 @@ function meta<T extends object>(entry: T, colorKey: ThemeKey, bgKey: ThemeKey): 
   };
 }
 
-// Five states, and every one of them is derived from something real. See the
-// git history for the reasoning — this matrix moved from "Assessed" as the
-// majority answer to "Not in Scope," on purpose: the honest count of controls
+// Five states, each derived from something real. The honest count of controls
 // actually looked at out of what's required is uncomfortable by design.
 export const STATUS_META = {
   inherited: meta({ label: "Inherited", Icon: Cloud }, "green", "greenBg"),
@@ -35,11 +33,8 @@ export const STATUS_META = {
   partial: meta({ label: "Partial", Icon: MinusCircle }, "amber", "amberBg"),
   deficient: meta({ label: "Deficient", Icon: Circle }, "red", "redBg"),
   "not-implemented": meta({ label: "Not Implemented", Icon: Circle }, "red", "redBg"),
-  // Was "Not in Scope" — now that Control Applicability reports a real Not
-  // Applicable bucket alongside this one, that label would read as the same
-  // thing said twice. This status means applicable and unassessed; Not
-  // Applicable (APPLICABILITY_META below) means the control was never in play
-  // here at all. Different claims, so they need different words.
+  // Applicable and unassessed. Not "Not in Scope": that is the Not Applicable
+  // bucket (APPLICABILITY_META below), a different claim.
   unassessed: meta({ label: "Not Assessed", Icon: ScrollText }, "ink", "panel2"),
 };
 export const STATUS_ORDER = ["inherited", "satisfied", "partial", "deficient", "not-implemented", "unassessed"] as const;

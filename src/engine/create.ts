@@ -1,28 +1,7 @@
-// Builds one engine over one graph.
-//
-// The wiring order below is the dependency order, and it is the whole reason
-// this file exists rather than each module reaching for the others directly:
-//
-//   classification   what tier does this asset's data earn
-//   applicability    given that tier, which controls are required
-//   findings         open findings, aged against ctx.now
-//   implementation   compose + score one control on one asset
-//   rollups          category -> asset -> system -> enterprise
-//   risk             what holds a scenario down, and how well
-//   compliance       the same implementations, read per framework clause
-//   profile          how an asset measures against its tier's required bar
-//   selectors        the page-facing surface over all of the above
-//
-// Two things worth noticing about that list. Nothing later is consulted by
-// anything earlier, so there are no cycles to break — the one that used to
-// exist (profile <-> rollups, over category weights) went away when weights
-// moved to the graph, where a fact belongs.
-//
-// And every one of these takes its graph as an argument, which is what makes a
-// second engine possible: createEngine(syntheticGraph) for a property test,
-// createEngine(lastQuartersGraph) to diff posture over time, or one per tenant
-// in a server process. None of that was expressible when each module read a
-// module-scope singleton.
+// Builds one engine over one graph. The wiring order below is the dependency
+// order: nothing later is consulted by anything earlier, so keep it acyclic.
+// Every module takes its graph as an argument, so a second engine (a test's
+// synthetic graph, a prior revision, a tenant) is just another createEngine call.
 import type { Graph } from "../graph/types";
 import { type EngineContext, defaultContext } from "./context";
 import { createClassification } from "./classification";

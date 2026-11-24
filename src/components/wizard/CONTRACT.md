@@ -420,8 +420,7 @@ undocumented local exception.
 
 ### Migrations in progress
 
-None open. The unified masthead (4.10–4.13) has landed on every wizard surface.
-`StepHeader` and `WizardBanner` are deleted and must not return.
+None open.
 
 ### Known open deviations
 

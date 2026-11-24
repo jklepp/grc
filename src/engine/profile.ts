@@ -6,19 +6,8 @@
 // data clear" is a statement about a company's policy, not about how scoring
 // works.
 //
-// THE SUBJECT MOVED FROM ASSET TO SYSTEM
-// ---------------------------------------
-// This used to judge one asset against the tier its own data earned, comparing
-// the tier's required maturity and evidence against the asset's category
-// assessment. Both halves of that comparison are gone: assets no longer carry a
-// score, and the per-asset category assessment they were compared against was
-// retired with them.
-//
-// What replaced it reads better anyway. A system is judged against the tier its
-// most sensitive data earns, and the comparison is against what the PRISMA
-// levels actually found — so "does this boundary clear its bar" is answered by
-// the same ratings that produced its score, rather than by a self-assessment
-// sitting beside them that could disagree.
+// A system is judged against the tier its most sensitive data earns, using the
+// same PRISMA ratings that produced its score, so the two cannot disagree.
 import type { Graph } from "../graph/types";
 import {
   ASSURANCE_CATEGORIES, PRISMA_LEVELS,
@@ -58,24 +47,16 @@ export function createProfile(graph: Graph, rollups: RollupsApi) {
 
   // The score reached when every PRISMA level up to and including the tier's
   // required maturity is Fully Compliant, and every level above it is
-  // Non-Compliant.
-  //
-  // This is a genuinely different derivation from the old one, and a better
-  // ladder. It used to run the tier's required maturity and evidence through
-  // blendAssurance at 100% effectiveness, which mixed three axes to produce a
-  // target the actual score was never computed the same way from. Now the target
-  // and the actual are the same arithmetic over the same five weights, so the
-  // comparison means something:
+  // Non-Compliant. Target and actual are the same arithmetic over the same
+  // five weights:
   //
   //   Public       Policy  clears           -> 15
   //   Internal     + Procedure              -> 35
   //   Confidential + Implemented            -> 75
   //   Restricted   + Measured and Managed   -> 100
   //
-  // tierBaseline.maturity is reinterpreted rather than re-authored. The five
-  // stage names and the five level names are the same words, so control-profile
-  // .yaml needed no change — only a different reading of what it was always
-  // saying.
+  // tierBaseline.maturity's stage names are read as PRISMA level names; the
+  // words are the same.
   function tierTargetScore(tier: string): number | null {
     const profile = profiles[tier as ClassificationTier];
     if (!profile) return null;
@@ -95,9 +76,7 @@ export function createProfile(graph: Graph, rollups: RollupsApi) {
   // strong on Policy/Procedure/Implemented and merely adequate on Measured/
   // Managed still clears its bar — those two rungs are only 25% of the
   // formula between them, so unevenness there is exactly what a real audit
-  // tolerates rather than gates on. The old all-rungs-must-be-100 rule was
-  // stricter than any real engagement: it let one soft rating fail a category
-  // outright regardless of how strong the rest of the blend was.
+  // tolerates rather than gates on.
   //
   // "met" clears the category's target composite outright. "partial" sits
   // within 75% of the target — a real assessor's corrective-action-plan zone,

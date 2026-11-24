@@ -1,7 +1,6 @@
 // Composes one Finding: resolves its owner, names the evidence and risks that
 // touch it, and computes `overdue` against ctx.now instead of trusting a
-// hand-typed flag (the old systems.ts remediation array had exactly that bug —
-// SEC-2210 was still marked `overdue: false` a month past its due date).
+// hand-typed flag.
 //
 // riskIds are derived, not hand-typed: a finding contributes to exactly the
 // risks that already name both its asset and its control as carrying the

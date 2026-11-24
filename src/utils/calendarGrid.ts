@@ -1,5 +1,5 @@
 // Month grids and month/year arithmetic for the Governance Schedule's
-// calendar views. Ported from Homeviz's domain/calendar.ts.
+// calendar views.
 //
 // Everything here works on calendar days as ISO strings ("2026-03-31"), with
 // the arithmetic done in UTC so a day never shifts with the browser's

@@ -91,11 +91,8 @@ export interface GraphFacts {
   policies: PolicyRecord[];
   procedures: ProcedureRecord[];
 
-  // The profile DEFINITION, not the resolved table. CONTROL_PROFILES used to be
-  // built at module scope from four consts sitting beside it, which made "what
-  // bar does Restricted data have to clear" a source-code question rather than a
-  // data one. Carrying the inputs here and resolving them in assembleGraph is
-  // what lets a second dataset answer it differently.
+  // The profile DEFINITION, resolved in assembleGraph, so a second dataset can
+  // set a different bar.
   controlProfile: ControlProfileDefinition;
 
   // The other half of the profile: WHICH controls a tier carries, where the
@@ -243,10 +240,7 @@ export interface ControlProfileDefinition {
 }
 
 // ---- What the engine consumes ------------------------------------------------
-// Facts, normalized, plus indexes. Every index here replaced a linear scan that
-// previously lived as a module-level const inside the node or edge file it
-// indexed; gathering them means the engine can be handed a graph rather than
-// importing twenty modules that each built their own.
+// Facts, normalized, plus indexes.
 export interface Graph {
   readonly facts: GraphFacts;
 

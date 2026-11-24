@@ -38,8 +38,8 @@ export const GUIDED_WORKFLOW_HEADER_MIN_HEIGHT = 120;
 // The one typography scale. Sizes: 10 (label), 11 (help/meta), 11.5 (eyebrow),
 // 12.5 (body), 13.5 (section title), 16 (card title), 19 (step title / figure).
 //
-// `eyebrow` sits above `label` rather than beside it because the two stopped
-// being the same job: it is now the wizard's position line ("Step 3 of 8 ·
+// `eyebrow` sits above `label` because they are different jobs: it is the
+// wizard's position line ("Step 3 of 8 ·
 // 38%") and the footer's status, both of which are read at a glance from
 // across the screen, while `label` names a field the reader is already looking
 // at. Both places that use it are the same kind of indicator, so they grow

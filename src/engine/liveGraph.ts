@@ -148,11 +148,9 @@ export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts 
   );
   const runtimeActorIds = new Set(runtime.actors.map((actor) => actor.id));
   const runtimeAssetIds = new Set(runtime.assets.map((asset) => asset.id));
-  // The wizard cannot currently re-author recovery infrastructure. Replacing a
-  // YAML system used to drop backup-vault assets (and then prune their
-  // backup/restore edges), which removed the Backup & Recovery lane from the
-  // architecture diagram. Keep those baseline vaults — and the flows that
-  // name them — unless the runtime explicitly re-authored the same asset id.
+  // The wizard cannot re-author recovery infrastructure, so replacing a YAML
+  // system keeps its backup vaults and the flows naming them (else the Backup &
+  // Recovery lane vanishes) unless the runtime re-authored the same asset id.
   const preservedRecoveryAssets = base.assets.filter(
     (asset) =>
       asset.systemIds.some((sid) => overriddenSystemIds.has(sid))
@@ -248,8 +246,8 @@ export function mergeFacts(base: GraphFacts, runtime: RuntimeFacts): GraphFacts 
 }
 
 // Drop edges that point at assets the merge no longer carries — leftover YAML
-// flows after a system replacement, except recovery infrastructure which
-// mergeFacts now preserves explicitly.
+// flows after a system replacement, except recovery infrastructure, which
+// mergeFacts preserves.
 function pruneDanglingAssetEdges(facts: GraphFacts): GraphFacts {
   const assetIds = new Set(facts.assets.map((asset) => asset.id));
   const hasAsset = (id: string) => assetIds.has(id);

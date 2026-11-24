@@ -66,10 +66,9 @@ function StatSummary({ activeStatus, onToggle }: { activeStatus: PrincipleStatus
   );
 }
 
-// Purely a reference strip now — the eleven cross-cutting ideas every
-// principle below traces back to. Not clickable: it used to double as a
-// filter, but replacing the entire domain list below on a stray click was
-// a confusing way to browse eleven cards that are meant to be read together.
+// A reference strip — the eleven cross-cutting ideas every principle below
+// traces back to. Deliberately not a filter: the cards are meant to be read
+// together.
 function FoundationalStrip() {
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">

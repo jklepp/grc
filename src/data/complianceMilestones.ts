@@ -133,6 +133,7 @@ function programEntries(cycle: ProgramCycle, systems: readonly System[]): Schedu
     kind: "milestone" as const,
     title: m.title,
     type: cycle.type,
+    standard: cycle.standard,
     cadence: `${cycle.cadence} · ACME-wide · ${scope}`,
     owner: COMPLIANCE_OWNER,
     dueDate: m.dueDate,

@@ -1,26 +1,9 @@
 // Policies and procedures — the company-wide artifacts every implementation
 // stands on.
 //
-// These existed before this file did, in src/data/policies.js and
-// src/data/procedures.js, and were read only by the two pages that render them.
-// That made them decorative: deleting every policy in the library moved no
-// assurance number anywhere in the app, because nothing in graph/ or engine/
-// imported either module.
-//
-// WHY THAT WAS WRONG, IN THE LIBRARY'S OWN WORDS
-// -----------------------------------------------
-// SOP-01's final step reads: "A Vanta automated test confirms encryption is
-// actually active — at rest and in transit — before the asset's Data Protection
-// category is marked Managed. A control that's configured but unverified
-// doesn't count." The procedure library already stated the gating rule. The
-// scoring engine didn't implement it: someone typed maturityStage: "Managed"
-// into a category assessment and it scored 100 regardless.
-//
-// The maturity ladder's bottom two rungs — Policy (20) and Procedure (40) — are
-// company-wide facts. There is one encryption policy and one SOP behind it, not
-// twenty-six. But the stage encoding them was stored per asset per category and
-// asserted 156 times over, checked zero times. engine/implementation.ts now
-// derives a CEILING from these artifacts and caps the claim against it.
+// The PRISMA Policy and Procedure levels are company-wide facts: one
+// encryption policy and one SOP behind it, not one per asset. The engine reads
+// these artifacts rather than a per-asset claim.
 //
 // WHY THE SHAPES ARE THIN
 // ------------------------
@@ -63,8 +46,7 @@ export const POLICY_REVIEW_INTERVAL_DAYS = 365;
 // ---- Procedure ---------------------------------------------------------------
 // A step's `controls` is the hand-curated part: someone judged "this step is
 // what satisfies that control." procedures.js validates every cited id against
-// the SOP's own derived controlIds, and that check now runs in graph/validate.ts
-// against the assembled graph instead of as a module-load side effect.
+// the SOP's own derived controlIds, checked in graph/validate.ts.
 export interface ProcedureStepRecord {
   title: string;
   controls?: ControlId[];

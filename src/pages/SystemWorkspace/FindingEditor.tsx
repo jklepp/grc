@@ -36,7 +36,7 @@ export interface FindingFormState {
   title: string;
   detail: string;
   controlId: string;
-  // "" means no asset — a legitimate answer now that a finding is anchored to
+  // "" means no asset — legitimate, since a finding is anchored to
   // (system, control). A missing retention schedule is not located on one box.
   assetId: string;
   severity: FindingSeverity;

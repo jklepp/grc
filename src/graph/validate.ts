@@ -11,11 +11,8 @@
 // engine/validateDerivations.ts, since deriving it requires the engine and the
 // graph must stay free of scoring.
 //
-// PORTED FROM validate.js: this used to run as an import side effect and assert
-// against the ACME modules directly, which meant it could only ever check one
-// dataset — the one it imported. Taking a Graph is what lets a YAML directory
-// or a Postgres query be held to the identical standard, and it is why
-// loadGraph() can promise that anything it returns has been checked.
+// Taking a Graph (not importing the ACME facts) is what lets loadGraph()
+// promise that anything it returns has been checked, whatever its source.
 //
 // Note what is imported below and what isn't. The VOCABULARIES come in as
 // modules (ASSET_KINDS, FLOW_KINDS, ORG_KINDS...) because they are schema —
@@ -282,16 +279,6 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
     }
   });
 
-  // The category-assessment checks lived here: every asset had to carry a
-  // maturity stage, an evidence type and an effectiveness percentage for all six
-  // assurance categories, 156 rows in total, because the assessed baseline was
-  // what every non-key control fell back to.
-  //
-  // Both the rows and the fallback are gone. A control is now rated once against
-  // a system across the five PRISMA levels, from facts that already existed —
-  // policy citations, SOP steps, evidence, the activity calendar — and a control
-  // nobody assessed is reported as unassessed instead of inheriting a number
-  // from a judgment typed against its category.
 
   graph.applicabilityRules.forEach((r, i) => {
     check(has(graph.keyControlById, r.controlId), `applicability rule[${i}]: controlId "${r.controlId}" is not a key control`);
@@ -442,8 +429,7 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
     check(has(graph.keyControlById, e.controlId), `riskControls[${i}]: controlId "${e.controlId}" is not a key control`);
   });
 
-  // A risk with no edges has to say why. Silence here would leave a risk floating
-  // exactly the way linkedControl used to, just without the string.
+  // A risk with no edges has to say why.
   graph.risks.forEach((r) => {
     const hasAssets = (graph.assetsByRisk[r.id] ?? []).length > 0;
     const hasControls = (graph.controlsByRisk[r.id] ?? []).length > 0;
@@ -461,11 +447,6 @@ export function validateGraph(graph: Graph, options: { throwOnFailure?: boolean 
   );
 
   // ---- Program artifacts --------------------------------------------------------
-  // These three checks used to run inside src/data/procedures.js as a module-load
-  // side effect, which meant they fired on import of a page rather than on
-  // construction of a graph — and could not be exercised against a deliberately
-  // broken fact set, because there was only ever one. They belong here now that
-  // policies and SOPs are facts like any other.
   graph.procedures.forEach((p) => {
     const owned = new Set(p.controlIds);
     p.steps.forEach((step) => {

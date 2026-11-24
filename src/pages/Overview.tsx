@@ -6,19 +6,15 @@ import ScheduledActivities from "./ScheduledActivities";
 import type { OverviewAreaId } from "./overviewAreas";
 import type { SystemId } from "../graph/ids";
 
-// Overview merges the former "Executive Dashboard" (now "Assurance
-// Overview"), "Risk Register", and "Enterprise Footprint" top-level pages,
-// plus the Governance Schedule (moved here from Governance),
-// into one route, switched by the top nav's "Overview" dropdown (see
-// TopNav.tsx) instead of an in-page tab bar. Unlike Controls/Governance,
-// there's no landing page to pick an area from first — the bare "Overview"
-// nav click has nowhere useful to land but Assurance Overview, so that's the
-// default whenever no area is specified.
+// Overview's areas are switched by the top nav's "Overview" dropdown, not an
+// in-page tab bar. There is no landing page: with no area, it shows the
+// dashboard.
 export default function Overview({
-  onNavigate, onOpenSystem, initialTab,
+  onNavigate, onOpenSystem, onOpenEngagement, initialTab,
 }: {
   onNavigate?: (target: string) => void;
   onOpenSystem?: (systemId: SystemId) => void;
+  onOpenEngagement?: (engagementId: string, tab?: string) => void;
   initialTab?: OverviewAreaId;
 }) {
   const area: OverviewAreaId = initialTab ?? "dashboard";
@@ -30,5 +26,5 @@ export default function Overview({
   if (area === "risk-register") return <RiskRegister />;
   if (area === "footprint") return <DataFootprint />;
   if (area === "schedule") return <ScheduledActivities onNavigate={onNavigate} />;
-  return <ExecutiveDashboard onNavigate={onNavigate} onOpenSystem={onOpenSystem} />;
+  return <ExecutiveDashboard onNavigate={onNavigate} onOpenSystem={onOpenSystem} onOpenEngagement={onOpenEngagement} />;
 }

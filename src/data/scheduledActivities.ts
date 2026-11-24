@@ -340,6 +340,8 @@ export interface ScheduleCalendarEntry {
   type: string;
   // "Quarterly · Q3", "3-year cycle · ACME-wide", "AWS · SOC 2 Type II"
   cadence: string;
+  // Set for ACME's own program milestones: the standard they certify against.
+  standard?: string;
   owner: string;
   dueDate: string;
   completedAt?: string;

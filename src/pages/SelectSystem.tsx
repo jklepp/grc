@@ -239,7 +239,7 @@ export default function SelectSystem({ onSelectSystem }: { onSelectSystem: (id: 
   const systems = liveEngine.rollups.systemRollups;
   // localStorage read + JSON.parse + the store's migration passes. It only
   // changes when the engine is republished, so it does not belong in the
-  // render body it used to sit in.
+  // render body.
   // `liveEngine` is a cache key here rather than an input: both of these read
   // module state that only changes when publish() swaps the engine, so that
   // is exactly when they should be recomputed. The rule cannot see that.

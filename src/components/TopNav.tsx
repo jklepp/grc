@@ -13,7 +13,7 @@ import { prefetchRoute } from "../pages/routeChunks";
 import type { User } from "../auth/roster";
 
 // Topbar chrome is intentionally fixed dark regardless of the app-wide light/dark
-// toggle — it's the "always-on" brand shell, same idea the old Sidebar used.
+// toggle — it's the "always-on" brand shell.
 const TB = {
   bgSolid: "#131217",
   panel: "#1E1D22",
@@ -272,9 +272,8 @@ export default function TopNav({ active, onSelect, user, onSignOut, onOpenSettin
   );
 }
 
-// Who is signed in, and — the part that has to be on screen — what they may do.
-// Half of this change is invisible without it: an auditor with no write actions
-// anywhere looks like a broken app unless the bar says "Auditor".
+// Who is signed in, and what they may do: an auditor with no write actions
+// looks like a broken app unless the bar says "Auditor".
 //
 // Same hover-with-delayed-close mechanics as GroupedNavButton, for the same
 // reason documented there.

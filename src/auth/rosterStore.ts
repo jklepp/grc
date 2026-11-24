@@ -7,13 +7,9 @@
 // the browser cannot write to it, and a settings page that edits people needs
 // somewhere to put the edits.
 //
-// WHAT THIS COSTS. Until now roles lived only in the authored module, so editing
-// sessionStorage by hand could impersonate someone who exists but could not mint
-// a role. With roles in localStorage that property is gone: anyone who can open
-// devtools can make themselves an admin. It changes little in practice — the
-// data was already in their browser and browser-side authorization was already
-// advisory — but it is a real thing traded away, and it comes back the day an
-// identity provider signs the roles instead.
+// SECURITY: roles live in localStorage, so anyone with devtools can make
+// themselves an admin. Browser-side authorization is advisory until an
+// identity provider signs the roles.
 //
 // WHEN AN IDENTITY PROVIDER ARRIVES: adding and removing people moves there, and
 // so does role assignment. What stays is the Org claim — Keycloak has no idea

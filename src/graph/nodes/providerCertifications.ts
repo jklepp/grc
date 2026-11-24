@@ -1,16 +1,11 @@
 // The reports ACME stands on for the controls its providers run.
 //
-// INHERITED_DOMAINS (nodes/systems.ts) already says a SaaS system inherits
-// eight SCF domains from its vendor and a cloud system two. Until now that
-// claim moved nothing: it tinted the SSP control matrix and touched no score,
-// so "AWS handles physical security" was an assertion with nothing behind it.
-//
-// Scoring an inherited control requires knowing what the inheritance actually
+// INHERITED_DOMAINS (nodes/systems.ts) says which SCF domains a hosting type
+// inherits. Scoring an inherited control requires knowing what the inheritance actually
 // rests on — which report, covering which domains, of what kind, and whether it
 // is still current. That is what this is. A system whose hosting type claims to
-// inherit a domain no certification covers fails the build, because inheritance
-// without a report is exactly the plausible-number-naming-no-controls that
-// nodes/systems.ts already rejected once.
+// inherit a domain no certification covers fails the build: inheritance needs
+// a report behind it.
 import type { EvidenceType } from "./taxonomy";
 
 // What the auditor actually did. A Type II report tests operating effectiveness

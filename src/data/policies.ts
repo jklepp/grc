@@ -94,7 +94,7 @@ export const POLICY_CATEGORIES = [
 // there was nothing anywhere in the app recording when a policy was last looked at, so
 // the commitment was unfalsifiable.
 //
-// engine/implementation.ts reads these: a policy overdue for review still supports the
+// engine/assessment.ts reads these: a policy overdue for review still supports the
 // Policy rung of the maturity ladder (it exists, and it was true once) but cannot support
 // a claim above it, on the same reasoning that makes stale evidence weaker proof rather
 // than no proof.

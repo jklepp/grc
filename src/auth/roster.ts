@@ -2,17 +2,13 @@
 //
 // This is app configuration, not part of the authored dataset. It is
 // deliberately NOT a graph fact: src/graph/facts describes ACME's security
-// posture, and who holds a login to this tool is not one of those facts. It
-// also anticipates where this ends up — once an identity provider is connected,
-// people arrive as token claims and this list shrinks to nothing, so putting it
-// in the graph now would only be work to undo.
+// posture, and who holds a login to this tool is not one of those facts.
 //
 // Declared here rather than in a YAML file beside the facts, even though that
 // is how facts are authored, because this module is reached from the ENTRY
 // chunk: Boot renders Login before the dataset loads. A YAML roster would drag
 // the `yaml` parser out of the dataset chunk and into the entry bundle — about
-// 110 kB to parse forty lines, undoing a good part of what making the engine
-// async bought. scripts/check-roster.mjs loads this module through Vite the
+// 110 kB to parse forty lines. scripts/check-roster.mjs loads this module through Vite the
 // same way check-validator-fires.mjs loads the graph, so it is still validated
 // against orgs.yaml at build time.
 //

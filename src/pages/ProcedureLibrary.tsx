@@ -118,7 +118,7 @@ function ProcedureStepRow({ step: s, index }: { step: AuthoredProcedureStep; ind
   );
 }
 
-// Some SOPs now cover up to ~46 real controls (the Governance, Risk &
+// Some SOPs cover up to ~46 real controls (the Governance, Risk &
 // Compliance group), so the raw ID list and clause citations both need to
 // stay usable rather than dumping a wall of IDs — collapsed by default with
 // a "show N more" toggle, and the clause list scrolls instead of growing
@@ -673,12 +673,8 @@ export default function ProcedureLibrary({ onNavigate }: { onNavigate?: (pageId:
   // procedure-wide, rather than step, level).
   const requiredCount = selected.steps.filter((s) => s.controls && s.controls.length > 0).length;
 
-  // What this SOP actually operationalizes, and how well. An asset no longer
-  // carries a category score to rank by — and ranking assets was always the
-  // weaker panel for a procedure page anyway. The controls this SOP is the
-  // owning procedure for, with the Procedure-level rating each one earned
-  // across both systems, makes the link between writing a step and moving a
-  // number visible for the first time.
+  // What this SOP operationalizes, and how well: the controls it owns, with
+  // the Procedure-level rating each earned across both systems.
   const scoredControls = SYSTEMS.flatMap((s) =>
     s.scoredAssessments.filter((a) => a.category === selected.category)
   )

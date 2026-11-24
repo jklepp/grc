@@ -472,10 +472,6 @@ function ModelHealth({ onSelect }: { onSelect: (type: NodeType, id: string) => v
             </div>
           ))}
         </div>
-        {/* This used to name the categories that were assessed-only for every
-            asset. That state is gone with the category assessments behind it.
-            What is worth saying in its place is what the basis split above
-            actually means now. */}
         <div className="rounded-xl p-4 mt-3 text-xs leading-relaxed" style={{ background: C.panel2, border: `1px solid ${C.border}`, color: C.muted }}>
           <span style={{ color: C.ink, fontWeight: 600 }}>{health.coverage.assessed} of {health.coverage.applicable}</span> applicable controls carry a score,
           {" "}{health.coverage.inherited} of them from a provider&apos;s certification rather than ACME&apos;s own testing. The remaining

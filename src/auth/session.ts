@@ -20,8 +20,7 @@ import { isActive } from "./roster";
 import { findUserById, subscribeToRoster } from "./rosterStore";
 import type { User } from "./roster";
 
-// sessionStorage, not localStorage: closing the tab signs you out, which is what
-// the fake `grc-authenticated` flag this replaces already did.
+// sessionStorage, not localStorage: closing the tab signs you out.
 const SESSION_STORAGE_KEY = "grc-session";
 
 const listeners = new Set<() => void>();

@@ -53,7 +53,7 @@ import type { User } from "../auth/roster";
 
 // The one declaration of the run (CONTRACT 4.1). `title`/`detail` are the
 // rail's short forms; `heading`/`lead` are the same step spelled out for the
-// wizard header, which now carries the step in hand rather than the flow.
+// wizard header, which carries the step in hand rather than the flow.
 const STEPS = [
   {
     id: 1, title: "Basics", detail: "Purpose & ownership", icon: Info,
@@ -299,7 +299,7 @@ interface DryRunResult {
   assurance?: number | null;
   coverage?: { applicable: number; assessed: number; assessedPct: number; inherited: number } | null;
   applicability?: ReturnType<Engine["compliance"]["controlApplicabilitySummary"]>;
-  // The scope story the way Scope Review now tells it: policy baseline
+  // The scope story the way Scope Review tells it: policy baseline
   // plus conditional overlays in, exclusions and open questions out, and the
   // human work remaining after create (confirm exclusions, confirm inherited
   // claims per report, grade what ACME owns).
@@ -822,10 +822,8 @@ export default function AddSystemWizard({ open, onClose, onCreated, editingSyste
         residency: residency ? [residency] : [],
       },
       aiUsage: { usesAI, autonomousActions: usesAI && autonomousActions },
-      // Not asked in this wizard — see the Applicable Frameworks field below,
-      // which replaced it. Carried forward untouched on an edit/clone rather
-      // than dropped, so a system already tagged sox/ai-regulated/etc. doesn't
-      // lose that tag the next time someone edits it here.
+      // Not asked in this wizard; carried forward on edit/clone so an existing
+      // tag survives.
       regulatoryContext: sourceSystem?.regulatoryContext ?? [],
       onboardingProfile: { identityTypes, networkExposure, hasThirdPartyIntegration, sdlcApplicable },
     };

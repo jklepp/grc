@@ -16,20 +16,25 @@ import {
 import type { SystemId } from "../../graph/ids";
 import { commit, nowIso, today, Pill, TrackerBar } from "./shared";
 import { EngagementDetail } from "./EngagementDetail";
+import type { InitialEngagement } from "../Compliance";
 
 // Audits: every engagement, open ones first, and the certificates and reports
 // ACME holds. An engagement opens in place; there is no wizard to run one —
 // the work is a grid (EngagementDetail).
-export default function Audits() {
+export default function Audits({ onNavigate, initialEngagement }: {
+  onNavigate?: (target: string) => void; initialEngagement?: InitialEngagement;
+}) {
   const engine = useLiveEngine();
   const user = useSignedInUser();
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(initialEngagement?.id ?? null);
   const [creating, setCreating] = useState(false);
   const canManage = allows(canManageEngagement(user));
 
   const engagements = engine.engagements.all();
   if (openId && engine.graph.engagementById[openId]) {
-    return <EngagementDetail engagementId={openId} onBack={() => setOpenId(null)} />;
+        // Opened from a deep link: going back also drops the audit from the URL.
+    const back = () => { setOpenId(null); if (initialEngagement) onNavigate?.("audits"); };
+    return <EngagementDetail engagementId={openId} initialTab={openId === initialEngagement?.id ? initialEngagement.tab : undefined} onBack={back} />;
   }
 
   return (

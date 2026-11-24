@@ -3,8 +3,7 @@
 // PRISMA's top rung asks whether somebody acts on what the control produces, on
 // a cadence — not whether the control exists, and not whether it was measured.
 // A control nobody has looked at since it was switched on is implemented and
-// unmanaged, and until now this app had no way to say so: the scheduled-activity
-// calendar lived in src/data and was read by exactly one page.
+// unmanaged.
 //
 // WHY THE SHAPE IS THIN
 // ----------------------

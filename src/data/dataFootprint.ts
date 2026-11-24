@@ -66,7 +66,7 @@ export const DATA_SOURCES: DataSource[] = [
 // Card backgrounds for the vendor tiles — deliberately fixed (not theme-aware),
 // same reasoning as a photo or brand color: these read the same regardless of
 // light/dark mode since the tile owns its own background outright. `tier` is
-// now just a color key for visual variety, not a risk label — deliberately no
+// just a color key for visual variety, not a risk label — deliberately no
 // red/amber/orange/green anywhere on this page, since a stoplight palette reads
 // to executives as "something is actively wrong" rather than a classification.
 export function tierGradient(tier: DataSourceTier): string {

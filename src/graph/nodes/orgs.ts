@@ -1,17 +1,8 @@
 // Org — who's accountable, as a node instead of a string.
 //
-// Every "owner" in this app used to be free text: OWNERSHIP kept one
-// vocabulary, systems.ts's roles[] kept a second, risks.ts kept a third —
-// three registers that happened to overlap on some names ("IT Security") and
-// diverge on others ("IT Security — SOC function" vs. a sibling spelling
-// elsewhere) with nothing forcing them to agree, and no way to ask "show me
-// everything ML Platform Team owns" without grepping strings.
-//
-// This file is deliberately scoped to the GRAPH layer only — controlImplementations.ts
-// ownership, systems.ts roles, risks.ts owners, and findings.ts owners. It does
-// NOT touch procedures.js's SOP owners or scheduledActivities.js: those are
-// content, not graph (see the canonical-graph-model rearchitecture), and stay
-// their own thing on purpose.
+// Scoped to the GRAPH layer only — controlImplementations.ts ownership,
+// systems.ts roles, risks.ts owners, and findings.ts owners. SOP owners and
+// scheduled activities are content, not graph, and stay separate on purpose.
 //
 // DEDUPLICATION, AND WHERE IT STOPS
 // ----------------------------------
@@ -31,10 +22,7 @@
 // pretending the functions are interchangeable — "every control IT Security
 // or one of its functions owns" is still answerable by walking parents.
 //
-// Two individuals (systems.ts remediation, now findings.ts) are Person nodes
-// rather than Team, because that's what they are — a person, not a function.
-// The kind was called "user" until sign-in arrived and needed that word for
-// someone who logs into ACME ASSURE. An Org person is who is ACCOUNTABLE for a
+// Individuals are Person nodes rather than Team. An Org person is who is ACCOUNTABLE for a
 // control, risk or finding; that is not the same question as who is signed in,
 // and src/auth keeps the two in separate registers (a signed-in user may claim
 // an Org person by id, and most Org people never sign in at all).

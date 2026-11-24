@@ -2,10 +2,7 @@
 //
 // Pages consume a DEFAULT ENGINE built over ACME's facts. That default is the
 // only thing in the app that picks a dataset; everything below it takes its
-// graph as an argument. Keeping the page-facing names identical to what they
-// were before the seam existed is deliberate — 22 page and component files
-// import from here, and none of them should have to know that the engine
-// became constructible, or that loading it became asynchronous.
+// graph as an argument.
 //
 // To work with a different dataset (a test's synthetic graph, a prior revision,
 // another tenant), don't reach for these bindings — build your own:
@@ -16,28 +13,13 @@
 //
 // ---- WHY THE BINDINGS BELOW ARE `let` -----------------------------------------
 //
-// They used to be `const`, initialised from an engine this module built while it
-// was being imported. That made three things true that a real deployment cannot
-// satisfy:
+// publish() assigns them when initEngine() resolves and again after every
+// runtime commit. ES module bindings are live, so importers see each new value
+// and the whole surface moves together. A module-scope read captures one
+// engine and goes stale; read inside a render or hook instead.
 //
-//   1. Facts had to be available synchronously, which meant every fact file was
-//      inlined into the main bundle and parsed before first paint. A database or
-//      an API answers over a network; there is no synchronous version of that.
-//   2. Exactly one engine could exist, created at import time, so there was no
-//      point at which a tenant, a session, or a point-in-time could be chosen.
-//   3. Half the surface silently disagreed with the other half. Bindings copied
-//      straight off the first engine kept answering from it forever, while the
-//      dozen that were hand-wrapped as `(...args) => engine.x(...args)` followed
-//      each runtime commit. Adding a system refreshed some pages and not others.
-//
-// So the surface is now declared here and assigned by publish(), which runs once
-// when initEngine() resolves and again after every runtime commit. Because ES
-// module bindings are live, importers see each new value without re-importing —
-// and all of the surface moves together, which fixes (3) as a side effect.
-//
-// Nothing here is readable until initEngine() has resolved. That is enforced by
-// the boot sequence rather than by defensive checks in 22 files: src/Boot.tsx
-// awaits initEngine() before it renders anything that imports this module.
+// Nothing here is readable until initEngine() has resolved; src/Boot.tsx
+// awaits it before rendering anything that imports this module.
 import { loadGraph } from "../graph/load";
 import { createEngine } from "./create";
 import { buildLiveEngine } from "./liveGraph";
@@ -407,8 +389,7 @@ export type { ObligationParameter, EvaluatedObligation, EvaluatedProof, Obligati
 // only because Boot awaited initEngine(). When Vite hot-replaces it — which
 // happens whenever anything it imports is edited — the new instance starts with
 // every binding below unassigned and initPromise back to null, and nobody calls
-// initEngine() a second time. Pages that read the surface while they evaluate
-// (ExecutiveDashboard's `getAllSystems()` at module scope, for one) then die with
+// initEngine() a second time. Anything that reads the surface then dies with
 // "getAllSystems is not a function", and the app goes blank until a manual
 // refresh.
 //

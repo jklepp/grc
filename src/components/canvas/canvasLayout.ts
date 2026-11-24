@@ -23,11 +23,9 @@ type ActorEntry = FlowLayout["ingressActors"][number];
 // vendorsForSystem returns is a type error here rather than a silent drift.
 export type CanvasVendor = ReturnType<VendorsApi["vendorsForSystem"]>["vendors"][number];
 
-// 190, down from 224. Card WIDTH is what caps how large the canvas can be
-// drawn: seven columns is the widest this boundary gets, and at the old pitch
-// that was 1904px against a ~1360px pane, holding fit-to-view under 0.6
-// however tall the pane became. The 34px comes off a name line that was
-// already truncating either way.
+// Card WIDTH caps how large the canvas can be drawn: seven columns is the
+// widest boundary, and must fit a ~1360px pane without fit-to-view dropping
+// under 0.6.
 export const NODE_W = 190;
 export const ASSET_H = 80;
 export const ACTOR_H = 72;
@@ -403,7 +401,7 @@ export function buildCanvasGraph(input: CanvasInput): CanvasResult {
   // still uses, so the same column is called the same thing wherever you meet
   // it. A role with no columns in this boundary contributes no header.
   const LANES: { role: ColumnRole; id: string; title: string }[] = [
-    // Plain "Actors", not "Inbound Actors": this column now holds staff
+    // Plain "Actors", not "Inbound Actors": this column holds staff
     // arriving through a workforce path as well as customers and partners
     // arriving through the public one, and the engine records those as
     // different directions (internal vs inbound). One of them would be wrong
@@ -412,9 +410,7 @@ export function buildCanvasGraph(input: CanvasInput): CanvasResult {
     // "Outbound Actors" keeps its qualifier because it has not been merged with
     // anything — it is still only what the boundary calls out to.
     { role: "ingress-actors", id: "lane-actors-in", title: "Actors" },
-    // Ingress/Egress rather than Web Ingress/Web Egress: workforce paths were
-    // folded into the ingress column, so "Web" no longer describes everything
-    // sitting under it, and the pair reads better matched.
+    // Not "Web Ingress": workforce paths share this column.
     { role: "boundary", id: "lane-ingress", title: "Ingress" },
     { role: "processing", id: "lane-processing", title: "Data Processing" },
     { role: "egress", id: "lane-egress", title: "Egress" },
@@ -440,12 +436,8 @@ export function buildCanvasGraph(input: CanvasInput): CanvasResult {
   // Every band that DOES have content gets a full-width header strip: its
   // title, how many assets are inside, and — collapsed — how many lines are
   // being withheld. The strip is the click target, so a band is opened by
-  // clicking the thing that names it.
-  //
-  // This replaced a pill in the gutter at x = -COLUMN_PITCH. That pill sat
-  // outside the content's left edge, so it widened the fit-to-view extent by a
-  // whole column for chrome alone, and it scrolled out of sight the moment you
-  // panned right — a band lost its name exactly while you were reading it.
+  // clicking the thing that names it. Keep band labels inside the content's
+  // left edge: a gutter label widens fit-to-view and scrolls away on pan.
   const band = (items: Item[], bandId: CanvasBandId) => {
     if (!items.length) return;
     const collapsed = collapsedBands.has(bandId);

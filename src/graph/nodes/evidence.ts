@@ -1,14 +1,7 @@
 // Evidence — what an assurance claim actually rests on.
 //
-// Before this, "evidence" was two things, neither of them a record: an
-// `evidenceType` string on an asset's category assessment (one of seven enum
-// values, averaged into a confidence score), and an `evidenceRef: "EV-9101"`
-// on a tracked control that pointed at nothing. So an asset could report
-// evidenceConfidence: 96 without there being a single collection anywhere in
-// the app that had happened, covered anything, or passed.
-//
-// Now confidence is computed (engine/implementation.ts) from three things a
-// record actually carries:
+// Confidence is computed (engine/evidence.ts) from three things a record
+// actually carries:
 //
 //   type      — the same seven-value EVIDENCE_TYPES scale, unchanged, because
 //               "who says so" genuinely is the dominant factor.
@@ -26,9 +19,7 @@
 // these tools really work (one Vanta test evaluates every S3 bucket at once,
 // and reporting it as six independent collections would overstate the
 // independence of the finding), and more importantly it means the link is
-// stored exactly once. Putting evidenceIds[] on implementations as well would
-// recreate, inside the graph, the same dual-maintenance problem the graph
-// exists to remove.
+// stored exactly once. Do not add evidenceIds[] to implementations.
 //
 // `result` is the collected outcome. It is the single field to edit to watch
 // propagation work end to end: flip one to "fail" and the implementation, the

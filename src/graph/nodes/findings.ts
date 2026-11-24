@@ -1,17 +1,7 @@
 // Finding — a violation discovered inside a control implementation that
 // already exists, tracked from discovery to close.
 //
-// Before this, "SEC-2260" was a string that happened to be typed
-// consistently across three unconnected places: a note on a maturity
-// override (controlImplementations.ts), a note on an evidence record
-// (evidence.ts), and a hand-authored POA&M row on the system
-// (systems.ts's old `remediation[]`, itself carrying its own copy of
-// `owner`, `due`, `controlId`, `assetId` — a stale `overdue: false` sat next
-// to a due date that had already passed, because nothing recomputed it). A
-// typo in any one of those three places would not have been caught by
-// anything.
-//
-// A Finding is that fact told once. Everything else is derived
+// A Finding is told once. Everything else is derived
 // (engine/findings.ts): evidenceIds come from evidence records that declare
 // `findingId` themselves (matching how evidence already owns its own scope —
 // see evidence.ts), riskIds come from intersecting this finding's asset and
@@ -57,14 +47,7 @@ export interface Finding {
   // unit everything else in the model is keyed on. The asset is where the gap
   // was observed, which is often worth recording and sometimes unknowable: a
   // missing retention schedule or an ungoverned program is not located on one
-  // machine.
-  //
-  // systemId used to be absent and the system was read off the asset instead
-  // (`systemIds: asset.systemIds`), which made the asset structurally required
-  // for a reason that had nothing to do with what a finding is — drop the asset
-  // and the finding fell out of its own system's list. This file already said
-  // as much for program-scoped controls, where validateDerivations notes the
-  // asset "is only where it's tracked".
+  // machine. So systemId is stored, never read off the asset.
   systemId: SystemId;
   controlId: ControlId;
   assetId?: AssetId;
